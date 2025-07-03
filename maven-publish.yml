@@ -1,0 +1,41 @@
+# This workflow will build a Java project with Maven and deploy it to Maven Central
+# For more information see: https://docs.github.com/en/actions
+
+name: Publish package to Maven Central
+
+on:
+  release:
+    types: [published] # Run this workflow when a new GitHub release is published
+  workflow_dispatch:   # Allows you to run this workflow manually from the Actions tab
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          # This server-id must match the one in your pom.xml's <distributionManagement> or nexus-staging-maven-plugin <serverId>
+          server-id: ossrh
+          server-username: OSSRH_USERNAME # env variable for username
+          server-password: OSSRH_TOKEN    # env variable for token
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+      - name: Publish to Maven Central
+        # The -B flag is for non-interactive (batch) mode
+        # The -P release profile can be used to activate plugins only for release
+        # The gpg.passphrase is passed securely to the GPG plugin
+        run: mvn -B deploy --file pom.xml -Dgpg.passphrase=${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}

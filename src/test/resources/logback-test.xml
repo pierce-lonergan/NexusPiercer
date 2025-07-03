@@ -1,0 +1,16 @@
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="WARN">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- Set specific loggers to different levels for testing -->
+    <logger name="com.jpmc.aoa.synthetic" level="DEBUG" />
+    <logger name="org.apache.spark" level="WARN" />
+    <logger name="org.spark_project" level="WARN" />
+</configuration>
