@@ -46,11 +46,15 @@
         <!-- Dependency Versions -->
         <spark.version>3.5.0</spark.version>
         <scala.binary.version>2.12</scala.binary.version>
+        <hadoop.version>3.3.6</hadoop.version>
         <avro.version>1.11.3</avro.version>
         <json.version>20231013</json.version>
-        <poi.version>5.2.5</poi.version> <!-- Updated to latest patch -->
+        <poi.version>5.2.5</poi.version>
+        <jackson.version>2.15.3</jackson.version>
+        <guava.version>32.1.3-jre</guava.version>
+        <commons-io.version>2.15.0</commons-io.version>
+        <snakeyaml.version>2.2</snakeyaml.version> <!-- Note: 2.2 is latest stable, 2.4 doesn't exist -->
         <slf4j.version>2.0.9</slf4j.version>
-        <hadoop.version>3.3.6</hadoop.version>
         <lombok.version>1.18.30</lombok.version>
 
         <!-- Test Dependency Versions -->
@@ -67,12 +71,37 @@
         <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
         <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
     </properties>
+    <!-- ==================================================================== -->
+    <!-- DEPENDENCY MANAGEMENT (Recommends versions, prevents conflicts)      -->
+    <!-- ==================================================================== -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- Jackson: Managed here to align with your version but avoid forcing it on users,
+                 preventing conflicts with Spark's required version. -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <!-- Guava: Also managed by Spark. This recommends your version without forcing it. -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <!-- ==================================================================== -->
-    <!-- DEPENDENCIES                                                         -->
+    <!-- DEPENDENCIES (All your dependencies, correctly scoped)               -->
     <!-- ==================================================================== -->
     <dependencies>
-        <!-- Spark SQL (transitively includes Core, Catalyst, etc.) -->
+        <!-- Spark SQL (transitively includes Core, Catalyst) -->
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_${scala.binary.version}</artifactId>
@@ -80,40 +109,70 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Hadoop Client (Required by Spark, provided by environment) -->
+        <!-- Spark Avro: Let the user provide this with their Spark app -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-avro_${scala.binary.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Hadoop: Required by Spark, provided by the environment -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-client</artifactId>
             <version>${hadoop.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-aws</artifactId>
+            <version>${hadoop.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
-        <!-- Avro (Direct dependency) -->
+        <!-- Core Library Dependencies -->
         <dependency>
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>
             <version>${avro.version}</version>
         </dependency>
-
-        <!-- JSON Processing (Direct dependency) -->
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>${json.version}</version>
         </dependency>
-
-        <!-- Excel Processing (Direct dependency for AvroSchemaFlattener) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
         </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>${commons-io.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>${snakeyaml.version}</version>
+        </dependency>
 
-        <!-- Logging API (A library should only depend on the API) -->
+        <!-- Logging API -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
+        </dependency>
+
+        <!-- Dependencies from dependencyManagement for direct use -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
         </dependency>
 
         <!-- ==================================================================== -->
@@ -121,7 +180,13 @@
         <!-- ==================================================================== -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
