@@ -175,7 +175,7 @@ class NexusPiercerExamplesTest {
                 "Schema validation failed"
         );
     }
-    
+
 
 //    @Test
 //    @DisplayName("Example 2: Streaming JSON from MemoryStream")

@@ -1,10 +1,12 @@
 package io.github.pierce.spark;
 
+import io.github.pierce.JsonFlattenerConsolidator;
 import org.apache.avro.Schema;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
@@ -111,27 +113,36 @@ public class NexusPiercerPatterns {
         }
     }
 
+    // In NexusPiercerPatterns.java
+
     public static Map<String, Dataset<Row>> jsonToNormalizedTables(
             SparkSession spark, String schemaPath, String inputPath,
             String primaryArrayPath, String... secondaryArrayPaths) {
 
         Map<String, Dataset<Row>> tables = new HashMap<>();
 
-        // --- FIX: Process the data ONCE and reuse it ---
+        // Process the data ONCE for the main table.
+        // The key is to use the regular pipeline which flattens everything.
         Dataset<Row> initialData = NexusPiercerSparkPipeline.forBatch(spark)
                 .withSchema(schemaPath)
-                .disableArrayStatistics()
                 .process(inputPath)
                 .getDataset();
+        initialData.cache(); // Cache for reuse
 
-        // --- FIX: More robust logic to find and drop descendant columns ---
+        // --- FIX: Robustly drop all columns related to the arrays ---
         List<String> columnsToDrop = new ArrayList<>();
         List<String> allArrayPaths = new ArrayList<>();
         allArrayPaths.add(primaryArrayPath);
         allArrayPaths.addAll(Arrays.asList(secondaryArrayPaths));
 
         for (String arrayPath : allArrayPaths) {
+            // The simple path name (e.g., "items") might exist as a complex column.
+            String simpleName = arrayPath.contains(".") ? arrayPath.substring(arrayPath.lastIndexOf('.') + 1) : arrayPath;
+            // The flattened prefix (e.g., "items_")
             String prefix = arrayPath.replace(".", "_") + "_";
+
+            // Add both the simple name and any prefixed columns to the drop list.
+            columnsToDrop.add(simpleName);
             for (String colName : initialData.columns()) {
                 if (colName.startsWith(prefix)) {
                     columnsToDrop.add(colName);
@@ -141,8 +152,10 @@ public class NexusPiercerPatterns {
 
         Dataset<Row> mainTable = initialData.drop(columnsToDrop.toArray(new String[0]));
         tables.put("main", mainTable);
+        initialData.unpersist(); // Release cache
 
-        // For explosion, we must re-process the raw data with the explode config.
+        // For explosion, re-process the raw data with the explode config.
+        // This part of your logic is correct.
         NexusPiercerSparkPipeline.ProcessingResult primaryResult =
                 NexusPiercerSparkPipeline.forBatch(spark)
                         .withSchema(schemaPath)
@@ -340,6 +353,8 @@ public class NexusPiercerPatterns {
     /**
      * Schema evolution check
      */
+    // In NexusPiercerPatterns.java
+
     public static boolean checkSchemaCompatibility(
             SparkSession spark,
             String oldSchemaPath, String newSchemaPath,
@@ -348,22 +363,29 @@ public class NexusPiercerPatterns {
             NexusPiercerSparkPipeline.ProcessingResult oldResult =
                     NexusPiercerSparkPipeline.forBatch(spark)
                             .withSchema(oldSchemaPath)
+                            // Use allowSchemaErrors so we can count successful records accurately
+                            .allowSchemaErrors()
                             .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
                             .process(sampleDataPath);
 
             NexusPiercerSparkPipeline.ProcessingResult newResult =
                     NexusPiercerSparkPipeline.forBatch(spark)
                             .withSchema(newSchemaPath)
+                            .allowSchemaErrors()
                             .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
                             .process(sampleDataPath);
 
-            // A better compatibility check: new schema should not introduce more errors.
-            long oldErrors = (oldResult.getErrorDataset() == null) ? 0 : oldResult.getErrorDataset().count();
-            long newErrors = (newResult.getErrorDataset() == null) ? 0 : newResult.getErrorDataset().count();
+            // FIX: A schema is compatible if the number of successfully parsed rows
+            // does not decrease. This correctly handles data type changes that cause nulls.
+            long oldSuccessCount = oldResult.getDataset().count();
+            long newSuccessCount = newResult.getDataset().count();
 
-            return newErrors <= oldErrors;
+            // Adding a new optional field is compatible (counts are equal).
+            // Changing a type to an incompatible one is not (newSuccessCount will be lower).
+            return newSuccessCount >= oldSuccessCount;
 
         } catch (Exception e) {
+            // Any exception during processing means incompatibility.
             return false;
         }
     }
@@ -411,6 +433,12 @@ public class NexusPiercerPatterns {
     /**
      * Profile JSON data structure
      */
+    // In NexusPiercerPatterns.java
+
+    // In NexusPiercerPatterns.java
+
+    // In NexusPiercerPatterns.java
+
     public static Dataset<Row> profileJsonStructure(
             SparkSession spark, String inputPath, int sampleSize) {
 
@@ -419,33 +447,66 @@ public class NexusPiercerPatterns {
                 .limit(sampleSize)
                 .as(org.apache.spark.sql.Encoders.STRING());
 
-        // --- FIX: Provide a fully defined MapType for from_json ---
+        // Filter out malformed JSON
+        Dataset<String> validSample = sample.filter(isValid(col("value")));
+
+        // Use the pipeline's consistent flattener
+        JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
+                ",", null, 50, 1000, false, true
+        );
+
+        UserDefinedFunction profileFlattenerUdf = udf(
+                (String json) -> {
+                    if (json == null) return null;
+                    return flattener.flattenAndConsolidateJson(json);
+                }, DataTypes.StringType
+        );
+
         MapType schema = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
 
-        Dataset<Row> flattened = sample
-                .withColumn("flattened", flattenJsonWithStatistics(col("value")))
+        Dataset<Row> flattened = validSample
+                .withColumn("flattened", profileFlattenerUdf.apply(col("value")))
                 .select(from_json(col("flattened"), schema).as("fields"))
-                .select(explode(col("fields"))); // Use built-in names 'key', 'value'
+                // --- FIX: Use selectExpr to correctly name the output of explode ---
+                .selectExpr("explode(fields) as (key, value)");
 
-        return flattened
+        // Get a set of all field names that are array statistics
+        Set<String> statFields = new HashSet<>(
+                flattened.filter(col("key").rlike(".*_count$|.*_type$|.*_distinct_count$|.*_min_length$|.*_max_length$|.*_avg_length$"))
+                        .select("key").as(org.apache.spark.sql.Encoders.STRING()).collectAsList()
+        );
+
+        // From the stat fields, derive the base array field names
+        Set<String> arrayBaseFields = new HashSet<>();
+        for (String statField : statFields) {
+            arrayBaseFields.add(statField.replaceAll("_(count|type|distinct_count|min_length|max_length|avg_length)$", ""));
+        }
+
+        // Now do the main aggregation
+        Dataset<Row> profiled = flattened
                 .groupBy("key")
                 .agg(
                         count("*").as("occurrences"),
                         countDistinct("value").as("distinct_values"),
-                        first("value").as("sample_value"),
-                        when(col("key").endsWith("_count"), "array_count")
-                                .when(col("key").endsWith("_type"), "array_type")
-                                .when(col("key").endsWith("_distinct_count"), "array_stat")
-                                .when(col("key").endsWith("_min_length"), "array_stat")
-                                .when(col("key").endsWith("_max_length"), "array_stat")
-                                .when(col("key").endsWith("_avg_length"), "array_stat")
-                                .otherwise("field").as("field_type"),
-                        when(col("value").contains(","), true)
-                                .otherwise(false).as("likely_array")
+                        first("value").as("sample_value")
+                );
+
+        // Join the derived information back to classify the fields
+        return profiled
+                .withColumn("field_type",
+                        when(col("key").rlike(".*_count$"), "array_count")
+                                .when(col("key").rlike(".*_type$"), "array_type")
+                                .when(col("key").rlike(".*_distinct_count$|.*_min_length$|.*_max_length$|.*_avg_length$"), "array_stat")
+                                .otherwise("field")
                 )
-                .withColumnRenamed("key", "field") // Rename at the end for clarity
+                .withColumn("likely_array",
+                        // A field is an array if its name is in our derived set of base names
+                        col("key").isin(arrayBaseFields.toArray())
+                )
+                .withColumnRenamed("key", "field")
                 .orderBy("field");
     }
+
 
     // ===== HELPER METHODS =====
 
