@@ -121,6 +121,62 @@ class NexusPiercerExamplesTest {
         );
     }
 
+    @Test
+    @DisplayName("Test lenient schema validation with duplication using allowSchemaErrors()")
+    void testLenientSchemaValidationWithDuplication() throws IOException {
+        // --- Setup (Same as before) ---
+        String schemaContent = """
+            {
+              "type": "record", "name": "UserActivity",
+              "fields": [
+                {"name": "userId", "type": "string"},
+                {"name": "activityType", "type": "string"},
+                {"name": "timestamp", "type": "long"}
+              ]
+            }
+            """;
+        createTestFile("schemas/user_activity.avsc", schemaContent);
+
+        String allJson = String.join("\n",
+                "{\"userId\": \"u1\", \"activityType\": \"login\", \"timestamp\": 1672531200}",
+                "{\"userId\": \"u2\", \"activityType\": \"logout\", \"timestamp\": \"not-a-long\"}",
+                "{not-json}"
+        );
+        Path dataFile = createTestFile("data/input/users/lenient_data.json", allJson);
+
+        // --- Action ---
+        NexusPiercerSparkPipeline.ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
+                .withSchema(tempDir.resolve("schemas/user_activity.avsc").toString())
+                .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
+                .allowSchemaErrors()
+                .process(dataFile.toString());
+
+        // --- Assertions for the lenient duplication case ---
+        Dataset<Row> successDs = result.getDataset();
+        Dataset<Row> errorDs = result.getErrorDataset();
+
+        System.out.println("=== Lenient+Dupe Mode: Successful Records ===");
+        successDs.show(false);
+        System.out.println("=== Lenient+Dupe Mode: Error Records ===");
+        errorDs.show(false);
+
+        // ASSERT SUCCESS DATASET:
+        // Still expect 2 records: the valid one (u1) and the one with the schema error (u2).
+        assertThat(successDs.count()).isEqualTo(2L);
+        assertThat(successDs.select("userId").as(Encoders.STRING()).collectAsList())
+                .containsExactlyInAnyOrder("u1", "u2");
+
+        // ASSERT ERROR DATASET:
+        // NOW expect 2 records: the schema error (u2) AND the syntax error.
+        assertThat(errorDs.count()).isEqualTo(2L);
+        List<String> errorMessages = errorDs.select("_error").as(Encoders.STRING()).collectAsList();
+        assertThat(errorMessages).containsExactlyInAnyOrder(
+                "Malformed JSON string",
+                "Schema validation failed"
+        );
+    }
+    
+
 //    @Test
 //    @DisplayName("Example 2: Streaming JSON from MemoryStream")
 //    void testStreamingExample() throws Exception {
