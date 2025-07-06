@@ -78,6 +78,18 @@ public class AvroSchemaFlattener {
         });
     }
 
+    /**
+     * Flattens a schema without using or populating the static cache.
+     * This is useful when the calling context manages its own caching logic.
+     *
+     * @param schema The Avro schema to flatten.
+     * @return The new, flattened schema.
+     */
+    public Schema getFlattenedSchemaNoCache(Schema schema) {
+        // Directly call the private flatten method, bypassing the cache.
+        return flattenSchema(schema);
+    }
+
     public Schema getFlattenedSchema(Schema schema) {
         String cacheKey = schema.getFullName() + ":" + this.includeArrayStatistics;
         return schemaCache.computeIfAbsent(cacheKey, k -> flattenSchema(schema));

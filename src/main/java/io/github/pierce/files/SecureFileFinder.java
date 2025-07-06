@@ -213,7 +213,11 @@ public class SecureFileFinder {
         // Initialize content cache if enabled
         if (config.enableContentCache) {
             this.contentCache = CacheBuilder.newBuilder()
-                    .maximumSize(config.maxCacheSize / 2)
+                    //
+                    // >>>>>>> FIX: REMOVED a conflicting .maximumSize() call here <<<<<<<
+                    // You cannot set both maximumSize and maximumWeight. Since a weigher is provided,
+                    // maximumWeight is the correct constraint to use.
+                    //
                     .maximumWeight(50L * 1024 * 1024) // 50MB max content cache
                     .weigher((String key, byte[] value) -> value.length)
                     .expireAfterWrite(config.cacheExpireMinutes, TimeUnit.MINUTES)

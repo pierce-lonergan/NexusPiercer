@@ -1,0 +1,45 @@
+{
+  "type": "record",
+  "name": "ProductRecord",
+  "namespace": "src.test.avro",
+  "fields": [
+    {
+      "name": "product_name",
+      "type": "string",
+      "doc": "Product name"
+    },
+    {
+      "name": "price",
+      "type": "double",
+      "doc": "Product price"
+    },
+    {
+      "name": "categories",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "doc": "Product categories"
+    },
+    {
+      "name": "specs",
+      "type": ["null", {
+        "type": "record",
+        "name": "ProductSpecs",
+        "fields": [
+          {
+            "name": "ram",
+            "type": ["null", "string"],
+            "default": null
+          },
+          {
+            "name": "cpu",
+            "type": ["null", "string"],
+            "default": null
+          }
+        ]
+      }],
+      "default": null
+    }
+  ]
+}

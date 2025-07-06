@@ -1,0 +1,42 @@
+{
+  "type": "record",
+  "name": "UserRecord",
+  "namespace": "src.test.avro",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string",
+      "doc": "User's full name"
+    },
+    {
+      "name": "age",
+      "type": "int",
+      "doc": "User's age"
+    },
+    {
+      "name": "address",
+      "type": {
+        "type": "record",
+        "name": "Address",
+        "fields": [
+          {
+            "name": "city",
+            "type": "string"
+          },
+          {
+            "name": "zip",
+            "type": ["null", "string"],
+            "default": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "hobbies",
+      "type": {
+        "type": "array",
+        "items": "string"
+      }
+    }
+  ]
+}

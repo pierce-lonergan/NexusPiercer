@@ -55,7 +55,7 @@ public class AvroSchemaLoader {
             "src/test/resources/schemas",
             "conf/schemas",
             "config/schemas",
-            "avro/schemas"
+            "src/main/avro/schemas"
     };
 
     /**
@@ -161,22 +161,34 @@ public class AvroSchemaLoader {
     public StructType loadFlattenedSchema(String schemaName) throws IOException {
         String cacheKey = schemaName + ":" + includeArrayStatistics;
 
-        // Check cache first
         if (enableCaching && structTypeCache.containsKey(cacheKey)) {
             LOG.debug("Flattened schema {} found in cache", schemaName);
             return structTypeCache.get(cacheKey);
         }
 
-        // Load and flatten the schema
         Schema avroSchema = loadAvroSchema(schemaName);
-        Schema flattenedSchema = new AvroSchemaFlattener(includeArrayStatistics)
-                .getFlattenedSchema(avroSchema);
 
-        // Convert to Spark StructType
-        StructType sparkSchema = CreateSparkStructFromAvroSchema
-                .convertNestedAvroSchemaToSparkSchema(flattenedSchema);
+        Schema flattenedSchema;
+        AvroSchemaFlattener flattener = new AvroSchemaFlattener(includeArrayStatistics);
+        if (enableCaching) {
+            flattenedSchema = flattener.getFlattenedSchema(avroSchema);
+        } else {
+            flattenedSchema = flattener.getFlattenedSchemaNoCache(avroSchema);
+        }
 
-        // Cache the result
+        // --- FINAL FIX: Respect the caching flag for the final conversion step ---
+        StructType sparkSchema;
+        if (enableCaching) {
+            // Use the converter's cache
+            sparkSchema = CreateSparkStructFromAvroSchema
+                    .convertNestedAvroSchemaToSparkSchema(flattenedSchema);
+        } else {
+            // Bypass the converter's cache to ensure a new object is created
+            sparkSchema = CreateSparkStructFromAvroSchema
+                    .convertNestedAvroSchemaToSparkSchemaNoCache(flattenedSchema);
+        }
+        // --- END FIX ---
+
         if (enableCaching) {
             structTypeCache.put(cacheKey, sparkSchema);
         }
