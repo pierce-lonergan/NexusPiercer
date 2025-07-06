@@ -392,14 +392,18 @@ public class AvroSchemaLoader {
     }
 
     private void discoverSchemasInLocalPath(String path, Set<String> schemas) {
-        File dir = new File(path);
-        if (dir.exists() && dir.isDirectory()) {
-            File[] avscFiles = dir.listFiles((d, name) -> name.endsWith(".avsc"));
-            if (avscFiles != null) {
-                for (File file : avscFiles) {
-                    schemas.add(file.getName());
+        try {
+            File dir = new File(path);
+            if (dir.exists() && dir.isDirectory() && dir.canRead()) {
+                File[] avscFiles = dir.listFiles((d, name) -> name.endsWith(".avsc"));
+                if (avscFiles != null) {
+                    for (File file : avscFiles) {
+                        schemas.add(file.getName());
+                    }
                 }
             }
+        } catch (SecurityException e) {
+            LOG.debug("Cannot access directory: {} - {}", path, e.getMessage());
         }
     }
 
@@ -551,28 +555,4 @@ public class AvroSchemaLoader {
         }
     }
 
-//    /**
-//     * Static convenience methods for backward compatibility
-//     */
-//    public static StructType loadFlattenedSchema(String schemaPath) throws IOException {
-//        return createDefault().loadFlattenedSchema(schemaPath);
-//    }
-//
-//    public static Map<String, StructType> loadFlattenedSchemas(String basePath, String[] schemaNames)
-//            throws IOException {
-//        AvroSchemaLoader loader = new Builder()
-//                .addSearchPath(basePath)
-//                .build();
-//
-//        SchemaLoadResult result = loader.loadFlattenedSchemas(schemaNames);
-//
-//        if (result.hasFailures()) {
-//            // For backward compatibility, throw exception on any failure
-//            String failedSchemas = result.getFailedSchemas().keySet().stream()
-//                    .collect(Collectors.joining(", "));
-//            throw new IOException("Failed to load schemas: " + failedSchemas);
-//        }
-//
-//        return result.getSuccessfulSchemas();
-//    }
 }
