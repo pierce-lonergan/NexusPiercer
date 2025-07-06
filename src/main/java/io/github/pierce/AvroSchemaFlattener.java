@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -27,8 +28,9 @@ import java.util.stream.Collectors;
  * Key feature: Automatically converts primitive types to STRING when they are descendants of arrays,
  * since JsonFlattenerConsolidator consolidates array values into comma-separated strings.
  */
-public class AvroSchemaFlattener {
+public class AvroSchemaFlattener implements Serializable {
 
+    private static final long serialVersionUID = 1L;
     private static final Logger LOG = LoggerFactory.getLogger(AvroSchemaFlattener.class);
 
     private static final Map<String, Schema> schemaCache = new ConcurrentHashMap<>();
@@ -625,7 +627,8 @@ public class AvroSchemaFlattener {
     }
 
     // Inner classes for metadata tracking
-    public static class FieldMetadata {
+    public static class FieldMetadata implements Serializable {
+        private static final long serialVersionUID = 1L;
         public final String flattenedName;
         public final String originalPath;
         public final int nestingDepth;
@@ -651,7 +654,8 @@ public class AvroSchemaFlattener {
         }
     }
 
-    public static class TypeTransformation {
+    public static class TypeTransformation implements Serializable {
+        private static final long serialVersionUID = 1L;
         public final String fieldName;
         public final Type originalType;
         public final Type transformedType;
@@ -665,7 +669,8 @@ public class AvroSchemaFlattener {
         }
     }
 
-    public static class SchemaStatistics {
+    public static class SchemaStatistics implements Serializable {
+        private static final long serialVersionUID = 1L;
         public String originalSchemaName = "";
         public int originalFieldCount = 0;
         public int flattenedFieldCount = 0;

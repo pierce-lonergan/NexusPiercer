@@ -3,12 +3,15 @@ package io.github.pierce;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class JsonFlattenerConsolidator {
+public class JsonFlattenerConsolidator implements Serializable {
+    private static final long serialVersionUID = 1L;
+
 
     // Configuration
     private final String arrayDelimiter;
@@ -892,7 +895,8 @@ public class JsonFlattenerConsolidator {
     }
 
     // Helper classes
-    private static class FlattenTask {
+    private static class FlattenTask implements Serializable {
+        private static final long serialVersionUID = 1L;
         String prefix;
         Object value;
         int depth;
@@ -904,7 +908,8 @@ public class JsonFlattenerConsolidator {
         }
     }
 
-    private static class KeyedValue {
+    private static class KeyedValue implements Serializable {
+        private static final long serialVersionUID = 1L;
         String originalFlattenedKey;
         Object value;
         boolean hasArrayIndex;
