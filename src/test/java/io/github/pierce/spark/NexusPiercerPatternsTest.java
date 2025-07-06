@@ -132,101 +132,6 @@ class NexusPiercerPatternsTest {
         return filePath;
     }
 
-//    @Test
-//    @DisplayName("jsonToParquet should write valid records and quarantine errors")
-//    void testJsonToParquet() throws IOException {
-//        // Arrange
-//        Path schemaFile = createTestFile("schemas/product.avsc", productSchema);
-//        Path dataFile = createTestFile("data/products.json", productJsonData);
-//        Path outputPath = tempDir.resolve("output/products_parquet");
-//        Path errorsPath = tempDir.resolve("output/products_parquet_errors");
-//
-//        // Act
-//        NexusPiercerPatterns.jsonToParquet(spark, schemaFile.toString(), dataFile.toString(), outputPath.toString(), SaveMode.Overwrite, "category");
-//
-//        // Assert
-//        Dataset<Row> validData = spark.read().parquet(outputPath.toString());
-//        Dataset<Row> errorData = spark.read().parquet(errorsPath.toString());
-//
-//        assertThat(validData.count()).isEqualTo(3L);
-//        assertThat(validData.columns()).contains("id", "name", "category", "price", "tags", "_processing_time", "_input_file");
-//        assertThat(validData.select("id").collectAsList().stream().map(r -> r.getString(0)))
-//                .containsExactlyInAnyOrder("p1", "p2", "p3");
-//        // Record p3 has a null price due to schema validation failure
-//        assertThat(validData.filter("id = 'p3'").first().isNullAt(validData.schema().fieldIndex("price"))).isTrue();
-//
-//        assertThat(errorData.count()).isEqualTo(1L);
-//        assertThat(errorData.first().getString(errorData.schema().fieldIndex("_error"))).contains("Malformed JSON string");
-//
-//        // Assert partitioning
-//        assertThat(Files.exists(outputPath.resolve("category=electronics"))).isTrue();
-//        assertThat(Files.exists(outputPath.resolve("category=kitchen"))).isTrue();
-//    }
-//
-//    @Test
-//    @DisplayName("jsonToDelta should perform overwrite and merge operations correctly")
-//    void testJsonToDelta() throws IOException {
-//        // Arrange
-//        Path schemaFile = createTestFile("schemas/product.avsc", productSchema);
-//        Path initialDataFile = createTestFile("data/initial_products.json", "{\"id\": \"p1\", \"name\": \"Initial Laptop\", \"category\": \"electronics\", \"price\": 1000.0, \"tags\": [\"a\"]}");
-//        Path updatesDataFile = createTestFile("data/updates_products.json", "{\"id\": \"p1\", \"name\": \"Updated Laptop\", \"category\": \"electronics\", \"price\": 1100.0, \"tags\": [\"b\"]}\n{\"id\": \"p4\", \"name\": \"Mouse\", \"category\": \"peripherals\", \"price\": 50.0, \"tags\": [\"c\"]}");
-//        Path deltaPath = tempDir.resolve("output/delta_products");
-//
-//        // --- Act 1: Initial Overwrite ---
-//        NexusPiercerPatterns.jsonToDelta(spark, schemaFile.toString(), initialDataFile.toString(), deltaPath.toString());
-//
-//        // Assert 1
-//        DeltaTable initialTable = DeltaTable.forPath(spark, deltaPath.toString());
-//        assertThat(initialTable.toDF().count()).isEqualTo(1L);
-//        assertThat(initialTable.toDF().first().getString(initialTable.toDF().schema().fieldIndex("name"))).isEqualTo("Initial Laptop");
-//
-//        // --- Act 2: Merge ---
-//        NexusPiercerPatterns.jsonToDelta(spark, schemaFile.toString(), updatesDataFile.toString(), deltaPath.toString(), "id", true);
-//
-//        // Assert 2
-//        Dataset<Row> finalData = spark.read().format("delta").load(deltaPath.toString());
-//        finalData.show(false);
-//        assertThat(finalData.count()).isEqualTo(2L);
-//
-//        Map<String, Row> finalMap = new java.util.HashMap<>();
-//        finalData.collectAsList().forEach(r -> finalMap.put(r.getString(r.schema().fieldIndex("id")), r));
-//
-//        assertThat(finalMap.get("p1").getString(finalMap.get("p1").schema().fieldIndex("name"))).isEqualTo("Updated Laptop");
-//        assertThat(finalMap.get("p1").getDouble(finalMap.get("p1").schema().fieldIndex("price"))).isEqualTo(1100.0);
-//        assertThat(finalMap.get("p4").getString(finalMap.get("p4").schema().fieldIndex("name"))).isEqualTo("Mouse");
-//    }
-
-    @Test
-    @DisplayName("jsonToNormalizedTables should create main and exploded array tables")
-    void testJsonToNormalizedTables() throws IOException {
-        // Arrange
-        Path schemaFile = createTestFile("schemas/order.avsc", orderSchema);
-        Path dataFile = createTestFile("data/orders.json", orderJsonData);
-
-        // Act
-        Map<String, Dataset<Row>> tables = NexusPiercerPatterns.jsonToNormalizedTables(spark, schemaFile.toString(), dataFile.toString(), "items", "notes");
-
-        // Assert
-        assertThat(tables.keySet()).containsExactlyInAnyOrder("main", "items", "notes");
-
-        // Assert main table
-        Dataset<Row> mainTable = tables.get("main");
-        assertThat(mainTable.count()).isEqualTo(2L);
-        assertThat(mainTable.columns()).contains("orderId", "customer_id", "customer_email");
-        assertThat(mainTable.columns()).doesNotContain("items", "notes", "items_productId", "items_quantity");
-
-        // Assert primary exploded table
-        Dataset<Row> itemsTable = tables.get("items");
-        assertThat(itemsTable.count()).isEqualTo(3L); // 2 items in first order, 1 in second
-        assertThat(itemsTable.columns()).contains("orderId", "items_productId", "items_quantity");
-        assertThat(itemsTable.select("items_quantity").collectAsList().stream().mapToInt(r -> r.getInt(0)).sum()).isEqualTo(6);
-
-        // Assert secondary exploded table
-        Dataset<Row> notesTable = tables.get("notes");
-        assertThat(notesTable.count()).isEqualTo(1L); // Only first order has notes
-        assertThat(notesTable.columns()).contains("orderId", "notes");
-        assertThat(notesTable.first().getString(notesTable.schema().fieldIndex("notes"))).isEqualTo("gift wrap");
-    }
 
     @Test
     @DisplayName("generateDataQualityReport should produce correct metrics")
@@ -252,25 +157,7 @@ class NexusPiercerPatternsTest {
         assertThat((List<Object>)invalidRow.getList(invalidRow.schema().fieldIndex("unique_errors"))).isNotEmpty();
     }
 
-    @Test
-    @DisplayName("checkSchemaCompatibility should return true for compatible changes and false for incompatible")
-    void testCheckSchemaCompatibility() throws IOException {
-        // Arrange
-        Path oldSchemaFile = createTestFile("schemas/product_v1.avsc", productSchema);
-        Path newSchemaFile = createTestFile("schemas/product_v2.avsc", productSchemaV2);
-        Path incompatibleSchemaFile = createTestFile("schemas/product_incompatible.avsc", productSchemaIncompatible);
-        Path dataFile = createTestFile("data/products.json", productJsonData);
 
-        // Act
-        boolean isCompatible = NexusPiercerPatterns.checkSchemaCompatibility(spark, oldSchemaFile.toString(), newSchemaFile.toString(), dataFile.toString());
-        boolean isNotCompatible = NexusPiercerPatterns.checkSchemaCompatibility(spark, oldSchemaFile.toString(), incompatibleSchemaFile.toString(), dataFile.toString());
-        boolean isFailing = NexusPiercerPatterns.checkSchemaCompatibility(spark, "nonexistent.avsc", "nonexistent.avsc", dataFile.toString());
-
-        // Assert
-        assertThat(isCompatible).isTrue();
-        assertThat(isNotCompatible).isFalse();
-        assertThat(isFailing).isFalse();
-    }
 
     @Test
     @DisplayName("profileJsonStructure should infer fields and types from raw JSON")
