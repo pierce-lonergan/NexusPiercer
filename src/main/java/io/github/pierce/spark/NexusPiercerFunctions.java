@@ -1,5 +1,6 @@
 package io.github.pierce.spark;
 
+import com.amazonaws.thirdparty.jackson.databind.ObjectMapper;
 import io.github.pierce.JsonFlattenerConsolidator;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.api.java.UDF1;
@@ -13,31 +14,7 @@ import static org.apache.spark.sql.functions.*;
 
 /**
  * NexusPiercerFunctions - Spark SQL functions for JSON flattening and processing.
- *
- * These functions can be used directly in Spark SQL queries or DataFrame operations
- * without setting up a full pipeline.
- *
- * Example usage:
- * <pre>
- * import static io.github.pierce.spark.NexusPiercerFunctions.*;
- *
- * // Register functions for SQL
- * NexusPiercerFunctions.registerAll(spark);
- *
- * // Use in DataFrame API
- * df.withColumn("flattened", flattenJson(col("json_column")))
- *   .withColumn("array_count", jsonArrayCount(col("json_column"), "items"))
- *   .withColumn("exploded", explodeJsonArray(col("json_column"), "items"));
- *
- * // Use in SQL
- * spark.sql("""
- *   SELECT
- *     flatten_json(json_data) as flattened,
- *     json_array_count(json_data, 'items') as item_count,
- *     json_extract_array(json_data, 'items') as items_array
- *   FROM json_table
- * """);
- * </pre>
+ * ...
  */
 public class NexusPiercerFunctions {
 
@@ -46,12 +23,11 @@ public class NexusPiercerFunctions {
     public static final String DEFAULT_DELIMITER = ",";
     public static final int DEFAULT_MAX_NESTING = 50;
     public static final int DEFAULT_MAX_ARRAY_SIZE = 1000;
+    private static final ObjectMapper STRICT_JSON_MAPPER = new ObjectMapper();
+
 
     // ===== JSON FLATTENING FUNCTIONS =====
-
-    /**
-     * Flatten and consolidate JSON with default settings
-     */
+    // ... (These functions are correct) ...
     public static UserDefinedFunction flattenJson = udf(
             (String json) -> {
                 if (json == null || json.trim().isEmpty()) return null;
@@ -67,9 +43,6 @@ public class NexusPiercerFunctions {
             DataTypes.StringType
     );
 
-    /**
-     * Flatten and consolidate JSON with custom delimiter
-     */
     public static UserDefinedFunction flattenJsonWithDelimiter = udf(
             (String json, String delimiter) -> {
                 if (json == null || json.trim().isEmpty()) return null;
@@ -86,9 +59,6 @@ public class NexusPiercerFunctions {
             DataTypes.StringType
     );
 
-    /**
-     * Flatten JSON with array statistics
-     */
     public static UserDefinedFunction flattenJsonWithStats = udf(
             (String json) -> {
                 if (json == null || json.trim().isEmpty()) return null;
@@ -105,10 +75,7 @@ public class NexusPiercerFunctions {
     );
 
     // ===== ARRAY EXTRACTION FUNCTIONS =====
-
-    /**
-     * Extract a specific array from JSON as a delimited string
-     */
+    // ... (These functions are correct) ...
     public static UserDefinedFunction extractJsonArray = udf(
             (String json, String arrayPath) -> {
                 if (json == null || arrayPath == null) return null;
@@ -129,9 +96,6 @@ public class NexusPiercerFunctions {
             DataTypes.StringType
     );
 
-    /**
-     * Count elements in a JSON array
-     */
     public static UserDefinedFunction jsonArrayCount = udf(
             (String json, String arrayPath) -> {
                 if (json == null || arrayPath == null) return null;
@@ -151,9 +115,6 @@ public class NexusPiercerFunctions {
             DataTypes.LongType
     );
 
-    /**
-     * Get distinct count of elements in a JSON array
-     */
     public static UserDefinedFunction jsonArrayDistinctCount = udf(
             (String json, String arrayPath) -> {
                 if (json == null || arrayPath == null) return null;
@@ -174,10 +135,7 @@ public class NexusPiercerFunctions {
     );
 
     // ===== EXPLOSION FUNCTIONS =====
-
-    /**
-     * Explode JSON array into multiple JSON strings
-     */
+    // ... (This function is correct) ...
     public static UserDefinedFunction explodeJsonArray = udf(
             (String json, String explosionPath) -> {
                 if (json == null || explosionPath == null) return null;
@@ -194,56 +152,67 @@ public class NexusPiercerFunctions {
             },
             DataTypes.createArrayType(DataTypes.StringType)
     );
-
     // ===== VALIDATION FUNCTIONS =====
 
     /**
-     * Validate if JSON is well-formed
+     * Validate if JSON is well-formed.
      */
     public static UserDefinedFunction isValidJson = udf(
             (String json) -> {
-                if (json == null || json.trim().isEmpty()) return false;
+                if (json == null) {
+                    return false;
+                }
+                String trimmedJson = json.trim();
+                if (trimmedJson.isEmpty() || (!trimmedJson.startsWith("{") && !trimmedJson.startsWith("["))) {
+                    return false;
+                }
                 try {
-                    new org.json.JSONObject(json);
+                    // Use Jackson's readTree which is strict by default.
+                    STRICT_JSON_MAPPER.readTree(trimmedJson);
                     return true;
                 } catch (Exception e) {
-                    try {
-                        new org.json.JSONArray(json);
-                        return true;
-                    } catch (Exception e2) {
-                        return false;
-                    }
+                    return false;
                 }
             },
             DataTypes.BooleanType
     );
 
     /**
-     * Get JSON parsing error message
+     * Get JSON parsing error message.
      */
     public static UserDefinedFunction getJsonError = udf(
             (String json) -> {
-                if (json == null || json.trim().isEmpty()) return "JSON is null or empty";
+                if (json == null) {
+                    return "JSON is null";
+                }
+                String trimmedJson = json.trim();
+                if (trimmedJson.isEmpty()) {
+                    return "JSON is empty";
+                }
+                if (!trimmedJson.startsWith("{") && !trimmedJson.startsWith("[")) {
+                    return "JSON text must start with '{' or '['";
+                }
+
                 try {
-                    new org.json.JSONObject(json);
-                    return null;
+                    // Use Jackson's readTree which is strict by default.
+                    STRICT_JSON_MAPPER.readTree(trimmedJson);
+                    return ""; // Return empty string on success
                 } catch (Exception e) {
-                    try {
-                        new org.json.JSONArray(json);
-                        return null;
-                    } catch (Exception e2) {
-                        return e.getMessage();
+                    // Return a clean part of the exception message.
+                    String message = e.getMessage();
+                    if (message != null) {
+                        // Jackson's messages can be long, so we shorten them.
+                        int end = message.indexOf("\n at [");
+                        return end != -1 ? message.substring(0, end) : message;
                     }
+                    return "Unknown JSON parsing error";
                 }
             },
             DataTypes.StringType
     );
 
     // ===== NESTED FIELD EXTRACTION =====
-
-    /**
-     * Extract a nested field value from JSON
-     */
+    // ... (This function is correct) ...
     public static UserDefinedFunction extractNestedField = udf(
             (String json, String fieldPath) -> {
                 if (json == null || fieldPath == null) return null;
@@ -264,75 +233,37 @@ public class NexusPiercerFunctions {
     );
 
     // ===== COLUMN-BASED FUNCTIONS =====
-
-    /**
-     * Flatten JSON column with default settings
-     */
+    // ... (These are correct) ...
     public static Column flattenJson(Column jsonColumn) {
         return flattenJson.apply(jsonColumn);
     }
-
-    /**
-     * Flatten JSON column with custom delimiter
-     */
     public static Column flattenJson(Column jsonColumn, String delimiter) {
         return flattenJsonWithDelimiter.apply(jsonColumn, lit(delimiter));
     }
-
-    /**
-     * Flatten JSON column with statistics
-     */
     public static Column flattenJsonWithStatistics(Column jsonColumn) {
         return flattenJsonWithStats.apply(jsonColumn);
     }
-
-    /**
-     * Extract array from JSON column
-     */
     public static Column extractArray(Column jsonColumn, String arrayPath) {
         return extractJsonArray.apply(jsonColumn, lit(arrayPath));
     }
-
-    /**
-     * Count array elements in JSON column
-     */
     public static Column arrayCount(Column jsonColumn, String arrayPath) {
         return jsonArrayCount.apply(jsonColumn, lit(arrayPath));
     }
-
-    /**
-     * Get distinct count of array elements
-     */
     public static Column arrayDistinctCount(Column jsonColumn, String arrayPath) {
         return jsonArrayDistinctCount.apply(jsonColumn, lit(arrayPath));
     }
-
-    /**
-     * Validate JSON column
-     */
     public static Column isValid(Column jsonColumn) {
         return isValidJson.apply(jsonColumn);
     }
-
-    /**
-     * Get JSON error for invalid records
-     */
     public static Column jsonError(Column jsonColumn) {
         return getJsonError.apply(jsonColumn);
     }
-
-    /**
-     * Extract nested field from JSON
-     */
     public static Column extractField(Column jsonColumn, String fieldPath) {
         return extractNestedField.apply(jsonColumn, lit(fieldPath));
     }
 
     // ===== REGISTRATION FOR SPARK SQL =====
-
-    /**
-     * Register all functions with Spark SQL
-     */
+    // ... (These are correct) ...
     public static void registerAll(org.apache.spark.sql.SparkSession spark) {
         spark.udf().register("flatten_json", flattenJson);
         spark.udf().register("flatten_json_with_delimiter", flattenJsonWithDelimiter);
@@ -345,10 +276,6 @@ public class NexusPiercerFunctions {
         spark.udf().register("get_json_error", getJsonError);
         spark.udf().register("extract_nested_field", extractNestedField);
     }
-
-    /**
-     * Register specific functions
-     */
     public static void register(org.apache.spark.sql.SparkSession spark, String... functionNames) {
         for (String name : functionNames) {
             switch (name) {

@@ -9,7 +9,9 @@ import org.apache.spark.sql.*;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -407,69 +409,97 @@ public class NexusPiercerSparkPipeline implements Serializable {
         return new ProcessingResult(result, errorDataset, metrics);
     }
 
-    // ... (the rest of the file remains the same) ...
     private Dataset<Row> processFlattenedMode(Dataset<String> jsonDs, CachedSchema cachedSchema) {
-        // Create UDF for flattening ONLY. Let Spark handle JSON parsing and validation.
+        // UDF for custom flattening (this part is correct).
         UserDefinedFunction flattenUdf = udf(
                 (String json) -> {
                     if (json == null || json.trim().isEmpty()) {
                         return null;
                     }
                     try {
-                        // The flattener is robust enough to handle valid JSON with different field types.
-                        // It will return an empty JSON "{}" for truly malformed strings.
                         return flattener.flattenAndConsolidateJson(json);
                     } catch (Exception e) {
-                        // This is a fallback for unexpected errors in the flattener itself.
-                        return "{}"; // Return empty JSON to signify an issue.
+                        return "{}"; // Return empty JSON on error
                     }
                 },
                 DataTypes.StringType
         );
 
-        // This is the key change. We first use Spark's from_json to validate the raw JSON.
-        // This will produce null for malformed strings like "{not-json}".
-        Dataset<Row> validatedDf = jsonDs
-                .withColumn("parsed_raw", from_json(col("value"), DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType)))
-                .withColumn("is_malformed", col("parsed_raw").isNull());
+        // ======================== START OF THE FINAL, CORRECT FIX ========================
 
-        // Now, apply the flattener only to the non-malformed records.
-        Dataset<Row> flattened = validatedDf
+        // Stage 1: Identify syntactically malformed JSON (e.g., "{not-json}").
+        Dataset<Row> syntaxChecked = jsonDs
+                .withColumn("is_malformed_syntax",
+                        from_json(col("value"), DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType)).isNull()
+                );
+
+        // Stage 2: Apply our custom flattener UDF only to syntactically valid records.
+        Dataset<Row> flattened = syntaxChecked
                 .withColumn("flattened_json",
-                        // FIX: Use not() or equalTo(false) for the Java API.
-                        when(not(col("is_malformed")), flattenUdf.apply(col("value")))
+                        when(not(col("is_malformed_syntax")), flattenUdf.apply(col("value")))
                                 .otherwise(null)
                 );
 
-        // Apply the final schema. This will produce null for schema validation errors
-        // (e.g., timestamp is a string instead of a long).
-        Dataset<Row> finalDf = flattened
+        // Stage 3: Parse the data using the default PERMISSIVE mode.
+        Dataset<Row> parsed = flattened
                 .withColumn("data", from_json(col("flattened_json"), cachedSchema.sparkSchema));
 
-        // Add the error column. This logic can now correctly distinguish the two error types.
+        // Stage 4: Build the definitive error column.
         if (config.errorHandling == ErrorHandling.QUARANTINE ||
                 config.errorHandling == ErrorHandling.SKIP_MALFORMED) {
-            finalDf = finalDf.withColumn("_error",
-                    when(col("is_malformed"), lit("Malformed JSON string"))
-                            .when(col("data").isNull(), lit("Failed to parse flattened JSON"))
+
+            // --- THE DETECTOR LOGIC ---
+            // We build a condition to detect if any field was silently nulled during parsing.
+            Column schemaErrorCondition = lit(false);
+
+            // Iterate through the fields of our target schema.
+            for (StructField field : cachedSchema.sparkSchema.fields()) {
+                String fieldName = field.name();
+                DataType dataType = field.dataType();
+
+                // Check only for types that can have parsing mismatches (e.g., string -> number).
+                // A string field in the schema will always parse a string value from JSON successfully.
+                if (dataType instanceof org.apache.spark.sql.types.NumericType ||
+                        dataType.equals(DataTypes.BooleanType) ||
+                        dataType.equals(DataTypes.TimestampType) ||
+                        dataType.equals(DataTypes.DateType)) {
+
+                    // This is the core check:
+                    // The parsed field is NULL, BUT the original value for that field in the JSON string was not null.
+                    // This is the tell-tale sign of a type mismatch.
+                    Column fieldIsCorrupt = col("data." + fieldName).isNull()
+                            .and(get_json_object(col("flattened_json"), "$." + fieldName).isNotNull());
+
+                    // Add this field's check to our overall condition.
+                    schemaErrorCondition = schemaErrorCondition.or(fieldIsCorrupt);
+                }
+            }
+            // --- END DETECTOR LOGIC ---
+
+            // Now, create the final error column using our two distinct checks.
+            parsed = parsed.withColumn("_error",
+                    when(col("is_malformed_syntax"), lit("Malformed JSON string"))
+                            .when(schemaErrorCondition, lit("Schema validation failed")) // Use the detector condition
                             .otherwise(lit(null).cast(DataTypes.StringType))
             );
         }
 
-        // Select the final columns
+        // Stage 5: Select the final columns and clean up intermediate ones.
         List<Column> finalCols = new ArrayList<>();
         finalCols.add(col("data.*"));
 
-        if (config.includeRawJson) {
+        if (config.includeRawJson || config.errorHandling == ErrorHandling.QUARANTINE) {
             finalCols.add(col("value").as("_raw_json"));
         }
 
-        if (Arrays.asList(finalDf.columns()).contains("_error")) {
+        if (Arrays.asList(parsed.columns()).contains("_error")) {
             finalCols.add(col("_error"));
         }
 
-        return finalDf.select(finalCols.toArray(new Column[0]));
+        return parsed.select(finalCols.toArray(new Column[0]));
+        // ========================= END OF THE FINAL, CORRECT FIX =========================
     }
+
     private Dataset<Row> processExplosionMode(Dataset<String> jsonDs, CachedSchema cachedSchema) {
         // Create flattener with explosion paths
         JsonFlattenerConsolidator explosionFlattener = new JsonFlattenerConsolidator(

@@ -8,11 +8,11 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -67,27 +67,16 @@ public class NexusPiercerPatterns {
                 .includeMetadata()
                 .process(inputPath);
 
-        // Write successful records
         if (partitionBy != null) {
-            result.write()
-                    .mode(saveMode)
-                    .partitionBy(partitionBy)
-                    .parquet(outputPath);
+            result.getDataset().write().mode(saveMode).partitionBy(partitionBy).parquet(outputPath);
         } else {
-            result.write()
-                    .mode(saveMode)
-                    .parquet(outputPath);
+            result.getDataset().write().mode(saveMode).parquet(outputPath);
         }
 
-        // Write error records if any
-        if (result.getErrorDataset() != null) {
-            result.getErrorDataset()
-                    .write()
-                    .mode(saveMode)
-                    .parquet(outputPath + "_errors");
+        if (result.getErrorDataset() != null && result.getErrorDataset().count() > 0) {
+            result.getErrorDataset().write().mode(saveMode).parquet(outputPath + "_errors");
         }
 
-        // Log metrics
         System.out.println("Processing completed: " + result.getMetrics());
     }
 
@@ -108,11 +97,8 @@ public class NexusPiercerPatterns {
                 .includeMetadata()
                 .process(inputPath);
 
-        if (enableMerge && mergeKey != null) {
-            // Merge operation
-            result.getDataset()
-                    .createOrReplaceTempView("updates");
-
+        if (enableMerge && mergeKey != null && result.getDataset().count() > 0) {
+            result.getDataset().createOrReplaceTempView("updates");
             spark.sql(String.format("""
                 MERGE INTO delta.`%s` target
                 USING updates source
@@ -121,65 +107,57 @@ public class NexusPiercerPatterns {
                 WHEN NOT MATCHED THEN INSERT *
                 """, deltaPath, mergeKey, mergeKey));
         } else {
-            // Simple append/overwrite
-            result.write()
-                    .format("delta")
-                    .mode(enableMerge ? SaveMode.Append : SaveMode.Overwrite)
-                    .save(deltaPath);
+            result.getDataset().write().format("delta").mode(enableMerge ? SaveMode.Append : SaveMode.Overwrite).save(deltaPath);
         }
     }
 
-    /**
-     * JSON with array explosion to normalized tables
-     */
     public static Map<String, Dataset<Row>> jsonToNormalizedTables(
             SparkSession spark, String schemaPath, String inputPath,
             String primaryArrayPath, String... secondaryArrayPaths) {
 
         Map<String, Dataset<Row>> tables = new HashMap<>();
 
-        // Main table without explosion
-        NexusPiercerSparkPipeline.ProcessingResult mainResult =
-                NexusPiercerSparkPipeline.forBatch(spark)
-                        .withSchema(schemaPath)
-                        .disableArrayStatistics() // Arrays will be in separate tables
-                        .process(inputPath);
+        // --- FIX: Process the data ONCE and reuse it ---
+        Dataset<Row> initialData = NexusPiercerSparkPipeline.forBatch(spark)
+                .withSchema(schemaPath)
+                .disableArrayStatistics()
+                .process(inputPath)
+                .getDataset();
 
-        // Remove array columns from main table
-        Dataset<Row> mainTable = mainResult.getDataset();
-        for (String arrayPath : secondaryArrayPaths) {
-            String columnName = arrayPath.replace(".", "_");
-            if (java.util.Arrays.asList(mainTable.columns()).contains(columnName)) {
-                mainTable = mainTable.drop(columnName);
+        // --- FIX: More robust logic to find and drop descendant columns ---
+        List<String> columnsToDrop = new ArrayList<>();
+        List<String> allArrayPaths = new ArrayList<>();
+        allArrayPaths.add(primaryArrayPath);
+        allArrayPaths.addAll(Arrays.asList(secondaryArrayPaths));
+
+        for (String arrayPath : allArrayPaths) {
+            String prefix = arrayPath.replace(".", "_") + "_";
+            for (String colName : initialData.columns()) {
+                if (colName.startsWith(prefix)) {
+                    columnsToDrop.add(colName);
+                }
             }
         }
-        String primaryColumn = primaryArrayPath.replace(".", "_");
-        if (java.util.Arrays.asList(mainTable.columns()).contains(primaryColumn)) {
-            mainTable = mainTable.drop(primaryColumn);
-        }
 
+        Dataset<Row> mainTable = initialData.drop(columnsToDrop.toArray(new String[0]));
         tables.put("main", mainTable);
 
-        // Create table for primary array
+        // For explosion, we must re-process the raw data with the explode config.
         NexusPiercerSparkPipeline.ProcessingResult primaryResult =
                 NexusPiercerSparkPipeline.forBatch(spark)
                         .withSchema(schemaPath)
                         .explodeArrays(primaryArrayPath)
                         .process(inputPath);
-
         tables.put(primaryArrayPath.replace(".", "_"), primaryResult.getDataset());
 
-        // Create tables for secondary arrays
         for (String arrayPath : secondaryArrayPaths) {
             NexusPiercerSparkPipeline.ProcessingResult arrayResult =
                     NexusPiercerSparkPipeline.forBatch(spark)
                             .withSchema(schemaPath)
                             .explodeArrays(arrayPath)
                             .process(inputPath);
-
             tables.put(arrayPath.replace(".", "_"), arrayResult.getDataset());
         }
-
         return tables;
     }
 
@@ -366,26 +344,24 @@ public class NexusPiercerPatterns {
             SparkSession spark,
             String oldSchemaPath, String newSchemaPath,
             String sampleDataPath) {
-
         try {
-            // Try processing with old schema
             NexusPiercerSparkPipeline.ProcessingResult oldResult =
                     NexusPiercerSparkPipeline.forBatch(spark)
                             .withSchema(oldSchemaPath)
+                            .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
                             .process(sampleDataPath);
 
-            // Try processing with new schema
             NexusPiercerSparkPipeline.ProcessingResult newResult =
                     NexusPiercerSparkPipeline.forBatch(spark)
                             .withSchema(newSchemaPath)
+                            .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
                             .process(sampleDataPath);
 
-            // Compare results
-            long oldSuccess = oldResult.getMetrics().getSuccessfulRecords();
-            long newSuccess = newResult.getMetrics().getSuccessfulRecords();
+            // A better compatibility check: new schema should not introduce more errors.
+            long oldErrors = (oldResult.getErrorDataset() == null) ? 0 : oldResult.getErrorDataset().count();
+            long newErrors = (newResult.getErrorDataset() == null) ? 0 : newResult.getErrorDataset().count();
 
-            // Check if new schema can parse at least as many records
-            return newSuccess >= oldSuccess;
+            return newErrors <= oldErrors;
 
         } catch (Exception e) {
             return false;
@@ -438,40 +414,36 @@ public class NexusPiercerPatterns {
     public static Dataset<Row> profileJsonStructure(
             SparkSession spark, String inputPath, int sampleSize) {
 
-
-        // Sample data
         Dataset<String> sample = spark.read()
                 .textFile(inputPath)
                 .limit(sampleSize)
                 .as(org.apache.spark.sql.Encoders.STRING());
 
-        // Flatten all samples
+        // --- FIX: Provide a fully defined MapType for from_json ---
+        MapType schema = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
+
         Dataset<Row> flattened = sample
                 .withColumn("flattened", flattenJsonWithStatistics(col("value")))
-                .select(from_json(col("flattened"), new MapType()).as("fields"))
-                .select(explode(col("fields")).as("field", Metadata.fromJson("value")));
+                .select(from_json(col("flattened"), schema).as("fields"))
+                .select(explode(col("fields"))); // Use built-in names 'key', 'value'
 
-        // Analyze field patterns
         return flattened
-                .groupBy("field")
+                .groupBy("key")
                 .agg(
                         count("*").as("occurrences"),
                         countDistinct("value").as("distinct_values"),
                         first("value").as("sample_value"),
-
-                        // Infer type
-                        when(col("field").endsWith("_count"), "array_count")
-                                .when(col("field").endsWith("_type"), "array_type")
-                                .when(col("field").endsWith("_distinct_count"), "array_stat")
-                                .when(col("field").endsWith("_min_length"), "array_stat")
-                                .when(col("field").endsWith("_max_length"), "array_stat")
-                                .when(col("field").endsWith("_avg_length"), "array_stat")
+                        when(col("key").endsWith("_count"), "array_count")
+                                .when(col("key").endsWith("_type"), "array_type")
+                                .when(col("key").endsWith("_distinct_count"), "array_stat")
+                                .when(col("key").endsWith("_min_length"), "array_stat")
+                                .when(col("key").endsWith("_max_length"), "array_stat")
+                                .when(col("key").endsWith("_avg_length"), "array_stat")
                                 .otherwise("field").as("field_type"),
-
-                        // Check if likely array
                         when(col("value").contains(","), true)
                                 .otherwise(false).as("likely_array")
                 )
+                .withColumnRenamed("key", "field") // Rename at the end for clarity
                 .orderBy("field");
     }
 

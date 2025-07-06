@@ -100,30 +100,25 @@ class NexusPiercerExamplesTest {
         Dataset<Row> successDs = result.getDataset();
         Dataset<Row> errorDs = result.getErrorDataset();
 
-        System.out.println("=== Successful Records (After Fix) ===");
+        System.out.println("=== Successful Records ===");
         successDs.show(false);
-        System.out.println("=== Error Records (After Fix) ===");
+        System.out.println("=== Error Records ===");
         errorDs.show(false);
 
-        // FIX: Update assertions to reflect correct PERMISSIVE parsing behavior.
-        // Record u1: Success.
-        // Record u2: Syntactically valid, flattened, but fails final schema parsing.
-        // Record u3: Malformed.
-        // The current pipeline logic correctly identifies malformed, but from_json (permissive) passes u2.
-        assertThat((long) successDs.count()).isEqualTo(2L);
-        assertThat((long) errorDs.count()).isEqualTo(1L);
+        // Assertions updated to match the new, correct logic
+        assertThat((long) successDs.count()).isEqualTo(1L); // Only u1 is fully valid
+        assertThat((long) errorDs.count()).isEqualTo(2L);   // u2 (schema error) and {not-json} (malformed) are errors
 
-        // Verify the contents of the successful records
+        // Verify the contents of the single successful record
         List<String> successUserIds = successDs.select("userId").as(Encoders.STRING()).collectAsList();
-        assertThat(successUserIds).containsExactlyInAnyOrder("u1", "u2");
+        assertThat(successUserIds).containsExactly("u1");
 
-        // Verify that the record with the bad timestamp has a null value for that field
-        Row u2_row = successDs.filter("userId = 'u2'").first();
-        assertThat((String) u2_row.getAs("timestamp")).isNull();
-
-        // Verify the error message for the single malformed record
+        // Verify the error messages for the two failed records
         List<String> errorMessages = errorDs.select("_error").as(Encoders.STRING()).collectAsList();
-        assertThat(errorMessages).containsExactly("Malformed JSON string");
+        assertThat(errorMessages).containsExactlyInAnyOrder(
+                "Malformed JSON string",
+                "Schema validation failed"
+        );
     }
 
 //    @Test
