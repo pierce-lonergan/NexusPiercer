@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class JsonFlattenerExplosionTest {
 
-    // ===== EXISTING TESTS =====
+
 
     @Test
     @DisplayName("Default behavior - no explosion returns single record")
@@ -36,17 +36,17 @@ public class JsonFlattenerExplosionTest {
             }
             """;
 
-        // No explosion paths
+
         JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
                 ",", null, 50, 1000, false, false
         );
 
-        // Should return single consolidated record
+
         String result = flattener.flattenAndConsolidateJson(json);
         assertThat(result).contains("\"items\":\"A,B,C\"");
         assertThat(result).contains("\"customer_addresses_city\":\"NYC,LA\"");
 
-        // Explode method should also return single record when no paths specified
+
         List<String> exploded = flattener.flattenAndExplodeJson(json);
         assertThat(exploded).hasSize(1);
         assertThat(exploded.get(0)).isEqualTo(result);
@@ -63,7 +63,7 @@ public class JsonFlattenerExplosionTest {
             }
             """;
 
-        // Explode on items
+
         JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
                 ",", null, 50, 1000, false, false, "items"
         );
@@ -71,7 +71,7 @@ public class JsonFlattenerExplosionTest {
         List<String> exploded = flattener.flattenAndExplodeJson(json);
         assertThat(exploded).hasSize(3);
 
-        // Each record should have one item
+
         JSONObject record1 = new JSONObject(exploded.get(0));
         assertThat(record1.getString("items")).isEqualTo("Widget");
         assertThat(record1.getLong("items_explosion_index")).isEqualTo(0);
@@ -108,7 +108,7 @@ public class JsonFlattenerExplosionTest {
             }
             """;
 
-        // Explode on departments
+
         JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
                 ",", null, 50, 1000, false, false, "departments"
         );

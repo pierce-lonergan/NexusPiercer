@@ -53,7 +53,7 @@ class NexusPiercerSparkPipelineTest extends SparkTestBase {
     @Test
     @DisplayName("Should process simple JSON with basic configuration")
     void testBasicProcessing() {
-        // Create test data
+
         List<String> jsonData = Arrays.asList(
                 """
                 {
@@ -83,22 +83,22 @@ class NexusPiercerSparkPipelineTest extends SparkTestBase {
 
         Dataset<String> jsonDs = spark.createDataset(jsonData, org.apache.spark.sql.Encoders.STRING());
 
-        // Process with pipeline
+
         NexusPiercerSparkPipeline.ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
                 .withSchema(testSchema)
                 .enableArrayStatistics()
                 .processDataset(jsonDs);
 
-        // Verify results
+
         Dataset<Row> processed = result.getDataset();
         assertThat(processed.count()).isEqualTo(2);
 
-        // Check schema
+
         List<String> columns = Arrays.asList(processed.columns());
         assertThat(columns).contains("id", "name", "value", "tags", "metadata_source", "metadata_timestamp");
-        assertThat(columns).contains("tags_count", "tags_distinct_count"); // Array statistics
+        assertThat(columns).contains("tags_count", "tags_distinct_count");
 
-        // Check data
+
         Row firstRow = processed.filter(col("id").equalTo("1")).first();
         assertThat(firstRow.<String>getAs("name")).isEqualTo("Test Item 1");
         assertThat(firstRow.<Double>getAs("value")).isEqualTo(99.99);
@@ -113,30 +113,30 @@ class NexusPiercerSparkPipelineTest extends SparkTestBase {
         List<String> jsonData = Arrays.asList(
                 "{\"id\": \"1\", \"name\": \"Valid\", \"value\": 10.0, \"tags\": [], \"metadata\": {\"source\": \"test\", \"timestamp\": 123}}",
                 "{invalid json}",
-                "{\"id\": \"3\"}" // Missing required fields but valid JSON
+                "{\"id\": \"3\"}"
         );
 
         Dataset<String> jsonDs = spark.createDataset(jsonData, org.apache.spark.sql.Encoders.STRING());
 
-        // Test SKIP_MALFORMED - should skip the malformed JSON
+
         NexusPiercerSparkPipeline.ProcessingResult skipResult = NexusPiercerSparkPipeline.forBatch(spark)
                 .withSchema(testSchema)
                 .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.SKIP_MALFORMED)
                 .processDataset(jsonDs);
 
-        // Should have 1 or 2 records (depending on whether the incomplete JSON validates against schema)
+
         long skipCount = skipResult.getDataset().count();
         assertThat(skipCount).isGreaterThanOrEqualTo(1);
         assertThat(skipCount).isLessThanOrEqualTo(2);
 
-        // Test QUARANTINE - should separate good and bad records
+
         NexusPiercerSparkPipeline.ProcessingResult quarantineResult = NexusPiercerSparkPipeline.forBatch(spark)
                 .withSchema(testSchema)
                 .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
                 .includeRawJson()
                 .processDataset(jsonDs);
 
-        // Check the datasets
+
         Dataset<Row> goodDs = quarantineResult.getDataset();
         Dataset<Row> errorDs = quarantineResult.getErrorDataset();
 
@@ -145,18 +145,18 @@ class NexusPiercerSparkPipelineTest extends SparkTestBase {
         long goodCount = goodDs.count();
         long errorCount = errorDs.count();
 
-        // Total should be 3
+
         assertThat(goodCount + errorCount).isEqualTo(3);
-        // At least the malformed JSON should be in error dataset
+
         assertThat(errorCount).isGreaterThanOrEqualTo(1);
-        // Verify the fully valid record is in the good dataset
+
         List<Row> goodRows = goodDs.collectAsList();
         boolean foundValidRecord = goodRows.stream()
                 .anyMatch(row -> "1".equals(row.<String>getAs("id")) &&
                         "Valid".equals(row.<String>getAs("name")));
         assertThat(foundValidRecord).isTrue();
 
-        // Verify the malformed JSON is in the error dataset
+
         List<Row> errorRows = errorDs.collectAsList();
         boolean foundMalformed = errorRows.stream()
                 .anyMatch(row -> {

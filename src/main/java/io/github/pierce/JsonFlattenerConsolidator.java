@@ -13,7 +13,7 @@ public class JsonFlattenerConsolidator implements Serializable {
     private static final long serialVersionUID = 1L;
 
 
-    // Configuration
+
     private final String arrayDelimiter;
     private final String nullPlaceholder;
     private final int maxNestingDepth;
@@ -21,20 +21,20 @@ public class JsonFlattenerConsolidator implements Serializable {
     private final boolean consolidateWithMatrixDenotorsInValue;
     private final boolean gatherStatistics;
 
-    // Array explosion configuration
+
     private final Set<String> explosionPaths;
     private final boolean explosionEnabled;
 
-    // Track which fields were originally arrays
+
     private final Set<String> arrayFields = new HashSet<>();
 
-    // Patterns for consolidation
+
     private static final Pattern ARRAY_INDEX_STRIP_PATTERN = Pattern.compile("\\[\\d+\\]");
     private static final Pattern ALL_INDICES_PATTERN = Pattern.compile("\\[(\\d+)\\]");
     private static final Pattern MALFORMED_JSON_PATTERN = Pattern.compile("[:,\\[]\\s*(undefined|NaN)\\s*[,\\}\\]]");
     private static final Pattern ARRAY_INDEX_PATTERN = Pattern.compile("(.+?)\\[(\\d+)\\](.*)");
 
-    // New constructor with explosion paths
+
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue,
@@ -50,7 +50,7 @@ public class JsonFlattenerConsolidator implements Serializable {
         this.explosionEnabled = explosionPaths.length > 0;
     }
 
-    // Backward compatibility constructor (statistics enabled by default)
+
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue) {
@@ -58,7 +58,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                 consolidateWithMatrixDenotorsInValue, true);
     }
 
-    // Backward compatibility constructor (no explosion)
+
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue,
@@ -77,10 +77,10 @@ public class JsonFlattenerConsolidator implements Serializable {
         }
 
         try {
-            // More aggressive trimming to handle text blocks and whitespace
+
             String trimmed = jsonString.trim();
 
-            // Remove potential BOM (Byte Order Mark) characters
+
             if (trimmed.startsWith("\uFEFF")) {
                 trimmed = trimmed.substring(1);
             }

@@ -30,7 +30,7 @@ class AvroSchemaFlattenerEnhancedTest {
     @BeforeEach
     void setUp() {
         AvroSchemaFlattener.clearCache();
-        flattener = new AvroSchemaFlattener(); // Using no-arg constructor
+        flattener = new AvroSchemaFlattener();
         flattenerWithStats = new AvroSchemaFlattener(true);
     }
 
@@ -51,7 +51,7 @@ class AvroSchemaFlattenerEnhancedTest {
         Schema schema = new Schema.Parser().parse(schemaJson);
         Schema flattened = flattener.getFlattenedSchema(schema);
 
-        // Should have only base fields, no statistics
+
         assertThat(flattened.getFields()).hasSize(2);
         assertThat(flattened.getField("tags_count")).isNull();
     }
@@ -99,10 +99,10 @@ class AvroSchemaFlattenerEnhancedTest {
         Schema schema = new Schema.Parser().parse(schemaJson);
         Schema flattened = flattenerWithStats.getFlattenedSchema(schema);
 
-        // Get fields within arrays
+
         Set<String> fieldsWithinArrays = flattenerWithStats.getFieldsWithinArrays();
 
-        // These fields should be identified as being within arrays
+
         assertThat(fieldsWithinArrays).containsExactlyInAnyOrder(
                 "items_product",
                 "items_quantity",
@@ -111,7 +111,7 @@ class AvroSchemaFlattenerEnhancedTest {
                 "items_attributes_size"
         );
 
-        // Verify type transformations for primitive fields within arrays
+
         Map<String, AvroSchemaFlattener.TypeTransformation> transformations =
                 flattenerWithStats.getTypeTransformations();
 
@@ -151,10 +151,10 @@ class AvroSchemaFlattenerEnhancedTest {
         Schema schema = new Schema.Parser().parse(schemaJson);
         flattenerWithStats.getFlattenedSchema(schema);
 
-        // Get metadata
+
         List<AvroSchemaFlattener.FieldMetadata> metadata = flattenerWithStats.getFieldMetadata();
 
-        // Find specific field metadata
+
         AvroSchemaFlattener.FieldMetadata idField = metadata.stream()
                 .filter(f -> f.flattenedName.equals("id"))
                 .findFirst()
@@ -163,9 +163,9 @@ class AvroSchemaFlattenerEnhancedTest {
         assertThat(idField.originalPath).isEqualTo("id");
         assertThat(idField.nestingDepth).isEqualTo(0);
         assertThat(idField.documentation).isEqualTo("Unique identifier");
-        assertThat(idField.isNullable).isFalse(); // Made nullable during flattening
+        assertThat(idField.isNullable).isFalse();
 
-        // Check nested field
+
         AvroSchemaFlattener.FieldMetadata versionField = metadata.stream()
                 .filter(f -> f.flattenedName.equals("metadata_version"))
                 .findFirst()
@@ -174,7 +174,7 @@ class AvroSchemaFlattenerEnhancedTest {
         assertThat(versionField.originalPath).isEqualTo("metadata.version");
         assertThat(versionField.nestingDepth).isEqualTo(1);
 
-        // Check array field
+
         AvroSchemaFlattener.FieldMetadata tagsField = metadata.stream()
                 .filter(f -> f.flattenedName.equals("metadata_tags"))
                 .findFirst()
@@ -270,11 +270,11 @@ class AvroSchemaFlattenerEnhancedTest {
         Schema schema = new Schema.Parser().parse(schemaJson);
         flattenerWithStats.getFlattenedSchema(schema);
 
-        // Export to Excel
+
         Path excelPath = tempDir.resolve("schema_analysis.xlsx");
         flattenerWithStats.exportToExcel(excelPath.toString());
 
-        // Verify file was created
+
         assertThat(excelPath).exists();
         assertThat(excelPath).isRegularFile();
         assertThat(excelPath.toFile().length()).isGreaterThan(0);
@@ -282,7 +282,7 @@ class AvroSchemaFlattenerEnhancedTest {
 
     @Test
     void testBackwardCompatibility() {
-        // This test ensures all existing functionality still works
+
         String schemaJson = """
             {
               "type": "record",
@@ -308,7 +308,7 @@ class AvroSchemaFlattenerEnhancedTest {
 
         Schema schema = new Schema.Parser().parse(schemaJson);
 
-        // Test with statistics disabled
+
         Schema flattenedNoStats = flattener.getFlattenedSchema(schema);
         assertThat(flattenedNoStats.getFields()).hasSize(4);
 

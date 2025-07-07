@@ -43,7 +43,7 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
 
     @Test
     void testEndToEndCompatibility() {
-        // Step 1: Define a complex Avro schema
+
         String avroSchemaJson = """
             {
               "type": "record",
@@ -95,7 +95,7 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
             }
             """;
 
-        // Step 2: Create sample JSON data that matches the schema
+
         String sampleJson = """
             {
               "userId": "user123",
@@ -131,21 +131,21 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
             }
             """;
 
-        // Step 3: Flatten the JSON using JsonFlattenerConsolidator
+
         JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
                 ",", null, 50, 1000, false
         );
         String flattenedJson = flattener.flattenAndConsolidateJson(sampleJson);
-        // Step 4: Flatten the Avro schema
+
         Schema avroSchema = new Schema.Parser().parse(avroSchemaJson);
         AvroSchemaFlattener schemaFlattener = new AvroSchemaFlattener(true);
         Schema flattenedAvroSchema = schemaFlattener.getFlattenedSchema(avroSchema);
 
-        // Step 5: Convert to Spark schema
+
         StructType sparkSchema = CreateSparkStructFromAvroSchema
                 .convertNestedAvroSchemaToSparkSchema(flattenedAvroSchema);
 
-        // Step 6: Parse the flattened JSON with the Spark schema
+
         List<Row> data = List.of(RowFactory.create(flattenedJson));
         Dataset<Row> jsonDf = spark.createDataFrame(data,
                 new StructType().add("json_data", DataTypes.StringType));
@@ -153,20 +153,20 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
         Dataset<Row> parsedDf = jsonDf.select(from_json(col("json_data"), sparkSchema).as("data"))
                 .select("data.*");
 
-        // Step 7: Verify the data was parsed correctly
+
         Row result = parsedDf.first();
 
-        // Basic fields
+
         assertThat(result.<String>getAs("userId")).isEqualTo("user123");
         assertThat(result.<Long>getAs("timestamp")).isEqualTo(1641024000000L);
 
-        // Nested fields (flattened with underscores)
+
         assertThat(result.<String>getAs("profile_name")).isEqualTo("John Doe");
         assertThat(result.<String>getAs("profile_email")).isEqualTo("john@example.com");
         assertThat(result.<String>getAs("profile_preferences_language")).isEqualTo("en");
         assertThat(result.<Boolean>getAs("profile_preferences_notifications")).isTrue();
 
-        // Array fields (consolidated)
+
         assertThat(result.<String>getAs("tags")).isEqualTo("premium,active,verified");
         assertThat(result.<Long>getAs("tags_count")).isEqualTo(3L);
         assertThat(result.<Long>getAs("tags_distinct_count")).isEqualTo(3L);
@@ -174,7 +174,7 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
         assertThat(result.<String>getAs("scores")).isEqualTo("0.95,0.87,0.92");
         assertThat(result.<Long>getAs("scores_count")).isEqualTo(3L);
 
-        // Complex array fields (consolidated from objects)
+
         assertThat(result.<String>getAs("activities_action")).isEqualTo("login,purchase");
 
     }
@@ -205,7 +205,7 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
             }
             """;
 
-        // Test with nulls
+
         String jsonWithNulls = """
             {
               "required": "value",
@@ -222,7 +222,7 @@ class SchemaCompatibilityIntegrationTest extends SparkTestBase {
             assertThat((Object) row.getAs("nested_value")).isNull();
         });
 
-        // Test with values
+
         String jsonWithValues = """
             {
               "required": "value",

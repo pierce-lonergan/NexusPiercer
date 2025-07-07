@@ -31,7 +31,7 @@ class AvroSchemaFlattenerCompatibilityTest {
 
     @Test
     void testIdenticalOutputForAllTestCases() {
-        // Test case 1: Complex nested schema
+
         String complexSchema = """
         {
           "type": "record",
@@ -92,7 +92,7 @@ class AvroSchemaFlattenerCompatibilityTest {
 
     @Test
     void testEdgeCases() {
-        // Edge case 1: Deeply nested arrays
+
         String nestedArrays = """
         {
           "type": "record",
@@ -117,7 +117,7 @@ class AvroSchemaFlattenerCompatibilityTest {
         """;
         verifyIdenticalOutput(nestedArrays);
 
-        // Edge case 2: Multiple union types
+
         String unions = """
         {
           "type": "record",
@@ -132,7 +132,7 @@ class AvroSchemaFlattenerCompatibilityTest {
         """;
         verifyIdenticalOutput(unions);
 
-        // Edge case 3: All field types
+
         String allTypes = """
         {
           "type": "record",
@@ -192,38 +192,38 @@ class AvroSchemaFlattenerCompatibilityTest {
                 .collect(Collectors.toList());
 
         if (includeStats) {
-            // With statistics
+
             assertThat(fieldNames).contains(
                     "tags_count", "tags_distinct_count", "tags_min_length",
                     "tags_max_length", "tags_avg_length", "tags_type",
                     "nested_values_count", "nested_values_distinct_count"
             );
         } else {
-            // Without statistics
+
             assertThat(fieldNames).doesNotContain(
                     "tags_count", "nested_values_count"
             );
         }
 
-        // Basic fields should always be present
+
         assertThat(fieldNames).contains("id", "tags", "nested_values");
     }
 
     private void verifyIdenticalOutput(String schemaJson) {
         Schema schema = new Schema.Parser().parse(schemaJson);
 
-        // Test without statistics
+
         Schema flattened1 = flattener.getFlattenedSchema(schema);
         List<String> fields1 = getFieldNamesInOrder(flattened1);
 
-        // Clear cache and test again to ensure consistency
+
         AvroSchemaFlattener.clearCache();
         Schema flattened2 = flattener.getFlattenedSchema(schema);
         List<String> fields2 = getFieldNamesInOrder(flattened2);
 
         assertThat(fields1).isEqualTo(fields2);
 
-        // Test with statistics
+
         Schema flattenedStats1 = flattenerWithStats.getFlattenedSchema(schema);
         List<String> fieldsStats1 = getFieldNamesInOrder(flattenedStats1);
 

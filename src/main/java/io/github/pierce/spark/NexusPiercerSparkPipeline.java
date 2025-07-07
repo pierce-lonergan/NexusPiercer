@@ -5,6 +5,7 @@ import io.github.pierce.CreateSparkStructFromAvroSchema;
 import io.github.pierce.JsonFlattenerConsolidator;
 import io.github.pierce.files.FileFinder;
 import org.apache.avro.Schema;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.streaming.DataStreamWriter;
@@ -25,21 +26,21 @@ import java.util.stream.Collectors;
 
 import static org.apache.spark.sql.functions.*;
 
-// ... (class javadoc and other methods remain the same) ...
+
 public class NexusPiercerSparkPipeline implements Serializable {
 
-    // ... fields, enums, inner classes ...
+
     private static final Logger LOG = LoggerFactory.getLogger(NexusPiercerSparkPipeline.class);
     private static final long serialVersionUID = 1L;
 
-    // Cache for schemas to improve performance
+
     private static final Map<String, CachedSchema> SCHEMA_CACHE = new ConcurrentHashMap<>();
 
     private final SparkSession spark;
     private final PipelineMode mode;
     private final PipelineConfig config;
 
-    // Cached objects
+
     private JsonFlattenerConsolidator flattener;
     private AvroSchemaFlattener schemaFlattener;
 
@@ -55,10 +56,10 @@ public class NexusPiercerSparkPipeline implements Serializable {
      * Error handling strategies
      */
     public enum ErrorHandling {
-        FAIL_FAST,      // Fail on first error
-        SKIP_MALFORMED, // Skip malformed records
-        QUARANTINE,     // Move bad records to error dataset
-        PERMISSIVE      // Try to parse what's possible
+        FAIL_FAST,
+        SKIP_MALFORMED,
+        QUARANTINE,
+        PERMISSIVE
     }
 
     /**
@@ -75,7 +76,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         return this;
     }
 
-// You could also add an explicit "enable" method for clarity if you wish:
+
     /**
      * Enables quarantining for schema validation errors (default behavior).
      * Records with fields that fail to parse will be moved to the error dataset.
@@ -91,34 +92,34 @@ public class NexusPiercerSparkPipeline implements Serializable {
      */
     public static class PipelineConfig implements Serializable {
         private static final long serialVersionUID = 1L;
-        // Schema configuration
+
         private String schemaPath;
         private Schema avroSchema;
         private boolean includeArrayStatistics = true;
-        private boolean quarantineSchemaErrors = true; // Default to the strict behavior
+        private boolean quarantineSchemaErrors = true;
 
-        // JSON flattening configuration
+
         private String arrayDelimiter = ",";
         private String nullPlaceholder = null;
         private int maxNestingDepth = 50;
         private int maxArraySize = 1000;
         private boolean consolidateWithMatrixDenotors = false;
 
-        // Array explosion configuration
+
         private final Set<String> explosionPaths = new HashSet<>();
 
-        // Processing configuration
+
         private ErrorHandling errorHandling = ErrorHandling.SKIP_MALFORMED;
         private boolean enableMetrics = true;
         private boolean cacheSchemas = true;
-        private int repartitionCount = -1; // -1 means no repartitioning
+        private int repartitionCount = -1;
 
-        // Column naming
-        private boolean preserveDots = false; // false = dots become underscores
 
-        // Output configuration
-        private boolean includeMetadata = false; // Add _processing_time, _source_file, etc.
-        private boolean includeRawJson = false;  // Keep original JSON in _raw column
+        private boolean preserveDots = false;
+
+
+        private boolean includeMetadata = false;
+        private boolean includeRawJson = false;
     }
 
     /**
@@ -190,7 +191,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         private long processingTimeMs;
         private Map<String, Long> customMetrics = new HashMap<>();
 
-        // Getters
+
         public long getTotalRecords() { return totalRecords; }
         public long getSuccessfulRecords() { return successfulRecords; }
         public long getMalformedRecords() { return malformedRecords; }
@@ -213,7 +214,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         }
     }
 
-    // ===== CONSTRUCTORS AND FACTORY METHODS =====
+
 
     private NexusPiercerSparkPipeline(SparkSession spark, PipelineMode mode) {
         this.spark = spark;
@@ -235,16 +236,16 @@ public class NexusPiercerSparkPipeline implements Serializable {
         return new NexusPiercerSparkPipeline(spark, PipelineMode.STREAMING);
     }
 
-    // ===== CONFIGURATION METHODS (FLUENT API) =====
+
     public NexusPiercerSparkPipeline withSchema(String schemaPath) {
         this.config.schemaPath = schemaPath;
-        this.config.avroSchema = null; // Clear any previously set schema object
+        this.config.avroSchema = null;
         return this;
     }
 
     public NexusPiercerSparkPipeline withSchema(Schema schema) {
         this.config.avroSchema = schema;
-        this.config.schemaPath = null; // Clear any previously set schema path
+        this.config.schemaPath = null;
         return this;
     }
 
@@ -322,9 +323,9 @@ public class NexusPiercerSparkPipeline implements Serializable {
         this.config.includeRawJson = true;
         return this;
     }
-    // ...
 
-    // ===== PROCESSING METHODS =====
+
+
 
     /**
      * Process batch data from file paths
@@ -349,11 +350,11 @@ public class NexusPiercerSparkPipeline implements Serializable {
         try {
             CachedSchema cachedSchema = loadSchema();
 
-            // --- FIX IS HERE ---
-            // Standardize the input column name to 'value' for internal processing.
+
+
             String originalColumn = jsonDataset.columns()[0];
             Dataset<String> standardizedDataset = jsonDataset.withColumnRenamed(originalColumn, "value").as(Encoders.STRING());
-            // --- END FIX ---
+
 
             return processDataset(standardizedDataset, cachedSchema, metrics, startTime);
         } catch (Exception e) {
@@ -371,7 +372,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
             throw new IllegalStateException("processStream() can only be called in STREAMING mode");
         }
 
-        // Create streaming dataset, ensuring the string column is named 'value'
+
         Dataset<String> jsonDs = spark.readStream()
                 .format(source)
                 .options(options)
@@ -380,21 +381,21 @@ public class NexusPiercerSparkPipeline implements Serializable {
                 .filter(col("value").isNotNull())
                 .as(Encoders.STRING());
 
-        // Use the common processDataset method
+
         return this.processDataset(jsonDs);
     }
 
-    // ===== CORE PROCESSING LOGIC =====
+
 
     /**
      * Core processing logic for both batch and streaming (private helper)
      */
-    // In NexusPiercerSparkPipeline.java
+
 
     /**
      * Core processing logic for both batch and streaming (private helper)
      */
-    // In NexusPiercerSparkPipeline.java
+
 
     private ProcessingResult processDataset(Dataset<String> jsonDs, CachedSchema cachedSchema,
                                             ProcessingMetrics metrics, long startTime) {
@@ -416,35 +417,35 @@ public class NexusPiercerSparkPipeline implements Serializable {
         Dataset<Row> successDataset;
         Dataset<Row> errorDataset = null;
 
-        // Define filters for different error types
+
         Column malformedSyntaxError = col("_error").equalTo("Malformed JSON string");
         Column schemaValidationError = col("_error").equalTo("Schema validation failed");
 
-        // Handle errors based on strategy
+
         if (config.errorHandling == ErrorHandling.QUARANTINE) {
-            // The error dataset ALWAYS contains all records that have an error message.
+
             errorDataset = allProcessedRecords.filter(col("_error").isNotNull());
 
             if (config.quarantineSchemaErrors) {
-                // STRICT MODE: Success is only records with no error at all.
+
                 successDataset = allProcessedRecords.filter(col("_error").isNull());
             } else {
-                // LENIENT MODE (allowSchemaErrors):
-                // Success is records with EITHER no error OR just a schema validation error.
+
+
                 successDataset = allProcessedRecords.filter(col("_error").isNull().or(schemaValidationError));
             }
 
         } else if (config.errorHandling == ErrorHandling.SKIP_MALFORMED) {
-            // In SKIP_MALFORMED, we simply filter out all errors and don't produce an error dataset.
+
             successDataset = allProcessedRecords.filter(col("_error").isNull());
             errorDataset = null;
         } else {
-            // For PERMISSIVE or FAIL_FAST, all processed records are considered "successful" from this POV.
+
             successDataset = allProcessedRecords;
         }
 
 
-        // The _error column should never be in the final success dataset.
+
         if (Arrays.asList(successDataset.columns()).contains("_error")) {
             successDataset = successDataset.drop("_error");
         }
@@ -453,9 +454,9 @@ public class NexusPiercerSparkPipeline implements Serializable {
             successDataset = addMetadataColumns(successDataset);
         }
 
-        // Metrics should be collected on the initial, combined set of records.
+
         if (config.enableMetrics && mode == PipelineMode.BATCH) {
-            collectMetrics(allProcessedRecords, metrics); // Pass the unified dataset
+            collectMetrics(allProcessedRecords, metrics);
         }
 
         metrics.processingTimeMs = System.currentTimeMillis() - startTime;
@@ -464,10 +465,10 @@ public class NexusPiercerSparkPipeline implements Serializable {
         return new ProcessingResult(successDataset, errorDataset, metrics);
     }
 
-    // In NexusPiercerSparkPipeline.java
+
 
     private Dataset<Row> processFlattenedMode(Dataset<String> jsonDs, CachedSchema cachedSchema) {
-        // UDF for custom flattening
+
         UserDefinedFunction flattenUdf = udf(
                 (String json) -> {
                     if (json == null || json.trim().isEmpty()) {
@@ -482,29 +483,29 @@ public class NexusPiercerSparkPipeline implements Serializable {
                 DataTypes.StringType
         );
 
-        // Stage 1: Identify syntactically malformed JSON.
+
         Dataset<Row> syntaxChecked = jsonDs
                 .withColumn("is_malformed_syntax",
                         from_json(col("value"), DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType)).isNull()
                 );
 
-        // Stage 2: Apply flattener.
+
         Dataset<Row> flattened = syntaxChecked
                 .withColumn("flattened_json",
                         when(not(col("is_malformed_syntax")), flattenUdf.apply(col("value")))
                                 .otherwise(null)
                 );
 
-        // Stage 3: Parse data.
+
         Dataset<Row> parsed = flattened
                 .withColumn("data", from_json(col("flattened_json"), cachedSchema.sparkSchema));
 
-        // Stage 4: ALWAYS build the full error column, regardless of config.
-        // This is the key fix. This method's only job is to identify and label everything correctly.
+
+
         if (config.errorHandling == ErrorHandling.QUARANTINE ||
                 config.errorHandling == ErrorHandling.SKIP_MALFORMED) {
 
-            // --- The reliable Detector Logic ---
+
             Column schemaErrorCondition = lit(false);
             for (StructField field : cachedSchema.sparkSchema.fields()) {
                 String fieldName = field.name();
@@ -521,7 +522,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
                 }
             }
 
-            // Create the error column with ALL possible errors.
+
             parsed = parsed.withColumn("_error",
                     when(col("is_malformed_syntax"), lit("Malformed JSON string"))
                             .when(schemaErrorCondition, lit("Schema validation failed"))
@@ -529,7 +530,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
             );
         }
 
-        // Stage 5: Select final columns.
+
         List<Column> finalCols = new ArrayList<>();
         finalCols.add(col("data.*"));
 
@@ -542,6 +543,129 @@ public class NexusPiercerSparkPipeline implements Serializable {
         }
 
         return parsed.select(finalCols.toArray(new Column[0]));
+    }
+
+
+
+
+
+    // In NexusPiercerSparkPipeline.java
+
+    /**
+     * Processes a specific column containing JSON strings within an existing source DataFrame.
+     * It flattens the JSON according to the pipeline's configuration and then integrates the
+     * flattened data back into the DataFrame, correctly partitioning success and error records.
+     *
+     * This method is robust against row-reordering issues in Spark by performing the
+     * processing in-place and not separating headers from the payload.
+     *
+     * @param sourceDf The source DataFrame containing headers and a JSON column.
+     * @param jsonColumnName The name of the column with the JSON strings to process.
+     * @return A {@link ProcessingResult} containing the successful DataFrame (headers + flattened data)
+     *         and the error DataFrame (headers + original JSON + error info).
+     */
+    public ProcessingResult processJsonColumn(Dataset<Row> sourceDf, String jsonColumnName) {
+        if (!Arrays.asList(sourceDf.columns()).contains(jsonColumnName)) {
+            throw new IllegalArgumentException("Source DataFrame does not contain specified JSON column: " + jsonColumnName);
+        }
+
+        long startTime = System.currentTimeMillis();
+        ProcessingMetrics metrics = new ProcessingMetrics();
+
+        try {
+            // --- 1. Load and prepare schemas and processors ---
+            final CachedSchema cachedSchema = loadSchema();
+            initializeProcessors();
+
+            // --- 2. Apply the entire flattening and parsing logic directly to the source DF ---
+            UserDefinedFunction flattenUdf = udf(
+                    (String json) -> {
+                        if (json == null || json.trim().isEmpty()) return null;
+                        try {
+                            return flattener.flattenAndConsolidateJson(json);
+                        } catch (Exception e) {
+                            return "{}";
+                        }
+                    },
+                    DataTypes.StringType
+            );
+
+            Dataset<Row> processedDf = sourceDf
+                    .withColumn("_is_malformed_syntax", from_json(col(jsonColumnName), DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType)).isNull())
+                    .withColumn("_flattened_json", when(not(col("_is_malformed_syntax")), flattenUdf.apply(col(jsonColumnName))).otherwise(null))
+                    .withColumn("_parsed_data", from_json(col("_flattened_json"), cachedSchema.sparkSchema));
+
+            // --- 3. Reliably detect schema validation errors ---
+            Column schemaErrorCondition = lit(false);
+            for (StructField field : cachedSchema.sparkSchema.fields()) {
+                String fieldName = field.name();
+                Column fieldIsCorrupt = col("_parsed_data." + fieldName).isNull()
+                        .and(get_json_object(col("_flattened_json"), "$." + fieldName).isNotNull());
+                schemaErrorCondition = schemaErrorCondition.or(fieldIsCorrupt);
+            }
+
+            // --- 4. Create a definitive error column ---
+            processedDf = processedDf.withColumn("_error",
+                    when(col("_is_malformed_syntax"), lit("Malformed JSON string"))
+                            .when(schemaErrorCondition, lit("Schema validation failed"))
+                            .otherwise(lit(null).cast(DataTypes.StringType))
+            );
+
+            // --- 5. Split into Success and Error DataFrames ---
+            Dataset<Row> errorDf = processedDf.filter(col("_error").isNotNull());
+            Dataset<Row> successDf = processedDf.filter(col("_error").isNull());
+
+            // --- 6. Finalize the Success DataFrame schema ---
+            List<String> headerNames = Arrays.stream(sourceDf.columns())
+                    .filter(c -> !c.equals(jsonColumnName))
+                    .collect(Collectors.toList());
+
+            List<Column> finalSuccessCols = headerNames.stream().map(functions::col).collect(Collectors.toList());
+            finalSuccessCols.add(col("_parsed_data.*"));
+
+            // *** NEW: Conditionally add the _raw_json column ***
+            if (config.includeRawJson) {
+                finalSuccessCols.add(col(jsonColumnName).as("_raw_json"));
+            }
+
+            successDf = successDf.select(finalSuccessCols.toArray(new Column[0]));
+
+            for(String arrayField: cachedSchema.arrayFields) {
+                if (Arrays.asList(successDf.columns()).contains(arrayField)) {
+                    successDf = successDf.drop(arrayField);
+                }
+            }
+
+            // --- 7. Finalize the Error DataFrame schema ---
+            List<Column> finalErrorCols = headerNames.stream().map(functions::col).collect(Collectors.toList());
+
+            // *** NEW: Conditionally add the _raw_json column ***
+            // Note: For error records, it's highly recommended to always include the raw JSON
+            // for debugging, but we will still respect the flag for consistency.
+            if (config.includeRawJson) {
+                finalErrorCols.add(col(jsonColumnName).as("_raw_json"));
+            } else {
+                // If not including raw JSON, we can at least keep the original payload column
+                // for some context, but rename it for clarity.
+                finalErrorCols.add(col(jsonColumnName).as("_source_payload"));
+            }
+
+            finalErrorCols.add(col("_error"));
+
+            errorDf = errorDf.select(finalErrorCols.toArray(new Column[0]));
+
+            // --- 8. Collect Metrics and Return ---
+            if (config.enableMetrics && mode == PipelineMode.BATCH) {
+                collectMetrics(processedDf, metrics);
+            }
+            metrics.processingTimeMs = System.currentTimeMillis() - startTime;
+
+            return new ProcessingResult(successDf, errorDf, metrics);
+
+        } catch (Exception e) {
+            LOG.error("Failed to process JSON column", e);
+            throw new RuntimeException("Pipeline processing failed for JSON column", e);
+        }
     }
 
     private Dataset<Row> processExplosionMode(Dataset<String> jsonDs, CachedSchema cachedSchema) {

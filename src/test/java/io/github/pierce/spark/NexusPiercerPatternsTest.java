@@ -35,7 +35,7 @@ class NexusPiercerPatternsTest {
     @TempDir
     static Path tempDir;
 
-    // --- Test Data and Schemas ---
+
 
     private final String productSchema = """
             {
@@ -77,8 +77,8 @@ class NexusPiercerPatternsTest {
     private final String productJsonData = String.join("\n",
             "{\"id\": \"p1\", \"name\": \"Laptop\", \"category\": \"electronics\", \"price\": 1200.50, \"tags\": [\"pc\", \"work\"]}",
             "{\"id\": \"p2\", \"name\": \"Coffee Mug\", \"category\": \"kitchen\", \"price\": 15.00, \"tags\": [\"home\"]}",
-            "{\"id\": \"p3\", \"category\": \"electronics\", \"price\": \"not-a-double\", \"tags\": []}", // Schema validation error
-            "{malformed-json}" // Parse error
+            "{\"id\": \"p3\", \"category\": \"electronics\", \"price\": \"not-a-double\", \"tags\": []}",
+            "{malformed-json}"
     );
 
     private final String orderSchema = """
@@ -104,7 +104,7 @@ class NexusPiercerPatternsTest {
 
     @BeforeAll
     void setupSpark() {
-        // NOTE: For Delta tests to work, you need the delta-spark dependency and this config.
+
         System.setProperty("hadoop.home.dir", System.getProperty("user.dir"));
 
         spark = SparkSession.builder()
@@ -136,15 +136,15 @@ class NexusPiercerPatternsTest {
     @Test
     @DisplayName("generateDataQualityReport should produce correct metrics")
     void testGenerateDataQualityReport() throws IOException {
-        // Arrange
+
         Path schemaFile = createTestFile("schemas/product.avsc", productSchema);
         Path dataFile = createTestFile("data/products.json", productJsonData);
 
-        // Act
+
         Dataset<Row> report = NexusPiercerPatterns.generateDataQualityReport(spark, schemaFile.toString(), dataFile.toString());
         report.show(false);
 
-        // Assert
+
         assertThat(report.count()).isGreaterThanOrEqualTo(1);
         Row validRow = report.filter("is_valid = true").first();
 

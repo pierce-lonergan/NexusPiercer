@@ -30,7 +30,7 @@ import static org.apache.spark.sql.types.DataTypes.StringType;
  *
  * Example usage:
  * <pre>
- * // ETL from JSON files to Delta Lake
+ *
  * NexusPiercerPatterns.jsonToDelta(spark,
  *     "product_schema.avsc",
  *     "s3://bucket/input/products/*.json",
@@ -56,12 +56,12 @@ public class NexusPiercerPatterns {
             SparkSession spark, String schemaPath, String inputPath) {
 
 
-        // Read raw JSON
+
         Dataset<Row> rawData = spark.read()
                 .textFile(inputPath)
                 .selectExpr("value as json");
 
-        // Apply validation and analysis
+
         Dataset<Row> qualityReport = rawData
                 .withColumn("is_valid", isValid(col("json")))
                 .withColumn("error_message", jsonError(col("json")))
@@ -76,7 +76,7 @@ public class NexusPiercerPatterns {
                         collect_set("error_message").as("unique_errors")
                 );
 
-        // Try to parse with schema
+
         NexusPiercerSparkPipeline.ProcessingResult schemaResult =
                 NexusPiercerSparkPipeline.forBatch(spark)
                         .withSchema(schemaPath)
@@ -84,7 +84,7 @@ public class NexusPiercerPatterns {
                         .enableMetrics()
                         .process(inputPath);
 
-        // Add schema validation metrics
+
         long totalRecords = schemaResult.getMetrics().getTotalRecords();
         long successfulRecords = schemaResult.getMetrics().getSuccessfulRecords();
         double successRate = schemaResult.getMetrics().getSuccessRate();
@@ -107,10 +107,10 @@ public class NexusPiercerPatterns {
                 .limit(sampleSize)
                 .as(org.apache.spark.sql.Encoders.STRING());
 
-        // Filter out malformed JSON
+
         Dataset<String> validSample = sample.filter(isValid(col("value")));
 
-        // Use the pipeline's consistent flattener
+
         JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
                 ",", null, 50, 1000, false, true
         );
@@ -127,22 +127,22 @@ public class NexusPiercerPatterns {
         Dataset<Row> flattened = validSample
                 .withColumn("flattened", profileFlattenerUdf.apply(col("value")))
                 .select(from_json(col("flattened"), schema).as("fields"))
-                // --- FIX: Use selectExpr to correctly name the output of explode ---
+
                 .selectExpr("explode(fields) as (key, value)");
 
-        // Get a set of all field names that are array statistics
+
         Set<String> statFields = new HashSet<>(
                 flattened.filter(col("key").rlike(".*_count$|.*_type$|.*_distinct_count$|.*_min_length$|.*_max_length$|.*_avg_length$"))
                         .select("key").as(org.apache.spark.sql.Encoders.STRING()).collectAsList()
         );
 
-        // From the stat fields, derive the base array field names
+
         Set<String> arrayBaseFields = new HashSet<>();
         for (String statField : statFields) {
             arrayBaseFields.add(statField.replaceAll("_(count|type|distinct_count|min_length|max_length|avg_length)$", ""));
         }
 
-        // Now do the main aggregation
+
         Dataset<Row> profiled = flattened
                 .groupBy("key")
                 .agg(
@@ -151,7 +151,7 @@ public class NexusPiercerPatterns {
                         first("value").as("sample_value")
                 );
 
-        // Join the derived information back to classify the fields
+
         return profiled
                 .withColumn("field_type",
                         when(col("key").rlike(".*_count$"), "array_count")
@@ -160,7 +160,7 @@ public class NexusPiercerPatterns {
                                 .otherwise("field")
                 )
                 .withColumn("likely_array",
-                        // A field is an array if its name is in our derived set of base names
+
                         col("key").isin(arrayBaseFields.toArray())
                 )
                 .withColumnRenamed("key", "field")

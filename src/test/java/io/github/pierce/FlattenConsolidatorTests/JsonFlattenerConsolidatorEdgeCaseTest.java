@@ -44,7 +44,7 @@ class JsonFlattenerConsolidatorEdgeCaseTest {
     @Test
     @DisplayName("Should prevent infinite loops from circular references")
     void testCircularReferencePrevention() {
-        // Simulate a circular reference scenario
+
         String circularJson = """
             {
                 "id": 1,
@@ -68,11 +68,11 @@ class JsonFlattenerConsolidatorEdgeCaseTest {
         String result = limitedDepth.flattenAndConsolidateJson(circularJson);
         JSONObject resultJson = new JSONObject(result);
 
-        // Should stop at depth 3
+
         assertThat(resultJson.getInt("id")).isEqualTo(1);
         assertThat(resultJson.getInt("child_id")).isEqualTo(2);
         assertThat(resultJson.getInt("child_parent_id")).isEqualTo(1);
-        // The deeper nesting should be stringified
+
         assertThat(resultJson.getString("child_parent_child")).contains("\"id\":2");
     }
 
@@ -101,7 +101,7 @@ class JsonFlattenerConsolidatorEdgeCaseTest {
         return Stream.of(
                 Arguments.of(
                         "Very large number",
-                        "{\"amount\": 9007199254740993}",  // Larger than MAX_SAFE_INTEGER
+                        "{\"amount\": 9007199254740993}",
                         "amount",
                         "9007199254740993"
                 ),

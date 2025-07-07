@@ -16,18 +16,18 @@ import java.util.stream.Collectors;
 import static io.github.pierce.spark.NexusPiercerFunctions.*;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.explode;
-import static org.apache.spark.sql.functions.lit; // <-- Added for explode test
+import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// DO NOT use PER_CLASS when SparkSession state is modified by tests.
-// The default PER_METHOD lifecycle is safer.
+
+
 class NexusPiercerFunctionsTest {
 
     private SparkSession spark;
     private Dataset<Row> df;
 
-    // --- Test Data ---
+
     private final String complexJson = "{\"id\":1,\"user\":{\"name\":\"Alice\",\"email\":\"alice@example.com\"},\"tags\":[\"dev\",\"java\"],\"scores\":{\"history\":[100,95,95],\"math\":98}}";
     private final String simpleJson = "{\"a\":\"hello\",\"b\":123}";
     private final String invalidJson = "{ a: 'hello' }";
@@ -37,13 +37,13 @@ class NexusPiercerFunctionsTest {
     private final String jsonArrayString = "[\"one\", \"two\"]";
 
 
-    // Use @BeforeEach to create a fresh, isolated SparkSession for every test.
+
     @BeforeEach
     void setup() {
         spark = SparkSession.builder()
                 .appName("NexusPiercerFunctionsTest")
                 .master("local[*]")
-                .config("spark.sql.ui.enabled", "false") // Disable UI for tests
+                .config("spark.sql.ui.enabled", "false")
                 .getOrCreate();
         spark.sparkContext().setLogLevel("WARN");
 
@@ -60,7 +60,7 @@ class NexusPiercerFunctionsTest {
         df = spark.createDataset(jsonData, Encoders.STRING()).toDF("json");
     }
 
-    // Use @AfterEach to clean up the session after every test.
+
     @AfterEach
     void tearDown() {
         if (spark != null) {
@@ -132,19 +132,19 @@ class NexusPiercerFunctionsTest {
             assertThat(count).isEqualTo(2L);
         }
 
-        // --- FIX: This test is now uncommented and corrected ---
+
         @Test
         void explodeJsonArray_shouldCreateArrayForExplosion() {
-            // The UDF 'apply' method requires Column arguments, use lit() for literals.
+
             Dataset<Row> result = df.filter(col("json").equalTo(complexJson))
                     .withColumn("exploded_items", explode(explodeJsonArray.apply(col("json"), lit("tags"))));
 
             assertThat(result.count()).isEqualTo(2L);
             List<String> items = result.select("exploded_items").as(Encoders.STRING()).collectAsList();
 
-            // Assert that the rest of the JSON is preserved in each exploded row
+
             assertThat(items).allMatch(s -> s.contains("\"user_name\":\"Alice\""));
-            // Assert that each row contains one of the exploded array values
+
             assertThat(items.get(0)).contains("\"tags\":\"dev\"");
             assertThat(items.get(1)).contains("\"tags\":\"java\"");
         }
@@ -173,7 +173,7 @@ class NexusPiercerFunctionsTest {
             assertThat(nullIsValid).isFalse();
         }
 
-        // In NexusPiercerFunctionsTest.java -> ValidationFunctionsTest class
+
 
         @Test
         void jsonError_shouldReturnMessagesForInvalidJson() {

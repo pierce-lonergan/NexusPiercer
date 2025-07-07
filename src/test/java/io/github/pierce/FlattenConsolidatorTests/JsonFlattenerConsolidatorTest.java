@@ -81,7 +81,7 @@ class JsonFlattenerConsolidatorTest {
         String result = consolidator.flattenAndConsolidateJson(input);
 
         JSONObject resultJson = new JSONObject(result);
-        // Should only include first 3 elements
+
         assertThat(resultJson.getString("numbers")).isEqualTo("1,2,3");
     }
 
@@ -92,7 +92,7 @@ class JsonFlattenerConsolidatorTest {
         String result = consolidator.flattenAndConsolidateJson(input);
 
         JSONObject resultJson = new JSONObject(result);
-        // Should include array indices in the values
+
         assertThat(resultJson.getString("matrix")).contains("[");
     }
 
@@ -121,9 +121,9 @@ class JsonFlattenerConsolidatorTest {
 
         JSONObject resultJson = new JSONObject(result);
         assertThat(resultJson.getInt("words_count")).isEqualTo(4);
-        assertThat(resultJson.getInt("words_distinct_count")).isEqualTo(3); // hello appears twice
-        assertThat(resultJson.getInt("words_min_length")).isEqualTo(4); // "test"
-        assertThat(resultJson.getInt("words_max_length")).isEqualTo(5); // "hello" or "world"
+        assertThat(resultJson.getInt("words_distinct_count")).isEqualTo(3);
+        assertThat(resultJson.getInt("words_min_length")).isEqualTo(4);
+        assertThat(resultJson.getInt("words_max_length")).isEqualTo(5);
         assertThat(resultJson.getDouble("words_avg_length")).isCloseTo(4.75, within(0.01));
         assertThat(resultJson.getString("words_type")).isEqualTo("string_list_consolidated");
     }

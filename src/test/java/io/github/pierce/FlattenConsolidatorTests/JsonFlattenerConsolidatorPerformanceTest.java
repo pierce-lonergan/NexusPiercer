@@ -26,36 +26,36 @@ public class JsonFlattenerConsolidatorPerformanceTest {
     @Order(1)
     @DisplayName("Performance comparison: Statistics ON vs OFF")
     void testStatisticsOverhead() {
-        // Create a moderately complex JSON
+
         JSONObject json = createModeratelyComplexJson(50, 20);
         String jsonString = json.toString();
 
         JsonFlattenerConsolidator withStats = new JsonFlattenerConsolidator(",", null, 50, 1000, false, true);
         JsonFlattenerConsolidator withoutStats = new JsonFlattenerConsolidator(",", null, 50, 1000, false, false);
 
-        // Warm up
+
         for (int i = 0; i < WARM_UP_ITERATIONS; i++) {
             withStats.flattenAndConsolidateJson(jsonString);
             withoutStats.flattenAndConsolidateJson(jsonString);
         }
 
-        // Measure with statistics
+
         long startWithStats = System.nanoTime();
         for (int i = 0; i < TEST_ITERATIONS; i++) {
             withStats.flattenAndConsolidateJson(jsonString);
         }
         long timeWithStats = System.nanoTime() - startWithStats;
 
-        // Measure without statistics
+
         long startWithoutStats = System.nanoTime();
         for (int i = 0; i < TEST_ITERATIONS; i++) {
             withoutStats.flattenAndConsolidateJson(jsonString);
         }
         long timeWithoutStats = System.nanoTime() - startWithoutStats;
 
-        // Calculate results
-        double avgWithStats = timeWithStats / (double) TEST_ITERATIONS / 1_000_000; // ms
-        double avgWithoutStats = timeWithoutStats / (double) TEST_ITERATIONS / 1_000_000; // ms
+
+        double avgWithStats = timeWithStats / (double) TEST_ITERATIONS / 1_000_000;
+        double avgWithoutStats = timeWithoutStats / (double) TEST_ITERATIONS / 1_000_000;
         double overhead = ((avgWithStats - avgWithoutStats) / avgWithoutStats) * 100;
 
         System.out.println("\n=== Statistics Overhead Test ===");
@@ -63,7 +63,7 @@ public class JsonFlattenerConsolidatorPerformanceTest {
         System.out.println("Average time WITHOUT statistics: " + String.format("%.3f", avgWithoutStats) + " ms");
         System.out.println("Statistics overhead: " + String.format("%.1f", overhead) + "%");
 
-        // Statistics should add less than 50% overhead
+
         assertThat(overhead).isLessThan(500);
     }
 
@@ -88,18 +88,18 @@ public class JsonFlattenerConsolidatorPerformanceTest {
             json.put("data", array);
             String jsonString = json.toString();
 
-            // Warm up
+
             for (int i = 0; i < 5; i++) {
                 flattener.flattenAndConsolidateJson(jsonString);
             }
 
-            // Measure
+
             long start = System.nanoTime();
             for (int i = 0; i < 10; i++) {
                 flattener.flattenAndConsolidateJson(jsonString);
             }
             long elapsed = System.nanoTime() - start;
-            double avgTime = elapsed / 10.0 / 1_000_000; // ms
+            double avgTime = elapsed / 10.0 / 1_000_000;
             times.add(avgTime);
 
             double throughput = size / avgTime;
@@ -107,7 +107,7 @@ public class JsonFlattenerConsolidatorPerformanceTest {
                     String.format("%.0f", throughput));
         }
 
-        // Check that performance doesn't degrade too badly
+
         // Time should not grow quadratically with size
         double ratio = times.get(times.size() - 1) / times.get(0);
         double sizeRatio = sizes[sizes.length - 1] / (double) sizes[0];

@@ -37,18 +37,18 @@ public class AvroSchemaLoader {
 
     private static final Logger LOG = LoggerFactory.getLogger(AvroSchemaLoader.class);
 
-    // Cache for loaded schemas
+
     private static final Map<String, Schema> schemaCache = new ConcurrentHashMap<>();
     private static final Map<String, StructType> structTypeCache = new ConcurrentHashMap<>();
 
-    // Configuration
+
     private final Configuration hadoopConf;
     private final boolean includeArrayStatistics;
     private final List<String> searchPaths;
     private final boolean enableCaching;
     private final String targetDirectory;
 
-    // Standard schema locations
+
     private static final String[] STANDARD_SCHEMA_PATHS = {
             "schemas",
             "src/main/resources/schemas",
@@ -103,19 +103,19 @@ public class AvroSchemaLoader {
         }
     }
 
-    // Private constructor - use Builder
+
     private AvroSchemaLoader(Builder builder) {
         this.hadoopConf = builder.hadoopConf;
         this.includeArrayStatistics = builder.includeArrayStatistics;
         this.enableCaching = builder.enableCaching;
         this.targetDirectory = builder.targetDirectory;
 
-        // Build search paths
+
         this.searchPaths = new ArrayList<>();
         if (targetDirectory != null) {
             searchPaths.add(targetDirectory);
         }
-        searchPaths.add("."); // Current directory
+        searchPaths.add(".");
         searchPaths.addAll(Arrays.asList(STANDARD_SCHEMA_PATHS));
         searchPaths.addAll(builder.additionalSearchPaths);
     }
@@ -133,13 +133,13 @@ public class AvroSchemaLoader {
     public Schema loadAvroSchema(String schemaName) throws IOException {
         String normalizedName = normalizeSchemaName(schemaName);
 
-        // Check cache first
+
         if (enableCaching && schemaCache.containsKey(normalizedName)) {
             LOG.debug("Schema {} found in cache", normalizedName);
             return schemaCache.get(normalizedName);
         }
 
-        // Try to find and load the schema
+
         Schema schema = findAndLoadSchema(normalizedName);
 
         if (schema == null) {
@@ -147,7 +147,7 @@ public class AvroSchemaLoader {
                     " (searched " + searchPaths.size() + " locations)");
         }
 
-        // Cache the result
+
         if (enableCaching) {
             schemaCache.put(normalizedName, schema);
         }
@@ -176,18 +176,18 @@ public class AvroSchemaLoader {
             flattenedSchema = flattener.getFlattenedSchemaNoCache(avroSchema);
         }
 
-        // --- FINAL FIX: Respect the caching flag for the final conversion step ---
+
         StructType sparkSchema;
         if (enableCaching) {
-            // Use the converter's cache
+
             sparkSchema = CreateSparkStructFromAvroSchema
                     .convertNestedAvroSchemaToSparkSchema(flattenedSchema);
         } else {
-            // Bypass the converter's cache to ensure a new object is created
+
             sparkSchema = CreateSparkStructFromAvroSchema
                     .convertNestedAvroSchemaToSparkSchemaNoCache(flattenedSchema);
         }
-        // --- END FIX ---
+
 
         if (enableCaching) {
             structTypeCache.put(cacheKey, sparkSchema);
@@ -232,11 +232,11 @@ public class AvroSchemaLoader {
 
         for (String searchPath : searchPaths) {
             try {
-                // Check if it's an HDFS path
+
                 if (searchPath.startsWith("hdfs://") || searchPath.startsWith("s3://")) {
                     discoverSchemasInHdfs(searchPath, discoveredSchemas);
                 } else {
-                    // Local file system
+
                     discoverSchemasInLocalPath(searchPath, discoveredSchemas);
                 }
             } catch (Exception e) {
@@ -244,7 +244,7 @@ public class AvroSchemaLoader {
             }
         }
 
-        // Also check classpath
+
         discoverSchemasInClasspath(discoveredSchemas);
 
         return new ArrayList<>(discoveredSchemas);

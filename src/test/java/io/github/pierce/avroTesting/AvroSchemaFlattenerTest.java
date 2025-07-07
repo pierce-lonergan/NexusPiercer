@@ -1,6 +1,6 @@
 package io.github.pierce.avroTesting;
 
-// OptimizedAvroSchemaFlattenerTest.java
+
 
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
@@ -56,7 +56,7 @@ class AvroSchemaFlattenerTest {
         assertThat(flattened.getNamespace()).isEqualTo("com.test.flattened");
         assertThat(flattened.getFields()).hasSize(3);
 
-        // Verify field names remain the same for simple schema
+
         Set<String> fieldNames = flattened.getFields().stream()
                 .map(Field::name)
                 .collect(Collectors.toSet());
@@ -108,7 +108,7 @@ class AvroSchemaFlattenerTest {
                 .map(Field::name)
                 .collect(Collectors.toSet());
 
-        // Verify nested fields are flattened with underscores
+
         assertThat(fieldNames).containsExactlyInAnyOrder(
                 "name",
                 "address_street",
@@ -136,13 +136,13 @@ class AvroSchemaFlattenerTest {
         Schema flattenedNoStats = flattener.getFlattenedSchema(schema);
         Schema flattenedWithStats = flattenerWithStats.getFlattenedSchema(schema);
 
-        // Without statistics
+
         assertThat(flattenedNoStats.getFields()).hasSize(2);
         assertThat(flattenedNoStats.getField("tags").schema())
                 .matches(this::isNullableString);
 
-        // With statistics
-        assertThat(flattenedWithStats.getFields()).hasSize(14); // 2 base + 6*2 statistics
+
+        assertThat(flattenedWithStats.getFields()).hasSize(14);
 
         Set<String> fieldNames = flattenedWithStats.getFields().stream()
                 .map(Field::name)
@@ -190,7 +190,7 @@ class AvroSchemaFlattenerTest {
                 .map(Field::name)
                 .collect(Collectors.toSet());
 
-        // Should have the array field, its statistics, and flattened sub-fields
+
         assertThat(fieldNames).contains(
                 "items",
                 "items_count",
@@ -236,12 +236,12 @@ class AvroSchemaFlattenerTest {
 
         assertThat(flattened.getFields()).hasSize(4);
 
-        // All fields should be nullable in flattened schema
+
         for (Field field : flattened.getFields()) {
             assertThat(isNullable(field.schema())).isTrue();
         }
 
-        // Check specific fields
+
         assertThat(flattened.getField("required")).isNotNull();
         assertThat(flattened.getField("optional")).isNotNull();
         assertThat(flattened.getField("optionalInt")).isNotNull();
@@ -277,7 +277,7 @@ class AvroSchemaFlattenerTest {
         Schema schema = new Schema.Parser().parse(schemaJson);
         Schema flattened = flattener.getFlattenedSchema(schema);
 
-        // Maps are flattened to string type
+
         assertThat(flattened.getFields()).hasSize(2);
         assertThat(flattened.getField("properties").schema())
                 .matches(this::isNullableString);
@@ -285,7 +285,7 @@ class AvroSchemaFlattenerTest {
                 .matches(this::isNullableString);
     }
 
-    // In OptimizedAvroSchemaFlattenerTest.java
+
 
     @Test
     void testComplexRealWorldSchema() throws IOException {
@@ -344,7 +344,7 @@ class AvroSchemaFlattenerTest {
         }
         """;
 
-        // *** FIX APPLIED HERE: Parse the schema directly instead of using the file path ***
+
         Schema schema = new Schema.Parser().parse(schemaJson);
         Schema flattened = flattenerWithStats.getFlattenedSchema(schema);
 
@@ -352,7 +352,7 @@ class AvroSchemaFlattenerTest {
                 .map(Field::name)
                 .collect(Collectors.toSet());
 
-        // Verify complex nested structure is properly flattened
+
         assertThat(fieldNames).contains(
                 "transactionId",
                 "timestamp",

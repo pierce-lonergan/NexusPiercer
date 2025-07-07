@@ -1,6 +1,6 @@
 package io.github.pierce;
 
-// CreateSparkStructFromAvroSchemaTest.java
+
 
 import org.apache.avro.Schema;
 import org.apache.spark.sql.types.*;
@@ -44,7 +44,7 @@ class CreateSparkStructFromAvroSchemaTest {
 
         assertThat(sparkSchema.fields()).hasSize(6);
 
-        // Verify field types
+
         assertThat(sparkSchema.fieldIndex("id")).isEqualTo(0);
         assertThat(sparkSchema.fields()[0].dataType()).isEqualTo(DataTypes.LongType);
 
@@ -83,12 +83,12 @@ class CreateSparkStructFromAvroSchemaTest {
         Schema avroSchema = new Schema.Parser().parse(avroSchemaJson);
         StructType sparkSchema = CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchema(avroSchema);
 
-        // All fields should be nullable in a flattened schema
+
         for (StructField field : sparkSchema.fields()) {
             assertThat(field.nullable()).isTrue();
         }
 
-        // Verify types are correct (non-null branch of union)
+
         assertThat(sparkSchema.fields()[0].dataType()).isEqualTo(DataTypes.StringType);
         assertThat(sparkSchema.fields()[1].dataType()).isEqualTo(DataTypes.StringType);
         assertThat(sparkSchema.fields()[2].dataType()).isEqualTo(DataTypes.IntegerType);
@@ -113,7 +113,7 @@ class CreateSparkStructFromAvroSchemaTest {
         Schema avroSchema = new Schema.Parser().parse(avroSchemaJson);
         StructType sparkSchema = CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchema(avroSchema);
 
-        // Arrays should be converted to ArrayType
+
         StructField stringArrayField = sparkSchema.fields()[0];
         assertThat(stringArrayField.dataType()).isInstanceOf(ArrayType.class);
         ArrayType stringArrayType = (ArrayType) stringArrayField.dataType();
@@ -125,7 +125,7 @@ class CreateSparkStructFromAvroSchemaTest {
         ArrayType intArrayType = (ArrayType) intArrayField.dataType();
         assertThat(intArrayType.elementType()).isEqualTo(DataTypes.IntegerType);
 
-        // Nullable array
+
         StructField nullableArrayField = sparkSchema.fields()[2];
         assertThat(nullableArrayField.dataType()).isInstanceOf(ArrayType.class);
     }
@@ -147,7 +147,7 @@ class CreateSparkStructFromAvroSchemaTest {
         Schema avroSchema = new Schema.Parser().parse(avroSchemaJson);
         StructType sparkSchema = CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchema(avroSchema);
 
-        // Maps should be converted to MapType
+
         StructField stringMapField = sparkSchema.fields()[0];
         assertThat(stringMapField.dataType()).isInstanceOf(MapType.class);
         MapType stringMapType = (MapType) stringMapField.dataType();
@@ -194,19 +194,19 @@ class CreateSparkStructFromAvroSchemaTest {
         Schema avroSchema = new Schema.Parser().parse(avroSchemaJson);
         StructType sparkSchema = CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchema(avroSchema);
 
-        // Enum should become String
+
         assertThat(sparkSchema.fields()[0].dataType()).isEqualTo(DataTypes.StringType);
 
-        // Fixed should become Binary
+
         assertThat(sparkSchema.fields()[1].dataType()).isEqualTo(DataTypes.BinaryType);
 
-        // Bytes should become Binary
+
         assertThat(sparkSchema.fields()[2].dataType()).isEqualTo(DataTypes.BinaryType);
     }
 
     @Test
     void testFlattenedSchemaConversion() {
-        // First create a complex schema and flatten it
+
         String complexSchemaJson = """
             {
               "type": "record",
@@ -234,10 +234,10 @@ class CreateSparkStructFromAvroSchemaTest {
         AvroSchemaFlattener flattener = new AvroSchemaFlattener(true);
         Schema flattenedSchema = flattener.getFlattenedSchema(complexSchema);
 
-        // Convert flattened schema to Spark
+
         StructType sparkSchema = CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchema(flattenedSchema);
 
-        // Verify flattened fields are present
+
         assertThat(sparkSchema.fieldNames()).contains(
                 "id",
                 "user_name",

@@ -1,6 +1,6 @@
 package io.github.pierce;
 
-// CreateSparkStructFromAvroSchema.java - Optimized and Corrected version
+
 
 import org.apache.avro.Schema;
 import org.apache.spark.sql.types.*;
@@ -20,7 +20,7 @@ public class CreateSparkStructFromAvroSchema {
 
     private static final Logger LOG = LoggerFactory.getLogger(CreateSparkStructFromAvroSchema.class);
 
-    // Cache for converted schemas for performance in standard operations
+
     private static final Map<String, StructType> structTypeCache = new ConcurrentHashMap<>();
 
     /**
@@ -31,7 +31,7 @@ public class CreateSparkStructFromAvroSchema {
      * @return A cached or newly created Spark StructType.
      */
     public static StructType convertNestedAvroSchemaToSparkSchema(Schema avroSchema) {
-        String cacheKey = avroSchema.getFullName() + ":" + avroSchema.hashCode(); // More robust key
+        String cacheKey = avroSchema.getFullName() + ":" + avroSchema.hashCode();
         return structTypeCache.computeIfAbsent(cacheKey, k -> doConvert(avroSchema));
     }
 
@@ -44,7 +44,7 @@ public class CreateSparkStructFromAvroSchema {
      * @return A new Spark StructType instance.
      */
     public static StructType convertNestedAvroSchemaToSparkSchemaNoCache(Schema avroSchema) {
-        // Directly call the private conversion logic, bypassing the cache
+
         return doConvert(avroSchema);
     }
 
@@ -62,7 +62,7 @@ public class CreateSparkStructFromAvroSchema {
         for (Schema.Field field : avroSchema.getFields()) {
             DataType sparkType = convertAvroTypeToSparkType(field.schema());
 
-            // Forcing all fields to be nullable is a robust choice for flattened schemas
+
             boolean isNullable = true;
 
             StructField structField = DataTypes.createStructField(
@@ -86,11 +86,11 @@ public class CreateSparkStructFromAvroSchema {
      * Convert Avro type to Spark DataType
      */
     private static DataType convertAvroTypeToSparkType(Schema avroType) {
-        // First, handle the UNION case which is common for nullable fields
+
         if (avroType.getType() == Schema.Type.UNION) {
             Schema nonNullType = getNonNullType(avroType);
             if (nonNullType != null) {
-                // Recursively convert the actual type within the union
+
                 return convertAvroTypeToSparkType(nonNullType);
             }
             LOG.warn("Encountered a union containing only NULL. Defaulting to StringType.");
@@ -115,20 +115,20 @@ public class CreateSparkStructFromAvroSchema {
             case FIXED:
                 return DataTypes.BinaryType;
             case NULL:
-                // A standalone NULL type (not in a union) should be NullType.
-                // However, this is rare in Avro schemas.
+
+
                 return DataTypes.NullType;
             case ARRAY:
                 DataType elementType = convertAvroTypeToSparkType(avroType.getElementType());
-                // Array elements are considered nullable by default for flexibility.
+
                 return DataTypes.createArrayType(elementType, true);
             case MAP:
                 DataType valueType = convertAvroTypeToSparkType(avroType.getValueType());
-                // Map values are considered nullable by default for flexibility.
+
                 return DataTypes.createMapType(DataTypes.StringType, valueType, true);
             case RECORD:
-                // This method is designed for already-flattened schemas, so nested records are not expected.
-                // If one is encountered, log a warning and default to StringType.
+
+
                 LOG.warn("Encountered nested RECORD type in what should be a flattened schema: {}. Defaulting to StringType.", avroType.getName());
                 return DataTypes.StringType;
             default:
@@ -147,7 +147,7 @@ public class CreateSparkStructFromAvroSchema {
             builder.putString("comment", field.doc());
         }
 
-        // Add Avro-specific metadata for traceability
+
         builder.putString("avro.field.name", field.name());
 
         if (field.defaultVal() != null) {
@@ -166,7 +166,7 @@ public class CreateSparkStructFromAvroSchema {
                 return branch;
             }
         }
-        return null; // All types in the union were NULL
+        return null;
     }
 
     /**

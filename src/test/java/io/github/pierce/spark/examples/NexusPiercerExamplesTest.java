@@ -4,20 +4,23 @@ package io.github.pierce.spark.examples;
 import io.github.pierce.spark.NexusPiercerFunctions;
 import io.github.pierce.spark.NexusPiercerPatterns;
 import io.github.pierce.spark.NexusPiercerSparkPipeline;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import scala.Function1;
+import scala.Tuple2;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.github.pierce.spark.NexusPiercerFunctions.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,10 +46,10 @@ class NexusPiercerExamplesTest {
         spark = SparkSession.builder()
                 .appName("NexusPiercer Examples Test")
                 .master("local[*]")
-                .config("spark.sql.adaptive.enabled", "false") // Disable for predictable test plans
+                .config("spark.sql.adaptive.enabled", "false")
                 .config("spark.sql.shuffle.partitions", "2")
                 .getOrCreate();
-        // Set log level to WARN to reduce console noise during tests
+
         spark.sparkContext().setLogLevel("WARN");
     }
 
@@ -70,7 +73,7 @@ class NexusPiercerExamplesTest {
     @Test
     @DisplayName("Example 1: Basic JSON processing with schema validation")
     void testBasicExample() throws IOException {
-        // --- Setup (is correct) ---
+
         String schemaContent = """
             {
               "type": "record", "name": "UserActivity",
@@ -90,13 +93,13 @@ class NexusPiercerExamplesTest {
         );
         Path dataFile = createTestFile("data/input/users/data.json", allJson);
 
-        // --- Action ---
+
         NexusPiercerSparkPipeline.ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
                 .withSchema(tempDir.resolve("schemas/user_activity.avsc").toString())
                 .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
                 .process(dataFile.toString());
 
-        // --- Assertions ---
+
         Dataset<Row> successDs = result.getDataset();
         Dataset<Row> errorDs = result.getErrorDataset();
 
@@ -105,9 +108,9 @@ class NexusPiercerExamplesTest {
         System.out.println("=== Error Records ===");
         errorDs.show(false);
 
-        // Assertions updated to match the new, correct logic
-        assertThat((long) successDs.count()).isEqualTo(1L); // Only u1 is fully valid
-        assertThat((long) errorDs.count()).isEqualTo(2L);   // u2 (schema error) and {not-json} (malformed) are errors
+
+        assertThat((long) successDs.count()).isEqualTo(1L);
+        assertThat((long) errorDs.count()).isEqualTo(2L);
 
         // Verify the contents of the single successful record
         List<String> successUserIds = successDs.select("userId").as(Encoders.STRING()).collectAsList();
@@ -175,66 +178,6 @@ class NexusPiercerExamplesTest {
                 "Schema validation failed"
         );
     }
-
-
-//    @Test
-//    @DisplayName("Example 2: Streaming JSON from MemoryStream")
-//    void testStreamingExample() throws Exception {
-//        // --- Setup ---
-//        String schemaContent = """
-//            {
-//              "type": "record", "name": "Event",
-//              "fields": [
-//                {"name": "eventId", "type": "string"},
-//                {"name": "event_date", "type": "string"}
-//              ]
-//            }
-//            """;
-//        createTestFile("schemas/events.avsc", schemaContent);
-//
-//        // FIX: Use the correct MemoryStream constructor for modern Spark versions
-//        MemoryStream<String> memoryStream = new MemoryStream<>(0, spark.sqlContext(), scala.Option.apply(1), Encoders.STRING());
-//        Dataset<String> streamInput = memoryStream.toDF().selectExpr("value AS json_string").as(Encoders.STRING());
-//
-//        // --- Action ---
-//        NexusPiercerSparkPipeline pipeline = NexusPiercerSparkPipeline.forStreaming(spark)
-//                .withSchema(tempDir.resolve("schemas/events.avsc").toString())
-//                .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.SKIP_MALFORMED);
-//
-//        NexusPiercerSparkPipeline.ProcessingResult result = pipeline.processDataset(streamInput);
-//
-//        Path outputPath = tempDir.resolve("data/output/events_stream");
-//        Path checkpointPath = tempDir.resolve("checkpoints/events");
-//
-//        StreamingQuery query = result.getDataset()
-//                .writeStream()
-//                .outputMode("append")
-//                .format("parquet")
-//                .option("path", outputPath.toString())
-//                .option("checkpointLocation", checkpointPath.toString())
-//                .partitionBy("event_date")
-//                .start();
-//
-//        List<String> testData = Arrays.asList(
-//                "{\"eventId\": \"e1\", \"event_date\": \"2024-01-01\"}",
-//                "{\"eventId\": \"e2\", \"event_date\": \"2024-01-01\"}",
-//                "{bad-json}"
-//        );
-//        Seq<String> testDataSeq = JavaConverters.asScalaBuffer(testData).toSeq();
-//        memoryStream.addData(testDataSeq);
-//
-//        query.processAllAvailable();
-//        query.stop();
-//
-//        // --- Assertions ---
-//        Dataset<Row> outputDs = spark.read().parquet(outputPath.toString());
-//        outputDs.show(false);
-//
-//        assertThat((long) outputDs.count()).isEqualTo(2L);
-//        assertThat(outputDs.columns()).contains("eventId", "event_date");
-//        List<String> eventIds = outputDs.select("eventId").as(Encoders.STRING()).collectAsList();
-//        assertThat(eventIds).containsExactlyInAnyOrder("e1", "e2");
-//    }
 
     @Test
     @DisplayName("Example 3: Array explosion for normalization")
@@ -330,50 +273,213 @@ class NexusPiercerExamplesTest {
         assertThat(names).contains("Alice", "Bob", null, "Charlie"); // `null` for the invalid json
     }
 
-//    @Test
-//    @DisplayName("Example 5: Using pre-built patterns")
-//    void testPatternsExample() throws IOException {
-//        // --- Setup for all patterns ---
-//        String schemaPath = tempDir.resolve("schemas/product.avsc").toString();
-//        // We will create a single input file instead of a directory
-//        String outputPath = tempDir.resolve("data/output/").toString();
-//
-//        createTestFile("schemas/product.avsc", """
-//            { "type": "record", "name": "Product", "fields": [
-//                {"name": "id", "type": "string"},
-//                {"name": "category", "type": "string"},
-//                {"name": "tags", "type": {"type": "array", "items": "string"}}
-//            ]}
-//            """);
-//
-//        // FIX: Combine all JSON into a single string, one per line.
-//        String productsJson = String.join("\n",
-//                "{\"id\":\"p1\",\"category\":\"electronics\",\"tags\":[\"a\",\"b\"]}",
-//                "{\"id\":\"p2\",\"category\":\"books\",\"tags\":[\"c\"]}",
-//                "{bad-json}"
-//        );
-//        // FIX: Write to a single file and get its explicit path.
-//        Path inputFilePath = createTestFile("data/input/products/all_products.jsonl", productsJson);
-//
-//        // --- Pattern 1: JSON to Parquet ---
-//        // FIX: Pass the explicit file path instead of the directory path.
-//        NexusPiercerPatterns.jsonToParquet(spark, schemaPath, inputFilePath.toString(), outputPath + "products_parquet", SaveMode.Overwrite, "category");
-//        Dataset<Row> parquetData = spark.read().parquet(outputPath + "products_parquet");
-//        assertThat((long) parquetData.count()).isEqualTo(2L);
-//        assertThat(parquetData.select("id").as(Encoders.STRING()).collectAsList()).contains("p1", "p2");
-//
-//        // --- Pattern 2: Data Quality Report ---
-//        // FIX: Pass the explicit file path.
-//        Dataset<Row> qualityReport = NexusPiercerPatterns.generateDataQualityReport(spark, schemaPath, inputFilePath.toString());
-//        assertThat((long) qualityReport.count()).isPositive();
-//        Row reportRow = qualityReport.first();
-//        assertThat((long) reportRow.getAs("total_records")).isEqualTo(3L);
-//        assertThat((long) reportRow.getAs("schema_valid_records")).isEqualTo(2L);
-//
-//        // --- Pattern 3: Profile JSON Structure ---
-//        // FIX: Pass the explicit file path.
-//        Dataset<Row> profile = NexusPiercerPatterns.profileJsonStructure(spark, inputFilePath.toString(), 100);
-//        assertThat((long) profile.filter("field = 'id'").count()).isEqualTo(1L);
-//        assertThat((long) profile.filter("field = 'tags_count'").count()).isEqualTo(1L);
-//    }
+    @Test
+    @DisplayName("Example 5: Enhanced test for processing a JSON column within a complex DataFrame")
+    void testEnhancedProcessingOfJsonColumn() throws IOException {
+        // --- 1. Arrange: Define a more complex schema ---
+        String complexSchemaContent = """
+        {
+          "type": "record", "name": "ShipmentNotification",
+          "fields": [
+            {"name": "shipmentId", "type": "string"},
+            {"name": "customerId", "type": "long"},
+            {"name": "isExpedited", "type": "boolean"},
+            {"name": "status", "type": {"type": "enum", "name": "StatusType", "symbols": ["PENDING", "IN_TRANSIT", "DELIVERED", "EXCEPTION"]}},
+            {"name": "eventTimestamp", "type": "long"},
+            {"name": "origin", "type": {
+              "type": "record", "name": "Address", "fields": [
+                {"name": "street", "type": "string"},
+                {"name": "city", "type": "string"},
+                {"name": "zip", "type": "string"}
+              ]}
+            },
+            {"name": "destination", "type": "Address"},
+            {"name": "trackingEvents", "type": {"type": "array", "items": "string"}},
+            {"name": "lineItems", "type": {"type": "array", "items": {
+              "type": "record", "name": "Item", "fields": [
+                {"name": "sku", "type": "string"},
+                {"name": "quantity", "type": "int"},
+                {"name": "price", "type": "double"}
+              ]}
+            }},
+            {"name": "notes", "type": ["null", "string"], "default": null}
+          ]
+        }
+        """;
+        Path schemaFile = createTestFile("schemas/complex_shipment.avsc", complexSchemaContent);
+
+        // --- 2. Arrange: Create diverse and complex test data ---
+
+        // Three valid records that conform to the schema
+        String validRecord1 = "{\"shipmentId\":\"SH-VALID-001\",\"customerId\":101,\"isExpedited\":true,\"status\":\"IN_TRANSIT\",\"eventTimestamp\":1678886400,\"origin\":{\"street\":\"100 Main St\",\"city\":\"Metropolis\",\"zip\":\"12345\"},\"destination\":{\"street\":\"500 End Rd\",\"city\":\"Gotham\",\"zip\":\"67890\"},\"trackingEvents\":[\"Created\",\"Picked Up\",\"In Transit\"],\"lineItems\":[{\"sku\":\"SKU-A\",\"quantity\":2,\"price\":19.99},{\"sku\":\"SKU-B\",\"quantity\":1,\"price\":50.0}],\"notes\":\"Leave at front door.\"}";
+        String validRecord2 = "{\"shipmentId\":\"SH-VALID-002\",\"customerId\":202,\"isExpedited\":false,\"status\":\"PENDING\",\"eventTimestamp\":1678890000,\"origin\":{\"street\":\"200 Start Blvd\",\"city\":\"Star City\",\"zip\":\"54321\"},\"destination\":{\"street\":\"800 Last Ave\",\"city\":\"Central City\",\"zip\":\"09876\"},\"trackingEvents\":[\"Created\"],\"lineItems\":[{\"sku\":\"SKU-C\",\"quantity\":10,\"price\":5.25}]}"; // Note: 'notes' field is omitted, testing default null
+        String validRecord3 = "{\"shipmentId\":\"SH-VALID-003\",\"customerId\":303,\"isExpedited\":false,\"status\":\"DELIVERED\",\"eventTimestamp\":1678990000,\"origin\":{\"street\":\"300 Place\",\"city\":\"Coast City\",\"zip\":\"11111\"},\"destination\":{\"street\":\"900 Way\",\"city\":\"National City\",\"zip\":\"22222\"},\"trackingEvents\":[],\"lineItems\":[]}"; // Empty arrays
+
+        // Two invalid records: one with a schema validation error, one with a syntax error
+        String recordWithSchemaError = "{\"shipmentId\":\"SH-SCHEMA-ERR\",\"customerId\":\"not-a-long\",\"isExpedited\":\"true\",\"status\":\"UNKNOWN_STATUS\",\"eventTimestamp\":1678886400,\"origin\":{\"street\":\"1 Error Ln\",\"city\":\"Corruptville\",\"zip\":\"00000\"},\"destination\":{\"street\":\"1 Bad Rd\",\"city\":\"Failburg\",\"zip\":\"99999\"},\"trackingEvents\":[],\"lineItems\":[]}"; // customerId is string, isExpedited is string, status is invalid enum
+        String recordWithSyntaxError = "{\"shipmentId\":\"SH-SYNTAX-ERR\",\"customerId\":999, ... // Malformed JSON";
+
+        // Create the source DataFrame with "header" columns and the JSON "payload" column
+        StructType initialSchema = new StructType()
+                .add("topic", DataTypes.StringType, false)
+                .add("kafka_key", DataTypes.StringType, false)
+                .add("ingestion_time", DataTypes.TimestampType, false)
+                .add("payload", DataTypes.StringType, false);
+
+        List<Row> initialData = Arrays.asList(
+                RowFactory.create("shipments", "key-1", java.sql.Timestamp.valueOf("2023-03-15 12:00:00"), validRecord1),
+                RowFactory.create("shipments", "key-2", java.sql.Timestamp.valueOf("2023-03-15 12:01:00"), validRecord2),
+                RowFactory.create("shipments", "key-schema-err", java.sql.Timestamp.valueOf("2023-03-15 12:02:00"), recordWithSchemaError),
+                RowFactory.create("shipments", "key-3", java.sql.Timestamp.valueOf("2023-03-15 12:03:00"), validRecord3),
+                RowFactory.create("shipments", "key-syntax-err", java.sql.Timestamp.valueOf("2023-03-15 12:04:00"), recordWithSyntaxError)
+        );
+        Dataset<Row> sourceDf = spark.createDataFrame(initialData, initialSchema);
+
+        // --- 3. Act: Process the 'payload' column using the pipeline ---
+        NexusPiercerSparkPipeline.ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
+                .withSchema(schemaFile.toString())
+                .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
+                .disableArrayStatistics() // Simplify output for assertions
+                .includeRawJson() // Important for debugging and verifying error records
+                .processJsonColumn(sourceDf, "payload");
+
+        Dataset<Row> successDf = result.getDataset();
+        Dataset<Row> errorDf = result.getErrorDataset();
+
+        System.out.println("=== Source DataFrame ===");
+        sourceDf.show(false);
+        System.out.println("=== Final Success DataFrame (Headers + Flattened Payload) ===");
+        successDf.show(false);
+        System.out.println("=== Final Error DataFrame (Headers + Raw Payload + Error) ===");
+        errorDf.show(false);
+
+        // --- 4. Assert ---
+
+        // Assert counts
+        assertThat(successDf.count()).as("Count of successfully processed records").isEqualTo(3);
+        assertThat(errorDf.count()).as("Count of quarantined error records").isEqualTo(2);
+
+        // Assert success DataFrame schema and content
+        assertThat(successDf.columns()).as("Success DF columns")
+                .startsWith("topic", "kafka_key", "ingestion_time")
+                .contains("shipmentId", "customerId", "isExpedited", "origin_city", "destination_zip", "lineItems_sku", "notes")
+                .doesNotContain("payload", "lineItems_count"); // Original payload removed, array stats disabled
+
+        // Deep dive into a specific successful record to verify the join was correct
+        Row successRow1 = successDf.filter(col("kafka_key").equalTo("key-1")).first();
+        assertThat(successRow1.getString(successRow1.fieldIndex("topic"))).isEqualTo("shipments");
+        assertThat(successRow1.getString(successRow1.fieldIndex("shipmentId"))).isEqualTo("SH-VALID-001");
+        assertThat(successRow1.getBoolean(successRow1.fieldIndex("isExpedited"))).isTrue();
+        assertThat(successRow1.getString(successRow1.fieldIndex("origin_city"))).isEqualTo("Metropolis");
+        assertThat(successRow1.getString(successRow1.fieldIndex("lineItems_sku"))).isEqualTo("SKU-A,SKU-B");
+        assertThat(successRow1.getString(successRow1.fieldIndex("notes"))).isEqualTo("Leave at front door.");
+
+        // Assert error DataFrame schema and content
+        assertThat(errorDf.columns()).as("Error DF columns")
+                .startsWith("topic", "kafka_key", "ingestion_time")
+                .contains("_raw_json", "_error")
+                .doesNotContain("payload", "shipmentId"); // No flattened columns in error DF
+
+        // Check the specific error messages and their associated headers
+        Row schemaErrorRow = errorDf.filter(col("kafka_key").equalTo("key-schema-err")).first();
+        assertThat(schemaErrorRow.getString(schemaErrorRow.fieldIndex("topic"))).isEqualTo("shipments");
+        assertThat(schemaErrorRow.getString(schemaErrorRow.fieldIndex("_error"))).isEqualTo("Schema validation failed");
+        assertThat(schemaErrorRow.getString(schemaErrorRow.fieldIndex("_raw_json"))).isEqualTo(recordWithSchemaError);
+
+        Row syntaxErrorRow = errorDf.filter(col("kafka_key").equalTo("key-syntax-err")).first();
+        assertThat(syntaxErrorRow.getString(syntaxErrorRow.fieldIndex("topic"))).isEqualTo("shipments");
+        assertThat(syntaxErrorRow.getString(syntaxErrorRow.fieldIndex("_error"))).isEqualTo("Malformed JSON string");
+        assertThat(syntaxErrorRow.getString(syntaxErrorRow.fieldIndex("_raw_json"))).isEqualTo(recordWithSyntaxError);
+    }
+
+
+    @Test
+    @DisplayName("Example 5: Process JSON column without _raw_json")
+    void testProcessingJsonColumn_WithoutRawJson() throws IOException {
+        // --- 1. Arrange: Define a more complex schema ---
+        String complexSchemaContent = """
+        {
+          "type": "record", "name": "ShipmentNotification",
+          "fields": [
+            {"name": "shipmentId", "type": "string"},
+            {"name": "customerId", "type": "long"},
+            {"name": "isExpedited", "type": "boolean"},
+            {"name": "status", "type": {"type": "enum", "name": "StatusType", "symbols": ["PENDING", "IN_TRANSIT", "DELIVERED", "EXCEPTION"]}},
+            {"name": "eventTimestamp", "type": "long"},
+            {"name": "origin", "type": {
+              "type": "record", "name": "Address", "fields": [
+                {"name": "street", "type": "string"},
+                {"name": "city", "type": "string"},
+                {"name": "zip", "type": "string"}
+              ]}
+            },
+            {"name": "destination", "type": "Address"},
+            {"name": "trackingEvents", "type": {"type": "array", "items": "string"}},
+            {"name": "lineItems", "type": {"type": "array", "items": {
+              "type": "record", "name": "Item", "fields": [
+                {"name": "sku", "type": "string"},
+                {"name": "quantity", "type": "int"},
+                {"name": "price", "type": "double"}
+              ]}
+            }},
+            {"name": "notes", "type": ["null", "string"], "default": null}
+          ]
+        }
+        """;
+        Path schemaFile = createTestFile("schemas/complex_shipment.avsc", complexSchemaContent);
+
+        // --- 2. Arrange: Create diverse and complex test data ---
+
+        // Three valid records that conform to the schema
+        String validRecord1 = "{\"shipmentId\":\"SH-VALID-001\",\"customerId\":101,\"isExpedited\":true,\"status\":\"IN_TRANSIT\",\"eventTimestamp\":1678886400,\"origin\":{\"street\":\"100 Main St\",\"city\":\"Metropolis\",\"zip\":\"12345\"},\"destination\":{\"street\":\"500 End Rd\",\"city\":\"Gotham\",\"zip\":\"67890\"},\"trackingEvents\":[\"Created\",\"Picked Up\",\"In Transit\"],\"lineItems\":[{\"sku\":\"SKU-A\",\"quantity\":2,\"price\":19.99},{\"sku\":\"SKU-B\",\"quantity\":1,\"price\":50.0}],\"notes\":\"Leave at front door.\"}";
+        String validRecord2 = "{\"shipmentId\":\"SH-VALID-002\",\"customerId\":202,\"isExpedited\":false,\"status\":\"PENDING\",\"eventTimestamp\":1678890000,\"origin\":{\"street\":\"200 Start Blvd\",\"city\":\"Star City\",\"zip\":\"54321\"},\"destination\":{\"street\":\"800 Last Ave\",\"city\":\"Central City\",\"zip\":\"09876\"},\"trackingEvents\":[\"Created\"],\"lineItems\":[{\"sku\":\"SKU-C\",\"quantity\":10,\"price\":5.25}]}"; // Note: 'notes' field is omitted, testing default null
+        String validRecord3 = "{\"shipmentId\":\"SH-VALID-003\",\"customerId\":303,\"isExpedited\":false,\"status\":\"DELIVERED\",\"eventTimestamp\":1678990000,\"origin\":{\"street\":\"300 Place\",\"city\":\"Coast City\",\"zip\":\"11111\"},\"destination\":{\"street\":\"900 Way\",\"city\":\"National City\",\"zip\":\"22222\"},\"trackingEvents\":[],\"lineItems\":[]}"; // Empty arrays
+
+        // Two invalid records: one with a schema validation error, one with a syntax error
+        String recordWithSchemaError = "{\"shipmentId\":\"SH-SCHEMA-ERR\",\"customerId\":\"not-a-long\",\"isExpedited\":\"true\",\"status\":\"UNKNOWN_STATUS\",\"eventTimestamp\":1678886400,\"origin\":{\"street\":\"1 Error Ln\",\"city\":\"Corruptville\",\"zip\":\"00000\"},\"destination\":{\"street\":\"1 Bad Rd\",\"city\":\"Failburg\",\"zip\":\"99999\"},\"trackingEvents\":[],\"lineItems\":[]}"; // customerId is string, isExpedited is string, status is invalid enum
+        String recordWithSyntaxError = "{\"shipmentId\":\"SH-SYNTAX-ERR\",\"customerId\":999, ... // Malformed JSON";
+
+        // Create the source DataFrame with "header" columns and the JSON "payload" column
+        StructType initialSchema = new StructType()
+                .add("topic", DataTypes.StringType, false)
+                .add("kafka_key", DataTypes.StringType, false)
+                .add("ingestion_time", DataTypes.TimestampType, false)
+                .add("payload", DataTypes.StringType, false);
+
+        List<Row> initialData = Arrays.asList(
+                RowFactory.create("shipments", "key-1", java.sql.Timestamp.valueOf("2023-03-15 12:00:00"), validRecord1),
+                RowFactory.create("shipments", "key-2", java.sql.Timestamp.valueOf("2023-03-15 12:01:00"), validRecord2),
+                RowFactory.create("shipments", "key-schema-err", java.sql.Timestamp.valueOf("2023-03-15 12:02:00"), recordWithSchemaError),
+                RowFactory.create("shipments", "key-3", java.sql.Timestamp.valueOf("2023-03-15 12:03:00"), validRecord3),
+                RowFactory.create("shipments", "key-syntax-err", java.sql.Timestamp.valueOf("2023-03-15 12:04:00"), recordWithSyntaxError)
+        );
+        Dataset<Row> sourceDf = spark.createDataFrame(initialData, initialSchema);
+
+        // --- Act ---
+        NexusPiercerSparkPipeline.ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
+                .withSchema(schemaFile.toString())
+                .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
+                .disableArrayStatistics()
+                // .includeRawJson() // <--- DO NOT CALL THIS METHOD
+                .processJsonColumn(sourceDf, "payload");
+
+        Dataset<Row> successDf = result.getDataset();
+        Dataset<Row> errorDf = result.getErrorDataset();
+
+        System.out.println("=== Success DF (No Raw JSON) ===");
+        successDf.show(false);
+        System.out.println("=== Error DF (No Raw JSON) ===");
+        errorDf.show(false);
+
+        // --- Assert ---
+        // Assert that _raw_json IS NOT present
+        assertThat(successDf.columns()).doesNotContain("_raw_json");
+        // Assert that the error DF has the fallback column
+        assertThat(errorDf.columns()).doesNotContain("_raw_json");
+        assertThat(errorDf.columns()).contains("_source_payload", "_error");
+
+        // Verify counts are still correct
+        assertThat(successDf.count()).isEqualTo(3);
+        assertThat(errorDf.count()).isEqualTo(2);
+    }
 }

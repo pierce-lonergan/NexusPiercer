@@ -26,14 +26,14 @@ public class AvroSchemaLoaderUsageExamples {
     public static void basicUsageExample() throws IOException {
         LOG.info("=== Basic Usage Example ===");
 
-        // Create a default loader
+
         AvroSchemaLoader loader = AvroSchemaLoader.createDefault();
 
-        // Load a single schema
+
         StructType userSchema = loader.loadFlattenedSchema("user.avsc");
         LOG.info("Loaded schema with {} fields", userSchema.fields().length);
 
-        // Print field names
+
         for (String fieldName : userSchema.fieldNames()) {
             LOG.info("  Field: {}", fieldName);
         }
@@ -45,21 +45,21 @@ public class AvroSchemaLoaderUsageExamples {
     public static void productionConfigExample() throws IOException {
         LOG.info("=== Production Configuration Example ===");
 
-        // Configure for production environment
+
         AvroSchemaLoader loader = new AvroSchemaLoader.Builder()
-                // Primary location for current schemas
+
                 .withTargetDirectory("/data/schemas/v2")
-                // Add multiple fallback locations
-                .addSearchPath("/data/schemas/v1")          // Previous version
+
+                .addSearchPath("/data/schemas/v1")
                 .addSearchPath("hdfs://namenode:9000/schemas/current")
                 .addSearchPath("s3://my-bucket/schemas")
-                // Production settings
-                .withArrayStatistics(false)  // Disable for performance
-                .withCaching(true)          // Enable caching
+
+                .withArrayStatistics(false)
+                .withCaching(true)
                 .withHadoopConfiguration(createHadoopConfig())
                 .build();
 
-        // Load multiple schemas
+
         List<String> requiredSchemas = List.of(
                 "customer", "order", "product", "transaction"
         );
@@ -67,11 +67,11 @@ public class AvroSchemaLoaderUsageExamples {
         AvroSchemaLoader.SchemaLoadResult result =
                 loader.loadFlattenedSchemas(requiredSchemas);
 
-        // Handle results
+
         if (result.isCompleteSuccess()) {
             LOG.info("All {} schemas loaded successfully", result.getSuccessCount());
 
-            // Use the schemas
+
             Map<String, StructType> schemas = result.getSuccessfulSchemas();
             StructType customerSchema = schemas.get("customer");
             // ... use schemas for Spark operations

@@ -18,7 +18,7 @@ import static org.apache.spark.sql.functions.*;
  */
 public class NexusPiercerFunctions {
 
-    // ===== CONFIGURATION CONSTANTS =====
+
 
     public static final String DEFAULT_DELIMITER = ",";
     public static final int DEFAULT_MAX_NESTING = 50;
@@ -26,8 +26,8 @@ public class NexusPiercerFunctions {
     private static final ObjectMapper STRICT_JSON_MAPPER = new ObjectMapper();
 
 
-    // ===== JSON FLATTENING FUNCTIONS =====
-    // ... (These functions are correct) ...
+
+
     public static UserDefinedFunction flattenJson = udf(
             (String json) -> {
                 if (json == null || json.trim().isEmpty()) return null;
@@ -74,8 +74,8 @@ public class NexusPiercerFunctions {
             DataTypes.StringType
     );
 
-    // ===== ARRAY EXTRACTION FUNCTIONS =====
-    // ... (These functions are correct) ...
+
+
     public static UserDefinedFunction extractJsonArray = udf(
             (String json, String arrayPath) -> {
                 if (json == null || arrayPath == null) return null;
@@ -85,7 +85,7 @@ public class NexusPiercerFunctions {
                     );
                     String flattened = flattener.flattenAndConsolidateJson(json);
 
-                    // Parse flattened JSON and extract the array field
+
                     org.json.JSONObject obj = new org.json.JSONObject(flattened);
                     String key = arrayPath.replace(".", "_");
                     return obj.optString(key, null);
@@ -134,8 +134,8 @@ public class NexusPiercerFunctions {
             DataTypes.LongType
     );
 
-    // ===== EXPLOSION FUNCTIONS =====
-    // ... (This function is correct) ...
+
+
     public static UserDefinedFunction explodeJsonArray = udf(
             (String json, String explosionPath) -> {
                 if (json == null || explosionPath == null) return null;
@@ -152,7 +152,7 @@ public class NexusPiercerFunctions {
             },
             DataTypes.createArrayType(DataTypes.StringType)
     );
-    // ===== VALIDATION FUNCTIONS =====
+
 
     /**
      * Validate if JSON is well-formed.
@@ -167,7 +167,7 @@ public class NexusPiercerFunctions {
                     return false;
                 }
                 try {
-                    // Use Jackson's readTree which is strict by default.
+
                     STRICT_JSON_MAPPER.readTree(trimmedJson);
                     return true;
                 } catch (Exception e) {
@@ -194,14 +194,14 @@ public class NexusPiercerFunctions {
                 }
 
                 try {
-                    // Use Jackson's readTree which is strict by default.
+
                     STRICT_JSON_MAPPER.readTree(trimmedJson);
-                    return ""; // Return empty string on success
+                    return "";
                 } catch (Exception e) {
-                    // Return a clean part of the exception message.
+
                     String message = e.getMessage();
                     if (message != null) {
-                        // Jackson's messages can be long, so we shorten them.
+
                         int end = message.indexOf("\n at [");
                         return end != -1 ? message.substring(0, end) : message;
                     }
@@ -211,8 +211,8 @@ public class NexusPiercerFunctions {
             DataTypes.StringType
     );
 
-    // ===== NESTED FIELD EXTRACTION =====
-    // ... (This function is correct) ...
+
+
     public static UserDefinedFunction extractNestedField = udf(
             (String json, String fieldPath) -> {
                 if (json == null || fieldPath == null) return null;
@@ -232,8 +232,8 @@ public class NexusPiercerFunctions {
             DataTypes.StringType
     );
 
-    // ===== COLUMN-BASED FUNCTIONS =====
-    // ... (These are correct) ...
+
+
     public static Column flattenJson(Column jsonColumn) {
         return flattenJson.apply(jsonColumn);
     }
@@ -262,8 +262,8 @@ public class NexusPiercerFunctions {
         return extractNestedField.apply(jsonColumn, lit(fieldPath));
     }
 
-    // ===== REGISTRATION FOR SPARK SQL =====
-    // ... (These are correct) ...
+
+
     public static void registerAll(org.apache.spark.sql.SparkSession spark) {
         spark.udf().register("flatten_json", flattenJson);
         spark.udf().register("flatten_json_with_delimiter", flattenJsonWithDelimiter);

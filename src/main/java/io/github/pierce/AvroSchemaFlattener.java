@@ -38,7 +38,7 @@ public class AvroSchemaFlattener implements Serializable {
     private final boolean includeArrayStatistics;
     private final Set<String> arrayFieldNames;
 
-    // Enhanced metadata tracking
+
     private final List<FieldMetadata> fieldMetadataList;
     private final Map<String, TypeTransformation> typeTransformations;
     private final Set<String> fieldsWithinArrays;
@@ -88,7 +88,7 @@ public class AvroSchemaFlattener implements Serializable {
      * @return The new, flattened schema.
      */
     public Schema getFlattenedSchemaNoCache(Schema schema) {
-        // Directly call the private flatten method, bypassing the cache.
+
         return flattenSchema(schema);
     }
 
@@ -98,20 +98,20 @@ public class AvroSchemaFlattener implements Serializable {
     }
 
     private Schema flattenSchema(Schema schema) {
-        // Clear all tracking collections
+
         arrayFieldNames.clear();
         fieldMetadataList.clear();
         typeTransformations.clear();
         fieldsWithinArrays.clear();
         schemaStats.reset();
 
-        // Set basic schema statistics
+
         schemaStats.originalSchemaName = schema.getFullName();
         schemaStats.originalFieldCount = schema.getFields().size();
 
         List<Field> flattenedFields = new ArrayList<>();
 
-        // Process fields in order to maintain field ordering
+
         for (Field field : schema.getFields()) {
             processFieldRecursively("", field, field.schema(), flattenedFields, false, 0, "");
         }
@@ -121,7 +121,7 @@ public class AvroSchemaFlattener implements Serializable {
         Schema flattenedSchema = Schema.createRecord(flatName, "Flattened version of " + schema.getName(), flatNamespace, false);
         flattenedSchema.setFields(flattenedFields);
 
-        // Update final statistics
+
         schemaStats.flattenedFieldCount = flattenedFields.size();
         schemaStats.arrayFieldCount = arrayFieldNames.size();
         schemaStats.fieldsWithinArraysCount = fieldsWithinArrays.size();
@@ -136,13 +136,13 @@ public class AvroSchemaFlattener implements Serializable {
         String fieldName = prefix.isEmpty() ? field.name() : prefix + "_" + field.name();
         String currentPath = path.isEmpty() ? field.name() : path + "." + field.name();
 
-        // Update max depth
+
         schemaStats.maxNestingDepth = Math.max(schemaStats.maxNestingDepth, depth);
 
         switch (fieldSchema.getType()) {
             case RECORD:
                 schemaStats.recordFieldCount++;
-                // For records, immediately process their sub-fields to maintain order
+
                 for (Field subField : fieldSchema.getFields()) {
                     processFieldRecursively(fieldName, subField, subField.schema(),
                             flattenedFields, isWithinArray, depth + 1, currentPath);
@@ -159,28 +159,28 @@ public class AvroSchemaFlattener implements Serializable {
             case ARRAY:
                 arrayFieldNames.add(fieldName);
 
-                // Create metadata for the array field
+
                 FieldMetadata arrayMetadata = new FieldMetadata(
                         fieldName, currentPath, depth, Type.ARRAY, Type.STRING,
                         field.doc(), isNullable(fieldSchema), true, isWithinArray
                 );
                 fieldMetadataList.add(arrayMetadata);
 
-                // Add the array field itself first
+
                 addField(flattenedFields, fieldName, Schema.create(Type.STRING), field.doc(), false);
 
-                // Add statistics fields immediately after the array field if needed
+
                 if (includeArrayStatistics) {
                     addArrayStatisticsFields(flattenedFields, fieldName);
                 }
 
-                // Then process the array's element type - NOW WITHIN ARRAY CONTEXT
+
                 Schema elementType = getNonNullType(fieldSchema.getElementType());
                 if (elementType != null && elementType.getType() == Type.RECORD) {
-                    // For arrays of records, process each field of the record
+
                     for (Field subField : elementType.getFields()) {
                         processFieldRecursively(fieldName, subField, subField.schema(),
-                                flattenedFields, true, depth + 1, currentPath); // NOW WITHIN ARRAY
+                                flattenedFields, true, depth + 1, currentPath);
                     }
                 }
                 break;
@@ -214,7 +214,7 @@ public class AvroSchemaFlattener implements Serializable {
                 addField(flattenedFields, fieldName, Schema.create(Type.BYTES), field.doc(), isWithinArray);
                 break;
 
-            default: // Primitives
+            default:
                 Type originalType = fieldSchema.getType();
                 Type flattenedType = isWithinArray ? Type.STRING : originalType;
 
@@ -236,7 +236,7 @@ public class AvroSchemaFlattener implements Serializable {
     }
 
     private void addArrayStatisticsFields(List<Field> flattenedFields, String baseFieldName) {
-        // Statistics fields always keep their original types
+
         addField(flattenedFields, baseFieldName + COUNT_SUFFIX, Schema.create(Type.LONG),
                 "Count of array elements", false);
         addField(flattenedFields, baseFieldName + DISTINCT_COUNT_SUFFIX, Schema.create(Type.LONG),
@@ -252,7 +252,7 @@ public class AvroSchemaFlattener implements Serializable {
     }
 
     private void addField(List<Field> fields, String name, Schema type, String doc, boolean isWithinArray) {
-        // Check for duplicates
+
         for (Field existing : fields) {
             if (existing.name().equals(name)) {
                 LOG.trace("Field {} already exists, skipping", name);
@@ -260,12 +260,12 @@ public class AvroSchemaFlattener implements Serializable {
             }
         }
 
-        // Track fields within arrays
+
         if (isWithinArray) {
             fieldsWithinArrays.add(name);
         }
 
-        // If this field is within an array and it's a primitive type, convert to STRING
+
         Schema actualType = type;
         if (isWithinArray && isPrimitiveType(type)) {
             LOG.debug("Converting field {} from {} to STRING because it's within an array",
@@ -309,7 +309,7 @@ public class AvroSchemaFlattener implements Serializable {
                 schema.getTypes().stream().anyMatch(s -> s.getType() == Type.NULL);
     }
 
-    // Public accessors for metadata
+
     public Set<String> getArrayFieldNames() {
         return new HashSet<>(arrayFieldNames);
     }
@@ -337,7 +337,7 @@ public class AvroSchemaFlattener implements Serializable {
         try (Workbook workbook = new XSSFWorkbook();
              FileOutputStream fileOut = new FileOutputStream(filePath)) {
 
-            // Create styles
+
             CellStyle headerStyle = createHeaderStyle(workbook);
             CellStyle titleStyle = createTitleStyle(workbook);
             CellStyle highlightStyle = createHighlightStyle(workbook);
