@@ -14,6 +14,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
@@ -546,24 +547,6 @@ public class NexusPiercerSparkPipeline implements Serializable {
     }
 
 
-
-
-
-    // In NexusPiercerSparkPipeline.java
-
-    /**
-     * Processes a specific column containing JSON strings within an existing source DataFrame.
-     * It flattens the JSON according to the pipeline's configuration and then integrates the
-     * flattened data back into the DataFrame, correctly partitioning success and error records.
-     *
-     * This method is robust against row-reordering issues in Spark by performing the
-     * processing in-place and not separating headers from the payload.
-     *
-     * @param sourceDf The source DataFrame containing headers and a JSON column.
-     * @param jsonColumnName The name of the column with the JSON strings to process.
-     * @return A {@link ProcessingResult} containing the successful DataFrame (headers + flattened data)
-     *         and the error DataFrame (headers + original JSON + error info).
-     */
     public ProcessingResult processJsonColumn(Dataset<Row> sourceDf, String jsonColumnName) {
         if (!Arrays.asList(sourceDf.columns()).contains(jsonColumnName)) {
             throw new IllegalArgumentException("Source DataFrame does not contain specified JSON column: " + jsonColumnName);
@@ -576,15 +559,42 @@ public class NexusPiercerSparkPipeline implements Serializable {
             // --- 1. Load and prepare schemas and processors ---
             final CachedSchema cachedSchema = loadSchema();
             initializeProcessors();
+            final StructType sparkSchema = cachedSchema.sparkSchema; // Make it final for UDF closure
 
-            // --- 2. Apply the entire flattening and parsing logic directly to the source DF ---
+            // --- 2. DEFINE THE OPTIMIZED UDF FOR SCHEMA VALIDATION ---
+            // This UDF encapsulates the iterative logic, preventing a StackOverflowError.
+            UserDefinedFunction schemaValidatorUdf = udf(
+                    (String flattenedJson, Row parsedData) -> {
+                        if (parsedData == null || flattenedJson == null) {
+                            return false; // Not a schema error, likely a syntax error handled earlier.
+                        }
+
+                        // Parse the JSON string *once* for efficient lookups.
+                        JSONObject jsonObject = new JSONObject(flattenedJson);
+
+                        for (StructField field : sparkSchema.fields()) {
+                            String fieldName = field.name();
+                            int fieldIndex = parsedData.fieldIndex(fieldName);
+
+                            // The condition: The parsed value is null, but the key existed in the source JSON.
+                            if (parsedData.isNullAt(fieldIndex) && jsonObject.has(fieldName) && !jsonObject.isNull(fieldName)) {
+                                return true; // Schema validation failed.
+                            }
+                        }
+                        return false; // All fields are valid.
+                    },
+                    DataTypes.BooleanType
+            );
+
+
+            // --- 3. Apply the entire flattening and parsing logic directly to the source DF ---
             UserDefinedFunction flattenUdf = udf(
                     (String json) -> {
                         if (json == null || json.trim().isEmpty()) return null;
                         try {
                             return flattener.flattenAndConsolidateJson(json);
                         } catch (Exception e) {
-                            return "{}";
+                            return "{}"; // Return empty object on error
                         }
                     },
                     DataTypes.StringType
@@ -592,71 +602,61 @@ public class NexusPiercerSparkPipeline implements Serializable {
 
             Dataset<Row> processedDf = sourceDf
                     .withColumn("_is_malformed_syntax", from_json(col(jsonColumnName), DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType)).isNull())
-                    .withColumn("_flattened_json", when(not(col("_is_malformed_syntax")), flattenUdf.apply(col(jsonColumnName))).otherwise(null))
-                    .withColumn("_parsed_data", from_json(col("_flattened_json"), cachedSchema.sparkSchema));
+                    .withColumn("_flattened_json", when(not(col("_is_malformed_syntax")), flattenUdf.apply(col(jsonColumnName))).otherwise(lit(null)))
+                    .withColumn("_parsed_data", from_json(col("_flattened_json"), sparkSchema));
 
-            // --- 3. Reliably detect schema validation errors ---
-            Column schemaErrorCondition = lit(false);
-            for (StructField field : cachedSchema.sparkSchema.fields()) {
-                String fieldName = field.name();
-                Column fieldIsCorrupt = col("_parsed_data." + fieldName).isNull()
-                        .and(get_json_object(col("_flattened_json"), "$." + fieldName).isNotNull());
-                schemaErrorCondition = schemaErrorCondition.or(fieldIsCorrupt);
-            }
+            // --- 4. APPLY THE UDF TO CREATE THE ERROR CONDITION ---
+            // The logical plan is now simple and will not cause a StackOverflowError.
+            processedDf = processedDf.withColumn("_schema_error_flag",
+                    schemaValidatorUdf.apply(col("_flattened_json"), col("_parsed_data"))
+            );
 
-            // --- 4. Create a definitive error column ---
+            // --- 5. Create a definitive error column ---
             processedDf = processedDf.withColumn("_error",
                     when(col("_is_malformed_syntax"), lit("Malformed JSON string"))
-                            .when(schemaErrorCondition, lit("Schema validation failed"))
+                            .when(col("_schema_error_flag"), lit("Schema validation failed"))
                             .otherwise(lit(null).cast(DataTypes.StringType))
             );
 
-            // --- 5. Split into Success and Error DataFrames ---
+            // --- 6. Split into Success and Error DataFrames ---
             Dataset<Row> errorDf = processedDf.filter(col("_error").isNotNull());
             Dataset<Row> successDf = processedDf.filter(col("_error").isNull());
 
-            // --- 6. Finalize the Success DataFrame schema ---
+            // --- 7. Finalize the Success DataFrame schema ---
             List<String> headerNames = Arrays.stream(sourceDf.columns())
                     .filter(c -> !c.equals(jsonColumnName))
                     .collect(Collectors.toList());
 
             List<Column> finalSuccessCols = headerNames.stream().map(functions::col).collect(Collectors.toList());
+
+            // This is the correct way to select all fields from the nested struct
             finalSuccessCols.add(col("_parsed_data.*"));
 
-            // *** NEW: Conditionally add the _raw_json column ***
             if (config.includeRawJson) {
                 finalSuccessCols.add(col(jsonColumnName).as("_raw_json"));
             }
 
             successDf = successDf.select(finalSuccessCols.toArray(new Column[0]));
 
+            // Dropping array fields from the flattened schema is still a good idea
             for(String arrayField: cachedSchema.arrayFields) {
                 if (Arrays.asList(successDf.columns()).contains(arrayField)) {
                     successDf = successDf.drop(arrayField);
                 }
             }
 
-            // --- 7. Finalize the Error DataFrame schema ---
+            // --- 8. Finalize the Error DataFrame schema ---
             List<Column> finalErrorCols = headerNames.stream().map(functions::col).collect(Collectors.toList());
-
-            // *** NEW: Conditionally add the _raw_json column ***
-            // Note: For error records, it's highly recommended to always include the raw JSON
-            // for debugging, but we will still respect the flag for consistency.
-            if (config.includeRawJson) {
-                finalErrorCols.add(col(jsonColumnName).as("_raw_json"));
-            } else {
-                // If not including raw JSON, we can at least keep the original payload column
-                // for some context, but rename it for clarity.
-                finalErrorCols.add(col(jsonColumnName).as("_source_payload"));
-            }
-
+            finalErrorCols.add(col(jsonColumnName).as("_raw_json")); // Always include raw JSON for errors
             finalErrorCols.add(col("_error"));
-
             errorDf = errorDf.select(finalErrorCols.toArray(new Column[0]));
 
-            // --- 8. Collect Metrics and Return ---
+            // --- 9. Collect Metrics and Return ---
             if (config.enableMetrics && mode == PipelineMode.BATCH) {
+                // Caching is a good practice before a count/action
+                processedDf.cache();
                 collectMetrics(processedDf, metrics);
+                processedDf.unpersist();
             }
             metrics.processingTimeMs = System.currentTimeMillis() - startTime;
 
