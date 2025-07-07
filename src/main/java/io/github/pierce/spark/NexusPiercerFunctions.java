@@ -1,6 +1,6 @@
 package io.github.pierce.spark;
 
-import com.amazonaws.thirdparty.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.pierce.JsonFlattenerConsolidator;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.api.java.UDF1;
