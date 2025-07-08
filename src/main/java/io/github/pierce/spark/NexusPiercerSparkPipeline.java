@@ -92,6 +92,31 @@ public class NexusPiercerSparkPipeline implements Serializable {
         return this;
     }
     /**
+     * Enhanced cached schema information with terminal/non-terminal array distinction
+     */
+    private static class CachedSchema implements Serializable {
+        private static final long serialVersionUID = 1L;
+        final Schema originalSchema;
+        final Schema flattenedSchema;
+        final StructType sparkSchema;
+        final Set<String> arrayFields;
+        final Set<String> terminalArrayFields;    // NEW: Arrays containing primitives (keep these)
+        final Set<String> nonTerminalArrayFields; // NEW: Arrays containing records (drop these)
+        final long cachedAt;
+
+        CachedSchema(Schema original, Schema flattened, StructType spark, Set<String> arrays,
+                     Set<String> terminalArrays, Set<String> nonTerminalArrays) {
+            this.originalSchema = original;
+            this.flattenedSchema = flattened;
+            this.sparkSchema = spark;
+            this.arrayFields = arrays;
+            this.terminalArrayFields = terminalArrays;
+            this.nonTerminalArrayFields = nonTerminalArrays;
+            this.cachedAt = System.currentTimeMillis();
+        }
+    }
+
+    /**
      * Pipeline configuration
      */
     public static class PipelineConfig implements Serializable {
@@ -101,7 +126,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         private Schema avroSchema;
         private boolean includeArrayStatistics = true;
         private boolean quarantineSchemaErrors = true;
-
+        private boolean includeNonTerminalArrays = false;
 
         private String arrayDelimiter = ",";
         private String nullPlaceholder = null;
@@ -109,41 +134,17 @@ public class NexusPiercerSparkPipeline implements Serializable {
         private int maxArraySize = 1000;
         private boolean consolidateWithMatrixDenotors = false;
 
-
         private final Set<String> explosionPaths = new HashSet<>();
-
 
         private ErrorHandling errorHandling = ErrorHandling.SKIP_MALFORMED;
         private boolean enableMetrics = true;
         private boolean cacheSchemas = true;
         private int repartitionCount = -1;
 
-
         private boolean preserveDots = false;
-
 
         private boolean includeMetadata = false;
         private boolean includeRawJson = false;
-    }
-
-    /**
-     * Cached schema information
-     */
-    private static class CachedSchema implements Serializable {
-        private static final long serialVersionUID = 1L;
-        final Schema originalSchema;
-        final Schema flattenedSchema;
-        final StructType sparkSchema;
-        final Set<String> arrayFields;
-        final long cachedAt;
-
-        CachedSchema(Schema original, Schema flattened, StructType spark, Set<String> arrays) {
-            this.originalSchema = original;
-            this.flattenedSchema = flattened;
-            this.sparkSchema = spark;
-            this.arrayFields = arrays;
-            this.cachedAt = System.currentTimeMillis();
-        }
     }
 
     /**
@@ -265,6 +266,12 @@ public class NexusPiercerSparkPipeline implements Serializable {
 
     public NexusPiercerSparkPipeline withMaxNestingDepth(int depth) {
         this.config.maxNestingDepth = depth;
+        return this;
+    }
+
+    // NEW: Configuration method for terminal arrays only
+    public NexusPiercerSparkPipeline includeNonTerminalArrays() {
+        this.config.includeNonTerminalArrays = true;
         return this;
     }
 
@@ -549,17 +556,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         return parsed.select(finalCols.toArray(new Column[0]));
     }
 
-    /**
-     * Processes a specific column containing JSON strings within an existing source DataFrame.
-     * This method is robust, maintainable, and highly performant. It uses a single combined UDF
-     * with broadcasting to handle wide schemas safely and efficiently without the API limitations
-     * of mapPartitions.
-     *
-     * @param sourceDf The source DataFrame containing headers and a JSON column.
-     * @param jsonColumnName The name of the column with the JSON strings to process.
-     * @return A {@link ProcessingResult} containing the successful DataFrame (headers + flattened data)
-     *         and the error DataFrame (headers + original JSON + error info).
-     */
+
     public ProcessingResult processJsonColumn(Dataset<Row> sourceDf, String jsonColumnName) {
         if (!Arrays.asList(sourceDf.columns()).contains(jsonColumnName)) {
             throw new IllegalArgumentException("Source DataFrame does not contain specified JSON column: " + jsonColumnName);
@@ -575,7 +572,6 @@ public class NexusPiercerSparkPipeline implements Serializable {
             broadcastSchema = JavaSparkContext.fromSparkContext(spark.sparkContext()).broadcast(cachedSchema.sparkSchema);
 
             // --- 1. Define the combined UDF that returns a Struct ---
-            // This UDF flattens the JSON and performs schema validation in a single pass.
             StructType combinedUdfReturnType = new StructType()
                     .add("flattened_json", DataTypes.StringType, true)
                     .add("schema_error", DataTypes.BooleanType, false);
@@ -633,14 +629,20 @@ public class NexusPiercerSparkPipeline implements Serializable {
             Dataset<Row> errorDf = processedDf.filter(col("_error").isNotNull());
             Dataset<Row> successDf = processedDf.filter(col("_error").isNull());
 
-            // --- 5. Finalize the Success DataFrame schema ---
-            List<String> headerNames = Arrays.stream(sourceDf.columns()).filter(c -> !c.equals(jsonColumnName)).collect(Collectors.toList());
+            // --- 5. FIXED: Finalize the Success DataFrame schema - Only drop NON-TERMINAL arrays ---
+            List<String> headerNames = Arrays.stream(sourceDf.columns()).filter(c -> !c.equals(jsonColumnName)).toList();
             List<Column> finalSuccessCols = headerNames.stream().map(functions::col).collect(Collectors.toList());
-            Set<String> arrayFieldsToDrop = cachedSchema.arrayFields;
+
+            // CRITICAL FIX: Only drop non-terminal arrays, keep terminal arrays
+            Set<String> nonTerminalArraysToDrop = cachedSchema.nonTerminalArrayFields;
+            LOG.info("Dropping non-terminal arrays: {}", nonTerminalArraysToDrop);
+            LOG.info("Keeping terminal arrays: {}", cachedSchema.terminalArrayFields);
+
             List<Column> flattenedCols = Arrays.stream(cachedSchema.sparkSchema.fields()).map(StructField::name)
-                    .filter(name -> !arrayFieldsToDrop.contains(name))
+                    .filter(name -> !nonTerminalArraysToDrop.contains(name)) // Only filter out non-terminal arrays
                     .map(name -> col("_parsed_data." + name).as(name))
-                    .collect(Collectors.toList());
+                    .toList();
+
             finalSuccessCols.addAll(flattenedCols);
             if (config.includeRawJson) {
                 finalSuccessCols.add(col(jsonColumnName).as("_raw_json"));
@@ -668,10 +670,6 @@ public class NexusPiercerSparkPipeline implements Serializable {
         } catch (Exception e) {
             LOG.error("Failed to process JSON column", e);
             throw new RuntimeException("Pipeline processing failed for JSON column", e);
-        } finally {
-            if (broadcastSchema != null) {
-                broadcastSchema.destroy(false);
-            }
         }
     }
 
@@ -783,6 +781,9 @@ public class NexusPiercerSparkPipeline implements Serializable {
 
         return finalDf;
     }
+    /**
+     * UPDATED: Initialize processors with new configuration
+     */
     private void initializeProcessors() {
         if (flattener == null) {
             flattener = new JsonFlattenerConsolidator(
@@ -796,7 +797,8 @@ public class NexusPiercerSparkPipeline implements Serializable {
         }
 
         if (schemaFlattener == null) {
-            schemaFlattener = new AvroSchemaFlattener(config.includeArrayStatistics);
+            // UPDATED: Initialize with both array statistics and non-terminal array configuration
+            schemaFlattener = new AvroSchemaFlattener(config.includeArrayStatistics, config.includeNonTerminalArrays);
         }
 
         if (flattenUdf == null) {
@@ -806,25 +808,26 @@ public class NexusPiercerSparkPipeline implements Serializable {
                         try {
                             return flattener.flattenAndConsolidateJson(json);
                         } catch (Exception e) {
-                            return "{}"; // Return an empty object on failure to avoid nulls
+                            return "{}";
                         }
                     },
                     DataTypes.StringType
             );
         }
     }
+    /**
+     * UPDATED: Load schema with terminal/non-terminal array distinction
+     */
     private CachedSchema loadSchema() throws IOException {
-        // Check if we have a schema configured
         if (config.avroSchema == null && config.schemaPath == null) {
             throw new IllegalStateException("No schema configured. Use withSchema() to set a schema.");
         }
 
-        // Generate cache key
+        // Generate cache key including new configuration
         String cacheKey = config.avroSchema != null ?
-                config.avroSchema.getFullName() + ":" + config.avroSchema.hashCode() :
-                config.schemaPath + ":" + config.includeArrayStatistics;
+                config.avroSchema.getFullName() + ":" + config.avroSchema.hashCode() + ":" + config.includeArrayStatistics + ":" + config.includeNonTerminalArrays :
+                config.schemaPath + ":" + config.includeArrayStatistics + ":" + config.includeNonTerminalArrays;
 
-        // Check cache if enabled
         if (config.cacheSchemas && SCHEMA_CACHE.containsKey(cacheKey)) {
             LOG.debug("Using cached schema for: {}", cacheKey);
             return SCHEMA_CACHE.get(cacheKey);
@@ -840,7 +843,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
             originalSchema = new Schema.Parser().parse(schemaJson);
         }
 
-        // Flatten schema
+        // UPDATED: Initialize processors with new configuration
         initializeProcessors();
         Schema flattenedSchema = schemaFlattener.getFlattenedSchema(originalSchema);
 
@@ -848,20 +851,29 @@ public class NexusPiercerSparkPipeline implements Serializable {
         StructType sparkSchema = CreateSparkStructFromAvroSchema
                 .convertNestedAvroSchemaToSparkSchema(flattenedSchema);
 
-        // Get array fields
-        Set<String> arrayFields = schemaFlattener.getArrayFieldNames();
+        // UPDATED: Get both terminal and non-terminal array fields
+        Set<String> allArrayFields = schemaFlattener.getArrayFieldNames();
+        Set<String> terminalArrayFields = schemaFlattener.getTerminalArrayFieldNames();
+        Set<String> nonTerminalArrayFields = schemaFlattener.getNonTerminalArrayFieldNames();
 
-        // Create cached schema
-        CachedSchema cached = new CachedSchema(originalSchema, flattenedSchema, sparkSchema, arrayFields);
+        LOG.info("Schema analysis - Total arrays: {}, Terminal: {}, Non-terminal: {}",
+                allArrayFields.size(), terminalArrayFields.size(), nonTerminalArrayFields.size());
+        LOG.debug("Terminal arrays: {}", terminalArrayFields);
+        LOG.debug("Non-terminal arrays: {}", nonTerminalArrayFields);
 
-        // Cache if enabled
+        // UPDATED: Create cached schema with terminal/non-terminal distinction
+        CachedSchema cached = new CachedSchema(originalSchema, flattenedSchema, sparkSchema,
+                allArrayFields, terminalArrayFields, nonTerminalArrayFields);
+
         if (config.cacheSchemas) {
             SCHEMA_CACHE.put(cacheKey, cached);
-            LOG.info("Cached schema: {} with {} fields", cacheKey, sparkSchema.fields().length);
+            LOG.info("Cached schema: {} with {} fields ({} terminal arrays, {} non-terminal arrays)",
+                    cacheKey, sparkSchema.fields().length, terminalArrayFields.size(), nonTerminalArrayFields.size());
         }
 
         return cached;
     }
+
     private Dataset<Row> addMetadataColumns(Dataset<Row> df) {
         df = df.withColumn("_processing_time", current_timestamp());
 
