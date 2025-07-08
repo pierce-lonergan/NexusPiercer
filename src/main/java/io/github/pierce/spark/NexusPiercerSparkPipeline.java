@@ -91,9 +91,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         this.config.quarantineSchemaErrors = true;
         return this;
     }
-    /**
-     * Enhanced cached schema information with terminal/non-terminal array distinction
-     */
+
     private static class CachedSchema implements Serializable {
         private static final long serialVersionUID = 1L;
         final Schema originalSchema;
@@ -102,16 +100,19 @@ public class NexusPiercerSparkPipeline implements Serializable {
         final Set<String> arrayFields;
         final Set<String> terminalArrayFields;    // NEW: Arrays containing primitives (keep these)
         final Set<String> nonTerminalArrayFields; // NEW: Arrays containing records (drop these)
+        final Set<String> mapFieldPaths;  // ADD THIS
+
         final long cachedAt;
 
         CachedSchema(Schema original, Schema flattened, StructType spark, Set<String> arrays,
-                     Set<String> terminalArrays, Set<String> nonTerminalArrays) {
+                     Set<String> terminalArrays, Set<String> nonTerminalArrays,  Set<String> mapPaths) {
             this.originalSchema = original;
             this.flattenedSchema = flattened;
             this.sparkSchema = spark;
             this.arrayFields = arrays;
             this.terminalArrayFields = terminalArrays;
             this.nonTerminalArrayFields = nonTerminalArrays;
+            this.mapFieldPaths = mapPaths;  // ADD THIS
             this.cachedAt = System.currentTimeMillis();
         }
     }
@@ -401,13 +402,6 @@ public class NexusPiercerSparkPipeline implements Serializable {
     /**
      * Core processing logic for both batch and streaming (private helper)
      */
-
-
-    /**
-     * Core processing logic for both batch and streaming (private helper)
-     */
-
-
     private ProcessingResult processDataset(Dataset<String> jsonDs, CachedSchema cachedSchema,
                                             ProcessingMetrics metrics, long startTime) {
         initializeProcessors();
@@ -672,7 +666,6 @@ public class NexusPiercerSparkPipeline implements Serializable {
             throw new RuntimeException("Pipeline processing failed for JSON column", e);
         }
     }
-
     /**
      * A private helper method to check if a Java object from a JSON parser is compatible
      * with a target Spark DataType. This mimics the type coercion behavior of `from_json`.
@@ -855,6 +848,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
         Set<String> allArrayFields = schemaFlattener.getArrayFieldNames();
         Set<String> terminalArrayFields = schemaFlattener.getTerminalArrayFieldNames();
         Set<String> nonTerminalArrayFields = schemaFlattener.getNonTerminalArrayFieldNames();
+        Set<String> mapFieldPaths = schemaFlattener.getMapFieldPaths();
 
         LOG.info("Schema analysis - Total arrays: {}, Terminal: {}, Non-terminal: {}",
                 allArrayFields.size(), terminalArrayFields.size(), nonTerminalArrayFields.size());
@@ -863,7 +857,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
 
         // UPDATED: Create cached schema with terminal/non-terminal distinction
         CachedSchema cached = new CachedSchema(originalSchema, flattenedSchema, sparkSchema,
-                allArrayFields, terminalArrayFields, nonTerminalArrayFields);
+                allArrayFields, terminalArrayFields, nonTerminalArrayFields, mapFieldPaths);
 
         if (config.cacheSchemas) {
             SCHEMA_CACHE.put(cacheKey, cached);

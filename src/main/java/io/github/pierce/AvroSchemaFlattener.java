@@ -53,6 +53,8 @@ public class AvroSchemaFlattener implements Serializable {
     private final List<RecordDefinition> recordDefinitions;
     private final Map<String, FieldHierarchy> fieldHierarchyMap;
     private final List<ArrayDefinition> arrayDefinitions;
+    private final Set<String> mapFieldPaths;
+
 
     private static final String COUNT_SUFFIX = "_count";
     private static final String DISTINCT_COUNT_SUFFIX = "_distinct_count";
@@ -85,6 +87,8 @@ public class AvroSchemaFlattener implements Serializable {
         this.recordDefinitions = new ArrayList<>();
         this.fieldHierarchyMap = new HashMap<>();
         this.arrayDefinitions = new ArrayList<>();
+        this.mapFieldPaths = new HashSet<>();  // ADD THIS
+
     }
 
     public Schema getFlattenedSchema(String schemaPath) throws IOException {
@@ -121,7 +125,7 @@ public class AvroSchemaFlattener implements Serializable {
         recordDefinitions.clear();
         fieldHierarchyMap.clear();
         arrayDefinitions.clear();
-
+        mapFieldPaths.clear();
         schemaStats.originalSchemaName = schema.getFullName();
         schemaStats.originalFieldCount = schema.getFields().size();
 
@@ -269,6 +273,8 @@ public class AvroSchemaFlattener implements Serializable {
 
             case MAP:
                 schemaStats.mapFieldCount++;
+                mapFieldPaths.add(currentPath);  // ADD: Track this map field path
+
                 boolean mapIsNullable = overrideNullable != null ? overrideNullable : isNullable(fieldSchema);
                 FieldMetadata mapMetadata = new FieldMetadata(
                         fieldName, currentPath, depth, Type.MAP, Type.STRING,
@@ -322,6 +328,9 @@ public class AvroSchemaFlattener implements Serializable {
         }
     }
 
+    public Set<String> getMapFieldPaths() {
+        return new HashSet<>(mapFieldPaths);
+    }
 
 
 private boolean isTerminalArrayType(Schema elementType) {

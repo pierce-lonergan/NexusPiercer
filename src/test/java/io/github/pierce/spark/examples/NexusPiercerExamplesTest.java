@@ -1,9 +1,11 @@
 package io.github.pierce.spark.examples;
 
 
+import io.github.pierce.AvroSchemaFlattener;
 import io.github.pierce.spark.NexusPiercerFunctions;
 import io.github.pierce.spark.NexusPiercerPatterns;
 import io.github.pierce.spark.NexusPiercerSparkPipeline;
+import org.apache.avro.Schema;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
@@ -485,7 +487,7 @@ class NexusPiercerExamplesTest {
 
 
     @Test
-    @DisplayName("PhD-Level Example: Massive 50+ field, 5-level nested schema with terminal/non-terminal array processing")
+    @DisplayName("5-Level Example: Massive 50+ field, 5-level nested schema with terminal/non-terminal array processing")
     void testMassiveEnterpriseSchemaWithAdvancedArrayProcessing() throws IOException {
         // === 1. DEFINE MASSIVE 50+ FIELD, 5-LEVEL NESTED ENTERPRISE SCHEMA ===
         String massiveSchemaContent = """
@@ -1051,13 +1053,12 @@ class NexusPiercerExamplesTest {
 
         Dataset<String> massiveJsonDs = spark.createDataset(List.of(massiveTestJson), Encoders.STRING());
 
-        // === 3. TEST WITH STANDARD CONFIGURATION (includes non-terminal arrays) ===
         System.out.println("=== PROCESSING MASSIVE SCHEMA WITH STANDARD CONFIGURATION ===");
 
         NexusPiercerSparkPipeline.ProcessingResult standardResult = NexusPiercerSparkPipeline.forBatch(spark)
                 .withSchema(massiveSchemaFile.toString())
                 .enableArrayStatistics()
-                .includeNonTerminalArrays() // This is the default
+                .includeNonTerminalArrays()
                 .processDataset(massiveJsonDs);
 
         Dataset<Row> standardSuccess = standardResult.getDataset();
@@ -1065,7 +1066,6 @@ class NexusPiercerExamplesTest {
         System.out.println("Standard Configuration - Total Columns: " + standardSuccess.columns().length);
         List<String> allStandardColumns = Arrays.asList(standardSuccess.columns());
 
-        // Count different types of fields
         long terminalArrayFields = allStandardColumns.stream().filter(col ->
                 (col.equals("orderTags") || col.equals("promotionCodes") || col.equals("riskFactors") ||
                         col.equals("customer_preferredCategories") || col.equals("customer_languages") ||
@@ -1113,32 +1113,27 @@ class NexusPiercerExamplesTest {
 
         // === 5. COMPREHENSIVE VALIDATION ===
 
-        // Verify that standard config includes both terminal and non-terminal arrays
         assertThat(allStandardColumns).as("Standard config should include terminal arrays")
                 .contains("orderTags", "promotionCodes", "customer_preferredCategories");
         assertThat(allStandardColumns).as("Standard config should include non-terminal arrays")
                 .contains("customer_addresses", "lineItems", "shipments");
 
-        // Verify that terminal-only config excludes non-terminal arrays but keeps terminal arrays
         assertThat(terminalOnlyColumns).as("Terminal-only config should include terminal arrays")
                 .contains("orderTags", "promotionCodes", "customer_preferredCategories");
         assertThat(terminalOnlyColumns).as("Terminal-only config should exclude non-terminal arrays")
                 .doesNotContain("customer_addresses", "lineItems", "shipments");
 
-        // Verify that descendants of non-terminal arrays are still present in both configs
         assertThat(allStandardColumns).as("Standard config should have flattened descendants")
                 .contains("customer_addresses_street1", "lineItems_productName", "shipments_trackingNumber");
         assertThat(terminalOnlyColumns).as("Terminal-only config should have flattened descendants")
                 .contains("customer_addresses_street1", "lineItems_productName", "shipments_trackingNumber");
 
-        // Verify deep nesting (5 levels) works correctly
         assertThat(allStandardColumns).as("Should handle 5-level deep nesting")
                 .contains("customer_addresses_geoLocation_boundaryPolygon_coordinates",
                         "customer_paymentMethods_transactionHistory_riskProfile_riskIndicators",
                         "lineItems_product_specifications_certifications_complianceStandards",
                         "shipments_packageDetails_insurance_claimsHistory_claimReasons");
 
-        // Verify terminal arrays at different nesting levels are preserved
         assertThat(allStandardColumns).as("Should preserve terminal arrays at all levels")
                 .contains("orderTags", // Level 1
                         "customer_preferredCategories", // Level 2
@@ -1146,28 +1141,23 @@ class NexusPiercerExamplesTest {
                         "lineItems_product_specifications_features", // Level 4
                         "lineItems_product_specifications_certifications_complianceStandards"); // Level 5
 
-        // Verify array statistics are generated for terminal arrays
         assertThat(allStandardColumns).as("Should have statistics for terminal arrays")
                 .contains("orderTags_count", "customer_preferredCategories_count",
                         "customer_addresses_deliveryInstructions_count");
 
-        // Verify field explosion ratio is significant (should be 10x+ original fields)
         assertThat(allStandardColumns.size()).as("Should have significant field explosion")
-                .isGreaterThan(100); // Much more than the ~50 original fields
+                .isGreaterThan(100);
 
-        // Verify data integrity - check a few sample values
         Row sampleRow = standardSuccess.first();
         assertThat(sampleRow.<String>getAs("orderId")).isEqualTo("ORD-ENT-2025-001");
         assertThat(sampleRow.<String>getAs("orderTags")).isEqualTo("electronics,high-value,express,verified-customer");
         assertThat(sampleRow.<String>getAs("customer_firstName")).isEqualTo("John");
         assertThat(sampleRow.<String>getAs("lineItems_productName")).isEqualTo("Enterprise Laptop Pro 15,Wireless Precision Mouse");
 
-        // Verify deep nested data is correctly flattened
         assertThat(sampleRow.<String>getAs("customer_addresses_geoLocation_latitude")).isEqualTo("37.7749,40.7128");
         assertThat(sampleRow.<String>getAs("lineItems_product_specifications_certifications_complianceStandards"))
                 .contains("ISO-14001", "ENERGY-STAR");
 
-        // === 6. PERFORMANCE AND COMPLEXITY METRICS ===
         System.out.println("\n=== PERFORMANCE AND COMPLEXITY ANALYSIS ===");
         System.out.println("Original schema complexity: 50+ fields across 5 nesting levels");
         System.out.println("Field explosion ratio: " + String.format("%.1fx", (double) allStandardColumns.size() / 50));
@@ -1184,4 +1174,5 @@ class NexusPiercerExamplesTest {
         System.out.println("✅ Configurable terminal/non-terminal array processing works correctly");
         System.out.println("✅ Enterprise-scale complexity handled efficiently");
     }
+
 }
