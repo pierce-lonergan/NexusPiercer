@@ -187,6 +187,13 @@
         <spotbugs.skip>false</spotbugs.skip>
         <jacoco.skip>false</jacoco.skip>
 
+        <!-- Groovy version -->
+        <groovy.version>3.0.19</groovy.version>
+
+        <!-- Testing versions -->
+        <spock.version>2.3-groovy-3.0</spock.version>
+        <gmavenplus.version>3.0.2</gmavenplus.version>
+
         <!-- JVM Configuration for Spark Tests -->
         <spark.test.jvm.args>
             --add-opens java.base/java.lang=ALL-UNNAMED
@@ -289,6 +296,27 @@
     <!-- DEPENDENCIES                                                         -->
     <!-- ==================================================================== -->
     <dependencies>
+
+        <!-- Groovy dependencies -->
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy</artifactId>
+            <version>${groovy.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-json</artifactId>
+            <version>${groovy.version}</version>
+        </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.spockframework</groupId>
+            <artifactId>spock-core</artifactId>
+            <version>${spock.version}</version>
+            <scope>test</scope>
+        </dependency>
         <!-- Spark Dependencies (Provided) -->
         <dependency>
             <groupId>org.apache.spark</groupId>
@@ -493,6 +521,21 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Required for Spock mocking -->
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy</artifactId>
+            <version>1.14.4</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.objenesis</groupId>
+            <artifactId>objenesis</artifactId>
+            <version>3.3</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Spark Testing -->
         <dependency>
             <groupId>org.apache.spark</groupId>
@@ -558,6 +601,54 @@
         <!-- Plugin Management -->
         <pluginManagement>
             <plugins>
+                <plugin>
+                    <groupId>org.codehaus.gmavenplus</groupId>
+                    <artifactId>gmavenplus-plugin</artifactId>
+                    <version>${gmavenplus.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>addSources</goal>
+                                <goal>addTestSources</goal>
+                                <goal>compile</goal>
+                                <goal>compileTests</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                    <configuration>
+                        <sources>
+                            <source>
+                                <directory>${project.basedir}/src/main/groovy</directory>
+                                <includes>
+                                    <include>**/*.groovy</include>
+                                </includes>
+                            </source>
+                        </sources>
+                        <testSources>
+                            <testSource>
+                                <directory>${project.basedir}/src/test/groovy</directory>
+                                <includes>
+                                    <include>**/*.groovy</include>
+                                </includes>
+                            </testSource>
+                        </testSources>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.codehaus.gmavenplus</groupId>
+                    <artifactId>gmavenplus-plugin</artifactId>
+                    <version>${gmavenplus.version}</version>
+                    <executions>
+                        <execution>
+                            <id>groovydoc</id>
+                            <phase>site</phase>
+                            <goals>
+                                <goal>groovydoc</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
                 <!-- Core Maven Plugins -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1244,6 +1335,32 @@
                             <target>1.8</target>
                             <release>8</release>
                         </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>mixed-compilation</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.gmavenplus</groupId>
+                        <artifactId>gmavenplus-plugin</artifactId>
+                        <version>${gmavenplus.version}</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>addSources</goal>
+                                    <goal>addTestSources</goal>
+                                    <goal>generateStubs</goal>
+                                    <goal>compile</goal>
+                                    <goal>generateTestStubs</goal>
+                                    <goal>compileTests</goal>
+                                    <goal>removeStubs</goal>
+                                    <goal>removeTestStubs</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
