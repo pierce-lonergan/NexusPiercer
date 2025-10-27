@@ -87,12 +87,12 @@ class AvroSchemaFlattenerOrderingTest {
         Schema schema = new Schema.Parser().parse(schemaJson);
         Schema flattened = flattener.getFlattenedSchema(schema);
 
-        // Get the field names in order
+
         List<String> fieldNames = flattened.getFields().stream()
                 .map(Field::name)
                 .collect(Collectors.toList());
 
-        // Verify the exact order
+
         assertThat(fieldNames).containsExactly(
                 "transactionId",
                 "timestamp",
@@ -146,7 +146,7 @@ class AvroSchemaFlattenerOrderingTest {
                 .map(Field::name)
                 .collect(Collectors.toList());
 
-        // With statistics, array fields should be followed immediately by their stats
+
         assertThat(fieldNames).containsExactly(
                 "orderId",
                 "items",
@@ -221,7 +221,7 @@ class AvroSchemaFlattenerOrderingTest {
                 .map(Field::name)
                 .collect(Collectors.toList());
 
-        // Fields should appear in depth-first order
+
         assertThat(fieldNames).containsExactly(
                 "field1",
                 "level1_field2",
@@ -358,7 +358,7 @@ class AvroSchemaFlattenerOrderingTest {
                 .map(Field::name)
                 .collect(Collectors.toList());
 
-        // The outer array should appear with its stats before the end field
+
         assertThat(fieldNames.get(0)).isEqualTo("start");
         assertThat(fieldNames.get(1)).isEqualTo("matrix");
         // Stats fields for matrix

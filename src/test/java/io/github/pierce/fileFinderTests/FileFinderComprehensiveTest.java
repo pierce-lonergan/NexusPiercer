@@ -49,30 +49,30 @@ class FileFinderComprehensiveTest {
 
     @BeforeEach
     void setUp() {
-        // Clear caches before each test
+
         FileFinder.clearCaches();
     }
 
     @AfterEach
     void tearDown() {
-        // Ensure clean state
+
         FileFinder.clearCaches();
     }
 
-    // ===== BASIC FUNCTIONALITY TESTS =====
+
 
     @Test
     @Order(1)
     @DisplayName("Should find file in temporary directory")
     void testFindFileInTempDirectory() throws IOException {
-        // Given
+
         Path testFile = tempDir.resolve("test_schema.avsc");
         Files.writeString(testFile, TEST_SCHEMA_CONTENT);
 
-        // When
+
         InputStream is = FileFinder.findFile(testFile.toString());
 
-        // Then
+
         assertThat(is).isNotNull();
         String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         assertThat(content).isEqualTo(TEST_SCHEMA_CONTENT);
@@ -83,14 +83,14 @@ class FileFinderComprehensiveTest {
     @Order(2)
     @DisplayName("Should find file by name only")
     void testFindFileByNameOnly() throws IOException {
-        // Given
+
         Path testFile = tempDir.resolve("unique_test.avsc");
         Files.writeString(testFile, TEST_SCHEMA_CONTENT);
 
-        // When - use the full path since changing user.dir doesn't reliably affect FileFinder
+
         boolean exists = FileFinder.fileExists(testFile.toString());
 
-        // Then
+
         assertThat(exists).isTrue();
     }
 
@@ -98,7 +98,7 @@ class FileFinderComprehensiveTest {
     @Order(3)
     @DisplayName("Should throw FileFinderException for missing file")
     void testFileNotFound() {
-        // When/Then
+
         assertThatThrownBy(() -> FileFinder.findFile("non_existent_file.avsc"))
                 .isInstanceOf(FileFinder.FileFinderException.class)
                 .satisfies(e -> {
@@ -116,15 +116,15 @@ class FileFinderComprehensiveTest {
     @Order(4)
     @DisplayName("Should get file content as bytes")
     void testGetFileContent() throws IOException {
-        // Given
+
         Path testFile = tempDir.resolve("content_test.txt");
         String testContent = "Hello, FileFinder!";
         Files.writeString(testFile, testContent);
 
-        // When
+
         byte[] content = FileFinder.getFileContent(testFile.toString());
 
-        // Then
+
         assertThat(new String(content, StandardCharsets.UTF_8)).isEqualTo(testContent);
     }
 
@@ -132,14 +132,14 @@ class FileFinderComprehensiveTest {
     @Order(5)
     @DisplayName("Should get file metadata")
     void testGetFileMetadata() throws IOException {
-        // Given
+
         Path testFile = tempDir.resolve("metadata_test.json");
         Files.writeString(testFile, "{}");
 
-        // When
+
         FileFinder.FileMetadata metadata = FileFinder.getFileMetadata(testFile.toString());
 
-        // Then
+
         assertThat(metadata).isNotNull();
         assertThat(metadata.path).contains("metadata_test.json");
         assertThat(metadata.size).isGreaterThan(0);
@@ -149,7 +149,7 @@ class FileFinderComprehensiveTest {
         assertThat(metadata.location.type).isEqualTo(FileFinder.FileLocation.Type.LOCAL_FILE);
     }
 
-    // ===== DISCOVERY TESTS =====
+
 
     @Test
     @Order(10)

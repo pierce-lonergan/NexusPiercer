@@ -37,34 +37,34 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JsonFlattenerConsolidatorComprehensiveTest {
 
-    // Fields should be static for @BeforeAll
+
     private static JsonFlattenerConsolidator standardFlattener;
     private static JsonFlattenerConsolidator performanceFlattener;
     private static JsonFlattenerConsolidator securityFlattener;
 
     @BeforeAll
-    static void setUp() {  // Method must be static for JUnit 5
-        // Standard configuration for most tests
+    static void setUp() {
+
         standardFlattener = new JsonFlattenerConsolidator(",", "null", 50, 1000, false);
 
-        // Performance-optimized configuration
+
         performanceFlattener = new JsonFlattenerConsolidator(",", null, 20, 100, false);
 
-        // Security-focused configuration (strict limits)
+
         securityFlattener = new JsonFlattenerConsolidator(",", "NULL", 10, 50, false);
     }
 
-    // Alternative: Use @BeforeEach if you want instance methods
+
     /*
     @BeforeEach
     void setUp() {
-        // Standard configuration for most tests
+
         standardFlattener = new JsonFlattenerConsolidator(",", "null", 50, 1000, false);
 
-        // Performance-optimized configuration
+
         performanceFlattener = new JsonFlattenerConsolidator(",", null, 20, 100, false);
 
-        // Security-focused configuration (strict limits)
+
         securityFlattener = new JsonFlattenerConsolidator(",", "NULL", 10, 50, false);
     }
     */

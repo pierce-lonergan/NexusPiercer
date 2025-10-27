@@ -32,7 +32,7 @@ class AvroSchemaLoaderTest {
     void setUp() throws IOException {
         AvroSchemaLoader.clearCaches();
 
-        // Create test schema
+
         testSchema = """
             {
               "type": "record",
@@ -57,21 +57,21 @@ class AvroSchemaLoaderTest {
             }
             """;
 
-        // Create test schemas in temp directory
+
         createTestSchemas();
     }
 
     private void createTestSchemas() throws IOException {
-        // Create schemas directory
+
         File schemasDir = tempDir.resolve("schemas").toFile();
         schemasDir.mkdirs();
 
-        // Write test schemas
+
         writeSchema(schemasDir, "TestRecord.avsc", testSchema);
         writeSchema(schemasDir, "User.avsc", createUserSchema());
         writeSchema(schemasDir, "Order.avsc", createOrderSchema());
 
-        // Create another directory for testing search paths
+
         File configDir = tempDir.resolve("config/schemas").toFile();
         configDir.mkdirs();
         writeSchema(configDir, "ConfigSchema.avsc", createConfigSchema());
@@ -79,12 +79,12 @@ class AvroSchemaLoaderTest {
 
     @Test
     void testBasicSchemaLoading() throws IOException {
-        // Create loader with custom search path
+
         AvroSchemaLoader loader = new AvroSchemaLoader.Builder()
                 .addSearchPath(tempDir.resolve("schemas").toString())
                 .build();
 
-        // Load single schema
+
         Schema schema = loader.loadAvroSchema("TestRecord.avsc");
         assertThat(schema).isNotNull();
         assertThat(schema.getName()).isEqualTo("TestRecord");
@@ -98,16 +98,16 @@ class AvroSchemaLoaderTest {
                 .withArrayStatistics(true)
                 .build();
 
-        // Load flattened schema
+
         StructType sparkSchema = loader.loadFlattenedSchema("TestRecord");
         assertThat(sparkSchema).isNotNull();
 
-        // Check that nested fields are flattened
+
         assertThat(sparkSchema.fieldNames()).contains(
                 "id", "name", "address_street", "address_city", "tags"
         );
 
-        // With array statistics enabled, should have additional fields
+
         assertThat(sparkSchema.fieldNames()).contains(
                 "tags_count", "tags_distinct_count"
         );
@@ -115,14 +115,14 @@ class AvroSchemaLoaderTest {
 
     @Test
     void testTargetDirectoryPriority() throws IOException {
-        // Create same schema in two locations with different content
+
         File targetDir = tempDir.resolve("target").toFile();
         targetDir.mkdirs();
 
         String modifiedSchema = testSchema.replace("TestRecord", "ModifiedTestRecord");
         writeSchema(targetDir, "TestRecord.avsc", modifiedSchema);
 
-        // Loader with target directory should find the modified version first
+
         AvroSchemaLoader loader = new AvroSchemaLoader.Builder()
                 .withTargetDirectory(targetDir.getAbsolutePath())
                 .addSearchPath(tempDir.resolve("schemas").toString())
@@ -138,12 +138,12 @@ class AvroSchemaLoaderTest {
                 .addSearchPath(tempDir.resolve("schemas").toString())
                 .build();
 
-        // Load multiple schemas
+
         AvroSchemaLoader.SchemaLoadResult result = loader.loadFlattenedSchemas(
                 "TestRecord", "User", "Order", "NonExistent"
         );
 
-        // Check results
+
         assertThat(result.getSuccessCount()).isEqualTo(3);
         assertThat(result.getFailureCount()).isEqualTo(1);
         assertThat(result.hasFailures()).isTrue();
@@ -155,7 +155,7 @@ class AvroSchemaLoaderTest {
         Map<String, Exception> failed = result.getFailedSchemas();
         assertThat(failed).containsKey("NonExistent");
 
-        // Log summary
+
         result.logSummary();
     }
 
@@ -166,7 +166,7 @@ class AvroSchemaLoaderTest {
                 .addSearchPath(tempDir.resolve("config/schemas").toString())
                 .build();
 
-        // Discover all available schemas
+
         List<String> availableSchemas = loader.discoverAvailableSchemas();
 
         assertThat(availableSchemas).contains(
@@ -181,13 +181,13 @@ class AvroSchemaLoaderTest {
                 .addSearchPath(tempDir.resolve("config/schemas").toString())
                 .build();
 
-        // Get location information
+
         Map<String, AvroSchemaLoader.SchemaLocation> locations =
                 loader.getSchemaLocations(List.of("TestRecord.avsc", "ConfigSchema.avsc"));
 
         assertThat(locations).hasSize(2);
 
-        // --- FIX: Make path assertions platform-independent ---
+
         // Normalize paths by replacing backslashes with forward slashes before asserting.
         String fileSep = File.separator;
 

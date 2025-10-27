@@ -3,14 +3,17 @@ package io.github.pierce;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class JsonFlattenerConsolidator {
+public class JsonFlattenerConsolidator implements Serializable {
+    private static final long serialVersionUID = 1L;
 
-    // Configuration
+
+
     private final String arrayDelimiter;
     private final String nullPlaceholder;
     private final int maxNestingDepth;
@@ -18,20 +21,20 @@ public class JsonFlattenerConsolidator {
     private final boolean consolidateWithMatrixDenotorsInValue;
     private final boolean gatherStatistics;
 
-    // Array explosion configuration
+
     private final Set<String> explosionPaths;
     private final boolean explosionEnabled;
 
-    // Track which fields were originally arrays
+
     private final Set<String> arrayFields = new HashSet<>();
 
-    // Patterns for consolidation
+
     private static final Pattern ARRAY_INDEX_STRIP_PATTERN = Pattern.compile("\\[\\d+\\]");
     private static final Pattern ALL_INDICES_PATTERN = Pattern.compile("\\[(\\d+)\\]");
     private static final Pattern MALFORMED_JSON_PATTERN = Pattern.compile("[:,\\[]\\s*(undefined|NaN)\\s*[,\\}\\]]");
     private static final Pattern ARRAY_INDEX_PATTERN = Pattern.compile("(.+?)\\[(\\d+)\\](.*)");
 
-    // New constructor with explosion paths
+
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue,
@@ -47,7 +50,7 @@ public class JsonFlattenerConsolidator {
         this.explosionEnabled = explosionPaths.length > 0;
     }
 
-    // Backward compatibility constructor (statistics enabled by default)
+
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue) {
@@ -55,7 +58,7 @@ public class JsonFlattenerConsolidator {
                 consolidateWithMatrixDenotorsInValue, true);
     }
 
-    // Backward compatibility constructor (no explosion)
+
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue,
@@ -74,10 +77,10 @@ public class JsonFlattenerConsolidator {
         }
 
         try {
-            // More aggressive trimming to handle text blocks and whitespace
+
             String trimmed = jsonString.trim();
 
-            // Remove potential BOM (Byte Order Mark) characters
+
             if (trimmed.startsWith("\uFEFF")) {
                 trimmed = trimmed.substring(1);
             }
@@ -892,7 +895,8 @@ public class JsonFlattenerConsolidator {
     }
 
     // Helper classes
-    private static class FlattenTask {
+    private static class FlattenTask implements Serializable {
+        private static final long serialVersionUID = 1L;
         String prefix;
         Object value;
         int depth;
@@ -904,7 +908,8 @@ public class JsonFlattenerConsolidator {
         }
     }
 
-    private static class KeyedValue {
+    private static class KeyedValue implements Serializable {
+        private static final long serialVersionUID = 1L;
         String originalFlattenedKey;
         Object value;
         boolean hasArrayIndex;

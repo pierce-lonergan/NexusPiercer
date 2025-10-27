@@ -52,7 +52,7 @@ import java.util.zip.GZIPInputStream;
  *
  * Usage:
  * <pre>
- * // Simple usage - finds file anywhere in project
+ *
  * InputStream is = FileFinder.findFile("product_schema.avsc");
  *
  * // Get detailed error info if not found
@@ -67,26 +67,26 @@ public class FileFinder {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileFinder.class);
 
-    // ===== SINGLETON INSTANCE =====
+
     private static volatile FileFinder INSTANCE;
     private static final Object LOCK = new Object();
 
-    // ===== CONFIGURATION =====
+
     private final Config config;
     private final Configuration hadoopConfig;
 
-    // ===== CACHES =====
+
     private final LoadingCache<String, FileHandle> fileCache;
     private final LoadingCache<String, byte[]> contentCache;
     private final ConcurrentHashMap<String, FileLocation> locationCache;
     private final ConcurrentHashMap<String, List<String>> discoveryCache;
 
-    // ===== METRICS =====
+
     private final AtomicLong cacheHits = new AtomicLong();
     private final AtomicLong cacheMisses = new AtomicLong();
     private final AtomicLong searchAttempts = new AtomicLong();
 
-    // ===== THREAD POOLS =====
+
     private final ExecutorService executorService;
     private final ScheduledExecutorService scheduledExecutor;
 
@@ -94,38 +94,38 @@ public class FileFinder {
      * Configuration class - all settings in one place
      */
     public static class Config {
-        // Search paths - these cover ALL common project structures
+
         private final List<String> searchPaths = Arrays.asList(
-                // Current directory
+
                 ".",
 
-                // Maven structure - main
+
                 "src/main/resources",
                 "src/main/resources/schemas",
                 "src/main/resources/avro",
                 "src/main/avro",
                 "src/main/avro/schemas",
 
-                // Maven structure - test (INCLUDING src/test/avro!)
+
                 "src/test/resources",
                 "src/test/resources/schemas",
                 "src/test/resources/avro",
-                "src/test/avro",              // This is where the user's file is!
+                "src/test/avro",
                 "src/test/avro/schemas",
 
-                // Gradle structure
+
                 "src/main/resources",
                 "src/test/resources",
                 "build/resources/main",
                 "build/resources/test",
 
-                // Build output
+
                 "target/classes",
                 "target/test-classes",
                 "build/classes/java/main",
                 "build/classes/java/test",
 
-                // Common directories
+
                 "schemas",
                 "avro",
                 "avro-schemas",
@@ -138,29 +138,29 @@ public class FileFinder {
                 "test-data",
                 "test-data/schemas",
 
-                // Parent directories (up to 3 levels)
+
                 "..",
                 "../..",
                 "../../.."
         );
 
-        // File extensions allowed
+
         private final Set<String> allowedExtensions = new HashSet<>(Arrays.asList(
                 ".avsc", ".json", ".xml", ".yaml", ".yml", ".properties", ".conf",
                 ".txt", ".csv", ".parquet", ".avro", ".gz", ".config"
         ));
 
-        // Cache settings
+
         private int maxCacheSize = 1000;
         private long cacheExpireMinutes = 60;
         private boolean enableContentCache = true;
-        private long maxContentCacheBytes = 50L * 1024 * 1024; // 50MB
+        private long maxContentCacheBytes = 50L * 1024 * 1024;
 
-        // Security settings
-        private long maxFileSize = 100L * 1024 * 1024; // 100MB
+
+        private long maxFileSize = 100L * 1024 * 1024;
         private boolean validatePaths = true;
 
-        // Performance settings
+
         private int maxSearchDepth = 5;
         private int threadPoolSize = Runtime.getRuntime().availableProcessors();
 
