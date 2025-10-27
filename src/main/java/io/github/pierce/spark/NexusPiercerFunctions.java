@@ -3,8 +3,6 @@ package io.github.pierce.spark;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.pierce.JsonFlattenerConsolidator;
 import org.apache.spark.sql.Column;
-import org.apache.spark.sql.api.java.UDF1;
-import org.apache.spark.sql.api.java.UDF2;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.types.DataTypes;
 

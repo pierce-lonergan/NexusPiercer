@@ -1,26 +1,17 @@
 package io.github.pierce.spark;
 
 import io.github.pierce.JsonFlattenerConsolidator;
-import org.apache.avro.Schema;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
-import org.apache.spark.sql.streaming.OutputMode;
-import org.apache.spark.sql.streaming.StreamingQuery;
-import org.apache.spark.sql.streaming.Trigger;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
-import org.apache.spark.sql.types.Metadata;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static io.github.pierce.spark.NexusPiercerFunctions.*;
 import static org.apache.spark.sql.functions.*;
-import static org.apache.spark.sql.types.DataTypes.StringType;
 
 /**
  * NexusPiercerPatterns - Common pipeline patterns and recipes.

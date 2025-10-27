@@ -946,11 +946,16 @@ public class AvroReconstructor {
             // Look in the child node's arrayFieldValues, not the parent's
             List<Object> nestedValues = childNode.arrayFieldValues.get(nestedFieldName);
 
-            if (nestedValues != null && index < nestedValues.size()) {
-                Object value = nestedValues.get(index);
+            if (nestedValues != null && !nestedValues.isEmpty()) {
+                // Get the value - for JSON arrays, we use the last (or only) element
+                int valueIndex = Math.min(index, nestedValues.size() - 1);
+                Object rawValue = nestedValues.get(valueIndex);
 
                 // Unwrap nullable schemas to check actual type
                 Schema actualFieldSchema = unwrapNullable(nestedField.schema());
+
+                // Extract value at index (handles JSON-encoded arrays for primitives)
+                Object value = extractValueAtIndex(rawValue, index, actualFieldSchema.getType());
 
                 // Handle nested arrays in nested records
                 if (actualFieldSchema.getType() == ARRAY && value instanceof String) {
@@ -982,44 +987,6 @@ public class AvroReconstructor {
                                             path, jsonString), e);
                         }
                         value = new ArrayList<>();
-                    }
-                } else if (value instanceof String && isPrimitiveType(actualFieldSchema.getType())) {
-                    // Check if this is a JSON-encoded array string for a primitive field
-                    String strValue = (String) value;
-                    if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
-                        try {
-                            // Parse the JSON array
-                            List<Object> parsedArray = objectMapper.readValue(strValue, List.class);
-                            if (parsedArray != null && index < parsedArray.size()) {
-                                // Extract the element at the current index
-                                value = parsedArray.get(index);
-                                value = convertPrimitive(value, nestedField.schema(),
-                                        path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName);
-                            } else {
-                                // Index out of bounds or null array - use default
-                                if (strictValidation) {
-                                    throw new IllegalArgumentException(
-                                            String.format("JSON array index out of bounds in nested record at %s[%d].%s.%s: " +
-                                                    "array size=%d, requested index=%d",
-                                                    path, index, fieldPrefix, nestedFieldName,
-                                                    parsedArray != null ? parsedArray.size() : 0, index));
-                                }
-                                value = getDefaultValue(actualFieldSchema.getType());
-                            }
-                        } catch (Exception e) {
-                            if (strictValidation) {
-                                throw new IllegalArgumentException(
-                                        String.format("Failed to parse JSON array for primitive field in nested record at %s[%d].%s.%s: %s",
-                                                path, index, fieldPrefix, nestedFieldName, strValue), e);
-                            }
-                            // Fall back to trying direct conversion
-                            value = convertPrimitive(value, nestedField.schema(),
-                                    path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName);
-                        }
-                    } else {
-                        // Not a JSON array, do normal conversion
-                        value = convertPrimitive(value, nestedField.schema(),
-                                path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName);
                     }
                 } else {
                     value = convertPrimitive(value, nestedField.schema(),
@@ -1071,10 +1038,8 @@ public class AvroReconstructor {
         }
 
         // Determine array size from field values
-        int arraySize = node.arrayFieldValues.values().stream()
-                .mapToInt(List::size)
-                .max()
-                .orElse(0);
+        // Need to check if values are JSON-encoded arrays and use their size
+        int arraySize = calculateArraySize(node.arrayFieldValues, elementSchema);
 
         List<Object> result = new ArrayList<>(arraySize);
 
@@ -1086,11 +1051,17 @@ public class AvroReconstructor {
                 Schema fieldSchema = field.schema();
                 List<Object> fieldValues = node.arrayFieldValues.get(fieldName);
 
-                if (fieldValues != null && i < fieldValues.size()) {
-                    Object value = fieldValues.get(i);
+                if (fieldValues != null && !fieldValues.isEmpty()) {
+                    // Get the value - for JSON arrays, we use the last (or only) element
+                    int valueIndex = Math.min(i, fieldValues.size() - 1);
+                    Object rawValue = fieldValues.get(valueIndex);
 
                     // Unwrap nullable schemas to check actual type
                     Schema actualFieldSchema = unwrapNullable(fieldSchema);
+
+                    // Extract value at index i (handles JSON-encoded arrays for primitives)
+                    // This will parse "[5,5]" and extract the element at index i
+                    Object value = extractValueAtIndex(rawValue, i, actualFieldSchema.getType());
 
                     // Handle nested arrays in array elements
                     if (actualFieldSchema.getType() == ARRAY && value instanceof String) {
@@ -1149,44 +1120,6 @@ public class AvroReconstructor {
                         // This might be a nested record that needs further reconstruction
                         value = convertPrimitive(value, fieldSchema,
                                 path + "[" + i + "]." + fieldName);
-                    } else if (value instanceof String && isPrimitiveType(actualFieldSchema.getType())) {
-                        // Check if this is a JSON-encoded array string for a primitive field
-                        String strValue = (String) value;
-                        if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
-                            try {
-                                // Parse the JSON array
-                                List<Object> parsedArray = objectMapper.readValue(strValue, List.class);
-                                if (parsedArray != null && i < parsedArray.size()) {
-                                    // Extract the element at the current index
-                                    value = parsedArray.get(i);
-                                    value = convertPrimitive(value, fieldSchema,
-                                            path + "[" + i + "]." + fieldName);
-                                } else {
-                                    // Index out of bounds or null array - use default
-                                    if (strictValidation) {
-                                        throw new IllegalArgumentException(
-                                                String.format("JSON array index out of bounds at %s[%d].%s: " +
-                                                        "array size=%d, requested index=%d",
-                                                        path, i, fieldName,
-                                                        parsedArray != null ? parsedArray.size() : 0, i));
-                                    }
-                                    value = getDefaultValue(actualFieldSchema.getType());
-                                }
-                            } catch (Exception e) {
-                                if (strictValidation) {
-                                    throw new IllegalArgumentException(
-                                            String.format("Failed to parse JSON array for primitive field at %s[%d].%s: %s",
-                                                    path, i, fieldName, strValue), e);
-                                }
-                                // Fall back to trying direct conversion
-                                value = convertPrimitive(value, fieldSchema,
-                                        path + "[" + i + "]." + fieldName);
-                            }
-                        } else {
-                            // Not a JSON array, do normal conversion
-                            value = convertPrimitive(value, fieldSchema,
-                                    path + "[" + i + "]." + fieldName);
-                        }
                     } else {
                         value = convertPrimitive(value, fieldSchema,
                                 path + "[" + i + "]." + fieldName);
@@ -1213,8 +1146,29 @@ public class AvroReconstructor {
                         (fieldSchema.getType() == UNION &&
                                 unwrapUnion(fieldSchema).getType() == ARRAY)) {
                     // Handle nested array that wasn't in arrayFieldValues
-                    // This can happen when the array is empty or not properly deserialized
-                    if (field.hasDefaultValue()) {
+                    // Check if there's a child node for this array field
+                    PathNode childNode = node.children.get(fieldName);
+                    Schema unwrappedSchema = fieldSchema.getType() == UNION ? unwrapUnion(fieldSchema) : fieldSchema;
+
+                    if (childNode != null && unwrappedSchema.getType() == ARRAY && childNode.arrayFieldValues != null) {
+                        // Reconstruct the array from the child node
+                        Schema elementType = unwrappedSchema.getElementType();
+                        if (elementType.getType() == RECORD) {
+                            // Array of records - use reconstructArrayOfRecords
+                            List<Object> arrayValue = reconstructArrayOfRecords(
+                                    childNode, elementType, path + "[" + i + "]." + fieldName, currentDepth + 1);
+                            elementBuilder.set(fieldName, arrayValue);
+                        } else {
+                            // Array of primitives or other types
+                            Object reconstructed = reconstructValue(childNode, unwrappedSchema,
+                                    path + "[" + i + "]." + fieldName, currentDepth + 1);
+                            if (reconstructed != null) {
+                                elementBuilder.set(fieldName, reconstructed);
+                            } else {
+                                elementBuilder.set(fieldName, new ArrayList<>());
+                            }
+                        }
+                    } else if (field.hasDefaultValue()) {
                         elementBuilder.set(fieldName, field.defaultVal());
                     } else if (isNullable(fieldSchema)) {
                         elementBuilder.set(fieldName, null);
@@ -1645,6 +1599,78 @@ public class AvroReconstructor {
             default:
                 return false;
         }
+    }
+
+    /**
+     * Extract value at specific index from potentially JSON-encoded array.
+     * For primitive fields, if the value is a JSON array string like "[5,5]",
+     * parse it and return the element at the specified index.
+     */
+    private Object extractValueAtIndex(Object value, int index, Schema.Type targetType) {
+        if (value instanceof String && isPrimitiveType(targetType)) {
+            String strValue = (String) value;
+            if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
+                try {
+                    List<Object> parsedArray = objectMapper.readValue(strValue, List.class);
+                    if (parsedArray != null) {
+                        if (index < parsedArray.size()) {
+                            return parsedArray.get(index);
+                        } else {
+                            // Index out of bounds in JSON array - return null so caller can handle
+                            return null;
+                        }
+                    }
+                } catch (Exception e) {
+                    // Not a valid JSON array, return original value
+                }
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Calculate array size accounting for JSON-encoded arrays in field values.
+     */
+    private int calculateArraySize(Map<String, List<Object>> arrayFieldValues, Schema elementSchema) {
+        int maxSize = 0;
+
+        for (Map.Entry<String, List<Object>> entry : arrayFieldValues.entrySet()) {
+            String fieldName = entry.getKey();
+            List<Object> fieldValues = entry.getValue();
+
+            if (fieldValues == null || fieldValues.isEmpty()) {
+                continue;
+            }
+
+            // Get the field schema to check if it's a primitive type
+            Schema.Field field = elementSchema.getField(fieldName);
+            if (field != null) {
+                Schema actualFieldSchema = unwrapNullable(field.schema());
+                Object firstValue = fieldValues.get(0);
+
+                // Check if the first value is a JSON-encoded array for a primitive field
+                if (firstValue instanceof String && isPrimitiveType(actualFieldSchema.getType())) {
+                    String strValue = (String) firstValue;
+                    if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
+                        try {
+                            // Parse the JSON array to get its size
+                            List<Object> parsedArray = objectMapper.readValue(strValue, List.class);
+                            if (parsedArray != null) {
+                                maxSize = Math.max(maxSize, parsedArray.size());
+                                continue;
+                            }
+                        } catch (Exception e) {
+                            // If parsing fails, fall through to use outer list size
+                        }
+                    }
+                }
+            }
+
+            // Default: use the outer list size
+            maxSize = Math.max(maxSize, fieldValues.size());
+        }
+
+        return maxSize;
     }
 
     private Object getDefaultValue(Schema.Type type) {

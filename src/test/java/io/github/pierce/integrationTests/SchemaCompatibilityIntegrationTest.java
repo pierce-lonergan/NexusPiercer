@@ -1,15 +1,12 @@
 package io.github.pierce.integrationTests;
 
+import io.github.pierce.*;
 import org.apache.avro.Schema;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import io.github.pierce.AvroSchemaFlattener;
-import io.github.pierce.CreateSparkStructFromAvroSchema;
-import io.github.pierce.JsonFlattenerConsolidator;
-import io.github.pierce.SparkTestBase;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 

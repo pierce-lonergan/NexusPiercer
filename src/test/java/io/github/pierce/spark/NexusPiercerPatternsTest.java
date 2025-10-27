@@ -1,7 +1,7 @@
 package io.github.pierce.spark;
 
 
-import io.delta.tables.DeltaTable;
+//import io.delta.tables.DeltaTable;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;

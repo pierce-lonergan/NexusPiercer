@@ -191,11 +191,8 @@
         <spotbugs.skip>false</spotbugs.skip>
         <jacoco.skip>false</jacoco.skip>
 
-        <!-- Groovy version -->
-        <groovy.version>3.0.19</groovy.version>
-
         <!-- Testing versions -->
-        <spock.version>2.3-groovy-3.0</spock.version>
+        <spock.version>2.3-groovy-4.0</spock.version>
         <gmavenplus.version>3.0.2</gmavenplus.version>
 
         <!-- JVM Configuration for Spark Tests -->
@@ -328,13 +325,13 @@
 
         <!-- Groovy dependencies -->
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy</artifactId>
             <version>${groovy.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-json</artifactId>
             <version>${groovy.version}</version>
         </dependency>
@@ -636,11 +633,19 @@
                     <version>${gmavenplus.version}</version>
                     <executions>
                         <execution>
+                            <id>compile</id>
                             <goals>
                                 <goal>addSources</goal>
                                 <goal>addTestSources</goal>
                                 <goal>compile</goal>
                                 <goal>compileTests</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>groovydoc</id>
+                            <phase>site</phase>
+                            <goals>
+                                <goal>groovydoc</goal>
                             </goals>
                         </execution>
                     </executions>
@@ -662,21 +667,6 @@
                             </testSource>
                         </testSources>
                     </configuration>
-                </plugin>
-
-                <plugin>
-                    <groupId>org.codehaus.gmavenplus</groupId>
-                    <artifactId>gmavenplus-plugin</artifactId>
-                    <version>${gmavenplus.version}</version>
-                    <executions>
-                        <execution>
-                            <id>groovydoc</id>
-                            <phase>site</phase>
-                            <goals>
-                                <goal>groovydoc</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
                 <!-- Core Maven Plugins -->
                 <plugin>
