@@ -9,8 +9,10 @@ import static io.github.pierce.MapFlattener.ArraySerializationFormat.*;
 import static io.github.pierce.MapFlattener.FieldNamingStrategy.*
 
 import java.lang.reflect.Array
+import java.nio.ByteBuffer
 import java.sql.Timestamp;
 import java.time.temporal.Temporal
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -733,36 +735,44 @@ public class MapFlattener implements Serializable {
      * Serialize an array/list according to the configured format
      */
     private String serializeArray(List<?> values) {
+        // First, serialize any ByteBuffers in the array to Base64 strings
+        // This prevents data loss when ByteBuffers are converted to strings
+        List<Object> serializedValues = new ArrayList<>(values.size());
+        for (Object value : values) {
+            serializedValues.add(serializeValue(value));
+        }
+
+        // Now serialize the array based on the configured format
         switch (arrayFormat) {
             case JSON:
                 try {
-                    return objectMapper.writeValueAsString(values);
+                    return objectMapper.writeValueAsString(serializedValues);
                 } catch (JsonProcessingException e) {
                     log.warn("Failed to serialize array as JSON, falling back to toString", e);
-                    return values.toString();
+                    return serializedValues.toString();
                 }
 
             case COMMA_SEPARATED:
                 // Simple comma-separated: 1,2,3 or Alice,Bob,Charlie
-                return values.stream()
+                return serializedValues.stream()
                         .map(v -> v == null ? "" : v.toString())
                         .collect(Collectors.joining(","));
 
             case PIPE_SEPARATED:
                 // Pipe-separated: 1|2|3 (useful for Athena)
-                return values.stream()
+                return serializedValues.stream()
                         .map(v -> v == null ? "" : v.toString())
                         .collect(Collectors.joining("|"));
 
             case BRACKET_LIST:
                 // Bracket notation without JSON escaping: [1, 2, 3]
-                return values.toString();
+                return serializedValues.toString();
 
             default:
                 try {
-                    return objectMapper.writeValueAsString(values);
+                    return objectMapper.writeValueAsString(serializedValues);
                 } catch (JsonProcessingException e) {
-                    return values.toString();
+                    return serializedValues.toString();
                 }
         }
     }
@@ -785,9 +795,49 @@ public class MapFlattener implements Serializable {
                 (value != null && value.getClass().isArray()));
     }
 
+    /**
+     * Serialize a value for storage in the flattened map.
+     * Handles ByteBuffers specially by converting them to Base64-encoded strings.
+     * This prevents data loss that occurs when ByteBuffer.toString() is called.
+     *
+     * @param value The value to serialize
+     * @return The serialized value - ByteBuffers become "B64:..." strings, others unchanged
+     */
+    private Object serializeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        // Special handling for ByteBuffer - encode as Base64 to preserve data
+        if (value instanceof ByteBuffer) {
+            ByteBuffer buf = (ByteBuffer) value;
+
+            // Create a copy of the remaining bytes
+            byte[] bytes = new byte[buf.remaining()];
+            int originalPosition = buf.position();
+            buf.get(bytes);
+            buf.position(originalPosition); // Reset position so original buffer is unchanged
+
+            // Return Base64 encoded string with "B64:" marker prefix
+            // This marker helps AvroReconstructor identify Base64-encoded ByteBuffers
+            return "B64:" + Base64.getEncoder().encodeToString(bytes);
+        }
+
+        // For all other types, return as-is
+        return value;
+    }
+
     private Object normalizePrimitive(Object value) {
         if (value == null) {
             return null;
+        }
+
+        // IMPORTANT: Serialize ByteBuffers to Base64 to prevent data loss
+        // This must be done BEFORE any other processing
+        Object serialized = serializeValue(value);
+        if (serialized != value) {
+            // Value was transformed (e.g., ByteBuffer to Base64 string)
+            return serialized;
         }
 
         // Handle BigDecimal with optional precision preservation

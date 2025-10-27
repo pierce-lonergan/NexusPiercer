@@ -1013,10 +1013,13 @@ public class AvroReconstructor {
                             hasAnyField = true;
                         }
                     } else if (actualFieldSchema.getType() == RECORD) {
-                        Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
-                                path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName, 0);
-                        if (reconstructed != null) {
-                            builder.set(nestedFieldName, reconstructed);
+                        // For nested records within arrays, recursively call reconstructNestedRecordFromArray
+                        // This properly handles extracting values from arrayFieldValues at the correct index
+                        GenericRecord nestedRecord = reconstructNestedRecordFromArray(
+                                childNode, actualFieldSchema, nestedFieldName, index,
+                                path + "[" + index + "]." + fieldPrefix);
+                        if (nestedRecord != null) {
+                            builder.set(nestedFieldName, nestedRecord);
                             hasAnyField = true;
                         }
                     }
@@ -1377,9 +1380,24 @@ public class AvroReconstructor {
                             value : Boolean.parseBoolean(strValue);
 
                 case BYTES:
+                    // Check for Base64-encoded ByteBuffer
+                    if (strValue.startsWith("B64:")) {
+                        try {
+                            String base64Data = strValue.substring(4);
+                            byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+                            return ByteBuffer.wrap(decodedBytes);
+                        } catch (Exception e) {
+                            log.warn("Failed to decode Base64 for BYTES field at " + path + ": " + strValue, e);
+                            // Fall through to default handling
+                        }
+                    }
+
+                    // Check if it's already a ByteBuffer
                     if (value instanceof ByteBuffer) {
                         return value;
                     }
+
+                    // Fallback to treating string as raw bytes
                     return ByteBuffer.wrap(strValue.getBytes());
 
                 case FIXED:
@@ -1507,7 +1525,52 @@ public class AvroReconstructor {
 
     private Object convertDecimal(Object value, Schema schema) {
         LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) schema.getLogicalType();
-        BigDecimal decimal = new BigDecimal(value.toString());
+
+        // If value is already a ByteBuffer (the correct format for BYTES-backed decimals),
+        // return it directly without conversion
+        if (value instanceof ByteBuffer) {
+            return value;
+        }
+
+        String strValue = value.toString();
+
+        // Check for Base64-encoded ByteBuffer (our custom serialization format)
+        // Format: "B64:..." where ... is the Base64-encoded bytes
+        if (strValue.startsWith("B64:")) {
+            try {
+                // Decode Base64 string back to ByteBuffer
+                String base64Data = strValue.substring(4); // Remove "B64:" prefix
+                byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+                return ByteBuffer.wrap(decodedBytes);
+            } catch (Exception e) {
+                log.warn("Failed to decode Base64 ByteBuffer: " + strValue, e);
+                // Fall through to error handling below
+            }
+        }
+
+        // Check if value is a string representation of a ByteBuffer (which happens when
+        // ByteBuffers are serialized without proper Base64 encoding)
+        // These look like: "java.nio.HeapByteBuffer[pos=0 lim=3 cap=3]" or "[java.nio.HeapByteBuffer[..."
+        if (strValue.contains("ByteBuffer[")) {
+            // Cannot reconstruct ByteBuffer from toString() representation - data is lost
+            String errorMessage = String.format(
+                    "Cannot reconstruct BYTES field from ByteBuffer string representation: %s%n" +
+                            "This occurs when ByteBuffers are not properly encoded during serialization.%n" +
+                            "ByteBuffers lose their data when toString() is called.%n" +
+                            "SOLUTION: Update MapFlattener to encode ByteBuffers as Base64 strings.%n" +
+                            "Add a serializeValue() method that converts ByteBuffers to 'B64:<base64data>' format.",
+                    strValue);
+
+            if (strictValidation) {
+                throw new IllegalArgumentException(errorMessage);
+            }
+
+            // In non-strict mode, log warning and return zero as placeholder
+            log.warn(errorMessage + " Returning ZERO as placeholder.");
+            return DECIMAL_CONVERSION.toBytes(BigDecimal.ZERO, schema, decimalType);
+        }
+
+        BigDecimal decimal = new BigDecimal(strValue);
 
         if (decimal.precision() > decimalType.getPrecision()) {
             decimal = decimal.setScale(decimalType.getScale(), RoundingMode.HALF_UP);
