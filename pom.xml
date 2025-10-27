@@ -137,6 +137,10 @@
         <logback.version>1.4.14</logback.version>
         <testcontainers.version>1.19.3</testcontainers.version>
 
+        <!-- Groovy Configuration -->
+        <groovy.version>4.0.21</groovy.version>
+        <gmavenplus.version>3.0.2</gmavenplus.version>
+
         <!-- Maven Plugin Versions -->
         <maven.minimum.version>3.8.1</maven.minimum.version>
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
@@ -239,6 +243,31 @@
                 <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Groovy BOM -->
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-bom</artifactId>
+                <version>${groovy.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy</artifactId>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-json</artifactId>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-templates</artifactId>
+                <optional>true</optional>
             </dependency>
 
             <!-- Explicit Version Management to resolve conflicts -->
@@ -700,6 +729,30 @@
                 <version>${build-helper-maven-plugin.version}</version>
                 <executions>
                     <execution>
+                        <id>add-groovy-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>src/main/groovy</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>add-groovy-test-source</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>src/test/groovy</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>add-source</id>
                         <phase>generate-sources</phase>
                         <goals>
@@ -724,6 +777,64 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- GMavenPlus Plugin - Compile Groovy code -->
+            <plugin>
+                <groupId>org.codehaus.gmavenplus</groupId>
+                <artifactId>gmavenplus-plugin</artifactId>
+                <version>${gmavenplus.version}</version>
+                <executions>
+                    <!-- Compile main Groovy sources -->
+                    <execution>
+                        <id>compile-groovy</id>
+                        <goals>
+                            <goal>addSources</goal>
+                            <goal>addStubSources</goal>
+                            <goal>generateStubs</goal>
+                            <goal>compile</goal>
+                            <goal>removeStubs</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>
+                                    <directory>src/main/groovy</directory>
+                                    <includes>
+                                        <include>**/*.groovy</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </configuration>
+                    </execution>
+
+                    <!-- Compile test Groovy sources -->
+                    <execution>
+                        <id>compile-groovy-tests</id>
+                        <goals>
+                            <goal>addTestSources</goal>
+                            <goal>addTestStubSources</goal>
+                            <goal>generateTestStubs</goal>
+                            <goal>compileTests</goal>
+                            <goal>removeTestStubs</goal>
+                        </goals>
+                        <configuration>
+                            <testSources>
+                                <testSource>
+                                    <directory>src/test/groovy</directory>
+                                    <includes>
+                                        <include>**/*.groovy</include>
+                                    </includes>
+                                </testSource>
+                            </testSources>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- Target bytecode version -->
+                    <targetBytecode>${java.version}</targetBytecode>
+                    <!-- Enable joint compilation with Java -->
+                    <invokeDynamic>true</invokeDynamic>
+                </configuration>
             </plugin>
 
             <!-- Avro Maven Plugin -->
@@ -782,10 +893,16 @@
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
                         <include>**/*TestCase.java</include>
+
+                        <include>**/*Test.groovy</include>
+                        <include>**/*Tests.groovy</include>
+                        <include>**/*Spec.groovy</include>
                     </includes>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                         <exclude>**/*IntegrationTest.java</exclude>
+                        <exclude>**/*IT.groovy</exclude>
+                        <exclude>**/*IntegrationTest.groovy</exclude>
                     </excludes>
                     <forkCount>1</forkCount>
                     <reuseForks>false</reuseForks>
@@ -911,6 +1028,12 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <includes>
+                        <include>**/*.java</include>
+                        <include>**/*.groovy</include>
+                    </includes>
+                </configuration>
             </plugin>
 
             <!-- Javadoc Plugin -->
