@@ -6,15 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.github.pierce.MapFlattener.ArraySerializationFormat.*;
-import static io.github.pierce.MapFlattener.FieldNamingStrategy.*;
+import static io.github.pierce.MapFlattener.FieldNamingStrategy.*
 
-import java.io.Serializable;
-import java.lang.reflect.Array;
-import java.math.BigDecimal;
-import java.math.BigInteger;
+import java.lang.reflect.Array
 import java.sql.Timestamp;
-import java.time.temporal.Temporal;
-import java.util.*;
+import java.time.temporal.Temporal
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;

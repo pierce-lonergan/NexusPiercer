@@ -13,17 +13,14 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import static org.apache.avro.Schema.Type.*;
 
-import static io.github.pierce.AvroReconstructor.ArraySerializationFormat.*;
+import static io.github.pierce.AvroReconstructor.ArraySerializationFormat.*
 
-import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
