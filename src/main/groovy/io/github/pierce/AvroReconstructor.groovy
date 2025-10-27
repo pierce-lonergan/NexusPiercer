@@ -13,14 +13,17 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import static org.apache.avro.Schema.Type.*;
 
-import static io.github.pierce.AvroReconstructor.ArraySerializationFormat.*
+import static io.github.pierce.AvroReconstructor.ArraySerializationFormat.*;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -913,11 +916,14 @@ public class AvroReconstructor {
         }
 
         // Case 2: Array of records with field extraction
-        if (node.arrayFieldValues != null && !node.arrayFieldValues.isEmpty()) {
+        // This includes arrays where records have only nested fields (no scalar fields in arrayFieldValues)
+        if (elementSchema.getType() == RECORD &&
+                ((node.arrayFieldValues != null && !node.arrayFieldValues.isEmpty()) ||
+                        !node.children.isEmpty())) {
             return reconstructArrayOfRecords(node, elementSchema, path, currentDepth);
         }
 
-        // Case 3: Nested structure
+        // Case 3: Nested structure (for non-record arrays)
         List<Object> result = new ArrayList<>();
         for (PathNode child : node.children.values()) {
             Object childValue = reconstructValue(child, elementSchema, path, currentDepth + 1);
@@ -1036,7 +1042,7 @@ public class AvroReconstructor {
 
         // Determine array size from field values
         // Need to check if values are JSON-encoded arrays and use their size
-        int arraySize = calculateArraySize(node.arrayFieldValues, elementSchema);
+        int arraySize = calculateArraySize(node, node.arrayFieldValues, elementSchema);
 
         List<Object> result = new ArrayList<>(arraySize);
 
@@ -1046,7 +1052,12 @@ public class AvroReconstructor {
             for (Schema.Field field : elementSchema.getFields()) {
                 String fieldName = field.name();
                 Schema fieldSchema = field.schema();
-                List<Object> fieldValues = node.arrayFieldValues.get(fieldName);
+                List<Object> fieldValues = null;
+
+                // Only try to get field values if arrayFieldValues is not null
+                if (node.arrayFieldValues != null) {
+                    fieldValues = node.arrayFieldValues.get(fieldName);
+                }
 
                 if (fieldValues != null && !fieldValues.isEmpty()) {
                     // Get the value - for JSON arrays, we use the last (or only) element
@@ -1628,7 +1639,27 @@ public class AvroReconstructor {
     /**
      * Calculate array size accounting for JSON-encoded arrays in field values.
      */
-    private int calculateArraySize(Map<String, List<Object>> arrayFieldValues, Schema elementSchema) {
+    private int calculateArraySize(PathNode node, Map<String, List<Object>> arrayFieldValues, Schema elementSchema) {
+        // If no array field values, try to determine size from child nodes
+        if (arrayFieldValues == null || arrayFieldValues.isEmpty()) {
+            // Look at child nodes to infer array size
+            if (!node.children.isEmpty()) {
+                // Get the first child node and check its arrayFieldValues
+                for (PathNode childNode : node.children.values()) {
+                    if (childNode.arrayFieldValues != null && !childNode.arrayFieldValues.isEmpty()) {
+                        // Get the size from the first field's value list
+                        for (List<Object> values : childNode.arrayFieldValues.values()) {
+                            if (values != null && !values.isEmpty()) {
+                                return values.size();
+                            }
+                        }
+                    }
+                }
+            }
+            // Default to 1 if we can't determine from children
+            return 1;
+        }
+
         int maxSize = 0;
 
         for (Map.Entry<String, List<Object>> entry : arrayFieldValues.entrySet()) {
@@ -1667,7 +1698,7 @@ public class AvroReconstructor {
             maxSize = Math.max(maxSize, fieldValues.size());
         }
 
-        return maxSize;
+        return maxSize > 0 ? maxSize : 1;
     }
 
     private Object getDefaultValue(Schema.Type type) {
