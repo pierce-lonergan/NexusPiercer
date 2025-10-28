@@ -760,26 +760,89 @@ public class AvroReconstructor {
                 return Collections.singletonList(null);
             }
 
+            // If it's already a List, return it directly
+            if (value instanceof List) {
+                return (List<Object>) value;
+            }
+
             String strValue = value.toString().trim();
 
             // JSON array
             if (strValue.startsWith("[") && strValue.endsWith("]")) {
                 try {
-                    return SHARED_OBJECT_MAPPER.readValue(strValue,
+                    List<Object> parsed = SHARED_OBJECT_MAPPER.readValue(strValue,
                             new TypeReference<List<Object>>() {});
+                    return parsed;
                 } catch (Exception e) {
+                    // Log the parsing failure for debugging
+                    System.err.println("WARN: Failed to parse as JSON array: '" + strValue + "' - " + e.getMessage());
                     // Fall through to other formats
                 }
             }
 
             // Comma or pipe separated
-            if (strValue.contains(",")) {
-                return Arrays.asList(strValue.split(",", -1));
-            } else if (strValue.contains("|")) {
-                return Arrays.asList(strValue.split("\\|", -1));
+            // Strip surrounding brackets if present (handles List.toString() format)
+            String valueToSplit = strValue;
+            if (strValue.startsWith("[") && strValue.endsWith("]")) {
+                valueToSplit = strValue.substring(1, strValue.length() - 1).trim();
+            }
+
+            if (valueToSplit.contains(",")) {
+                // Use bracket-aware splitting to handle nested arrays like "[[a,b],[c,d]]"
+                List<String> parts = splitRespectingBrackets(valueToSplit, ",");
+                // Trim whitespace from each element
+                return parts.stream()
+                        .map(String::trim)
+                        .collect(java.util.stream.Collectors.toList());
+            } else if (valueToSplit.contains("|")) {
+                List<String> parts = splitRespectingBrackets(valueToSplit, "|");
+                return parts.stream()
+                        .map(String::trim)
+                        .collect(java.util.stream.Collectors.toList());
             }
 
             return Collections.singletonList(strValue);
+        }
+
+        /**
+         * Split string by delimiter while respecting bracket nesting.
+         * Example: "[a,b],[c,d]" split by ',' → ["[a,b]", "[c,d]"]
+         * Not: ["[a", "b]", "[c", "d]"]
+         */
+        private static List<String> splitRespectingBrackets(String str, String delimiter) {
+            if (delimiter == null || delimiter.length() != 1) {
+                throw new IllegalArgumentException("Delimiter must be a single character");
+            }
+            char delimiterChar = delimiter.charAt(0);
+
+            List<String> result = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+            int bracketDepth = 0;
+
+            for (int i = 0; i < str.length(); i++) {
+                char c = str.charAt(i);
+
+                if (c == '[') {
+                    bracketDepth++;
+                    current.append(c);
+                } else if (c == ']') {
+                    bracketDepth--;
+                    current.append(c);
+                } else if (c == delimiterChar && bracketDepth == 0) {
+                    // Only split when not inside brackets
+                    result.add(current.toString());
+                    current = new StringBuilder();
+                } else {
+                    current.append(c);
+                }
+            }
+
+            // Add the last part
+            if (current.length() > 0) {
+                result.add(current.toString());
+            }
+
+            return result;
         }
     }
 
@@ -957,8 +1020,16 @@ public class AvroReconstructor {
                 // Unwrap nullable schemas to check actual type
                 Schema actualFieldSchema = unwrapNullable(nestedField.schema());
 
+                // DEBUG: Log what we're extracting
+                log.debug("Field: {}, Index: {}, ValueIndex: {}, RawValue: {}, RawValue.class: {}",
+                        nestedFieldName, index, valueIndex, rawValue, rawValue != null ? rawValue.getClass().getSimpleName() : "null");
+
                 // Extract value at index (handles JSON-encoded arrays for primitives)
                 Object value = extractValueAtIndex(rawValue, index, actualFieldSchema.getType());
+
+                // DEBUG: Log extracted value
+                log.debug("After extractValueAtIndex: Value: {}, Value.class: {}",
+                        value, value != null ? value.getClass().getSimpleName() : "null");
 
                 // Handle nested arrays in nested records
                 if (actualFieldSchema.getType() == ARRAY && value instanceof String) {
@@ -969,14 +1040,44 @@ public class AvroReconstructor {
                         if (jsonString.trim().equals("[]")) {
                             value = new ArrayList<>();
                         } else {
-                            List<Object> parsedArray = objectMapper.readValue(jsonString, List.class);
+                            List<Object> parsedArray = null;
+
+                            // Try JSON first if it looks like JSON
+                            if (jsonString.trim().startsWith("[") && jsonString.trim().endsWith("]")) {
+                                try {
+                                    parsedArray = objectMapper.readValue(jsonString, List.class);
+                                } catch (Exception jsonEx) {
+                                    // Not valid JSON, try other formats based on arrayFormat
+                                    log.warn("Failed to parse as JSON array: '{}' - {}", jsonString, jsonEx.getMessage());
+                                }
+                            }
+
+                            // If JSON parsing failed, try format-specific parsing
+                            if (parsedArray == null) {
+                                switch (arrayFormat) {
+                                    case BRACKET_LIST:
+                                        parsedArray = deserializeBracketList(jsonString);
+                                        break;
+                                    case COMMA_SEPARATED:
+                                        parsedArray = Arrays.asList(jsonString.split(",", -1));
+                                        break;
+                                    case PIPE_SEPARATED:
+                                        parsedArray = Arrays.asList(jsonString.split("\\|", -1));
+                                        break;
+                                    default:
+                                        // Last resort: single element list
+                                        parsedArray = Collections.singletonList(jsonString);
+                                }
+                            }
+
                             // Ensure we got a valid list
                             if (parsedArray == null || parsedArray.isEmpty()) {
                                 value = new ArrayList<>();
                             } else {
+                                // Path already includes array index from caller
                                 value = reconstructArrayFromValues(parsedArray,
                                         actualFieldSchema.getElementType(),
-                                        path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName,
+                                        path + "." + fieldPrefix + "." + nestedFieldName,
                                         0);
                                 if (value == null) {
                                     value = new ArrayList<>();
@@ -992,8 +1093,9 @@ public class AvroReconstructor {
                         value = new ArrayList<>();
                     }
                 } else {
+                    // Path already includes array index from caller
                     value = convertPrimitive(value, nestedField.schema(),
-                            path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName);
+                            path + "." + fieldPrefix + "." + nestedFieldName);
                 }
 
                 builder.set(nestedFieldName, value);
@@ -1006,18 +1108,19 @@ public class AvroReconstructor {
                 if (fieldChildNode != null) {
                     // Reconstruct from child node based on schema type
                     if (actualFieldSchema.getType() == ARRAY) {
+                        // Path already includes array index from caller
                         Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
-                                path + "[" + index + "]." + fieldPrefix + "." + nestedFieldName, 0);
+                                path + "." + fieldPrefix + "." + nestedFieldName, 0);
                         if (reconstructed != null) {
                             builder.set(nestedFieldName, reconstructed);
                             hasAnyField = true;
                         }
                     } else if (actualFieldSchema.getType() == RECORD) {
                         // For nested records within arrays, recursively call reconstructNestedRecordFromArray
-                        // This properly handles extracting values from arrayFieldValues at the correct index
+                        // Path already includes array index from caller
                         GenericRecord nestedRecord = reconstructNestedRecordFromArray(
                                 childNode, actualFieldSchema, nestedFieldName, index,
-                                path + "[" + index + "]." + fieldPrefix);
+                                path + "." + fieldPrefix);
                         if (nestedRecord != null) {
                             builder.set(nestedFieldName, nestedRecord);
                             hasAnyField = true;
@@ -1076,14 +1179,41 @@ public class AvroReconstructor {
 
                     // Handle nested arrays in array elements
                     if (actualFieldSchema.getType() == ARRAY && value instanceof String) {
-                        // Parse JSON string back to array
-                        String jsonString = (String) value;
+                        // Parse string back to array
+                        String arrayString = (String) value;
                         try {
                             // Special case: empty array string
-                            if (jsonString.trim().equals("[]")) {
+                            if (arrayString.trim().equals("[]")) {
                                 value = new ArrayList<>();
                             } else {
-                                List<Object> parsedArray = objectMapper.readValue(jsonString, List.class);
+                                List<Object> parsedArray = null;
+
+                                // Try JSON first
+                                try {
+                                    parsedArray = objectMapper.readValue(arrayString, List.class);
+                                } catch (Exception jsonEx) {
+                                    // Not valid JSON, try format-specific parsing
+                                    log.debug("Failed to parse as JSON array in reconstructArrayOfRecords: '{}', trying format-specific parser", arrayString);
+                                }
+
+                                // If JSON parsing failed, try format-specific parsing
+                                if (parsedArray == null) {
+                                    switch (arrayFormat) {
+                                        case BRACKET_LIST:
+                                            parsedArray = deserializeBracketList(arrayString);
+                                            break;
+                                        case COMMA_SEPARATED:
+                                            parsedArray = Arrays.asList(arrayString.split(",", -1));
+                                            break;
+                                        case PIPE_SEPARATED:
+                                            parsedArray = Arrays.asList(arrayString.split("\\|", -1));
+                                            break;
+                                        default:
+                                            // Last resort: single element list
+                                            parsedArray = Collections.singletonList(arrayString);
+                                    }
+                                }
+
                                 // Ensure we got a valid list
                                 if (parsedArray == null || parsedArray.isEmpty()) {
                                     value = new ArrayList<>();
@@ -1101,8 +1231,8 @@ public class AvroReconstructor {
                         } catch (Exception e) {
                             if (strictValidation) {
                                 throw new IllegalArgumentException(
-                                        String.format("Failed to parse nested array JSON at %s[%d].%s: %s",
-                                                path, i, fieldName, jsonString), e);
+                                        String.format("Failed to parse nested array at %s[%d].%s: %s",
+                                                path, i, fieldName, arrayString), e);
                             }
                             // If parsing fails, try to create empty array or use default
                             value = new ArrayList<>();
@@ -1141,10 +1271,11 @@ public class AvroReconstructor {
                         (fieldSchema.getType() == UNION &&
                                 unwrapUnion(fieldSchema).getType() == RECORD)) {
                     // Handle nested record - look for child fields with prefix
+                    // Include the array index in the path when calling
                     Schema unwrappedSchema = fieldSchema.getType() == UNION ? unwrapUnion(fieldSchema) : fieldSchema;
                     if (unwrappedSchema.getType() == RECORD) {
                         GenericRecord nestedRecord = reconstructNestedRecordFromArray(
-                                node, unwrappedSchema, fieldName, i, path);
+                                node, unwrappedSchema, fieldName, i, path + "[" + i + "]");
                         if (nestedRecord != null) {
                             elementBuilder.set(fieldName, nestedRecord);
                         } else if (field.hasDefaultValue()) {
@@ -1630,9 +1761,59 @@ public class AvroReconstructor {
             if (content.isEmpty()) {
                 return Collections.emptyList();
             }
-            return Arrays.asList(content.split("\\s*,\\s*"));
+
+            // Use bracket-aware split to handle nested arrays
+            return splitBracketAware(content);
         }
         return Collections.singletonList(value);
+    }
+
+    /**
+     * Split a string on commas, but respect nested brackets.
+     * Example: "[a, b], [c, d]" -> ["[a, b]", "[c, d]"]
+     * Not: "[a", "b]", "[c", "d]"
+     */
+    private List<Object> splitBracketAware(String content) {
+        List<Object> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int bracketDepth = 0;
+        boolean inQuotes = false;
+
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+
+            if (c == '"' && (i == 0 || content.charAt(i - 1) != '\\')) {
+                inQuotes = !inQuotes;
+                current.append(c);
+            } else if (!inQuotes) {
+                if (c == '[') {
+                    bracketDepth++;
+                    current.append(c);
+                } else if (c == ']') {
+                    bracketDepth--;
+                    current.append(c);
+                } else if (c == ',' && bracketDepth == 0) {
+                    // This comma is at the top level, so it's a separator
+                    String item = current.toString().trim();
+                    if (!item.isEmpty()) {
+                        result.add(item);
+                    }
+                    current = new StringBuilder();
+                } else {
+                    current.append(c);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        // Add the last item
+        String item = current.toString().trim();
+        if (!item.isEmpty()) {
+            result.add(item);
+        }
+
+        return result.isEmpty() ? Collections.singletonList(content) : result;
     }
 
     private boolean isNullable(Schema schema) {
@@ -1681,18 +1862,41 @@ public class AvroReconstructor {
         if (value instanceof String && isPrimitiveType(targetType)) {
             String strValue = (String) value;
             if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
+                List<Object> parsedArray = null;
+
+                // Try JSON first
                 try {
-                    List<Object> parsedArray = objectMapper.readValue(strValue, List.class);
-                    if (parsedArray != null) {
-                        if (index < parsedArray.size()) {
-                            return parsedArray.get(index);
-                        } else {
-                            // Index out of bounds in JSON array - return null so caller can handle
-                            return null;
-                        }
-                    }
+                    parsedArray = objectMapper.readValue(strValue, List.class);
                 } catch (Exception e) {
-                    // Not a valid JSON array, return original value
+                    // Not valid JSON, try format-specific parsing
+                    log.debug("Failed to parse as JSON array in extractValueAtIndex: '{}', trying format-specific parser", strValue);
+                }
+
+                // If JSON parsing failed, try format-specific parsing
+                if (parsedArray == null) {
+                    switch (arrayFormat) {
+                        case BRACKET_LIST:
+                            parsedArray = deserializeBracketList(strValue);
+                            break;
+                        case COMMA_SEPARATED:
+                            parsedArray = Arrays.asList(strValue.split(",", -1));
+                            break;
+                        case PIPE_SEPARATED:
+                            parsedArray = Arrays.asList(strValue.split("\\|", -1));
+                            break;
+                        default:
+                            // Return original value if can't parse
+                            return value;
+                    }
+                }
+
+                if (parsedArray != null) {
+                    if (index < parsedArray.size()) {
+                        return parsedArray.get(index);
+                    } else {
+                        // Index out of bounds in array - return null so caller can handle
+                        return null;
+                    }
                 }
             }
         }
@@ -1739,19 +1943,37 @@ public class AvroReconstructor {
                 Schema actualFieldSchema = unwrapNullable(field.schema());
                 Object firstValue = fieldValues.get(0);
 
-                // Check if the first value is a JSON-encoded array for a primitive field
+                // Check if the first value is an array string for a primitive field
                 if (firstValue instanceof String && isPrimitiveType(actualFieldSchema.getType())) {
                     String strValue = (String) firstValue;
                     if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
+                        List<Object> parsedArray = null;
+
+                        // Try JSON first
                         try {
-                            // Parse the JSON array to get its size
-                            List<Object> parsedArray = objectMapper.readValue(strValue, List.class);
-                            if (parsedArray != null) {
-                                maxSize = Math.max(maxSize, parsedArray.size());
-                                continue;
-                            }
+                            parsedArray = objectMapper.readValue(strValue, List.class);
                         } catch (Exception e) {
-                            // If parsing fails, fall through to use outer list size
+                            // Not valid JSON, try format-specific parsing
+                        }
+
+                        // If JSON parsing failed, try format-specific parsing
+                        if (parsedArray == null) {
+                            switch (arrayFormat) {
+                                case BRACKET_LIST:
+                                    parsedArray = deserializeBracketList(strValue);
+                                    break;
+                                case COMMA_SEPARATED:
+                                    parsedArray = Arrays.asList(strValue.split(",", -1));
+                                    break;
+                                case PIPE_SEPARATED:
+                                    parsedArray = Arrays.asList(strValue.split("\\|", -1));
+                                    break;
+                            }
+                        }
+
+                        if (parsedArray != null) {
+                            maxSize = Math.max(maxSize, parsedArray.size());
+                            continue;
                         }
                     }
                 }
