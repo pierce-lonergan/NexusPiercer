@@ -1027,7 +1027,48 @@ public class AvroReconstructor {
                 // Extract value at index (handles JSON-encoded arrays for primitives)
                 Object value = extractValueAtIndex(rawValue, index, actualFieldSchema.getType());
 
-                // DEBUG: Log extracted value
+// Handle null values from out-of-bounds access in asymmetric arrays
+                if (value == null && rawValue != null) {
+                    // This might be an out-of-bounds access in an asymmetric array
+                    // Check if we should use a default or skip
+                    if (nestedField.hasDefaultValue()) {
+                        value = nestedField.defaultVal();
+                    } else if (!isNullable(nestedField.schema())) {
+                        // Required field - try to provide a sensible default
+                        log.debug("Providing default for required field {} at index {} (asymmetric array)",
+                                nestedFieldName, index);
+                        switch (actualFieldSchema.getType()) {
+                            case STRING:
+                                value = "";
+                                break;
+                            case INT:
+                                value = 0;
+                                break;
+                            case LONG:
+                                value = 0L;
+                                break;
+                            case FLOAT:
+                                value = 0.0f;
+                                break;
+                            case DOUBLE:
+                                value = 0.0;
+                                break;
+                            case BOOLEAN:
+                                value = false;
+                                break;
+                            case ARRAY:
+                                value = new ArrayList<>();
+                                break;
+                            default:
+                                // For complex types, we may need to skip
+                                log.warn("Cannot provide default for required field {} of type {}",
+                                        nestedFieldName, actualFieldSchema.getType());
+                                continue; // Skip setting this field
+                        }
+                    }
+                }
+
+// DEBUG: Log extracted value
                 log.debug("After extractValueAtIndex: Value: {}, Value.class: {}",
                         value, value != null ? value.getClass().getSimpleName() : "null");
 
@@ -1264,6 +1305,34 @@ public class AvroReconstructor {
                     } else {
                         value = convertPrimitive(value, fieldSchema,
                                 path + "[" + i + "]." + fieldName);
+                    }
+
+                    // Before setting the field value, check for null from asymmetric arrays
+                    if (value == null && !isNullable(fieldSchema)) {
+                        // This is a required field but we got null (likely from asymmetric array)
+                        if (field.hasDefaultValue()) {
+                            value = field.defaultVal();
+                        } else {
+                            // Provide type-appropriate default
+                            switch (actualFieldSchema.getType()) {
+                                case STRING:
+                                    value = "";
+                                    break;
+                                case INT:
+                                    value = 0;
+                                    break;
+                                case LONG:
+                                    value = 0L;
+                                    break;
+                                case ARRAY:
+                                    value = new ArrayList<>();
+                                    break;
+                                default:
+                                    log.warn("Skipping required field {} at index {} due to asymmetric array",
+                                            fieldName, i);
+                                    continue; // Skip this element
+                            }
+                        }
                     }
 
                     elementBuilder.set(fieldName, value);
@@ -1732,21 +1801,40 @@ public class AvroReconstructor {
 
         String strValue = value.toString().trim();
 
-        // Try JSON first
+        // Handle BRACKET_LIST format first
+        if (arrayFormat == BRACKET_LIST && strValue.startsWith("[") && strValue.endsWith("]")) {
+            return deserializeBracketList(strValue);
+        }
+
+        // Only try JSON if it looks like valid JSON
         if (strValue.startsWith("[") && strValue.endsWith("]")) {
-            try {
-                return objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
-            } catch (Exception e) {
-                // Fall through to other formats
+            boolean looksLikeJson = strValue.contains("\"") ||
+                    strValue.matches(".*\\[\\s*-?\\d.*") ||
+                    strValue.equals("[]") ||
+                    strValue.contains("true") ||
+                    strValue.contains("false") ||
+                    strValue.contains("null");
+
+            if (looksLikeJson) {
+                try {
+                    return objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
+                } catch (Exception e) {
+                    log.debug("Failed to parse as JSON: {}", e.getMessage());
+                }
             }
         }
 
         // Try other formats based on configuration
+        String content = strValue;
+        if (strValue.startsWith("[") && strValue.endsWith("]")) {
+            content = strValue.substring(1, strValue.length() - 1);
+        }
+
         switch (arrayFormat) {
             case COMMA_SEPARATED:
-                return Arrays.asList(strValue.split(",", -1));
+                return Arrays.asList(content.split(",", -1));
             case PIPE_SEPARATED:
-                return Arrays.asList(strValue.split("\\|", -1));
+                return Arrays.asList(content.split("\\|", -1));
             case BRACKET_LIST:
                 return deserializeBracketList(strValue);
             default:
@@ -1859,47 +1947,68 @@ public class AvroReconstructor {
      * parse it and return the element at the specified index.
      */
     private Object extractValueAtIndex(Object value, int index, Schema.Type targetType) {
+        if (value == null) {
+            return null;
+        }
+
         if (value instanceof String && isPrimitiveType(targetType)) {
-            String strValue = (String) value;
-            if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
+            String strValue = ((String) value).trim();
+            if (strValue.startsWith("[") && strValue.endsWith("]")) {
                 List<Object> parsedArray = null;
 
-                // Try JSON first
-                try {
-                    parsedArray = objectMapper.readValue(strValue, List.class);
-                } catch (Exception e) {
-                    // Not valid JSON, try format-specific parsing
-                    log.debug("Failed to parse as JSON array in extractValueAtIndex: '{}', trying format-specific parser", strValue);
+                // Only try JSON parsing if it looks like valid JSON
+                boolean looksLikeJson = strValue.contains("\"") ||
+                        strValue.matches(".*\\[\\s*-?\\d.*") ||
+                        strValue.equals("[]") ||
+                        strValue.contains("true") ||
+                        strValue.contains("false") ||
+                        strValue.contains("null");
+
+                if (looksLikeJson) {
+                    try {
+                        parsedArray = objectMapper.readValue(strValue, List.class);
+                    } catch (Exception e) {
+                        log.debug("Not valid JSON, will try format-specific parsing: {}", strValue);
+                    }
                 }
 
-                // If JSON parsing failed, try format-specific parsing
-                if (parsedArray == null) {
+                // If not parsed as JSON, try format-specific parsing
+                if (parsedArray == null && arrayFormat == BRACKET_LIST) {
+                    // For BRACKET_LIST format, parse the nested structure
+                    parsedArray = deserializeBracketList(strValue);
+                } else if (parsedArray == null) {
+                    // For other formats, remove brackets and split
+                    String content = strValue.substring(1, strValue.length() - 1);
                     switch (arrayFormat) {
-                        case BRACKET_LIST:
-                            parsedArray = deserializeBracketList(strValue);
-                            break;
                         case COMMA_SEPARATED:
-                            parsedArray = Arrays.asList(strValue.split(",", -1));
+                            parsedArray = Arrays.asList(content.split(",", -1));
                             break;
                         case PIPE_SEPARATED:
-                            parsedArray = Arrays.asList(strValue.split("\\|", -1));
+                            parsedArray = Arrays.asList(content.split("\\|", -1));
                             break;
                         default:
-                            // Return original value if can't parse
-                            return value;
+                            parsedArray = Collections.singletonList(strValue);
                     }
                 }
 
                 if (parsedArray != null) {
-                    if (index < parsedArray.size()) {
-                        return parsedArray.get(index);
+                    if (index >= 0 && index < parsedArray.size()) {
+                        Object result = parsedArray.get(index);
+                        // Trim string results
+                        if (result instanceof String) {
+                            return ((String) result).trim();
+                        }
+                        return result;
                     } else {
-                        // Index out of bounds in array - return null so caller can handle
+                        // Index out of bounds - this is expected for asymmetric arrays
+                        log.debug("Index {} out of bounds for array of size {}", index, parsedArray.size());
                         return null;
                     }
                 }
             }
         }
+
+        // Return as-is if not an array string
         return value;
     }
 
