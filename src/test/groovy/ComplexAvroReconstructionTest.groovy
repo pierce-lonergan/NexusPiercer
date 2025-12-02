@@ -59,7 +59,7 @@ public class ComplexAvroReconstructionTest {
 
         // Reconstruct
         AvroReconstructor reconstructor = AvroReconstructor.builder()
-                .arrayFormat(AvroReconstructor.ArraySerializationFormat.JSON)
+                .arrayFormat(AvroReconstructor.ArraySerializationFormat.BRACKET_LIST)
                 .build();
 
         long reconstructStart = System.currentTimeMillis();
@@ -232,11 +232,7 @@ public class ComplexAvroReconstructionTest {
                 .name("shippingCost").type(priceSchema).noDefault()
                 .name("total").type(priceSchema).noDefault()
                 .name("shipments").type().array().items(shipmentSchema).noDefault()
-                .name("paymentMethod").type().unionOf()
-                .type(creditCardSchema)
-                .and()
-                .type(paypalSchema)
-                .endUnion().noDefault()
+                .name("paymentMethod").type(Schema.createUnion(creditCardSchema, paypalSchema)).noDefault()
                 .name("metadata").type(metadataSchema).noDefault()
                 .name("notes").type().array().items().stringType().noDefault()
                 .optionalBoolean("isGift")

@@ -765,8 +765,25 @@ public class MapFlattener implements Serializable {
                         .collect(Collectors.joining("|"));
 
             case BRACKET_LIST:
-                // Bracket notation without JSON escaping: [1, 2, 3]
-                return serializedValues.toString();
+                // Build proper bracket notation that can be parsed back
+                StringBuilder sb = new StringBuilder("[");
+                for (int i = 0; i < serializedValues.size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    Object v = serializedValues.get(i);
+                    if (v == null) {
+                        sb.append("null");
+                    } else if (v instanceof String) {
+                        // Quote strings so they can be parsed back
+                        sb.append('"').append(escapeString((String) v)).append('"');
+                    } else if (v instanceof List) {
+                        // Recursively serialize nested lists
+                        sb.append(serializeArray((List<?>) v));
+                    } else {
+                        sb.append(v.toString());
+                    }
+                }
+                sb.append("]");
+                return sb.toString();
 
             default:
                 try {
@@ -775,6 +792,14 @@ public class MapFlattener implements Serializable {
                     return serializedValues.toString();
                 }
         }
+    }
+
+    private String escapeString(String s) {
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     private Object flattenSingleValue(Object value, int depth) {

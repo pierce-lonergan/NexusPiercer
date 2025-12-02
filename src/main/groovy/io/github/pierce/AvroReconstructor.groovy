@@ -1180,225 +1180,555 @@ public class AvroReconstructor {
         return hasAnyField ? builder.build() : null;
     }
 
+    /**
+     * Reconstruct an array of records from flattened field values.
+     *
+     * This is the core method for handling arrays of complex objects.
+     * It handles:
+     * - Simple arrays of records (lineItems with product info)
+     * - Nested arrays within records (trackingEvents within shipments)
+     * - Mixed primitive and complex nested fields
+     */
     private List<Object> reconstructArrayOfRecords(PathNode node, Schema elementSchema,
                                                    String path, int currentDepth) {
         if (elementSchema.getType() != RECORD) {
-            throw new IllegalStateException(
-                    "Expected RECORD element type at: " + path);
+            throw new IllegalStateException("Expected RECORD element type at: " + path)
         }
 
-        // Determine array size from field values
-        // Need to check if values are JSON-encoded arrays and use their size
-        int arraySize = calculateArraySize(node, node.arrayFieldValues, elementSchema);
+        // Step 1: Collect all field values, parsing JSON arrays where needed
+        Map<String, List<Object>> parsedFieldValues = new LinkedHashMap<>()
 
-        List<Object> result = new ArrayList<>(arraySize);
+        if (node.arrayFieldValues != null) {
+            for (Map.Entry<String, List<Object>> entry : node.arrayFieldValues.entrySet()) {
+                String fieldName = entry.getKey()
+                List<Object> rawValues = entry.getValue()
 
+                if (rawValues != null && !rawValues.isEmpty()) {
+                    // Check if values need JSON parsing (they're stored as a single JSON string)
+                    if (rawValues.size() == 1 && rawValues.get(0) instanceof String) {
+                        String strValue = ((String) rawValues.get(0)).trim()
+                        if (strValue.startsWith("[") && strValue.endsWith("]")) {
+                            try {
+                                List<Object> parsed = objectMapper.readValue(strValue, List.class)
+                                parsedFieldValues.put(fieldName, parsed)
+                                continue
+                            } catch (Exception e) {
+                                log.debug("Could not parse as JSON array: {}", strValue)
+                            }
+                        }
+                    }
+                    parsedFieldValues.put(fieldName, rawValues)
+                }
+            }
+        }
+
+        // Step 2: Determine array size from the parsed field values
+        int arraySize = determineArraySize(parsedFieldValues, node, elementSchema)
+
+        if (arraySize == 0) {
+            return new ArrayList<>()
+        }
+
+        List<Object> result = new ArrayList<>(arraySize)
+
+        // Step 3: Build each record in the array
         for (int i = 0; i < arraySize; i++) {
-            GenericRecordBuilder elementBuilder = new GenericRecordBuilder(elementSchema);
+            GenericRecordBuilder elementBuilder = new GenericRecordBuilder(elementSchema)
 
             for (Schema.Field field : elementSchema.getFields()) {
-                String fieldName = field.name();
-                Schema fieldSchema = field.schema();
-                List<Object> fieldValues = null;
+                String fieldName = field.name()
+                Schema fieldSchema = field.schema()
+                Schema actualFieldSchema = unwrapNullable(fieldSchema)
 
-                // Only try to get field values if arrayFieldValues is not null
-                if (node.arrayFieldValues != null) {
-                    fieldValues = node.arrayFieldValues.get(fieldName);
-                }
+                // Check parsed field values first
+                List<Object> fieldValues = parsedFieldValues.get(fieldName)
 
-                if (fieldValues != null && !fieldValues.isEmpty()) {
-                    // Get the value - for JSON arrays, we use the last (or only) element
-                    int valueIndex = Math.min(i, fieldValues.size() - 1);
-                    Object rawValue = fieldValues.get(valueIndex);
+                if (fieldValues != null && i < fieldValues.size()) {
+                    Object valueAtIndex = fieldValues.get(i)
 
-                    // Unwrap nullable schemas to check actual type
-                    Schema actualFieldSchema = unwrapNullable(fieldSchema);
-
-                    // Extract value at index i (handles JSON-encoded arrays for primitives)
-                    // This will parse "[5,5]" and extract the element at index i
-                    Object value = extractValueAtIndex(rawValue, i, actualFieldSchema.getType());
-
-                    // Handle nested arrays in array elements
-                    if (actualFieldSchema.getType() == ARRAY && value instanceof String) {
-                        // Parse string back to array
-                        String arrayString = (String) value;
-                        try {
-                            // Special case: empty array string
-                            if (arrayString.trim().equals("[]")) {
-                                value = new ArrayList<>();
-                            } else {
-                                List<Object> parsedArray = null;
-
-                                // Try JSON first
-                                try {
-                                    parsedArray = objectMapper.readValue(arrayString, List.class);
-                                } catch (Exception jsonEx) {
-                                    // Not valid JSON, try format-specific parsing
-                                    log.debug("Failed to parse as JSON array in reconstructArrayOfRecords: '{}', trying format-specific parser", arrayString);
-                                }
-
-                                // If JSON parsing failed, try format-specific parsing
-                                if (parsedArray == null) {
-                                    switch (arrayFormat) {
-                                        case BRACKET_LIST:
-                                            parsedArray = deserializeBracketList(arrayString);
-                                            break;
-                                        case COMMA_SEPARATED:
-                                            parsedArray = Arrays.asList(arrayString.split(",", -1));
-                                            break;
-                                        case PIPE_SEPARATED:
-                                            parsedArray = Arrays.asList(arrayString.split("\\|", -1));
-                                            break;
-                                        default:
-                                            // Last resort: single element list
-                                            parsedArray = Collections.singletonList(arrayString);
-                                    }
-                                }
-
-                                // Ensure we got a valid list
-                                if (parsedArray == null || parsedArray.isEmpty()) {
-                                    value = new ArrayList<>();
-                                } else {
-                                    value = reconstructArrayFromValues(parsedArray,
-                                            actualFieldSchema.getElementType(),
-                                            path + "[" + i + "]." + fieldName,
-                                            currentDepth + 1);
-                                    // Ensure we have a valid list, never null
-                                    if (value == null) {
-                                        value = new ArrayList<>();
-                                    }
-                                }
-                            }
-                        } catch (Exception e) {
-                            if (strictValidation) {
-                                throw new IllegalArgumentException(
-                                        String.format("Failed to parse nested array at %s[%d].%s: %s",
-                                                path, i, fieldName, arrayString), e);
-                            }
-                            // If parsing fails, try to create empty array or use default
-                            value = new ArrayList<>();
-                        }
-                    } else if (actualFieldSchema.getType() == ARRAY) {
-                        // Value is not a String but field is ARRAY - might already be a List
-                        if (value instanceof List) {
-                            // Already a list, reconstruct it properly
-                            value = reconstructArrayFromValues((List<Object>) value,
-                                    actualFieldSchema.getElementType(),
-                                    path + "[" + i + "]." + fieldName,
-                                    currentDepth + 1);
-                        } else if (value == null || value.getClass().getSimpleName().equals("NullObject")) {
-                            // Groovy NullObject or null - treat as empty array
-                            value = new ArrayList<>();
-                        } else {
-                            // Unexpected type for array field
-                            if (strictValidation) {
-                                throw new IllegalArgumentException(
-                                        String.format("Unexpected type %s for ARRAY field at %s[%d].%s",
-                                                value.getClass().getSimpleName(), path, i, fieldName));
-                            }
-                            value = new ArrayList<>();
-                        }
-                    } else if (actualFieldSchema.getType() == RECORD && value instanceof String) {
-                        // This might be a nested record that needs further reconstruction
-                        value = convertPrimitive(value, fieldSchema,
-                                path + "[" + i + "]." + fieldName);
+                    // Handle nested arrays (arrays within the record)
+                    if (actualFieldSchema.getType() == ARRAY) {
+                        Object arrayValue = reconstructNestedArray(
+                                valueAtIndex, actualFieldSchema, node, fieldName, i,
+                                path + "[" + i + "]." + fieldName, currentDepth + 1)
+                        elementBuilder.set(fieldName, arrayValue)
                     } else {
-                        value = convertPrimitive(value, fieldSchema,
-                                path + "[" + i + "]." + fieldName);
+                        // Regular primitive or nested record field
+                        Object converted = convertPrimitive(valueAtIndex, fieldSchema,
+                                path + "[" + i + "]." + fieldName)
+                        elementBuilder.set(fieldName, converted)
                     }
-
-                    // Before setting the field value, check for null from asymmetric arrays
-                    if (value == null && !isNullable(fieldSchema)) {
-                        // This is a required field but we got null (likely from asymmetric array)
-                        if (field.hasDefaultValue()) {
-                            value = field.defaultVal();
-                        } else {
-                            // Provide type-appropriate default
-                            switch (actualFieldSchema.getType()) {
-                                case STRING:
-                                    value = "";
-                                    break;
-                                case INT:
-                                    value = 0;
-                                    break;
-                                case LONG:
-                                    value = 0L;
-                                    break;
-                                case ARRAY:
-                                    value = new ArrayList<>();
-                                    break;
-                                default:
-                                    log.warn("Skipping required field {} at index {} due to asymmetric array",
-                                            fieldName, i);
-                                    continue; // Skip this element
-                            }
-                        }
-                    }
-
-                    elementBuilder.set(fieldName, value);
-                } else if (fieldSchema.getType() == RECORD ||
-                        (fieldSchema.getType() == UNION &&
-                                unwrapUnion(fieldSchema).getType() == RECORD)) {
+                } else if (actualFieldSchema.getType() == RECORD) {
                     // Handle nested record - look for child fields with prefix
-                    // Include the array index in the path when calling
-                    Schema unwrappedSchema = fieldSchema.getType() == UNION ? unwrapUnion(fieldSchema) : fieldSchema;
-                    if (unwrappedSchema.getType() == RECORD) {
-                        GenericRecord nestedRecord = reconstructNestedRecordFromArray(
-                                node, unwrappedSchema, fieldName, i, path + "[" + i + "]");
-                        if (nestedRecord != null) {
-                            elementBuilder.set(fieldName, nestedRecord);
-                        } else if (field.hasDefaultValue()) {
-                            elementBuilder.set(fieldName, field.defaultVal());
-                        } else if (isNullable(fieldSchema)) {
-                            elementBuilder.set(fieldName, null);
-                        }
-                    }
-                } else if (fieldSchema.getType() == ARRAY ||
-                        (fieldSchema.getType() == UNION &&
-                                unwrapUnion(fieldSchema).getType() == ARRAY)) {
-                    // Handle nested array that wasn't in arrayFieldValues
-                    // Check if there's a child node for this array field
-                    PathNode childNode = node.children.get(fieldName);
-                    Schema unwrappedSchema = fieldSchema.getType() == UNION ? unwrapUnion(fieldSchema) : fieldSchema;
-
-                    if (childNode != null && unwrappedSchema.getType() == ARRAY && childNode.arrayFieldValues != null) {
-                        // Reconstruct the array from the child node
-                        Schema elementType = unwrappedSchema.getElementType();
-                        if (elementType.getType() == RECORD) {
-                            // Array of records - use reconstructArrayOfRecords
-                            List<Object> arrayValue = reconstructArrayOfRecords(
-                                    childNode, elementType, path + "[" + i + "]." + fieldName, currentDepth + 1);
-                            elementBuilder.set(fieldName, arrayValue);
-                        } else {
-                            // Array of primitives or other types
-                            Object reconstructed = reconstructValue(childNode, unwrappedSchema,
-                                    path + "[" + i + "]." + fieldName, currentDepth + 1);
-                            if (reconstructed != null) {
-                                elementBuilder.set(fieldName, reconstructed);
-                            } else {
-                                elementBuilder.set(fieldName, new ArrayList<>());
-                            }
-                        }
-                    } else if (field.hasDefaultValue()) {
-                        elementBuilder.set(fieldName, field.defaultVal());
-                    } else if (isNullable(fieldSchema)) {
-                        elementBuilder.set(fieldName, null);
+                    GenericRecord nestedRecord = reconstructNestedRecordFromArray(
+                            node, actualFieldSchema, fieldName, i, path + "[" + i + "]")
+                    if (nestedRecord != null) {
+                        elementBuilder.set(fieldName, nestedRecord)
                     } else {
-                        // Array field is required but has no data, set to empty array
-                        elementBuilder.set(fieldName, new ArrayList<>());
+                        handleMissingField(elementBuilder, field)
                     }
-                } else if (field.hasDefaultValue()) {
-                    elementBuilder.set(fieldName, field.defaultVal());
-                } else if (isNullable(fieldSchema)) {
-                    elementBuilder.set(fieldName, null);
+                } else if (actualFieldSchema.getType() == ARRAY) {
+                    // Handle nested array that wasn't in direct field values
+                    Object arrayValue = reconstructNestedArrayFromChildNode(
+                            node, fieldName, actualFieldSchema, i,
+                            path + "[" + i + "]." + fieldName, currentDepth + 1)
+                    if (arrayValue != null) {
+                        elementBuilder.set(fieldName, arrayValue)
+                    } else {
+                        elementBuilder.set(fieldName, new ArrayList<>())
+                    }
+                } else {
+                    handleMissingField(elementBuilder, field)
                 }
             }
 
-            result.add(elementBuilder.build());
+            result.add(elementBuilder.build())
+        }
+
+        return result
+    }
+
+/**
+ * Determine the size of the outer array from parsed field values.
+ */
+    private int determineArraySize(Map<String, List<Object>> parsedFieldValues,
+                                   PathNode node, Schema elementSchema) {
+        int maxSize = 0
+
+        // Check parsed field values
+        for (List<Object> values : parsedFieldValues.values()) {
+            if (values != null) {
+                maxSize = Math.max(maxSize, values.size())
+            }
+        }
+
+        // Also check child nodes for nested structures
+        if (node.children != null) {
+            for (PathNode child : node.children.values()) {
+                if (child.arrayFieldValues != null) {
+                    for (List<Object> values : child.arrayFieldValues.values()) {
+                        if (values != null && !values.isEmpty()) {
+                            // Check if first value is a JSON array string
+                            Object first = values.get(0)
+                            if (first instanceof String) {
+                                String strValue = ((String) first).trim()
+                                if (strValue.startsWith("[[")) {
+                                    // Nested array - count outer elements
+                                    try {
+                                        List<Object> parsed = objectMapper.readValue(strValue, List.class)
+                                        maxSize = Math.max(maxSize, parsed.size())
+                                    } catch (Exception e) {
+                                        // Ignore parsing errors
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return maxSize > 0 ? maxSize : 1
+    }
+
+/**
+ * Reconstruct a nested array field within an array of records.
+ *
+ * Example: lineItems[i].tags or lineItems[i].attributes
+ */
+    private Object reconstructNestedArray(Object value, Schema arraySchema, PathNode parentNode,
+                                          String fieldName, int outerIndex, String path, int depth) {
+        Schema elementSchema = arraySchema.getElementType()
+
+        if (value == null) {
+            return new ArrayList<>()
+        }
+
+        // If value is already a List, process it directly
+        if (value instanceof List) {
+            List<Object> listValue = (List<Object>) value
+            return reconstructArrayFromValues(listValue, elementSchema, path, depth)
+        }
+
+        // If value is a JSON string (nested array serialized as string)
+        if (value instanceof String) {
+            String strValue = ((String) value).trim()
+
+            // Try to parse as JSON array
+            if (strValue.startsWith("[") && strValue.endsWith("]")) {
+                try {
+                    List<Object> parsed = objectMapper.readValue(strValue, List.class)
+                    return reconstructArrayFromValues(parsed, elementSchema, path, depth)
+                } catch (Exception e) {
+                    log.debug("Failed to parse nested array JSON at {}: {}", path, e.getMessage())
+                }
+            }
+
+            // Single value - wrap in list
+            if (!strValue.isEmpty()) {
+                Object converted = convertPrimitive(strValue, elementSchema, path)
+                return Collections.singletonList(converted)
+            }
+        }
+
+        return new ArrayList<>()
+    }
+
+/**
+ * Reconstruct a nested array from a child node (for deeply nested structures).
+ *
+ * Example: shipments[i].trackingEvents where trackingEvents is array of records
+ */
+    private Object reconstructNestedArrayFromChildNode(PathNode parentNode, String fieldName,
+                                                       Schema arraySchema, int outerIndex,
+                                                       String path, int depth) {
+        PathNode childNode = parentNode.children?.get(fieldName)
+
+        if (childNode == null) {
+            return null
+        }
+
+        Schema elementSchema = arraySchema.getElementType()
+
+        // Check if child node has array field values
+        if (childNode.arrayFieldValues != null && !childNode.arrayFieldValues.isEmpty()) {
+            // This is an array of records - need to extract values for this outer index
+            if (elementSchema.getType() == RECORD) {
+                return reconstructNestedArrayOfRecordsAtIndex(
+                        childNode, elementSchema, outerIndex, path, depth)
+            }
+        }
+
+        // Check if child node is a leaf with array value
+        if (childNode.isLeaf && childNode.value != null) {
+            List<Object> deserialized = deserializeArray(childNode.value)
+            return reconstructArrayFromValues(deserialized, elementSchema, path, depth)
+        }
+
+        return null
+    }
+
+/**
+ * Reconstruct a nested array of records at a specific outer index.
+ *
+ * This handles the case where we have:
+ * shipments_trackingEvents_timestamp: ["[t1,t2,t3]"]  (1 shipment with 3 events)
+ *
+ * And we need to extract the array for shipment at outerIndex.
+ */
+    private List<Object> reconstructNestedArrayOfRecordsAtIndex(PathNode childNode,
+                                                                Schema recordSchema,
+                                                                int outerIndex,
+                                                                String path, int depth) {
+        // First, parse all field values and extract the nested structure
+        Map<String, List<Object>> fieldValuesAtIndex = new LinkedHashMap<>()
+        int innerArraySize = 0
+
+        for (Schema.Field field : recordSchema.getFields()) {
+            String fieldName = field.name()
+            List<Object> rawValues = childNode.arrayFieldValues?.get(fieldName)
+
+            if (rawValues != null && !rawValues.isEmpty()) {
+                Object rawValue = rawValues.get(0)
+
+                if (rawValue instanceof String) {
+                    String strValue = ((String) rawValue).trim()
+
+                    // Check for doubly-nested array: "[[v1,v2],[v3,v4]]"
+                    if (strValue.startsWith("[[")) {
+                        try {
+                            List<List<Object>> parsed = objectMapper.readValue(strValue, List.class)
+                            if (outerIndex < parsed.size()) {
+                                List<Object> innerList = parsed.get(outerIndex)
+                                fieldValuesAtIndex.put(fieldName, innerList)
+                                innerArraySize = Math.max(innerArraySize, innerList.size())
+                            }
+                            continue
+                        } catch (Exception e) {
+                            log.debug("Failed to parse doubly-nested array: {}", strValue)
+                        }
+                    }
+
+                    // Check for single nested array: "[v1,v2,v3]"
+                    if (strValue.startsWith("[")) {
+                        try {
+                            List<Object> parsed = objectMapper.readValue(strValue, List.class)
+                            fieldValuesAtIndex.put(fieldName, parsed)
+                            innerArraySize = Math.max(innerArraySize, parsed.size())
+                            continue
+                        } catch (Exception e) {
+                            log.debug("Failed to parse nested array: {}", strValue)
+                        }
+                    }
+                }
+
+                // Use raw values directly
+                fieldValuesAtIndex.put(fieldName, rawValues)
+                innerArraySize = Math.max(innerArraySize, rawValues.size())
+            }
+        }
+
+        if (innerArraySize == 0) {
+            return new ArrayList<>()
+        }
+
+        // Build records for the inner array
+        List<Object> result = new ArrayList<>(innerArraySize)
+
+        for (int j = 0; j < innerArraySize; j++) {
+            GenericRecordBuilder builder = new GenericRecordBuilder(recordSchema)
+
+            for (Schema.Field field : recordSchema.getFields()) {
+                String fieldName = field.name()
+                List<Object> values = fieldValuesAtIndex.get(fieldName)
+
+                if (values != null && j < values.size()) {
+                    Object value = values.get(j)
+                    Object converted = convertPrimitive(value, field.schema(),
+                            path + "[" + j + "]." + fieldName)
+                    builder.set(fieldName, converted)
+                } else {
+                    handleMissingField(builder, field)
+                }
+            }
+
+            result.add(builder.build())
+        }
+
+        return result
+    }
+
+/**
+ * Handle missing field by setting default or null.
+ */
+    private void handleMissingField(GenericRecordBuilder builder, Schema.Field field) {
+        if (field.hasDefaultValue()) {
+            builder.set(field.name(), field.defaultVal())
+        } else if (isNullable(field.schema())) {
+            builder.set(field.name(), null)
+        } else {
+            Schema actualSchema = unwrapNullable(field.schema())
+            // Provide type-appropriate defaults for required fields
+            switch (actualSchema.getType()) {
+                case ARRAY:
+                    builder.set(field.name(), new ArrayList<>())
+                    break
+                case STRING:
+                    builder.set(field.name(), "")
+                    break
+                case INT:
+                    builder.set(field.name(), 0)
+                    break
+                case LONG:
+                    builder.set(field.name(), 0L)
+                    break
+                case FLOAT:
+                    builder.set(field.name(), 0.0f)
+                    break
+                case DOUBLE:
+                    builder.set(field.name(), 0.0d)
+                    break
+                case BOOLEAN:
+                    builder.set(field.name(), false)
+                    break
+                default:
+                    log.warn("Cannot provide default for required field {} of type {}",
+                            field.name(), actualSchema.getType())
+            }
+        }
+    }
+
+
+/**
+ * Parse a nested array structure like "[[1,2,3],[4,5]]" into List<List<Object>>
+ */
+    private List<Object> parseNestedArrayStructure(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String trimmed = value.trim();
+
+        // Try JSON parsing first
+        try {
+            return objectMapper.readValue(trimmed, new TypeReference<List<Object>>() {});
+        } catch (Exception e) {
+            // Fall back to bracket-aware parsing
+            return parseBracketListPreservingNesting(trimmed);
+        }
+    }
+
+/**
+ * Parse bracket list format while preserving nested structure
+ */
+    private List<Object> parseBracketListPreservingNesting(String value) {
+        if (!value.startsWith("[") || !value.endsWith("]")) {
+            return Collections.singletonList(value);
+        }
+
+        String content = value.substring(1, value.length() - 1).trim();
+        if (content.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Object> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int bracketDepth = 0;
+        boolean inQuotes = false;
+
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+
+            if (c == '"' && (i == 0 || content.charAt(i - 1) != '\\')) {
+                inQuotes = !inQuotes;
+                current.append(c);
+            } else if (!inQuotes) {
+                if (c == '[') {
+                    bracketDepth++;
+                    current.append(c);
+                } else if (c == ']') {
+                    bracketDepth--;
+                    current.append(c);
+                } else if (c == ',' && bracketDepth == 0) {
+                    // Top-level separator
+                    String item = current.toString().trim();
+                    result.add(parseValue(item));
+                    current = new StringBuilder();
+                } else {
+                    current.append(c);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        // Don't forget the last item
+        String lastItem = current.toString().trim();
+        if (!lastItem.isEmpty()) {
+            result.add(parseValue(lastItem));
         }
 
         return result;
     }
+
+/**
+ * Parse a single value - could be nested array, quoted string, number, etc.
+ */
+    private Object parseValue(String item) {
+        if (item.startsWith("[")) {
+            // Nested array - recursively parse
+            return parseBracketListPreservingNesting(item);
+        } else if (item.startsWith("\"") && item.endsWith("\"")) {
+            // Quoted string
+            return item.substring(1, item.length() - 1)
+                    .replace("\\\"", "\"")
+                    .replace("\\n", "\n");
+        } else if ("null".equals(item)) {
+            return null;
+        } else {
+            // Try as number
+            try {
+                if (item.contains(".")) {
+                    return Double.parseDouble(item);
+                } else {
+                    return Long.parseLong(item);
+                }
+            } catch (NumberFormatException e) {
+                // Return as string
+                return item;
+            }
+        }
+    }
+
+/**
+ * Reconstruct a nested array of records (e.g., trackingEvents within shipments)
+ */
+    private List<Object> reconstructNestedArrayOfRecords(
+            PathNode parentNode, String fieldName, Schema recordSchema,
+            List<Object> innerArrayValues, int outerIndex, String path, int depth) {
+
+        // Get the child node that contains field values for this nested array
+        PathNode childNode = parentNode.children.get(fieldName);
+
+        if (childNode == null || childNode.arrayFieldValues == null) {
+            // No nested data - just convert the values directly if they're primitives
+            List<Object> result = new ArrayList<>();
+            for (Object val : innerArrayValues) {
+                if (val != null) {
+                    // This shouldn't happen for record types, but handle gracefully
+                    result.add(val);
+                }
+            }
+            return result;
+        }
+
+        // Determine size of inner array from the parsed values
+        int innerSize = innerArrayValues.size();
+
+        List<Object> result = new ArrayList<>(innerSize);
+
+        for (int j = 0; j < innerSize; j++) {
+            GenericRecordBuilder builder = new GenericRecordBuilder(recordSchema);
+
+            for (Schema.Field field : recordSchema.getFields()) {
+                String nestedFieldName = field.name();
+                List<Object> nestedValues = childNode.arrayFieldValues.get(nestedFieldName);
+
+                if (nestedValues != null && !nestedValues.isEmpty()) {
+                    // The values are structured as [[val1, val2], [val3]] for nested arrays
+                    // We need to get the right inner list based on outerIndex,
+                    // then the right element based on j
+                    Object rawValue = nestedValues.get(0); // Usually single-element list
+
+                    if (rawValue instanceof String) {
+                        List<Object> parsed = parseNestedArrayStructure((String) rawValue);
+
+                        if (outerIndex < parsed.size()) {
+                            Object outerElement = parsed.get(outerIndex);
+
+                            if (outerElement instanceof List) {
+                                List<Object> innerList = (List<Object>) outerElement;
+                                if (j < innerList.size()) {
+                                    Object value = innerList.get(j);
+                                    Object converted = convertPrimitive(value, field.schema(),
+                                            path + "[" + j + "]." + nestedFieldName);
+                                    builder.set(nestedFieldName, converted);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Handle defaults
+                if (field.hasDefaultValue()) {
+                    builder.set(nestedFieldName, field.defaultVal());
+                } else if (isNullable(field.schema())) {
+                    builder.set(nestedFieldName, null);
+                }
+            }
+
+            result.add(builder.build());
+        }
+
+        return result;
+    }
+
+    private Schema unwrapUnion(Schema schema) {
+        if (schema.getType() != UNION) {
+            return schema;
+        }
+
+        for (Schema type : schema.getTypes()) {
+            if (type.getType() != NULL) {
+                return type;
+            }
+        }
+
+        return schema;
+    }
+
+
 
     private List<Object> reconstructArrayFromValues(List<Object> values, Schema elementSchema,
                                                     String path, int currentDepth) {
@@ -1458,39 +1788,103 @@ public class AvroReconstructor {
 
     private Object reconstructUnionValue(PathNode node, Schema unionSchema,
                                          String path, int currentDepth) {
-        List<Schema> types = unionSchema.getTypes();
+        List<Schema> types = unionSchema.getTypes()
 
-        // Handle nullable union (most common case)
+        // Handle nullable union (most common case: ["null", "SomeType"])
         if (types.size() == 2) {
-            Schema nullSchema = types.get(0).getType() == NULL ? types.get(0) : types.get(1);
-            Schema nonNullSchema = types.get(0).getType() != NULL ? types.get(0) : types.get(1);
+            Schema nullSchema = null
+            Schema nonNullSchema = null
 
-            if (node.value == null || "null".equals(String.valueOf(node.value))) {
-                return null;
+            for (Schema type : types) {
+                if (type.getType() == NULL) {
+                    nullSchema = type
+                } else {
+                    nonNullSchema = type
+                }
             }
 
-            return reconstructValue(node, nonNullSchema, path, currentDepth);
+            // If this union doesn't contain null, try to match one of the types
+            if (nullSchema == null) {
+                for (Schema type : types) {
+                    try {
+                        return reconstructValue(node, type, path, currentDepth)
+                    } catch (Exception e) {
+                        // Try next type
+                        continue
+                    }
+                }
+                if (strictValidation) {
+                    throw new IllegalStateException("Could not match any union type at: " + path)
+                }
+                return null
+            }
+
+            // It's a nullable union - determine if we have actual content
+
+            // For complex types (RECORD, ARRAY, MAP), check if there's actual content
+            // node.value will be null for non-leaf nodes, so we must check children
+            if (nonNullSchema.getType() == RECORD) {
+                // Check if we have children (nested record fields)
+                if (!node.children.isEmpty()) {
+                    return reconstructValue(node, nonNullSchema, path, currentDepth)
+                }
+                // No children = null record
+                return null
+            }
+
+            if (nonNullSchema.getType() == ARRAY) {
+                // Check for array content
+                boolean hasContent = (node.arrayFieldValues != null && !node.arrayFieldValues.isEmpty()) ||
+                        !node.children.isEmpty() ||
+                        (node.isLeaf && node.value != null)
+                if (hasContent) {
+                    return reconstructValue(node, nonNullSchema, path, currentDepth)
+                }
+                return null
+            }
+
+            if (nonNullSchema.getType() == MAP) {
+                if (!node.children.isEmpty()) {
+                    return reconstructValue(node, nonNullSchema, path, currentDepth)
+                }
+                return null
+            }
+
+            // For primitives and other types, check the value
+            if (node.value == null || "null".equals(String.valueOf(node.value).trim())) {
+                return null
+            }
+
+            return reconstructValue(node, nonNullSchema, path, currentDepth)
         }
 
-        // Try each type in order
+        // Multi-type union (3+ types) - try each type in order
         for (Schema type : types) {
-            if (type.getType() == NULL && node.value == null) {
-                return null;
+            if (type.getType() == NULL) {
+                // Check if we should return null
+                boolean hasNoContent = node.value == null &&
+                        node.children.isEmpty() &&
+                        (node.arrayFieldValues == null || node.arrayFieldValues.isEmpty())
+                if (hasNoContent) {
+                    return null
+                }
+                continue // Try other types
             }
 
             try {
-                return reconstructValue(node, type, path, currentDepth);
+                return reconstructValue(node, type, path, currentDepth)
             } catch (Exception e) {
                 // Try next type
-                continue;
+                log.debug("Union type {} didn't match at {}: {}", type.getType(), path, e.getMessage())
+                continue
             }
         }
 
         if (strictValidation) {
-            throw new IllegalStateException("Could not match any union type at: " + path);
+            throw new IllegalStateException("Could not match any union type at: " + path)
         }
 
-        return null;
+        return null
     }
 
     private Object reconstructEnum(Object value, Schema enumSchema, String path) {
