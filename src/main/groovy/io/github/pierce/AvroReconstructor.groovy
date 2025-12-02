@@ -805,44 +805,59 @@ public class AvroReconstructor {
         }
 
         /**
-         * Split string by delimiter while respecting bracket nesting.
-         * Example: "[a,b],[c,d]" split by ',' → ["[a,b]", "[c,d]"]
-         * Not: ["[a", "b]", "[c", "d]"]
+         * Split string by delimiter while respecting bracket nesting and quotes.
          */
         private static List<String> splitRespectingBrackets(String str, String delimiter) {
             if (delimiter == null || delimiter.length() != 1) {
-                throw new IllegalArgumentException("Delimiter must be a single character");
+                throw new IllegalArgumentException("Delimiter must be a single character")
             }
-            char delimiterChar = delimiter.charAt(0);
+            char delimiterChar = delimiter.charAt(0)
 
-            List<String> result = new ArrayList<>();
-            StringBuilder current = new StringBuilder();
-            int bracketDepth = 0;
+            List<String> result = new ArrayList<>()
+            StringBuilder current = new StringBuilder()
+            int bracketDepth = 0
+            boolean inQuotes = false
 
             for (int i = 0; i < str.length(); i++) {
-                char c = str.charAt(i);
+                char c = str.charAt(i)
 
-                if (c == '[') {
-                    bracketDepth++;
-                    current.append(c);
-                } else if (c == ']') {
-                    bracketDepth--;
-                    current.append(c);
-                } else if (c == delimiterChar && bracketDepth == 0) {
-                    // Only split when not inside brackets
-                    result.add(current.toString());
-                    current = new StringBuilder();
+                if (c == '"' && (i == 0 || str.charAt(i - 1) != '\\')) {
+                    inQuotes = !inQuotes
+                    current.append(c)
+                } else if (!inQuotes) {
+                    if (c == '[') {
+                        bracketDepth++
+                        current.append(c)
+                    } else if (c == ']') {
+                        bracketDepth--
+                        current.append(c)
+                    } else if (c == delimiterChar && bracketDepth == 0) {
+                        String item = current.toString().trim()
+                        // Strip quotes from string values
+                        if (item.startsWith("\"") && item.endsWith("\"") && item.length() >= 2) {
+                            item = item.substring(1, item.length() - 1)
+                        }
+                        result.add(item)
+                        current = new StringBuilder()
+                    } else {
+                        current.append(c)
+                    }
                 } else {
-                    current.append(c);
+                    current.append(c)
                 }
             }
 
             // Add the last part
             if (current.length() > 0) {
-                result.add(current.toString());
+                String item = current.toString().trim()
+                // Strip quotes from string values
+                if (item.startsWith("\"") && item.endsWith("\"") && item.length() >= 2) {
+                    item = item.substring(1, item.length() - 1)
+                }
+                result.add(item)
             }
 
-            return result;
+            return result
         }
     }
 
@@ -1143,36 +1158,62 @@ public class AvroReconstructor {
                 hasAnyField = true;
             } else {
                 // Check if there's a child node for this field (for deeply nested structures)
-                PathNode fieldChildNode = childNode.children.get(nestedFieldName);
-                Schema actualFieldSchema = unwrapNullable(nestedField.schema());
+                PathNode fieldChildNode = childNode.children.get(nestedFieldName)
+                Schema actualFieldSchema = unwrapNullable(nestedField.schema())
 
                 if (fieldChildNode != null) {
                     // Reconstruct from child node based on schema type
                     if (actualFieldSchema.getType() == ARRAY) {
-                        // Path already includes array index from caller
-                        Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
-                                path + "." + fieldPrefix + "." + nestedFieldName, 0);
-                        if (reconstructed != null) {
-                            builder.set(nestedFieldName, reconstructed);
-                            hasAnyField = true;
+                        Schema elementSchema = actualFieldSchema.getElementType()
+
+                        // Check if this is an array of records with indexed data
+                        if (elementSchema.getType() == RECORD &&
+                                fieldChildNode.arrayFieldValues != null &&
+                                !fieldChildNode.arrayFieldValues.isEmpty()) {
+
+                            // Pass the outer index so we get the correct slice of data
+                            Object reconstructed = reconstructNestedArrayOfRecordsAtIndex(
+                                    fieldChildNode, elementSchema, index,
+                                    path + "." + nestedFieldName, 0)
+                            if (reconstructed != null) {
+                                builder.set(nestedFieldName, reconstructed)
+                                hasAnyField = true
+                            }
+                        } else {
+                            // For primitive arrays or arrays without indexed data
+                            Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
+                                    path + "." + fieldPrefix + "." + nestedFieldName, 0)
+                            if (reconstructed != null) {
+                                builder.set(nestedFieldName, reconstructed)
+                                hasAnyField = true
+                            }
                         }
                     } else if (actualFieldSchema.getType() == RECORD) {
-                        // For nested records within arrays, recursively call reconstructNestedRecordFromArray
-                        // Path already includes array index from caller
+                        // For nested records (like price inside product), recursively reconstruct
+                        // Pass the current node (childNode) as the parent, the nested field name,
+                        // and the outer index so we get the correct values
                         GenericRecord nestedRecord = reconstructNestedRecordFromArray(
                                 childNode, actualFieldSchema, nestedFieldName, index,
-                                path + "." + fieldPrefix);
+                                path + "." + fieldPrefix)
                         if (nestedRecord != null) {
-                            builder.set(nestedFieldName, nestedRecord);
-                            hasAnyField = true;
+                            builder.set(nestedFieldName, nestedRecord)
+                            hasAnyField = true
+                        }
+                    } else {
+                        // Other types - try generic reconstruction
+                        Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
+                                path + "." + fieldPrefix + "." + nestedFieldName, 0)
+                        if (reconstructed != null) {
+                            builder.set(nestedFieldName, reconstructed)
+                            hasAnyField = true
                         }
                     }
                 } else if (nestedField.hasDefaultValue()) {
-                    builder.set(nestedFieldName, nestedField.defaultVal());
-                    hasAnyField = true;
+                    builder.set(nestedFieldName, nestedField.defaultVal())
+                    hasAnyField = true
                 } else if (isNullable(nestedField.schema())) {
-                    builder.set(nestedFieldName, null);
-                    hasAnyField = true;
+                    builder.set(nestedFieldName, null)
+                    hasAnyField = true
                 }
             }
         }
@@ -1416,11 +1457,20 @@ public class AvroReconstructor {
  *
  * And we need to extract the array for shipment at outerIndex.
  */
+    /**
+     * Reconstruct a nested array of records at a specific outer index.
+     *
+     * For example, with:
+     *   lineItems_product_attributes_name: ["[\"RAM\",\"Storage\"]","[\"Connectivity\"]"]
+     *
+     * When outerIndex=0 (first lineItem), we parse "[\"RAM\",\"Storage\"]"
+     * When outerIndex=1 (second lineItem), we parse "[\"Connectivity\"]"
+     */
     private List<Object> reconstructNestedArrayOfRecordsAtIndex(PathNode childNode,
                                                                 Schema recordSchema,
                                                                 int outerIndex,
                                                                 String path, int depth) {
-        // First, parse all field values and extract the nested structure
+        // First, parse all field values and extract the nested structure for THIS outerIndex
         Map<String, List<Object>> fieldValuesAtIndex = new LinkedHashMap<>()
         int innerArraySize = 0
 
@@ -1429,7 +1479,8 @@ public class AvroReconstructor {
             List<Object> rawValues = childNode.arrayFieldValues?.get(fieldName)
 
             if (rawValues != null && !rawValues.isEmpty()) {
-                Object rawValue = rawValues.get(0)
+                // KEY FIX: Use outerIndex to select the correct element
+                Object rawValue = outerIndex < rawValues.size() ? rawValues.get(outerIndex) : rawValues.get(0)
 
                 if (rawValue instanceof String) {
                     String strValue = ((String) rawValue).trim()
@@ -1438,8 +1489,10 @@ public class AvroReconstructor {
                     if (strValue.startsWith("[[")) {
                         try {
                             List<List<Object>> parsed = objectMapper.readValue(strValue, List.class)
-                            if (outerIndex < parsed.size()) {
-                                List<Object> innerList = parsed.get(outerIndex)
+                            // For doubly-nested, we've ALREADY selected the outer element,
+                            // so just use the first (and only) inner list
+                            if (!parsed.isEmpty()) {
+                                List<Object> innerList = parsed.get(0)
                                 fieldValuesAtIndex.put(fieldName, innerList)
                                 innerArraySize = Math.max(innerArraySize, innerList.size())
                             }
@@ -1450,7 +1503,7 @@ public class AvroReconstructor {
                     }
 
                     // Check for single nested array: "[v1,v2,v3]"
-                    if (strValue.startsWith("[")) {
+                    if (strValue.startsWith("[") && strValue.endsWith("]")) {
                         try {
                             List<Object> parsed = objectMapper.readValue(strValue, List.class)
                             fieldValuesAtIndex.put(fieldName, parsed)
@@ -1460,11 +1513,20 @@ public class AvroReconstructor {
                             log.debug("Failed to parse nested array: {}", strValue)
                         }
                     }
-                }
 
-                // Use raw values directly
-                fieldValuesAtIndex.put(fieldName, rawValues)
-                innerArraySize = Math.max(innerArraySize, rawValues.size())
+                    // Single value - wrap in list
+                    fieldValuesAtIndex.put(fieldName, Collections.singletonList(strValue))
+                    innerArraySize = Math.max(innerArraySize, 1)
+                } else if (rawValue instanceof List) {
+                    // Already parsed as list
+                    List<Object> listValue = (List<Object>) rawValue
+                    fieldValuesAtIndex.put(fieldName, listValue)
+                    innerArraySize = Math.max(innerArraySize, listValue.size())
+                } else if (rawValue != null) {
+                    // Single non-string value
+                    fieldValuesAtIndex.put(fieldName, Collections.singletonList(rawValue))
+                    innerArraySize = Math.max(innerArraySize, 1)
+                }
             }
         }
 
@@ -2252,50 +2314,90 @@ public class AvroReconstructor {
 
     /**
      * Split a string on commas, but respect nested brackets.
-     * Example: "[a, b], [c, d]" -> ["[a, b]", "[c, d]"]
-     * Not: "[a", "b]", "[c", "d]"
+     * Also properly handles and strips quotes from string values.
      */
     private List<Object> splitBracketAware(String content) {
-        List<Object> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        int bracketDepth = 0;
-        boolean inQuotes = false;
+        List<Object> result = new ArrayList<>()
+        StringBuilder current = new StringBuilder()
+        int bracketDepth = 0
+        boolean inQuotes = false
 
         for (int i = 0; i < content.length(); i++) {
-            char c = content.charAt(i);
+            char c = content.charAt(i)
 
             if (c == '"' && (i == 0 || content.charAt(i - 1) != '\\')) {
-                inQuotes = !inQuotes;
-                current.append(c);
+                inQuotes = !inQuotes
+                // DON'T append the quote character - we'll handle unquoting at the end
+                current.append(c)
             } else if (!inQuotes) {
                 if (c == '[') {
-                    bracketDepth++;
-                    current.append(c);
+                    bracketDepth++
+                    current.append(c)
                 } else if (c == ']') {
-                    bracketDepth--;
-                    current.append(c);
+                    bracketDepth--
+                    current.append(c)
                 } else if (c == ',' && bracketDepth == 0) {
-                    // This comma is at the top level, so it's a separator
-                    String item = current.toString().trim();
+                    String item = current.toString().trim()
                     if (!item.isEmpty()) {
-                        result.add(item);
+                        result.add(unquoteString(item))
                     }
-                    current = new StringBuilder();
+                    current = new StringBuilder()
                 } else {
-                    current.append(c);
+                    current.append(c)
                 }
             } else {
-                current.append(c);
+                current.append(c)
             }
         }
 
         // Add the last item
-        String item = current.toString().trim();
+        String item = current.toString().trim()
         if (!item.isEmpty()) {
-            result.add(item);
+            result.add(unquoteString(item))
         }
 
-        return result.isEmpty() ? Collections.singletonList(content) : result;
+        return result.isEmpty() ? Collections.singletonList(content) : result
+    }
+
+/**
+ * Remove surrounding quotes from a string and unescape internal quotes.
+ */
+    private Object unquoteString(String value) {
+        if (value == null || value.isEmpty()) {
+            return value
+        }
+
+        String trimmed = value.trim()
+
+        // Handle quoted strings
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length() >= 2) {
+            return trimmed.substring(1, trimmed.length() - 1)
+                    .replace("\\\"", "\"")
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+        }
+
+        // Handle null
+        if ("null".equals(trimmed)) {
+            return null
+        }
+
+        // Handle nested arrays/objects - return as-is
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            return trimmed
+        }
+
+        // Try to parse as number
+        try {
+            if (trimmed.contains(".")) {
+                return Double.parseDouble(trimmed)
+            } else {
+                return Long.parseLong(trimmed)
+            }
+        } catch (NumberFormatException e) {
+            // Return as string
+            return trimmed
+        }
     }
 
     private boolean isNullable(Schema schema) {
