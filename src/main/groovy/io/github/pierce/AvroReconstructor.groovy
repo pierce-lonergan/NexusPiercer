@@ -1794,33 +1794,54 @@ public class AvroReconstructor {
 
     private List<Object> reconstructArrayFromValues(List<Object> values, Schema elementSchema,
                                                     String path, int currentDepth) {
-        // Handle null or empty input
-        if (values == null || values.isEmpty() ||
-                (values.size() == 1 && values.get(0) == null)) {
+        // Handle null input only - empty list is valid
+        if (values == null) {
+            return new ArrayList<>();
+        }
+
+        // Empty array is valid - return empty list (don't filter it out)
+        if (values.isEmpty()) {
             return new ArrayList<>();
         }
 
         List<Object> result = new ArrayList<>(values.size());
 
+        // Check if element type is nullable (union with null)
+        boolean elementIsNullable = isNullableSchema(elementSchema);
+
         for (int i = 0; i < values.size(); i++) {
             Object value = values.get(i);
             String indexPath = path + "[" + i + "]";
 
-            // Skip null values or Groovy NullObject
-            if (value == null || value.getClass().getSimpleName().equals("NullObject")) {
+            // Handle null values - preserve them if element type allows nulls
+            if (value == null || "null".equals(value) ||
+                    value.getClass().getSimpleName().equals("NullObject")) {
+                if (elementIsNullable) {
+                    result.add(null);  // Preserve the null
+                }
+                // If not nullable, skip (schema violation, but don't crash)
                 continue;
             }
 
             if (value instanceof List) {
+                List<?> listValue = (List<?>) value;
+                // Handle empty nested arrays - they are valid!
+                if (listValue.isEmpty()) {
+                    result.add(new ArrayList<>());
+                    continue;
+                }
+
                 // Nested array
                 if (elementSchema.getType() == ARRAY) {
                     result.add(reconstructArrayFromValues((List<Object>) value,
                             elementSchema.getElementType(), indexPath, currentDepth + 1));
                 } else {
                     // Flatten nested list
-                    for (Object item : (List<?>) value) {
+                    for (Object item : listValue) {
                         if (item != null && !item.getClass().getSimpleName().equals("NullObject")) {
                             result.add(convertPrimitive(item, elementSchema, indexPath));
+                        } else if (elementIsNullable) {
+                            result.add(null);
                         }
                     }
                 }
@@ -1830,6 +1851,20 @@ public class AvroReconstructor {
         }
 
         return result;
+    }
+
+    /**
+     * Check if a schema is nullable (union containing null type)
+     */
+    private boolean isNullableSchema(Schema schema) {
+        if (schema.getType() == UNION) {
+            for (Schema type : schema.getTypes()) {
+                if (type.getType() == NULL) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private Map<String, Object> reconstructMap(PathNode node, Schema mapSchema,
@@ -1921,24 +1956,85 @@ public class AvroReconstructor {
         }
 
         // Multi-type union (3+ types) - try each type in order
+        // First, determine what type of content we have
+        boolean hasChildren = !node.children.isEmpty();
+        boolean hasArrayValues = node.arrayFieldValues != null && !node.arrayFieldValues.isEmpty();
+        boolean hasLeafValue = node.isLeaf && node.value != null && !"null".equals(String.valueOf(node.value).trim());
+
+        // Check for no content first
+        if (!hasChildren && !hasArrayValues && !hasLeafValue) {
+            // No content at all - return null if union contains null
+            for (Schema type : types) {
+                if (type.getType() == NULL) {
+                    return null;
+                }
+            }
+        }
+
+        // Try to match types based on content structure
         for (Schema type : types) {
             if (type.getType() == NULL) {
-                // Check if we should return null
-                boolean hasNoContent = node.value == null &&
-                        node.children.isEmpty() &&
-                        (node.arrayFieldValues == null || node.arrayFieldValues.isEmpty())
-                if (hasNoContent) {
-                    return null
-                }
-                continue // Try other types
+                continue; // Skip null, we already handled no-content case above
             }
 
-            try {
-                return reconstructValue(node, type, path, currentDepth)
-            } catch (Exception e) {
-                // Try next type
-                log.debug("Union type {} didn't match at {}: {}", type.getType(), path, e.getMessage())
-                continue
+            // For RECORD type, check if we have children that match the record's fields
+            if (type.getType() == RECORD) {
+                // Check if any of the node's children match the record's field names
+                boolean hasMatchingFields = false;
+                for (Schema.Field field : type.getFields()) {
+                    if (node.children.containsKey(field.name())) {
+                        hasMatchingFields = true;
+                        break;
+                    }
+                }
+
+                if (hasMatchingFields) {
+                    try {
+                        Object result = reconstructValue(node, type, path, currentDepth);
+                        if (result != null) {
+                            return result;
+                        }
+                    } catch (Exception e) {
+                        log.debug("Union RECORD type didn't match at {}: {}", path, e.getMessage());
+                    }
+                }
+                continue;
+            }
+
+            // For ARRAY type, check for array content
+            if (type.getType() == ARRAY) {
+                if (hasArrayValues || (hasLeafValue && looksLikeArray(node.value))) {
+                    try {
+                        return reconstructValue(node, type, path, currentDepth);
+                    } catch (Exception e) {
+                        log.debug("Union ARRAY type didn't match at {}: {}", path, e.getMessage());
+                        continue;
+                    }
+                }
+                continue;
+            }
+
+            // For MAP type, check for children
+            if (type.getType() == MAP) {
+                if (hasChildren) {
+                    try {
+                        return reconstructValue(node, type, path, currentDepth);
+                    } catch (Exception e) {
+                        log.debug("Union MAP type didn't match at {}: {}", path, e.getMessage());
+                        continue;
+                    }
+                }
+                continue;
+            }
+
+            // For primitive types, check if we have a leaf value
+            if (hasLeafValue) {
+                try {
+                    return reconstructValue(node, type, path, currentDepth);
+                } catch (Exception e) {
+                    log.debug("Union type {} didn't match at {}: {}", type.getType(), path, e.getMessage());
+                    continue;
+                }
             }
         }
 
@@ -1947,6 +2043,15 @@ public class AvroReconstructor {
         }
 
         return null
+    }
+
+    /**
+     * Check if a value looks like a JSON array
+     */
+    private boolean looksLikeArray(Object value) {
+        if (value == null) return false;
+        String str = value.toString().trim();
+        return str.startsWith("[") && str.endsWith("]");
     }
 
     private Object reconstructEnum(Object value, Schema enumSchema, String path) {
@@ -2057,13 +2162,65 @@ public class AvroReconstructor {
                     return ByteBuffer.wrap(strValue.getBytes());
 
                 case FIXED:
-                    byte[] bytes = strValue.getBytes();
-                    if (bytes.length != actualSchema.getFixedSize()) {
+                    byte[] fixedBytes;
+                    int expectedSize = actualSchema.getFixedSize();
+
+                    // Check if value is already a GenericData.Fixed or byte array
+                    if (value instanceof GenericData.Fixed) {
+                        return value;
+                    }
+                    if (value instanceof byte[]) {
+                        fixedBytes = (byte[]) value;
+                    } else {
+                        // Try Base64 decoding first (most common case from flattening)
+                        try {
+                            // Check for explicit B64: prefix
+                            if (strValue.startsWith("B64:")) {
+                                fixedBytes = Base64.getDecoder().decode(strValue.substring(4));
+                            } else {
+                                // Try Base64 decode - if the string length suggests it's encoded
+                                // Base64 encoding of N bytes produces approximately (4 * ceil(N/3)) chars
+                                int expectedBase64Len = (int) Math.ceil(expectedSize / 3.0) * 4;
+                                if (strValue.length() >= expectedBase64Len && strValue.length() <= expectedBase64Len + 2) {
+                                    try {
+                                        fixedBytes = Base64.getDecoder().decode(strValue);
+                                        if (fixedBytes.length == expectedSize) {
+                                            // Successful Base64 decode with correct size
+                                            return new GenericData.Fixed(actualSchema, fixedBytes);
+                                        }
+                                    } catch (IllegalArgumentException e) {
+                                        // Not valid Base64, fall through to raw bytes
+                                    }
+                                }
+                                // Fallback to raw string bytes (legacy behavior)
+                                fixedBytes = strValue.getBytes();
+                            }
+                        } catch (Exception e) {
+                            // Fallback to raw string bytes
+                            fixedBytes = strValue.getBytes();
+                        }
+                    }
+
+                    if (fixedBytes.length != expectedSize) {
                         throw new IllegalArgumentException(
                                 String.format("Fixed size mismatch at %s: expected %d, got %d",
-                                        path, actualSchema.getFixedSize(), bytes.length));
+                                        path, expectedSize, fixedBytes.length));
                     }
-                    return new GenericData.Fixed(actualSchema, bytes);
+                    return new GenericData.Fixed(actualSchema, fixedBytes);
+
+                case ENUM:
+                    // Convert string to EnumSymbol
+                    String enumValue = strValue;
+                    if (!actualSchema.getEnumSymbols().contains(enumValue)) {
+                        if (strictValidation) {
+                            throw new IllegalArgumentException(
+                                    String.format("Invalid enum value '%s' at %s. Valid values: %s",
+                                            enumValue, path, actualSchema.getEnumSymbols()));
+                        }
+                        // Use first symbol as default
+                        enumValue = actualSchema.getEnumSymbols().get(0);
+                    }
+                    return new GenericData.EnumSymbol(actualSchema, enumValue);
 
                 default:
                     return value;
