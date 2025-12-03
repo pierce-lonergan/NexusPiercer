@@ -202,12 +202,18 @@ public class GAvroSchemaFlattener implements Serializable {
         final String path;
         final int depth;
         final boolean inArray;
+        final boolean nullable;  // ADD THIS
 
         SchemaNode(Schema schema, String path, int depth, boolean inArray) {
+            this(schema, path, depth, inArray, false);
+        }
+
+        SchemaNode(Schema schema, String path, int depth, boolean inArray, boolean nullable) {
             this.schema = schema;
             this.path = path;
             this.depth = depth;
             this.inArray = inArray;
+            this.nullable = nullable;
         }
     }
 
@@ -250,15 +256,15 @@ public class GAvroSchemaFlattener implements Serializable {
             if (currentSchema.getType() == Schema.Type.UNION) {
                 UnionTypeInfo unionInfo = analyzeUnion(currentSchema);
                 if (unionInfo.nonNullSchema != null) {
-                    // Push the non-null type back onto stack
+                    // Push the non-null type back onto stack, but preserve nullable info
                     stack.push(new SchemaNode(unionInfo.nonNullSchema, node.path,
-                            node.depth, node.inArray));
+                            node.depth, node.inArray, unionInfo.hasNull));  // Pass nullable flag!
                     continue;
                 }
             }
 
             switch (currentSchema.getType()) {
-                case RECORD:
+                case Schema.Type.RECORD:
                     // Add fields to stack in reverse order (to maintain field order)
                     List<Field> fields = currentSchema.getFields();
                     for (int i = fields.size() - 1; i >= 0; i--) {
@@ -269,13 +275,22 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     break;
 
-                case ARRAY:
+                case Schema.Type.ARRAY:
                     Schema elementSchema = currentSchema.getElementType();
 
-                    if (elementSchema.getType() == Schema.Type.RECORD) {
+                    // Unwrap union if present
+                    Schema actualElementSchema = elementSchema;
+                    if (elementSchema.getType() == Schema.Type.UNION) {
+                        UnionTypeInfo elementUnion = analyzeUnion(elementSchema);
+                        if (elementUnion.nonNullSchema != null) {
+                            actualElementSchema = elementUnion.nonNullSchema;
+                        }
+                    }
+
+                    if (actualElementSchema.getType() == Schema.Type.RECORD) {
                         // Array of records - extract fields, each becomes array serialized
                         String separator = config.useArrayBoundarySeparator ? "__" : "_";
-                        List<Field> recordFields = elementSchema.getFields();
+                        List<Field> recordFields = actualElementSchema.getFields();
 
                         for (Field recordField : recordFields) {
                             String fieldPath = node.path.isEmpty()
@@ -287,22 +302,44 @@ public class GAvroSchemaFlattener implements Serializable {
                                     flattenSchemaForArrayElement(recordField.schema(), fieldPath, node.depth + 1);
                             result.putAll(nestedFields);
                         }
-                    } else if (elementSchema.getType() == Schema.Type.ARRAY) {
-                        // Nested array - serialize as string
-                        DataType elementType = mapAvroTypeToDataType(elementSchema);
-                        result.put(node.path.isEmpty() ? "value" : node.path,
-                                new FlattenedFieldType(node.path, DataType.STRING, true,
-                                        elementType, currentSchema.getType(), false));
+                    } else if (actualElementSchema.getType() == Schema.Type.ARRAY) {
+                        // Nested array - check if innermost contains records
+                        Schema innerElement = actualElementSchema.getElementType();
+                        if (innerElement.getType() == Schema.Type.UNION) {
+                            UnionTypeInfo innerUnion = analyzeUnion(innerElement);
+                            if (innerUnion.nonNullSchema != null) {
+                                innerElement = innerUnion.nonNullSchema;
+                            }
+                        }
+
+                        if (innerElement.getType() == Schema.Type.RECORD) {
+                            // Array of arrays of records - extract record fields
+                            String separator = config.useArrayBoundarySeparator ? "__" : "_";
+                            for (Field recordField : innerElement.getFields()) {
+                                String fieldPath = node.path.isEmpty()
+                                        ? recordField.name()
+                                        : node.path + separator + recordField.name();
+                                Map<String, FlattenedFieldType> nestedFields =
+                                        flattenSchemaForArrayElement(recordField.schema(), fieldPath, node.depth + 1);
+                                result.putAll(nestedFields);
+                            }
+                        } else {
+                            // Nested array of primitives - serialize as string
+                            DataType elementType = mapAvroTypeToDataType(actualElementSchema);
+                            result.put(node.path.isEmpty() ? "value" : node.path,
+                                    new FlattenedFieldType(node.path, DataType.STRING, true,
+                                            elementType, currentSchema.getType(), false));
+                        }
                     } else {
                         // Array of primitives - becomes serialized string
-                        DataType elementType = mapAvroTypeToDataType(elementSchema);
+                        DataType elementType = mapAvroTypeToDataType(actualElementSchema);
                         result.put(node.path.isEmpty() ? "value" : node.path,
                                 new FlattenedFieldType(node.path, DataType.STRING, true,
                                         elementType, currentSchema.getType(), false));
                     }
                     break;
 
-                case MAP:
+                case Schema.Type.MAP:
                     // Avro maps are not directly supported by MapFlattener
                     // Treat as serialized string
                     log.warn("Avro MAP type at path {} will be serialized as STRING", node.path);
@@ -314,10 +351,10 @@ public class GAvroSchemaFlattener implements Serializable {
                 default:
                     // Primitive types
                     DataType dataType = mapAvroTypeToDataType(currentSchema);
-                    boolean nullable = isNullable(currentSchema);
+                    // Use node.nullable instead of isNullable(currentSchema)
                     result.put(node.path.isEmpty() ? "value" : node.path,
                             new FlattenedFieldType(node.path, dataType, false, null,
-                                    currentSchema.getType(), nullable));
+                                    currentSchema.getType(), node.nullable));  // Use node.nullable!
                     break;
             }
         }
@@ -353,7 +390,7 @@ public class GAvroSchemaFlattener implements Serializable {
         }
 
         switch (actualSchema.getType()) {
-            case RECORD:
+            case Schema.Type.RECORD:
                 // Recursively flatten nested record
                 String separator = config.useArrayBoundarySeparator ? "__" : "_";
                 for (Field field : actualSchema.getFields()) {
@@ -364,11 +401,41 @@ public class GAvroSchemaFlattener implements Serializable {
                 }
                 break;
 
-            case ARRAY:
-                // Nested array in array element - serialize
-                DataType elementType = mapAvroTypeToDataType(actualSchema.getElementType());
+            case Schema.Type.ARRAY:
+                // Nested array in array element - check if it contains records
+                Schema nestedElementSchema = actualSchema.getElementType();
+
+                // Unwrap union if present
+                if (nestedElementSchema.getType() == Schema.Type.UNION) {
+                    UnionTypeInfo nestedUnion = analyzeUnion(nestedElementSchema);
+                    if (nestedUnion.nonNullSchema != null) {
+                        nestedElementSchema = nestedUnion.nonNullSchema;
+                    }
+                }
+
+                if (nestedElementSchema.getType() == Schema.Type.RECORD) {
+                    // Array of records within array - extract fields from the nested record
+                    String separator = config.useArrayBoundarySeparator ? "__" : "_";
+                    for (Field recordField : nestedElementSchema.getFields()) {
+                        String fieldPath = basePath + separator + recordField.name();
+                        Map<String, FlattenedFieldType> nestedFields =
+                                flattenSchemaForArrayElement(recordField.schema(), fieldPath, depth + 1);
+                        result.putAll(nestedFields);
+                    }
+                } else {
+                    // Array of primitives or other arrays - serialize as string
+                    DataType elementType = mapAvroTypeToDataType(nestedElementSchema);
+                    result.put(basePath, new FlattenedFieldType(basePath, DataType.STRING,
+                            true, elementType, actualSchema.getType(), nullable));
+                }
+                break;
+
+            case Schema.Type.MAP:
+                // Maps are serialized - but MapFlattener extracts map keys as fields
+                // This is a limitation - we can't know the keys at schema time
+                log.warn("MAP type at path {} in array element - keys will be extracted by MapFlattener", basePath);
                 result.put(basePath, new FlattenedFieldType(basePath, DataType.STRING,
-                        true, elementType, actualSchema.getType(), nullable));
+                        true, DataType.STRING, actualSchema.getType(), nullable));
                 break;
 
             default:
@@ -449,25 +516,25 @@ public class GAvroSchemaFlattener implements Serializable {
         }
 
         switch (actualSchema.getType()) {
-            case STRING:
-            case ENUM:
+            case Schema.Type.STRING:
+            case Schema.Type.ENUM:
                 return DataType.STRING;
-            case INT:
+            case Schema.Type.INT:
                 return DataType.INT;
-            case LONG:
+            case Schema.Type.LONG:
                 return DataType.LONG;
-            case FLOAT:
+            case Schema.Type.FLOAT:
                 return DataType.FLOAT;
-            case DOUBLE:
+            case Schema.Type.DOUBLE:
                 return DataType.DOUBLE;
-            case BOOLEAN:
+            case Schema.Type.BOOLEAN:
                 return DataType.BOOLEAN;
-            case BYTES:
-            case FIXED:
+            case Schema.Type.BYTES:
+            case Schema.Type.FIXED:
                 return DataType.BYTES;
-            case ARRAY:
-            case MAP:
-            case RECORD:
+            case Schema.Type.ARRAY:
+            case Schema.Type.MAP:
+            case Schema.Type.RECORD:
                 // Complex types are serialized
                 return DataType.STRING;
             default:
@@ -666,42 +733,42 @@ public class GAvroSchemaFlattener implements Serializable {
 
         try {
             switch (targetType) {
-                case STRING:
+                case DataType.STRING:
                     return value.toString();
 
-                case INT:
+                case DataType.INT:
                     if (value instanceof Number) {
                         return ((Number) value).intValue();
                     }
                     return Integer.parseInt(value.toString());
 
-                case LONG:
-                case BIGINT:
+                case DataType.LONG:
+                case DataType.BIGINT:
                     if (value instanceof Number) {
                         return ((Number) value).longValue();
                     }
                     return Long.parseLong(value.toString());
 
-                case FLOAT:
+                case DataType.FLOAT:
                     if (value instanceof Number) {
                         return ((Number) value).floatValue();
                     }
                     return Float.parseFloat(value.toString());
 
-                case DOUBLE:
+                case DataType.DOUBLE:
                     if (value instanceof Number) {
                         return ((Number) value).doubleValue();
                     }
                     return Double.parseDouble(value.toString());
 
-                case BOOLEAN:
+                case DataType.BOOLEAN:
                     if (value instanceof Boolean) {
                         return value;
                     }
                     String strValue = value.toString().toLowerCase();
                     return "true".equals(strValue) || "1".equals(strValue);
 
-                case DECIMAL:
+                case DataType.DECIMAL:
                     if (value instanceof BigDecimal) {
                         return value;
                     }
@@ -710,7 +777,7 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     return new BigDecimal(value.toString());
 
-                case BYTES:
+                case DataType.BYTES:
                     if (value instanceof byte[]) {
                         return value;
                     }
@@ -722,8 +789,8 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     return value.toString().getBytes();
 
-                case TIMESTAMP:
-                case DATE:
+                case DataType.TIMESTAMP:
+                case DataType.DATE:
                     // Keep as string for Glue compatibility
                     return value.toString();
 
@@ -743,22 +810,22 @@ public class GAvroSchemaFlattener implements Serializable {
      */
     private boolean isCorrectType(Object value, DataType targetType) {
         switch (targetType) {
-            case STRING:
+            case DataType.STRING:
                 return value instanceof String;
-            case INT:
+            case DataType.INT:
                 return value instanceof Integer;
-            case LONG:
-            case BIGINT:
+            case DataType.LONG:
+            case DataType.BIGINT:
                 return value instanceof Long;
-            case FLOAT:
+            case DataType.FLOAT:
                 return value instanceof Float;
-            case DOUBLE:
+            case DataType.DOUBLE:
                 return value instanceof Double;
-            case BOOLEAN:
+            case DataType.BOOLEAN:
                 return value instanceof Boolean;
-            case DECIMAL:
+            case DataType.DECIMAL:
                 return value instanceof BigDecimal;
-            case BYTES:
+            case DataType.BYTES:
                 return value instanceof byte[] || value instanceof ByteBuffer;
             default:
                 return false;
@@ -770,22 +837,22 @@ public class GAvroSchemaFlattener implements Serializable {
      */
     private Object getDefaultValue(DataType dataType) {
         switch (dataType) {
-            case STRING:
+            case DataType.STRING:
                 return "";
-            case INT:
+            case DataType.INT:
                 return 0;
-            case LONG:
-            case BIGINT:
+            case DataType.LONG:
+            case DataType.BIGINT:
                 return 0L;
-            case FLOAT:
+            case DataType.FLOAT:
                 return 0.0f;
-            case DOUBLE:
+            case DataType.DOUBLE:
                 return 0.0;
-            case BOOLEAN:
+            case DataType.BOOLEAN:
                 return false;
-            case DECIMAL:
+            case DataType.DECIMAL:
                 return BigDecimal.ZERO;
-            case BYTES:
+            case DataType.BYTES:
                 return new byte[0];
             default:
                 return null;

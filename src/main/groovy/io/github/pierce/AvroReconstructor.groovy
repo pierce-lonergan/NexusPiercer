@@ -1809,15 +1809,9 @@ public class AvroReconstructor {
         // Check if element type is nullable (union with null)
         boolean elementIsNullable = isNullableSchema(elementSchema);
 
-        // DEBUG: Log what we're processing
-        println "DEBUG reconstructArrayFromValues: path=${path}, values.size=${values.size()}, elementType=${elementSchema.getType()}"
-
         for (int i = 0; i < values.size(); i++) {
             Object value = values.get(i);
             String indexPath = path + "[" + i + "]";
-
-            // DEBUG: Log each value
-            println "DEBUG   [${i}] value=${value}, type=${value != null ? value.getClass().getSimpleName() : "null"}"
 
             // Handle null values - preserve them if element type allows nulls
             if (value == null || "null".equals(value) ||
@@ -1836,7 +1830,6 @@ public class AvroReconstructor {
                     // Parse the string as an array
                     if (strValue.equals("[]")) {
                         // Empty array - preserve it!
-                        println "DEBUG   [${i}] Adding empty array from string '[]'"
                         result.add(new ArrayList<>());
                         continue;
                     }
@@ -1863,7 +1856,6 @@ public class AvroReconstructor {
                 List<?> listValue = (List<?>) value;
                 // Handle empty nested arrays - they are valid!
                 if (listValue.isEmpty()) {
-                    println "DEBUG   [${i}] Adding empty array from List"
                     result.add(new ArrayList<>());
                     continue;
                 }
@@ -2487,13 +2479,10 @@ public class AvroReconstructor {
         }
 
         String strValue = value.toString().trim();
-        println "DEBUG deserializeArray: input='${strValue.length() > 100 ? strValue.substring(0, 100) + "..." : strValue}' (len=${strValue.length()})"
 
         // Handle BRACKET_LIST format first
         if (arrayFormat == BRACKET_LIST && strValue.startsWith("[") && strValue.endsWith("]")) {
-            List<Object> result = deserializeBracketList(strValue);
-            println "DEBUG deserializeArray: BRACKET_LIST returned ${result.size()} items"
-            return result;
+            return deserializeBracketList(strValue);
         }
 
         // Only try JSON if it looks like valid JSON
@@ -2507,9 +2496,7 @@ public class AvroReconstructor {
 
             if (looksLikeJson) {
                 try {
-                    List<Object> result = objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
-                    println "DEBUG deserializeArray: JSON parsed ${result.size()} items: ${result}"
-                    return result;
+                    return objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
                 } catch (Exception e) {
                     log.debug("Failed to parse as JSON: {}", e.getMessage());
                 }
