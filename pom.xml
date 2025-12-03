@@ -10,7 +10,7 @@
     <!-- ==================================================================== -->
     <groupId>io.github.pierce-lonergan</groupId>
     <artifactId>nexus-piercer</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <packaging>jar</packaging>
 
     <!-- ==================================================================== -->
@@ -117,7 +117,7 @@
         <spark.version>3.5.0</spark.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.3.6</hadoop.version>
-        <avro.version>1.11.3</avro.version>
+        <avro.version>1.12.1</avro.version>
         <json.version>20231013</json.version>
         <poi.version>5.2.5</poi.version>
         <jackson.version>2.15.3</jackson.version>
@@ -129,7 +129,8 @@
         <snakeyaml.version>2.2</snakeyaml.version>
         <slf4j.version>2.0.9</slf4j.version>
         <lombok.version>1.18.30</lombok.version>
-
+        <jqwik.version>1.9.3</jqwik.version>
+        <iceberg.version>1.7.1</iceberg.version>
         <!-- Test Dependency Versions -->
         <junit.version>5.10.1</junit.version>
         <mockito.version>5.7.0</mockito.version>
@@ -190,6 +191,7 @@
         <pmd.skip>false</pmd.skip>
         <spotbugs.skip>false</spotbugs.skip>
         <jacoco.skip>false</jacoco.skip>
+
 
         <!-- Testing versions -->
         <spock.version>2.3-groovy-4.0</spock.version>
@@ -506,6 +508,45 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik-api</artifactId>
+            <version>${jqwik.version}</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-core -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-core</artifactId>
+            <version>${iceberg.version}</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-api -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-api</artifactId>
+            <version>${iceberg.version}</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-common -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-common</artifactId>
+            <version>${iceberg.version}</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-data -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-data</artifactId>
+            <version>${iceberg.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-arrow</artifactId>
+            <version>${iceberg.version}</version>
         </dependency>
 
         <!-- Lombok (Compile Only) -->
