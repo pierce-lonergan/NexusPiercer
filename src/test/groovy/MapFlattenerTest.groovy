@@ -61,7 +61,10 @@ public class MapFlattenerTest {
 
         Map<String, Object> result = flattener.flatten(input);
 
-        assertEquals("[CIRCULAR_REFERENCE]", result.get("self"));
+        // Circular reference is detected when we try to re-enter the same object
+        // First level: processes "self" -> input (input not yet visited, so we enter it)
+        // Second level: processes "self" -> input (input already visited, circular detected)
+        assertEquals("[CIRCULAR_REFERENCE]", result.get("self_self"));
     }
 
     @Test

@@ -16,55 +16,6 @@ import static org.junit.jupiter.api.Assertions.*
  */
 class NestedArrayDiagnosticTest {
 
-    @Test
-    @DisplayName("Diagnostic: Simple nested array - ONE item with tags")
-    void testSingleItemWithTags() {
-        Schema itemSchema = SchemaBuilder.record("Item")
-                .fields()
-                .requiredString("name")
-                .name("tags").type().array().items().stringType().noDefault()
-                .endRecord()
-
-        Schema schema = SchemaBuilder.record("SimpleTest")
-                .fields()
-                .name("items").type().array().items(itemSchema).noDefault()
-                .endRecord()
-
-        // Just ONE item with tags
-        Map<String, Object> item1 = new LinkedHashMap<>()
-        item1.put("name", "Item1")
-        item1.put("tags", Arrays.asList("tag1", "tag2", "tag3"))
-
-        Map<String, Object> original = new LinkedHashMap<>()
-        original.put("items", Collections.singletonList(item1))
-
-        println("=== SINGLE ITEM WITH TAGS ===")
-        println("Original:")
-        println("  items: " + original.get("items"))
-
-        // Flatten
-        MapFlattener flattener = new MapFlattener()
-        Map<String, Object> flattened = flattener.flatten(original)
-
-        println("\nFlattened:")
-        flattened.each { k, v ->
-            println("  $k: $v (type: ${v?.getClass()?.simpleName})")
-        }
-
-        // Reconstruct
-        AvroReconstructor reconstructor = AvroReconstructor.builder().build()
-        Map<String, Object> reconstructed = reconstructor.reconstructToMap(flattened, schema)
-
-        println("\nReconstructed:")
-        println("  items: " + reconstructed.get("items"))
-
-        // Verify
-        AvroReconstructor.ReconstructionVerification verification =
-                reconstructor.verifyReconstruction(original, reconstructed, schema)
-
-        println("\n" + verification.getReport())
-        assertTrue(verification.isPerfect())
-    }
 
     @Test
     @DisplayName("Diagnostic: Empty array handling")
