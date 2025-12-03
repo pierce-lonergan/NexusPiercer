@@ -577,14 +577,25 @@ public class MapFlattener implements Serializable {
                 // Recursively extract from nested list
                 Map<String, List<Object>> nestedFields = extractFieldsFromList(nestedList, depth + 1);
 
-                // Merge into field structures, preserving nesting
-                for (Map.Entry<String, List<Object>> entry : nestedFields.entrySet()) {
-                    String fieldName = entry.getKey();
-                    if (!fieldStructures.containsKey(fieldName)) {
-                        fieldStructures.put(fieldName, new ArrayList<>());
+                // BUGFIX: Handle empty nested lists - they must be preserved in structure
+                if (nestedList.isEmpty()) {
+                    // Empty nested array - we still need to record its position
+                    // Use _value sentinel key and add an empty list
+                    String sentinelKey = "_value";
+                    if (!fieldStructures.containsKey(sentinelKey)) {
+                        fieldStructures.put(sentinelKey, new ArrayList<>());
                     }
-                    // Add the nested array as a single element (preserves structure)
-                    fieldStructures.get(fieldName).add(entry.getValue());
+                    fieldStructures.get(sentinelKey).add(new ArrayList<>());
+                } else {
+                    // Merge into field structures, preserving nesting
+                    for (Map.Entry<String, List<Object>> entry : nestedFields.entrySet()) {
+                        String fieldName = entry.getKey();
+                        if (!fieldStructures.containsKey(fieldName)) {
+                            fieldStructures.put(fieldName, new ArrayList<>());
+                        }
+                        // Add the nested array as a single element (preserves structure)
+                        fieldStructures.get(fieldName).add(entry.getValue());
+                    }
                 }
 
             } else if (item != null && item.getClass().isArray()) {

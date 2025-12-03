@@ -1809,9 +1809,15 @@ public class AvroReconstructor {
         // Check if element type is nullable (union with null)
         boolean elementIsNullable = isNullableSchema(elementSchema);
 
+        // DEBUG: Log what we're processing
+        println "DEBUG reconstructArrayFromValues: path=${path}, values.size=${values.size()}, elementType=${elementSchema.getType()}"
+
         for (int i = 0; i < values.size(); i++) {
             Object value = values.get(i);
             String indexPath = path + "[" + i + "]";
+
+            // DEBUG: Log each value
+            println "DEBUG   [${i}] value=${value}, type=${value != null ? value.getClass().getSimpleName() : "null"}"
 
             // Handle null values - preserve them if element type allows nulls
             if (value == null || "null".equals(value) ||
@@ -1823,10 +1829,41 @@ public class AvroReconstructor {
                 continue;
             }
 
+            // Handle string-encoded arrays (e.g., "[]" or "[a, b, c]")
+            if (value instanceof String) {
+                String strValue = ((String) value).trim();
+                if (strValue.startsWith("[") && strValue.endsWith("]")) {
+                    // Parse the string as an array
+                    if (strValue.equals("[]")) {
+                        // Empty array - preserve it!
+                        println "DEBUG   [${i}] Adding empty array from string '[]'"
+                        result.add(new ArrayList<>());
+                        continue;
+                    }
+                    // Non-empty array string - parse it
+                    List<Object> parsedList = parseNestedArrayStructure(strValue);
+                    if (elementSchema.getType() == ARRAY) {
+                        result.add(reconstructArrayFromValues(parsedList,
+                                elementSchema.getElementType(), indexPath, currentDepth + 1));
+                    } else {
+                        // For non-array element type, add each parsed item
+                        for (Object item : parsedList) {
+                            if (item != null && !item.getClass().getSimpleName().equals("NullObject")) {
+                                result.add(convertPrimitive(item, elementSchema, indexPath));
+                            } else if (elementIsNullable) {
+                                result.add(null);
+                            }
+                        }
+                    }
+                    continue;
+                }
+            }
+
             if (value instanceof List) {
                 List<?> listValue = (List<?>) value;
                 // Handle empty nested arrays - they are valid!
                 if (listValue.isEmpty()) {
+                    println "DEBUG   [${i}] Adding empty array from List"
                     result.add(new ArrayList<>());
                     continue;
                 }
@@ -2171,40 +2208,77 @@ public class AvroReconstructor {
                     }
                     if (value instanceof byte[]) {
                         fixedBytes = (byte[]) value;
+                    } else if (value instanceof ByteBuffer) {
+                        ByteBuffer bb = (ByteBuffer) value;
+                        fixedBytes = new byte[bb.remaining()];
+                        bb.get(fixedBytes);
                     } else {
-                        // Try Base64 decoding first (most common case from flattening)
-                        try {
-                            // Check for explicit B64: prefix
-                            if (strValue.startsWith("B64:")) {
+                        // Try various decode strategies
+                        fixedBytes = null;
+
+                        // Strategy 1: Check for explicit B64: prefix
+                        if (strValue.startsWith("B64:")) {
+                            try {
                                 fixedBytes = Base64.getDecoder().decode(strValue.substring(4));
-                            } else {
-                                // Try Base64 decode - if the string length suggests it's encoded
-                                // Base64 encoding of N bytes produces approximately (4 * ceil(N/3)) chars
-                                int expectedBase64Len = (int) Math.ceil(expectedSize / 3.0) * 4;
-                                if (strValue.length() >= expectedBase64Len && strValue.length() <= expectedBase64Len + 2) {
-                                    try {
-                                        fixedBytes = Base64.getDecoder().decode(strValue);
-                                        if (fixedBytes.length == expectedSize) {
-                                            // Successful Base64 decode with correct size
-                                            return new GenericData.Fixed(actualSchema, fixedBytes);
-                                        }
-                                    } catch (IllegalArgumentException e) {
-                                        // Not valid Base64, fall through to raw bytes
+                            } catch (Exception e) {
+                                // Not valid Base64
+                            }
+                        }
+
+                        // Strategy 2: Try to parse array format like "[-115, 67, 88, ...]"
+                        if (fixedBytes == null && strValue.startsWith("[") && strValue.endsWith("]")) {
+                            try {
+                                String inner = strValue.substring(1, strValue.length() - 1).trim();
+                                if (!inner.isEmpty()) {
+                                    String[] parts = inner.split(",");
+                                    fixedBytes = new byte[parts.length];
+                                    for (int idx = 0; idx < parts.length; idx++) {
+                                        fixedBytes[idx] = (byte) Integer.parseInt(parts[idx].trim());
                                     }
                                 }
-                                // Fallback to raw string bytes (legacy behavior)
-                                fixedBytes = strValue.getBytes();
+                            } catch (Exception e) {
+                                // Not valid array format
+                                fixedBytes = null;
                             }
-                        } catch (Exception e) {
-                            // Fallback to raw string bytes
+                        }
+
+                        // Strategy 3: Try Base64 decode (without length check)
+                        if (fixedBytes == null) {
+                            try {
+                                byte[] decoded = Base64.getDecoder().decode(strValue);
+                                if (decoded.length == expectedSize) {
+                                    fixedBytes = decoded;
+                                }
+                            } catch (Exception e) {
+                                // Not valid Base64
+                            }
+                        }
+
+                        // Strategy 4: Try hex decode (with or without 0x prefix)
+                        if (fixedBytes == null) {
+                            try {
+                                String hexStr = strValue.startsWith("0x") ? strValue.substring(2) : strValue;
+                                if (hexStr.length() == expectedSize * 2 && hexStr.matches("[0-9a-fA-F]+")) {
+                                    fixedBytes = new byte[expectedSize];
+                                    for (int idx = 0; idx < expectedSize; idx++) {
+                                        fixedBytes[idx] = (byte) Integer.parseInt(hexStr.substring(idx * 2, idx * 2 + 2), 16);
+                                    }
+                                }
+                            } catch (Exception e) {
+                                // Not valid hex
+                            }
+                        }
+
+                        // Strategy 5: Fallback to raw string bytes (legacy behavior)
+                        if (fixedBytes == null) {
                             fixedBytes = strValue.getBytes();
                         }
                     }
 
                     if (fixedBytes.length != expectedSize) {
                         throw new IllegalArgumentException(
-                                String.format("Fixed size mismatch at %s: expected %d, got %d",
-                                        path, expectedSize, fixedBytes.length));
+                                String.format("Fixed size mismatch at %s: expected %d, got %d (value was: %.50s...)",
+                                        path, expectedSize, fixedBytes.length, strValue));
                     }
                     return new GenericData.Fixed(actualSchema, fixedBytes);
 
@@ -2413,10 +2487,13 @@ public class AvroReconstructor {
         }
 
         String strValue = value.toString().trim();
+        println "DEBUG deserializeArray: input='${strValue.length() > 100 ? strValue.substring(0, 100) + "..." : strValue}' (len=${strValue.length()})"
 
         // Handle BRACKET_LIST format first
         if (arrayFormat == BRACKET_LIST && strValue.startsWith("[") && strValue.endsWith("]")) {
-            return deserializeBracketList(strValue);
+            List<Object> result = deserializeBracketList(strValue);
+            println "DEBUG deserializeArray: BRACKET_LIST returned ${result.size()} items"
+            return result;
         }
 
         // Only try JSON if it looks like valid JSON
@@ -2430,7 +2507,9 @@ public class AvroReconstructor {
 
             if (looksLikeJson) {
                 try {
-                    return objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
+                    List<Object> result = objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
+                    println "DEBUG deserializeArray: JSON parsed ${result.size()} items: ${result}"
+                    return result;
                 } catch (Exception e) {
                     log.debug("Failed to parse as JSON: {}", e.getMessage());
                 }
