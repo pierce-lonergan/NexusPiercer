@@ -964,48 +964,54 @@
                 <artifactId>gmavenplus-plugin</artifactId>
                 <version>${gmavenplus.version}</version>
                 <executions>
+                    <!-- Add main Groovy sources -->
+                    <execution>
+                        <id>add-sources</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>addSources</goal>
+                        </goals>
+                    </execution>
+                    <!-- Generate stubs for joint compilation -->
+                    <execution>
+                        <id>generate-stubs</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generateStubs</goal>
+                        </goals>
+                    </execution>
                     <!-- Compile main Groovy sources -->
                     <execution>
                         <id>compile-groovy</id>
+                        <phase>compile</phase>
                         <goals>
-                            <goal>addSources</goal>
-                            <goal>addStubSources</goal>
-                            <goal>generateStubs</goal>
                             <goal>compile</goal>
                             <goal>removeStubs</goal>
                         </goals>
-                        <configuration>
-                            <sources>
-                                <source>
-                                    <directory>src/main/groovy</directory>
-                                    <includes>
-                                        <include>**/*.groovy</include>
-                                    </includes>
-                                </source>
-                            </sources>
-                        </configuration>
                     </execution>
 
                     <!-- Compile test Groovy sources -->
                     <execution>
-                        <id>compile-groovy-tests</id>
+                        <id>add-test-sources</id>
+                        <phase>initialize</phase>
                         <goals>
                             <goal>addTestSources</goal>
-                            <goal>addTestStubSources</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>generate-test-stubs</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
                             <goal>generateTestStubs</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>compile-groovy-tests</id>
+                        <phase>test-compile</phase>
+                        <goals>
                             <goal>compileTests</goal>
                             <goal>removeTestStubs</goal>
                         </goals>
-                        <configuration>
-                            <testSources>
-                                <testSource>
-                                    <directory>src/test/groovy</directory>
-                                    <includes>
-                                        <include>**/*.groovy</include>
-                                    </includes>
-                                </testSource>
-                            </testSources>
-                        </configuration>
                     </execution>
                 </executions>
                 <configuration>
@@ -1013,6 +1019,22 @@
                     <targetBytecode>${java.version}</targetBytecode>
                     <!-- Enable joint compilation with Java -->
                     <invokeDynamic>true</invokeDynamic>
+                    <sources>
+                        <source>
+                            <directory>${project.basedir}/src/main/groovy</directory>
+                            <includes>
+                                <include>**/*.groovy</include>
+                            </includes>
+                        </source>
+                    </sources>
+                    <testSources>
+                        <testSource>
+                            <directory>${project.basedir}/src/test/groovy</directory>
+                            <includes>
+                                <include>**/*.groovy</include>
+                            </includes>
+                        </testSource>
+                    </testSources>
                 </configuration>
             </plugin>
 
