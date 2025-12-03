@@ -236,7 +236,7 @@ public final class ConversionConfig {
     public enum OutputFormat {
         /** Return GenericRecord (Iceberg or Avro depending on converter) */
         GENERIC_RECORD,
-        /** Return Map<String, Object> with converted values */
+        /** Return {@code Map<String, Object>} with converted values */
         MAP
     }
 
