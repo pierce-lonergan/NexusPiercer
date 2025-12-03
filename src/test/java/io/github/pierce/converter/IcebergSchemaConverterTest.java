@@ -573,4 +573,115 @@ class IcebergSchemaConverterTest {
             assertThat(result).containsEntry("id", 1).containsEntry("name", "Test");
         }
     }
+
+    // ==================== Output Format Configuration Tests ====================
+
+    @Nested
+    @DisplayName("Output Format Configuration")
+    class OutputFormatTests {
+
+        @Test
+        @DisplayName("convertAuto returns GenericRecord by default")
+        void convertAutoReturnsGenericRecordByDefault() {
+            Schema schema = new Schema(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.required(2, "name", Types.StringType.get())
+            );
+
+            IcebergSchemaConverter converter = IcebergSchemaConverter.create(schema);
+
+            Map<String, Object> input = Map.of("id", 1, "name", "Test");
+            Object result = converter.convertAuto(input);
+
+            assertThat(result).isInstanceOf(GenericRecord.class);
+            GenericRecord record = (GenericRecord) result;
+            assertThat(record.getField("id")).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("convertAuto returns Map when configured")
+        void convertAutoReturnsMapWhenConfigured() {
+            Schema schema = new Schema(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.required(2, "name", Types.StringType.get())
+            );
+
+            ConversionConfig config = ConversionConfig.builder()
+                    .outputFormat(ConversionConfig.OutputFormat.MAP)
+                    .build();
+
+            IcebergSchemaConverter converter = IcebergSchemaConverter.create(schema, config);
+
+            Map<String, Object> input = Map.of("id", 1, "name", "Test");
+            Object result = converter.convertAuto(input);
+
+            assertThat(result).isInstanceOf(Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> mapResult = (Map<String, Object>) result;
+            assertThat(mapResult).containsEntry("id", 1).containsEntry("name", "Test");
+        }
+
+        @Test
+        @DisplayName("convertBatchAuto returns list of GenericRecords by default")
+        void convertBatchAutoReturnsGenericRecordsByDefault() {
+            Schema schema = new Schema(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get())
+            );
+
+            IcebergSchemaConverter converter = IcebergSchemaConverter.create(schema);
+
+            List<Map<String, Object>> input = List.of(
+                    Map.of("id", 1),
+                    Map.of("id", 2)
+            );
+            List<?> results = converter.convertBatchAuto(input);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0)).isInstanceOf(GenericRecord.class);
+        }
+
+        @Test
+        @DisplayName("convertBatchAuto returns list of Maps when configured")
+        void convertBatchAutoReturnsMapsWhenConfigured() {
+            Schema schema = new Schema(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get())
+            );
+
+            ConversionConfig config = ConversionConfig.builder()
+                    .outputFormat(ConversionConfig.OutputFormat.MAP)
+                    .build();
+
+            IcebergSchemaConverter converter = IcebergSchemaConverter.create(schema, config);
+
+            List<Map<String, Object>> input = List.of(
+                    Map.of("id", 1),
+                    Map.of("id", 2)
+            );
+            List<?> results = converter.convertBatchAuto(input);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0)).isInstanceOf(Map.class);
+        }
+
+        @Test
+        @DisplayName("convertBatchToMap always returns Maps")
+        void convertBatchToMapAlwaysReturnsMaps() {
+            Schema schema = new Schema(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.required(2, "name", Types.StringType.get())
+            );
+
+            IcebergSchemaConverter converter = IcebergSchemaConverter.create(schema);
+
+            List<Map<String, Object>> input = List.of(
+                    Map.of("id", 1, "name", "One"),
+                    Map.of("id", 2, "name", "Two")
+            );
+            List<Map<String, Object>> results = converter.convertBatchToMap(input);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0)).containsEntry("id", 1).containsEntry("name", "One");
+            assertThat(results.get(1)).containsEntry("id", 2).containsEntry("name", "Two");
+        }
+    }
 }

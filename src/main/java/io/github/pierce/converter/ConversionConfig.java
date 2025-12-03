@@ -44,6 +44,9 @@ public final class ConversionConfig {
     private final boolean cacheConverters;
     private final int initialCacheCapacity;
 
+    // Output format
+    private final OutputFormat outputFormat;
+
     private ConversionConfig(Builder builder) {
         this.errorHandlingMode = builder.errorHandlingMode;
         this.strictTypeChecking = builder.strictTypeChecking;
@@ -63,6 +66,7 @@ public final class ConversionConfig {
         this.useSchemaDefaults = builder.useSchemaDefaults;
         this.cacheConverters = builder.cacheConverters;
         this.initialCacheCapacity = builder.initialCacheCapacity;
+        this.outputFormat = builder.outputFormat;
     }
 
     /**
@@ -183,6 +187,10 @@ public final class ConversionConfig {
         return initialCacheCapacity;
     }
 
+    public OutputFormat getOutputFormat() {
+        return outputFormat;
+    }
+
     // Enums
 
     public enum ErrorHandlingMode {
@@ -225,6 +233,13 @@ public final class ConversionConfig {
         TRUNCATE_WITH_WARNING
     }
 
+    public enum OutputFormat {
+        /** Return GenericRecord (Iceberg or Avro depending on converter) */
+        GENERIC_RECORD,
+        /** Return Map<String, Object> with converted values */
+        MAP
+    }
+
     // Builder
 
     public static final class Builder {
@@ -246,6 +261,7 @@ public final class ConversionConfig {
         private boolean useSchemaDefaults = true;
         private boolean cacheConverters = true;
         private int initialCacheCapacity = 64;
+        private OutputFormat outputFormat = OutputFormat.GENERIC_RECORD;
 
         public Builder errorHandlingMode(ErrorHandlingMode mode) {
             this.errorHandlingMode = mode;
@@ -334,6 +350,11 @@ public final class ConversionConfig {
 
         public Builder initialCacheCapacity(int capacity) {
             this.initialCacheCapacity = capacity;
+            return this;
+        }
+
+        public Builder outputFormat(OutputFormat format) {
+            this.outputFormat = format;
             return this;
         }
 

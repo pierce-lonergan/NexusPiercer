@@ -219,6 +219,52 @@ public class AvroSchemaConverter {
     }
 
     /**
+     * Converts a Map based on the configured output format.
+     * If {@link ConversionConfig.OutputFormat#MAP} is configured, returns a Map.
+     * Otherwise returns a GenericRecord.
+     *
+     * @param data the input map
+     * @return the converted result (GenericRecord or Map depending on config)
+     * @throws SchemaConversionException if conversion fails
+     */
+    public Object convertAuto(Map<String, Object> data) {
+        if (config.getOutputFormat() == ConversionConfig.OutputFormat.MAP) {
+            return convertToMap(data);
+        }
+        return convert(data);
+    }
+
+    /**
+     * Batch converts multiple Maps based on the configured output format.
+     *
+     * @param dataList the list of input maps
+     * @return list of converted results (GenericRecords or Maps depending on config)
+     */
+    public List<?> convertBatchAuto(List<Map<String, Object>> dataList) {
+        if (config.getOutputFormat() == ConversionConfig.OutputFormat.MAP) {
+            return convertBatchToMap(dataList);
+        }
+        return convertBatch(dataList);
+    }
+
+    /**
+     * Batch converts multiple Maps to plain Maps with converted values.
+     *
+     * @param dataList the list of input maps
+     * @return list of converted maps
+     */
+    public List<Map<String, Object>> convertBatchToMap(List<Map<String, Object>> dataList) {
+        if (dataList == null) {
+            return null;
+        }
+        List<Map<String, Object>> results = new ArrayList<>(dataList.size());
+        for (Map<String, Object> data : dataList) {
+            results.add(convertToMap(data));
+        }
+        return results;
+    }
+
+    /**
      * Converts with error collection.
      */
     public ConversionResult<GenericRecord> convertWithErrors(Map<String, Object> data) {

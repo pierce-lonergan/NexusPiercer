@@ -579,4 +579,118 @@ class AvroSchemaConverterTest {
             assertThat(result.get("name").toString()).isEqualTo("Test");
         }
     }
+
+    // ==================== Output Format Configuration Tests ====================
+
+    @Nested
+    @DisplayName("Output Format Configuration")
+    class OutputFormatTests {
+
+        @Test
+        @DisplayName("convertAuto returns GenericRecord by default")
+        void convertAutoReturnsGenericRecordByDefault() {
+            Schema schema = SchemaBuilder.record("TestRecord")
+                    .fields()
+                    .requiredInt("id")
+                    .requiredString("name")
+                    .endRecord();
+
+            AvroSchemaConverter converter = AvroSchemaConverter.create(schema);
+
+            Map<String, Object> input = Map.of("id", 1, "name", "Test");
+            Object result = converter.convertAuto(input);
+
+            assertThat(result).isInstanceOf(org.apache.avro.generic.GenericRecord.class);
+        }
+
+        @Test
+        @DisplayName("convertAuto returns Map when configured")
+        void convertAutoReturnsMapWhenConfigured() {
+            Schema schema = SchemaBuilder.record("TestRecord")
+                    .fields()
+                    .requiredInt("id")
+                    .requiredString("name")
+                    .endRecord();
+
+            ConversionConfig config = ConversionConfig.builder()
+                    .outputFormat(ConversionConfig.OutputFormat.MAP)
+                    .build();
+
+            AvroSchemaConverter converter = AvroSchemaConverter.create(schema, config);
+
+            Map<String, Object> input = Map.of("id", 1, "name", "Test");
+            Object result = converter.convertAuto(input);
+
+            assertThat(result).isInstanceOf(Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> mapResult = (Map<String, Object>) result;
+            assertThat(mapResult).containsEntry("id", 1);
+        }
+
+        @Test
+        @DisplayName("convertBatchAuto returns list of GenericRecords by default")
+        void convertBatchAutoReturnsGenericRecordsByDefault() {
+            Schema schema = SchemaBuilder.record("TestRecord")
+                    .fields()
+                    .requiredInt("id")
+                    .endRecord();
+
+            AvroSchemaConverter converter = AvroSchemaConverter.create(schema);
+
+            List<Map<String, Object>> input = List.of(
+                    Map.of("id", 1),
+                    Map.of("id", 2)
+            );
+            List<?> results = converter.convertBatchAuto(input);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0)).isInstanceOf(org.apache.avro.generic.GenericRecord.class);
+        }
+
+        @Test
+        @DisplayName("convertBatchAuto returns list of Maps when configured")
+        void convertBatchAutoReturnsMapsWhenConfigured() {
+            Schema schema = SchemaBuilder.record("TestRecord")
+                    .fields()
+                    .requiredInt("id")
+                    .endRecord();
+
+            ConversionConfig config = ConversionConfig.builder()
+                    .outputFormat(ConversionConfig.OutputFormat.MAP)
+                    .build();
+
+            AvroSchemaConverter converter = AvroSchemaConverter.create(schema, config);
+
+            List<Map<String, Object>> input = List.of(
+                    Map.of("id", 1),
+                    Map.of("id", 2)
+            );
+            List<?> results = converter.convertBatchAuto(input);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0)).isInstanceOf(Map.class);
+        }
+
+        @Test
+        @DisplayName("convertBatchToMap always returns Maps")
+        void convertBatchToMapAlwaysReturnsMaps() {
+            Schema schema = SchemaBuilder.record("TestRecord")
+                    .fields()
+                    .requiredInt("id")
+                    .requiredString("name")
+                    .endRecord();
+
+            AvroSchemaConverter converter = AvroSchemaConverter.create(schema);
+
+            List<Map<String, Object>> input = List.of(
+                    Map.of("id", 1, "name", "One"),
+                    Map.of("id", 2, "name", "Two")
+            );
+            List<Map<String, Object>> results = converter.convertBatchToMap(input);
+
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0)).containsEntry("id", 1);
+            assertThat(results.get(1)).containsEntry("id", 2);
+        }
+    }
 }
