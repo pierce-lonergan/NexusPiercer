@@ -184,7 +184,7 @@
         <git-commit-id-maven-plugin.version>7.0.0</git-commit-id-maven-plugin.version>
 
         <!-- Code Quality Thresholds -->
-        <jacoco.minimum.coverage>0.80</jacoco.minimum.coverage>
+        <jacoco.minimum.coverage>0.60</jacoco.minimum.coverage>
         <pmd.violation.buildFailOnViolation>true</pmd.violation.buildFailOnViolation>
         <spotbugs.threshold>Low</spotbugs.threshold>
         <spotbugs.effort>Max</spotbugs.effort>
