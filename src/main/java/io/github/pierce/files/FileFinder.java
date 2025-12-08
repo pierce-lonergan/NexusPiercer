@@ -6,21 +6,18 @@ import com.google.common.cache.LoadingCache;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
-import org.json.JSONObject;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -1121,12 +1118,14 @@ public class FileFinder {
             return props;
         }
 
+        private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+
         /**
          * Read JSON file
          */
-        public static JSONObject readJson(String fileName) throws IOException {
+        public static JsonNode readJson(String fileName) throws IOException {
             String content = readAsString(fileName);
-            return new JSONObject(content);
+            return JSON_MAPPER.readTree(content);
         }
 
         /**

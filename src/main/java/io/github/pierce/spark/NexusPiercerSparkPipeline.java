@@ -14,7 +14,8 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.json.JSONObject;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
@@ -33,6 +34,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
 
     private static final Logger LOG = LoggerFactory.getLogger(NexusPiercerSparkPipeline.class);
     private static final long serialVersionUID = 1L;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 
     private static final Map<String, CachedSchema> SCHEMA_CACHE = new ConcurrentHashMap<>();
@@ -582,12 +584,13 @@ public class NexusPiercerSparkPipeline implements Serializable {
                             boolean schemaError = false;
 
                             StructType sparkSchema = finalBroadcastSchema.getValue();
-                            JSONObject jsonObject = new JSONObject(flattenedJson);
+                            JsonNode jsonNode = OBJECT_MAPPER.readTree(flattenedJson);
 
                             for (StructField field : sparkSchema.fields()) {
                                 String fieldName = field.name();
-                                if (jsonObject.has(fieldName) && !jsonObject.isNull(fieldName)) {
-                                    Object value = jsonObject.get(fieldName);
+                                JsonNode fieldNode = jsonNode.get(fieldName);
+                                if (fieldNode != null && !fieldNode.isNull()) {
+                                    Object value = extractJsonNodeValue(fieldNode);
                                     DataType dataType = field.dataType();
                                     if (!isTypeCompatible(value, dataType)) {
                                         schemaError = true;
@@ -664,6 +667,31 @@ public class NexusPiercerSparkPipeline implements Serializable {
             throw new RuntimeException("Pipeline processing failed for JSON column", e);
         }
     }
+    /**
+     * Helper method to extract a Java value from a Jackson JsonNode.
+     */
+    private static Object extractJsonNodeValue(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        } else if (node.isTextual()) {
+            return node.asText();
+        } else if (node.isInt()) {
+            return node.asInt();
+        } else if (node.isLong()) {
+            return node.asLong();
+        } else if (node.isDouble() || node.isFloat()) {
+            return node.asDouble();
+        } else if (node.isBoolean()) {
+            return node.asBoolean();
+        } else if (node.isBigDecimal()) {
+            return node.decimalValue();
+        } else if (node.isBigInteger()) {
+            return node.bigIntegerValue();
+        } else {
+            return node.toString();
+        }
+    }
+
     /**
      * A private helper method to check if a Java object from a JSON parser is compatible
      * with a target Spark DataType. This mimics the type coercion behavior of `from_json`.

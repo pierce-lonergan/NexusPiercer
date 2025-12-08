@@ -1,7 +1,9 @@
 package io.github.pierce;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -9,10 +11,16 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * JsonFlattenerConsolidator - Flattens nested JSON into flat key-value pairs with array consolidation.
+ * 
+ * This class uses Jackson for JSON processing (Apache 2.0 License).
+ */
 public class JsonFlattenerConsolidator implements Serializable {
     private static final long serialVersionUID = 1L;
 
-
+    // Thread-safe ObjectMapper for JSON processing
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final String arrayDelimiter;
     private final String nullPlaceholder;
@@ -21,19 +29,15 @@ public class JsonFlattenerConsolidator implements Serializable {
     private final boolean consolidateWithMatrixDenotorsInValue;
     private final boolean gatherStatistics;
 
-
     private final Set<String> explosionPaths;
     private final boolean explosionEnabled;
 
-
     private final Set<String> arrayFields = new HashSet<>();
-
 
     private static final Pattern ARRAY_INDEX_STRIP_PATTERN = Pattern.compile("\\[\\d+\\]");
     private static final Pattern ALL_INDICES_PATTERN = Pattern.compile("\\[(\\d+)\\]");
     private static final Pattern MALFORMED_JSON_PATTERN = Pattern.compile("[:,\\[]\\s*(undefined|NaN)\\s*[,\\}\\]]");
     private static final Pattern ARRAY_INDEX_PATTERN = Pattern.compile("(.+?)\\[(\\d+)\\](.*)");
-
 
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
@@ -50,14 +54,12 @@ public class JsonFlattenerConsolidator implements Serializable {
         this.explosionEnabled = explosionPaths.length > 0;
     }
 
-
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
                                      boolean consolidateWithMatrixDenotorsInValue) {
         this(arrayDelimiter, nullPlaceholder, maxNestingDepth, maxArraySize,
                 consolidateWithMatrixDenotorsInValue, true);
     }
-
 
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
@@ -77,9 +79,7 @@ public class JsonFlattenerConsolidator implements Serializable {
         }
 
         try {
-
             String trimmed = jsonString.trim();
-
 
             if (trimmed.startsWith("\uFEFF")) {
                 trimmed = trimmed.substring(1);
@@ -99,27 +99,29 @@ public class JsonFlattenerConsolidator implements Serializable {
                 return "{}";
             }
 
-            JSONObject jsonObject = new JSONObject(trimmed);
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(trimmed);
+            if (!jsonNode.isObject()) {
+                return "{}";
+            }
 
             // Clear array fields tracking for this run
             arrayFields.clear();
 
             // Step 1: Flatten the JSON
-            Map<String, Object> flattened = flattenJson(jsonObject);
+            Map<String, Object> flattened = flattenJson(jsonNode);
 
             // Step 2: Consolidate the flattened data
             Map<String, Object> consolidated = consolidateFlattened(flattened);
 
             // Step 3: Convert to JSON with underscored keys
-            JSONObject result = new JSONObject();
+            ObjectNode result = OBJECT_MAPPER.createObjectNode();
             for (Map.Entry<String, Object> entry : consolidated.entrySet()) {
-                result.put(entry.getKey(), entry.getValue());
+                putValue(result, entry.getKey(), entry.getValue());
             }
 
-            return result.toString();
+            return OBJECT_MAPPER.writeValueAsString(result);
 
         } catch (Exception e) {
-            // More detailed error logging
             System.err.println("Error processing JSON: " + e.getMessage());
             e.printStackTrace();
             return "{}";
@@ -132,7 +134,6 @@ public class JsonFlattenerConsolidator implements Serializable {
      */
     public List<String> flattenAndExplodeJson(String jsonString) {
         if (!explosionEnabled) {
-            // If no explosion paths specified, return single consolidated record
             return Collections.singletonList(flattenAndConsolidateJson(jsonString));
         }
 
@@ -146,11 +147,15 @@ public class JsonFlattenerConsolidator implements Serializable {
                 return Collections.singletonList("{}");
             }
 
-            JSONObject jsonObject = new JSONObject(trimmed);
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(trimmed);
+            if (!jsonNode.isObject()) {
+                return Collections.singletonList("{}");
+            }
+
             arrayFields.clear();
 
             // Step 1: Use SPECIAL flattening that doesn't consolidate arrays in explosion paths
-            Map<String, Object> flattened = flattenJsonForExplosion(jsonObject);
+            Map<String, Object> flattened = flattenJsonForExplosion(jsonNode);
 
             // Step 2: Perform explosion on the flattened data
             List<Map<String, Object>> explodedRecords = performExplosionOnFlattened(flattened);
@@ -159,11 +164,11 @@ public class JsonFlattenerConsolidator implements Serializable {
             List<String> results = new ArrayList<>();
             for (Map<String, Object> record : explodedRecords) {
                 Map<String, Object> consolidated = consolidateFlattened(record);
-                JSONObject result = new JSONObject();
+                ObjectNode result = OBJECT_MAPPER.createObjectNode();
                 for (Map.Entry<String, Object> entry : consolidated.entrySet()) {
-                    result.put(entry.getKey(), entry.getValue());
+                    putValue(result, entry.getKey(), entry.getValue());
                 }
-                results.add(result.toString());
+                results.add(OBJECT_MAPPER.writeValueAsString(result));
             }
 
             return results;
@@ -176,6 +181,31 @@ public class JsonFlattenerConsolidator implements Serializable {
     }
 
     /**
+     * Helper method to put a value into an ObjectNode with proper type handling
+     */
+    private void putValue(ObjectNode node, String key, Object value) {
+        if (value == null) {
+            node.putNull(key);
+        } else if (value instanceof String) {
+            node.put(key, (String) value);
+        } else if (value instanceof Integer) {
+            node.put(key, (Integer) value);
+        } else if (value instanceof Long) {
+            node.put(key, (Long) value);
+        } else if (value instanceof Double) {
+            node.put(key, (Double) value);
+        } else if (value instanceof Float) {
+            node.put(key, (Float) value);
+        } else if (value instanceof Boolean) {
+            node.put(key, (Boolean) value);
+        } else if (value instanceof BigDecimal) {
+            node.put(key, (BigDecimal) value);
+        } else {
+            node.put(key, value.toString());
+        }
+    }
+
+    /**
      * Updated performExplosionOnFlattened with debugging
      */
     private List<Map<String, Object>> performExplosionOnFlattened(Map<String, Object> flattened) {
@@ -183,7 +213,6 @@ public class JsonFlattenerConsolidator implements Serializable {
             return Collections.singletonList(flattened);
         }
 
-        // Debug: Print what we have
         System.err.println("=== performExplosionOnFlattened ===");
         System.err.println("Explosion paths: " + explosionPaths);
         System.err.println("Flattened data sample (first 10 keys):");
@@ -195,7 +224,6 @@ public class JsonFlattenerConsolidator implements Serializable {
 
         List<Map<String, Object>> currentRecords = Collections.singletonList(new LinkedHashMap<>(flattened));
 
-        // Process each explosion path
         for (String explosionPath : explosionPaths) {
             List<Map<String, Object>> nextRecords = new ArrayList<>();
 
@@ -210,48 +238,34 @@ public class JsonFlattenerConsolidator implements Serializable {
         return currentRecords;
     }
 
-    /**
-     * The real fix - handle the fact that dots might already be underscores
-     */
     private List<Map<String, Object>> explodeFlattened(Map<String, Object> flattened, String explosionPath) {
-        // IMPORTANT: At this point, the flattened data still has dots, not underscores!
-        // Underscores only appear after consolidation.
-
         String[] pathParts = explosionPath.split("\\.");
 
-        // Group records by their indices at the explosion level
         Map<String, Map<String, Object>> recordGroups = new LinkedHashMap<>();
         Map<String, Object> nonArrayFields = new LinkedHashMap<>();
 
-        // Pattern to match the explosion path with indices
         StringBuilder pattern = new StringBuilder("^");
         for (int i = 0; i < pathParts.length; i++) {
             if (i > 0) pattern.append("\\.");
             pattern.append(Pattern.quote(pathParts[i]));
 
-            // After each path part, there might be array indices
             if (i < pathParts.length - 1) {
-                // Before explosion level - optional indices
                 pattern.append("(?:\\[(\\d+)\\])?");
             } else {
-                // At explosion level - required index
                 pattern.append("\\[(\\d+)\\]");
             }
         }
-        pattern.append("(.*)$"); // Rest of the path
+        pattern.append("(.*)$");
 
         Pattern explosionPattern = Pattern.compile(pattern.toString());
 
-        // First pass: find explosion fields and group them
         for (Map.Entry<String, Object> entry : flattened.entrySet()) {
             String key = entry.getKey();
             Matcher m = explosionPattern.matcher(key);
 
             if (m.matches()) {
-                // This belongs to the explosion path
                 StringBuilder groupKey = new StringBuilder();
 
-                // Collect all captured indices
                 for (int i = 1; i <= pathParts.length; i++) {
                     String idx = m.group(i);
                     if (idx != null) {
@@ -265,11 +279,9 @@ public class JsonFlattenerConsolidator implements Serializable {
             }
         }
 
-        // Second pass: categorize all fields
         for (Map.Entry<String, Object> entry : flattened.entrySet()) {
             String key = entry.getKey();
 
-            // Skip if already in a record group
             boolean inGroup = false;
             for (Map<String, Object> group : recordGroups.values()) {
                 if (group.containsKey(key)) {
@@ -279,44 +291,32 @@ public class JsonFlattenerConsolidator implements Serializable {
             }
             if (inGroup) continue;
 
-            // Check if this is a parent field that should be included in specific groups
             boolean isParentField = false;
 
-            // Try to match parent patterns at different levels
             for (int parentLevel = 0; parentLevel < pathParts.length; parentLevel++) {
                 StringBuilder parentPattern = new StringBuilder("^");
 
-                // Build pattern up to parent level
                 for (int i = 0; i <= parentLevel; i++) {
                     if (i > 0) parentPattern.append("\\.");
                     parentPattern.append(Pattern.quote(pathParts[i]));
-
-                    // Capture optional indices
                     parentPattern.append("(?:\\[(\\d+)\\])?");
                 }
 
-                // Should have a field name after this that's NOT the next path part
                 parentPattern.append("\\.([^\\[.]+)");
-
-                // Might have more structure after the field
                 parentPattern.append(".*$");
 
                 Pattern pp = Pattern.compile(parentPattern.toString());
                 Matcher pm = pp.matcher(key);
 
                 if (pm.matches()) {
-                    // Get the field name to check it's not continuing the explosion path
                     String fieldName = pm.group(parentLevel + 2);
 
-                    // If this field name is the next part of the explosion path, skip it
                     if (parentLevel + 1 < pathParts.length && fieldName.equals(pathParts[parentLevel + 1])) {
                         continue;
                     }
 
-                    // This is a valid parent field
                     isParentField = true;
 
-                    // Build parent key from indices
                     StringBuilder parentKey = new StringBuilder();
                     for (int i = 1; i <= parentLevel + 1; i++) {
                         String idx = pm.group(i);
@@ -326,13 +326,11 @@ public class JsonFlattenerConsolidator implements Serializable {
                         }
                     }
 
-                    // Add to all groups that match this parent key
                     String parentKeyStr = parentKey.toString();
                     for (Map.Entry<String, Map<String, Object>> group : recordGroups.entrySet()) {
-                        String groupKey = group.getKey();
+                        String groupKeyStr = group.getKey();
 
-                        // Check if group key starts with parent key
-                        if (parentKeyStr.isEmpty() || groupKey.startsWith(parentKeyStr)) {
+                        if (parentKeyStr.isEmpty() || groupKeyStr.startsWith(parentKeyStr)) {
                             group.getValue().put(key, entry.getValue());
                         }
                     }
@@ -341,21 +339,17 @@ public class JsonFlattenerConsolidator implements Serializable {
             }
 
             if (!isParentField) {
-                // Non-array field or unrelated field
                 nonArrayFields.put(key, entry.getValue());
             }
         }
 
-        // If no groups found, return original
         if (recordGroups.isEmpty()) {
             return Collections.singletonList(flattened);
         }
 
-        // Create exploded records
         List<Map<String, Object>> results = new ArrayList<>();
         int explosionIndex = 0;
 
-        // Sort groups for consistent ordering
         List<String> sortedGroupKeys = new ArrayList<>(recordGroups.keySet());
         Collections.sort(sortedGroupKeys);
 
@@ -365,14 +359,11 @@ public class JsonFlattenerConsolidator implements Serializable {
 
             Map<String, Object> newRecord = new LinkedHashMap<>(nonArrayFields);
 
-            // Add all fields from this group, transforming keys
             for (Map.Entry<String, Object> field : groupFields.entrySet()) {
                 String oldKey = field.getKey();
                 String newKey = oldKey;
 
-                // Remove indices for the explosion path
                 for (int i = 0; i < pathParts.length; i++) {
-                    // Only remove the index at the explosion level
                     if (i == pathParts.length - 1 && i < indices.length) {
                         String searchPattern = pathParts[i] + "[" + indices[i] + "]";
                         String replacement = pathParts[i];
@@ -383,7 +374,6 @@ public class JsonFlattenerConsolidator implements Serializable {
                 newRecord.put(newKey, field.getValue());
             }
 
-            // Add explosion index
             newRecord.put(explosionPath + "_explosion_index", (long) explosionIndex++);
 
             results.add(newRecord);
@@ -392,22 +382,17 @@ public class JsonFlattenerConsolidator implements Serializable {
         return results;
     }
 
-    /**
-     * Special flattening that preserves arrays in explosion paths
-     */
-    private Map<String, Object> flattenJsonForExplosion(JSONObject jsonObject) {
+    private Map<String, Object> flattenJsonForExplosion(JsonNode jsonNode) {
         Map<String, Object> flattenedOutput = new LinkedHashMap<>();
         ArrayDeque<FlattenTask> taskQueue = new ArrayDeque<>();
 
-        // Initialize queue with top-level entries
-        Iterator<String> keys = jsonObject.keys();
-        while (keys.hasNext()) {
-            String key = keys.next();
-            Object value = jsonObject.get(key);
+        Iterator<String> fieldNames = jsonNode.fieldNames();
+        while (fieldNames.hasNext()) {
+            String key = fieldNames.next();
+            JsonNode value = jsonNode.get(key);
             taskQueue.add(new FlattenTask(key, value, 1));
         }
 
-        // Process queue
         while (!taskQueue.isEmpty()) {
             FlattenTask currentTask = taskQueue.pollFirst();
 
@@ -416,65 +401,59 @@ public class JsonFlattenerConsolidator implements Serializable {
                 continue;
             }
 
-            if (currentTask.value == null || currentTask.value == JSONObject.NULL) {
+            JsonNode currentValue = (JsonNode) currentTask.value;
+
+            if (currentValue == null || currentValue.isNull()) {
                 flattenedOutput.put(currentTask.prefix, nullPlaceholder);
-            } else if (currentTask.value instanceof JSONObject) {
-                JSONObject obj = (JSONObject) currentTask.value;
-                if (obj.length() == 0) {
+            } else if (currentValue.isObject()) {
+                if (currentValue.isEmpty()) {
                     flattenedOutput.put(currentTask.prefix, nullPlaceholder);
                 } else if (currentTask.depth == maxNestingDepth) {
-                    flattenedOutput.put(currentTask.prefix, obj.toString());
+                    flattenedOutput.put(currentTask.prefix, currentValue.toString());
                 } else {
-                    Iterator<String> objKeys = obj.keys();
+                    Iterator<String> objKeys = currentValue.fieldNames();
                     while (objKeys.hasNext()) {
                         String key = objKeys.next();
-                        Object val = obj.get(key);
+                        JsonNode val = currentValue.get(key);
                         String newPrefix = currentTask.prefix + "." + key;
                         taskQueue.add(new FlattenTask(newPrefix, val, currentTask.depth + 1));
                     }
                 }
-            } else if (currentTask.value instanceof JSONArray) {
-                JSONArray array = (JSONArray) currentTask.value;
-                if (array.length() == 0) {
+            } else if (currentValue.isArray()) {
+                ArrayNode array = (ArrayNode) currentValue;
+                if (array.isEmpty()) {
                     flattenedOutput.put(currentTask.prefix, nullPlaceholder);
                     arrayFields.add(currentTask.prefix);
                 } else {
-                    // Check if we should keep this array as individual elements
                     boolean shouldKeepElements = shouldKeepAsArrayElements(currentTask.prefix);
 
-                    // Check if all elements are primitives
                     boolean allPrimitives = true;
-                    for (int i = 0; i < array.length(); i++) {
-                        Object item = array.get(i);
-                        if (item instanceof JSONObject || item instanceof JSONArray) {
+                    for (int i = 0; i < array.size(); i++) {
+                        JsonNode item = array.get(i);
+                        if (item.isObject() || item.isArray()) {
                             allPrimitives = false;
                             break;
                         }
                     }
 
                     if (allPrimitives && !shouldKeepElements) {
-                        // Primitive array NOT in explosion path - consolidate
                         StringBuilder sb = new StringBuilder();
-                        int limit = Math.min(array.length(), maxArraySize);
+                        int limit = Math.min(array.size(), maxArraySize);
                         for (int i = 0; i < limit; i++) {
                             if (i > 0) sb.append(arrayDelimiter);
-                            Object item = array.get(i);
-                            if (item == null || item == JSONObject.NULL) {
+                            JsonNode item = array.get(i);
+                            if (item == null || item.isNull()) {
                                 sb.append(nullPlaceholder != null ? nullPlaceholder : "");
                             } else {
-                                if (item instanceof BigDecimal) {
-                                    item = ((BigDecimal) item).doubleValue();
-                                }
-                                sb.append(item.toString());
+                                sb.append(getNodeValue(item).toString());
                             }
                         }
                         flattenedOutput.put(currentTask.prefix, sb.toString());
                         arrayFields.add(currentTask.prefix);
                     } else {
-                        // Keep as individual elements (either complex array or in explosion path)
-                        int limit = Math.min(array.length(), maxArraySize);
+                        int limit = Math.min(array.size(), maxArraySize);
                         for (int i = 0; i < limit; i++) {
-                            Object item = array.get(i);
+                            JsonNode item = array.get(i);
                             String newPrefix = currentTask.prefix + "[" + i + "]";
                             taskQueue.add(new FlattenTask(newPrefix, item, currentTask.depth + 1));
                         }
@@ -482,11 +461,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                     }
                 }
             } else {
-                // Primitive value
-                Object val = currentTask.value;
-                if (val instanceof BigDecimal) {
-                    val = ((BigDecimal) val).doubleValue();
-                }
+                Object val = getNodeValue(currentValue);
                 flattenedOutput.put(currentTask.prefix, val);
             }
         }
@@ -494,30 +469,20 @@ public class JsonFlattenerConsolidator implements Serializable {
         return flattenedOutput;
     }
 
-
-    /**
-     * Check if we should use the special flattening for explosion
-     * This is the key - we need to ensure arrays in explosion paths aren't consolidated
-     */
     private boolean shouldKeepAsArrayElements(String currentPath) {
-        // Debug
         System.err.println("shouldKeepAsArrayElements: checking '" + currentPath + "'");
 
-        // Normalize the current path by removing array indices
         String normalizedPath = currentPath.replaceAll("\\[\\d+\\]", "");
 
         for (String explosionPath : explosionPaths) {
-            // Direct match
             if (normalizedPath.equals(explosionPath)) {
                 System.err.println("  -> YES (direct match with " + explosionPath + ")");
                 return true;
             }
 
-            // Check if this path is part of a larger explosion path
             String[] explosionParts = explosionPath.split("\\.");
             String[] currentParts = normalizedPath.split("\\.");
 
-            // If current path is a prefix of explosion path
             if (currentParts.length <= explosionParts.length) {
                 boolean isPrefix = true;
                 for (int i = 0; i < currentParts.length; i++) {
@@ -537,19 +502,13 @@ public class JsonFlattenerConsolidator implements Serializable {
         return false;
     }
 
-
-    /**
-     * Preprocess JSON string for validation
-     */
     private String preprocessJson(String jsonString) {
         String trimmed = jsonString.trim();
 
-        // Remove potential BOM characters
         if (trimmed.startsWith("\uFEFF")) {
             trimmed = trimmed.substring(1);
         }
 
-        // Validate JSON structure
         if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
             return "{}";
         }
@@ -561,105 +520,59 @@ public class JsonFlattenerConsolidator implements Serializable {
         return trimmed;
     }
 
-    /**
-     * Flatten JSON following the same logic as the Groovy implementation
-     */
-    private Map<String, Object> flattenJson(JSONObject jsonObject) {
+    private Map<String, Object> flattenJson(JsonNode jsonNode) {
         Map<String, Object> flattenedOutput = new LinkedHashMap<>();
         ArrayDeque<FlattenTask> taskQueue = new ArrayDeque<>();
 
-        // Initialize queue with top-level entries
-        Iterator<String> keys = jsonObject.keys();
-        while (keys.hasNext()) {
-            String key = keys.next();
-            Object value = jsonObject.get(key);
-            taskQueue.add(new FlattenTask(key, value, 1)); // Start depth at 1
+        Iterator<String> fieldNames = jsonNode.fieldNames();
+        while (fieldNames.hasNext()) {
+            String key = fieldNames.next();
+            JsonNode value = jsonNode.get(key);
+            taskQueue.add(new FlattenTask(key, value, 1));
         }
 
-        // Process queue
         while (!taskQueue.isEmpty()) {
             FlattenTask currentTask = taskQueue.pollFirst();
 
             if (currentTask.depth > maxNestingDepth) {
-                // Too deep - convert to string
                 flattenedOutput.put(currentTask.prefix, safeToString(currentTask.value));
                 continue;
             }
 
-            if (currentTask.value == null || currentTask.value == JSONObject.NULL) {
+            JsonNode currentValue = (JsonNode) currentTask.value;
+
+            if (currentValue == null || currentValue.isNull()) {
                 flattenedOutput.put(currentTask.prefix, nullPlaceholder);
-            } else if (currentTask.value instanceof JSONObject) {
-                JSONObject obj = (JSONObject) currentTask.value;
-                if (obj.length() == 0) {
+            } else if (currentValue.isObject()) {
+                if (currentValue.isEmpty()) {
                     flattenedOutput.put(currentTask.prefix, nullPlaceholder);
                 } else if (currentTask.depth == maxNestingDepth) {
-                    // At max depth - convert object to string
-                    flattenedOutput.put(currentTask.prefix, obj.toString());
+                    flattenedOutput.put(currentTask.prefix, currentValue.toString());
                 } else {
-                    Iterator<String> objKeys = obj.keys();
+                    Iterator<String> objKeys = currentValue.fieldNames();
                     while (objKeys.hasNext()) {
                         String key = objKeys.next();
-                        Object val = obj.get(key);
+                        JsonNode val = currentValue.get(key);
                         String newPrefix = currentTask.prefix + "." + key;
                         taskQueue.add(new FlattenTask(newPrefix, val, currentTask.depth + 1));
                     }
                 }
-            } else if (currentTask.value instanceof JSONArray) {
-                JSONArray array = (JSONArray) currentTask.value;
-                if (array.length() == 0) {
+            } else if (currentValue.isArray()) {
+                ArrayNode array = (ArrayNode) currentValue;
+                if (array.isEmpty()) {
                     flattenedOutput.put(currentTask.prefix, nullPlaceholder);
                     arrayFields.add(currentTask.prefix);
                 } else {
-                    // Check if all elements are primitives
-                    boolean allPrimitives = true;
-                    for (int i = 0; i < array.length(); i++) {
-                        Object item = array.get(i);
-                        if (item instanceof JSONObject || item instanceof JSONArray) {
-                            allPrimitives = false;
-                            break;
-                        }
+                    int limit = Math.min(array.size(), maxArraySize);
+                    for (int i = 0; i < limit; i++) {
+                        JsonNode item = array.get(i);
+                        String newPrefix = currentTask.prefix + "[" + i + "]";
+                        taskQueue.add(new FlattenTask(newPrefix, item, currentTask.depth + 1));
                     }
-
-                    if (allPrimitives) {
-                        // Simple array - concatenate values
-                        StringBuilder sb = new StringBuilder();
-                        int limit = Math.min(array.length(), maxArraySize);
-                        for (int i = 0; i < limit; i++) {
-                            if (i > 0) sb.append(arrayDelimiter);
-                            Object item = array.get(i);
-                            if (item == null || item == JSONObject.NULL) {
-                                sb.append(nullPlaceholder != null ? nullPlaceholder : "");
-                            } else {
-                                // Convert BigDecimal to double for consistent string representation
-                                if (item instanceof BigDecimal) {
-                                    item = ((BigDecimal) item).doubleValue();
-                                }
-                                sb.append(item.toString());
-                            }
-                        }
-                        flattenedOutput.put(currentTask.prefix, sb.toString());
-                        // Track that this was an array field
-                        arrayFields.add(currentTask.prefix);
-                    } else {
-                        // Complex array - process each element
-                        int limit = Math.min(array.length(), maxArraySize);
-                        for (int i = 0; i < limit; i++) {
-                            Object item = array.get(i);
-                            String newPrefix = currentTask.prefix + "[" + i + "]";
-                            taskQueue.add(new FlattenTask(newPrefix, item, currentTask.depth + 1));
-                        }
-                        // Track that this prefix represents an array
-                        arrayFields.add(currentTask.prefix);
-                    }
+                    arrayFields.add(currentTask.prefix);
                 }
             } else {
-                // Primitive value - preserve original type
-                Object val = currentTask.value;
-                // Convert BigDecimal to double for consistent representation
-                if (val instanceof BigDecimal) {
-                    val = ((BigDecimal) val).doubleValue();
-                }
-                // Don't convert to string here - preserve the original type
+                Object val = getNodeValue(currentValue);
                 flattenedOutput.put(currentTask.prefix, val);
             }
         }
@@ -667,87 +580,95 @@ public class JsonFlattenerConsolidator implements Serializable {
         return flattenedOutput;
     }
 
-    /**
-     * Consolidate flattened data following the Groovy logic
-     */
+    private Object getNodeValue(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        } else if (node.isTextual()) {
+            return node.asText();
+        } else if (node.isInt()) {
+            return node.asInt();
+        } else if (node.isLong()) {
+            return node.asLong();
+        } else if (node.isDouble() || node.isFloat()) {
+            return node.asDouble();
+        } else if (node.isBoolean()) {
+            return node.asBoolean();
+        } else if (node.isBigDecimal()) {
+            return node.decimalValue().doubleValue();
+        } else if (node.isBigInteger()) {
+            return node.bigIntegerValue().longValue();
+        } else {
+            return node.toString();
+        }
+    }
+
     private Map<String, Object> consolidateFlattened(Map<String, Object> flattened) {
-        // Group by base key (strip array indices and replace dots with underscores)
-        Map<String, List<KeyedValue>> groupedByBaseKey = new LinkedHashMap<>();
+        Map<String, Object> consolidatedOutput = new LinkedHashMap<>();
+        Map<String, List<KeyedValue>> groupedByBase = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> entry : flattened.entrySet()) {
-            String flattenedKey = entry.getKey();
+            String key = entry.getKey();
             Object value = entry.getValue();
 
-            // Calculate base key
-            String baseKey = ARRAY_INDEX_STRIP_PATTERN.matcher(flattenedKey).replaceAll("");
-            baseKey = baseKey.replace('.', '_');
+            String consolidatedKey = key.replace(".", "_");
+            boolean hasArrayIndex = ARRAY_INDEX_PATTERN.matcher(key).find();
 
-            // Check if it has array index
-            boolean hasArrayIndex = flattenedKey.contains("[");
-
-            // Add to grouped data
-            List<KeyedValue> list = groupedByBaseKey.computeIfAbsent(baseKey, k -> new ArrayList<>());
-            list.add(new KeyedValue(flattenedKey, value, hasArrayIndex));
+            if (hasArrayIndex) {
+                String baseKey = ARRAY_INDEX_STRIP_PATTERN.matcher(consolidatedKey).replaceAll("");
+                groupedByBase.computeIfAbsent(baseKey, k -> new ArrayList<>())
+                        .add(new KeyedValue(key, value, true));
+            } else {
+                consolidatedOutput.put(consolidatedKey, value);
+            }
         }
 
-        // Process each group
-        Map<String, Object> consolidatedOutput = new LinkedHashMap<>();
-        for (Map.Entry<String, List<KeyedValue>> entry : groupedByBaseKey.entrySet()) {
-            processKeyGroup(entry.getKey(), entry.getValue(), consolidatedOutput);
+        for (Map.Entry<String, List<KeyedValue>> group : groupedByBase.entrySet()) {
+            String consolidatedKey = group.getKey();
+            List<KeyedValue> keyedValues = group.getValue();
+
+            processGroupedValues(consolidatedKey, keyedValues, consolidatedOutput);
         }
 
         return consolidatedOutput;
     }
 
-    /**
-     * Process a group of values for the same base key
-     */
-    private void processKeyGroup(String consolidatedKey, List<KeyedValue> keyedValues,
-                                 Map<String, Object> consolidatedOutput) {
-        // Check if any value had array indices
-        boolean wasOriginallyArray = keyedValues.stream().anyMatch(kv -> kv.hasArrayIndex);
-
-        // Also check if the original field was tracked as an array field
+    private void processGroupedValues(String consolidatedKey, List<KeyedValue> keyedValues,
+                                      Map<String, Object> consolidatedOutput) {
+        String originalBaseKey = consolidatedKey.replace("_", ".");
         boolean wasTrackedAsArray = false;
-        for (KeyedValue kv : keyedValues) {
-            // Need to convert the flattened key to base key for checking
-            String baseKey = ARRAY_INDEX_STRIP_PATTERN.matcher(kv.originalFlattenedKey).replaceAll("");
-            if (arrayFields.contains(baseKey) || arrayFields.contains(kv.originalFlattenedKey)) {
+        for (String arrayField : arrayFields) {
+            String normalizedArrayField = arrayField.replaceAll("\\[\\d+\\]", "");
+            if (originalBaseKey.startsWith(normalizedArrayField)) {
                 wasTrackedAsArray = true;
                 break;
             }
         }
 
-        // Filter valid values (non-null and not null placeholder)
         List<KeyedValue> validKeyedValues = new ArrayList<>();
+        boolean wasOriginallyArray = keyedValues.size() > 1;
+
         for (KeyedValue kv : keyedValues) {
-            if (kv.value != null && !kv.value.equals(nullPlaceholder)) {
+            if (kv.value != null) {
                 validKeyedValues.add(kv);
             }
         }
 
-        // Determine if we should generate array statistics
-        boolean shouldGenerateArrayStats = gatherStatistics && (wasOriginallyArray || wasTrackedAsArray);
+        boolean shouldGenerateArrayStats = wasTrackedAsArray && gatherStatistics;
 
         if (validKeyedValues.isEmpty()) {
-            // All values were null
             consolidatedOutput.put(consolidatedKey, nullPlaceholder);
             if (shouldGenerateArrayStats) {
                 consolidatedOutput.put(consolidatedKey + "_count", 0L);
                 consolidatedOutput.put(consolidatedKey + "_distinct_count", 0L);
             }
         } else if (validKeyedValues.size() == 1 && !wasOriginallyArray) {
-            // Single value case
             KeyedValue single = validKeyedValues.get(0);
             String value = single.value.toString();
 
-            // Check if this single value is actually a consolidated array
             if (wasTrackedAsArray && value.contains(arrayDelimiter)) {
-                // This is a flattened array - process as array
                 processArrayValues(consolidatedKey, value.split(Pattern.quote(arrayDelimiter), -1),
                         consolidatedOutput);
             } else {
-                // True single value
                 Object finalValue = single.value;
 
                 if (consolidateWithMatrixDenotorsInValue && single.hasArrayIndex) {
@@ -758,7 +679,6 @@ public class JsonFlattenerConsolidator implements Serializable {
                 consolidatedOutput.put(consolidatedKey, finalValue);
 
                 if (wasTrackedAsArray && gatherStatistics) {
-                    // Single value from array - only add statistics if toggle is on
                     consolidatedOutput.put(consolidatedKey + "_count", 1L);
                     consolidatedOutput.put(consolidatedKey + "_distinct_count", 1L);
                     int length = finalValue.toString().length();
@@ -769,7 +689,6 @@ public class JsonFlattenerConsolidator implements Serializable {
                 }
             }
         } else {
-            // Multiple values - process as array
             List<String> arrayValues = new ArrayList<>();
 
             for (KeyedValue kv : validKeyedValues) {
@@ -788,15 +707,11 @@ public class JsonFlattenerConsolidator implements Serializable {
         }
     }
 
-    /**
-     * Process array values and generate statistics
-     */
     private void processArrayValues(String consolidatedKey, String[] values,
                                     Map<String, Object> consolidatedOutput) {
         String joined = String.join(arrayDelimiter, values);
         consolidatedOutput.put(consolidatedKey, joined);
 
-        // Only gather statistics if the toggle is on
         if (gatherStatistics) {
             Set<String> uniqueValues = new HashSet<>(Arrays.asList(values));
 
@@ -836,31 +751,13 @@ public class JsonFlattenerConsolidator implements Serializable {
         return "object_single_value";
     }
 
-    private String determineListType(List<KeyedValue> values) {
-        boolean allNumbers = true;
-        boolean allBooleans = true;
-        boolean allStrings = true;
-
-        for (KeyedValue kv : values) {
-            if (!(kv.value instanceof Number)) allNumbers = false;
-            if (!(kv.value instanceof Boolean)) allBooleans = false;
-            if (!(kv.value instanceof String)) allStrings = false;
-        }
-
-        if (allNumbers) return "numeric_list_consolidated";
-        if (allBooleans) return "boolean_list_consolidated";
-        if (allStrings) return "string_list_consolidated";
-        return "mixed_or_string_after_consolidation";
-    }
-
     private String determineArrayType(List<String> values) {
         boolean allNumbers = true;
         boolean allBooleans = true;
 
         for (String val : values) {
             try {
-                // A simple check for numeric values
-                if (val.equalsIgnoreCase("NaN")) { // Double.parseDouble("NaN") works but we treat it as non-numeric string
+                if (val.equalsIgnoreCase("NaN")) {
                     allNumbers = false;
                     continue;
                 }
@@ -885,7 +782,7 @@ public class JsonFlattenerConsolidator implements Serializable {
             if (value instanceof BigDecimal) {
                 value = ((BigDecimal) value).doubleValue();
             }
-            if (value instanceof JSONObject || value instanceof JSONArray) {
+            if (value instanceof JsonNode) {
                 return value.toString();
             }
             return value.toString();
@@ -894,7 +791,6 @@ public class JsonFlattenerConsolidator implements Serializable {
         }
     }
 
-    // Helper classes
     private static class FlattenTask implements Serializable {
         private static final long serialVersionUID = 1L;
         String prefix;

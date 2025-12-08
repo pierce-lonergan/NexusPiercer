@@ -1,5 +1,6 @@
 package io.github.pierce.spark;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.pierce.JsonFlattenerConsolidator;
 import org.apache.spark.sql.Column;
@@ -84,9 +85,10 @@ public class NexusPiercerFunctions {
                     String flattened = flattener.flattenAndConsolidateJson(json);
 
 
-                    org.json.JSONObject obj = new org.json.JSONObject(flattened);
+                    JsonNode obj = STRICT_JSON_MAPPER.readTree(flattened);
                     String key = arrayPath.replace(".", "_");
-                    return obj.optString(key, null);
+                    JsonNode valueNode = obj.get(key);
+                    return (valueNode != null && !valueNode.isNull()) ? valueNode.asText() : null;
                 } catch (Exception e) {
                     return null;
                 }
@@ -103,9 +105,10 @@ public class NexusPiercerFunctions {
                     );
                     String flattened = flattener.flattenAndConsolidateJson(json);
 
-                    org.json.JSONObject obj = new org.json.JSONObject(flattened);
+                    JsonNode obj = STRICT_JSON_MAPPER.readTree(flattened);
                     String countKey = arrayPath.replace(".", "_") + "_count";
-                    return obj.has(countKey) ? obj.getLong(countKey) : null;
+                    JsonNode countNode = obj.get(countKey);
+                    return (countNode != null && !countNode.isNull()) ? countNode.asLong() : null;
                 } catch (Exception e) {
                     return null;
                 }
@@ -122,9 +125,10 @@ public class NexusPiercerFunctions {
                     );
                     String flattened = flattener.flattenAndConsolidateJson(json);
 
-                    org.json.JSONObject obj = new org.json.JSONObject(flattened);
+                    JsonNode obj = STRICT_JSON_MAPPER.readTree(flattened);
                     String distinctKey = arrayPath.replace(".", "_") + "_distinct_count";
-                    return obj.has(distinctKey) ? obj.getLong(distinctKey) : null;
+                    JsonNode distinctNode = obj.get(distinctKey);
+                    return (distinctNode != null && !distinctNode.isNull()) ? distinctNode.asLong() : null;
                 } catch (Exception e) {
                     return null;
                 }
@@ -220,9 +224,10 @@ public class NexusPiercerFunctions {
                     );
                     String flattened = flattener.flattenAndConsolidateJson(json);
 
-                    org.json.JSONObject obj = new org.json.JSONObject(flattened);
+                    JsonNode obj = STRICT_JSON_MAPPER.readTree(flattened);
                     String key = fieldPath.replace(".", "_");
-                    return obj.has(key) ? obj.get(key).toString() : null;
+                    JsonNode fieldNode = obj.get(key);
+                    return (fieldNode != null && !fieldNode.isNull()) ? fieldNode.asText() : null;
                 } catch (Exception e) {
                     return null;
                 }
