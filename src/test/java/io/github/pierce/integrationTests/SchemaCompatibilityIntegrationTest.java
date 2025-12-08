@@ -1,5 +1,6 @@
 //package io.github.pierce.integrationTests;
 //
+//import com.fasterxml.jackson.core.JsonProcessingException;
 //import io.github.pierce.*;
 //import org.apache.avro.Schema;
 //import org.apache.spark.sql.Dataset;
@@ -7,7 +8,8 @@
 //import org.apache.spark.sql.RowFactory;
 //import org.apache.spark.sql.types.DataTypes;
 //import org.apache.spark.sql.types.StructType;
-//import org.json.JSONObject;
+//import com.fasterxml.jackson.databind.JsonNode;
+//import com.fasterxml.jackson.databind.ObjectMapper;
 //import org.junit.jupiter.api.Test;
 //
 //import java.util.ArrayList;
@@ -37,6 +39,7 @@
 // * - Nulls in arrays are filtered out when nullPlaceholder is null
 // */
 //class SchemaCompatibilityIntegrationTest extends SparkTestBase {
+//    private static final ObjectMapper MAPPER = new ObjectMapper();
 //
 //    @Test
 //    void testEndToEndCompatibility() {
@@ -435,7 +438,7 @@
 //    }
 //
 //    @Test
-//    void testLargeArraysAtMaxSize() {
+//    void testLargeArraysAtMaxSize() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -453,7 +456,7 @@
 //            largeArray.add("item" + i);
 //        }
 //
-//        JSONObject json = new JSONObject();
+//        JsonNode json = MAPPER.readTree(avroSchemaJson);
 //        json.put("hugeArray", largeArray);
 //
 //        testJsonSchemaCompatibility(avroSchemaJson, json.toString(), row -> {
@@ -483,7 +486,7 @@
 //            oversizedArray.add(i);
 //        }
 //
-//        JSONObject json = new JSONObject();
+//        JsonNode json = MAPPER.readTree();
 //        json.put("oversizedArray", oversizedArray);
 //
 //        JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
@@ -609,7 +612,7 @@
 //    }
 //
 //    @Test
-//    void testMapHandlingDiagnostic() {
+//    void testMapHandlingDiagnostic() throws JsonProcessingException {
 //        // This test helps diagnose how maps are actually handled
 //        String avroSchemaJson = """
 //            {
@@ -640,7 +643,7 @@
 //        System.out.println("Flattened map JSON: " + flattened);
 //
 //        // Check if it's a single field or multiple fields
-//        JSONObject flatObj = new JSONObject(flattened);
+//        JsonNode flatObj = MAPPER.readTree(flattened);
 //        System.out.println("Fields in flattened JSON:");
 //        for (String key : flatObj.keySet()) {
 //            System.out.println("  " + key + " = " + flatObj.get(key));
@@ -666,7 +669,7 @@
 //    }
 //
 //    @Test
-//    void testMapsWithComplexValues() {
+//    void testMapsWithComplexValues() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -716,7 +719,7 @@
 //                ",", null, 50, 1000, false
 //        );
 //        String flattened = flattener.flattenAndConsolidateJson(mapJson);
-//        JSONObject flatObj = new JSONObject(flattened);
+//        JsonNode flatObj = MAPPER.readTree(flattened);
 //
 //        // Maps might be flattened into individual fields
 //        testJsonSchemaCompatibility(avroSchemaJson, mapJson, row -> {
@@ -767,7 +770,7 @@
 //            longStringArray.add("longItem" + i + "_" + "x".repeat(100));
 //        }
 //
-//        JSONObject json = new JSONObject();
+//        JsonNode json = MAPPER.readTree();
 //        json.put("shortString", "short");
 //        json.put("longString", veryLongString);
 //        json.put("stringArray", longStringArray);
@@ -983,7 +986,7 @@
 //        schemaBuilder.append("]}");
 //
 //        // Create corresponding JSON
-//        JSONObject largeJson = new JSONObject();
+//        JsonNode largeJson = MAPPER.readTree();
 //        for (int i = 0; i < 100; i++) {
 //            largeJson.put("field" + i, "value" + i);
 //        }
@@ -1036,7 +1039,7 @@
 //    }
 //
 //    @Test
-//    void testDebugCapabilities() {
+//    void testDebugCapabilities() throws JsonProcessingException {
 //        // This test demonstrates how to debug when tests fail
 //        String avroSchemaJson = """
 //            {
@@ -1067,10 +1070,10 @@
 //        // System.out.println("Flattened JSON: " + flattenedJson);
 //
 //        // Verify the flattened structure
-//        JSONObject flattened = new JSONObject(flattenedJson);
-//        assertThat(flattened.getString("field1")).isEqualTo("test");
-//        assertThat(flattened.getString("field2")).isEqualTo("1,2,3");
-//        assertThat(flattened.getLong("field2_count")).isEqualTo(3L);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
+//        assertThat(flattened.get("field1").asText()).isEqualTo("test");
+//        assertThat(flattened.get("field2").asText()).isEqualTo("1,2,3");
+//        assertThat(flattened.get("field2_count").asLong()).isEqualTo(3L);
 //    }
 //
 //    @Test
@@ -1277,7 +1280,7 @@
 //    }
 //
 //    @Test
-//    void testArrayStatisticsGeneration() {
+//    void testArrayStatisticsGeneration() throws JsonProcessingException {
 //        // This test verifies that array statistics are properly generated
 //        String avroSchemaJson = """
 //            {
@@ -1305,28 +1308,28 @@
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
 //
 //        // Verify the flattened JSON contains statistics
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Check array values
-//        assertThat(flattened.getString("simpleArray")).isEqualTo("apple,banana,cherry,date,elderberry");
-//        assertThat(flattened.getString("numericArray")).isEqualTo("10,20,30,40,50");
+//        assertThat(flattened.get("simpleArray").asText()).isEqualTo("apple,banana,cherry,date,elderberry");
+//        assertThat(flattened.get("numericArray").asText()).isEqualTo("10,20,30,40,50");
 //
 //        // Check statistics are present
 //        assertThat(flattened.has("simpleArray_count")).isTrue();
-//        assertThat(flattened.getLong("simpleArray_count")).isEqualTo(5L);
-//        assertThat(flattened.getLong("simpleArray_distinct_count")).isEqualTo(5L);
-//        assertThat(flattened.getLong("simpleArray_min_length")).isEqualTo(4L); // "date"
-//        assertThat(flattened.getLong("simpleArray_max_length")).isEqualTo(10L); // "elderberry"
-//        assertThat(flattened.getDouble("simpleArray_avg_length")).isBetween(5.0, 7.0);
-//        assertThat(flattened.getString("simpleArray_type")).isEqualTo("string_list_consolidated");
+//        assertThat(flattened.get("simpleArray_count").asLong()).isEqualTo(5L);
+//        assertThat(flattened.get("simpleArray_distinct_count").asLong()).isEqualTo(5L);
+//        assertThat(flattened.get("simpleArray_min_length").asLong()).isEqualTo(4L); // "date"
+//        assertThat(flattened.get("simpleArray_max_length").asLong()).isEqualTo(10L); // "elderberry"
+//        assertThat(flattened.get("simpleArray_avg_length").asDouble()).isBetween(5.0, 7.0);
+//        assertThat(flattened.get("simpleArray_type").asText()).isEqualTo("string_list_consolidated");
 //
 //        // Numeric array statistics
-//        assertThat(flattened.getLong("numericArray_count")).isEqualTo(5L);
-//        assertThat(flattened.getString("numericArray_type")).isEqualTo("numeric_list_consolidated");
+//        assertThat(flattened.get("numericArray_count").asLong()).isEqualTo(5L);
+//        assertThat(flattened.get("numericArray_type").asText()).isEqualTo("numeric_list_consolidated");
 //    }
 //
 //    @Test
-//    void testNoStatisticsGeneratedWhenDisabled() {
+//    void testNoStatisticsGeneratedWhenDisabled() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1355,13 +1358,13 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Verify arrays are still consolidated properly
-//        assertThat(flattened.getString("stringArray")).isEqualTo("apple,banana,cherry");
-//        assertThat(flattened.getString("intArray")).isEqualTo("1,2,3,4,5");
-//        assertThat(flattened.getString("doubleArray")).isEqualTo("1.1,2.2,3.3");
-//        assertThat(flattened.getString("booleanArray")).isEqualTo("true,false,true");
+//        assertThat(flattened.get("stringArray").asText()).isEqualTo("apple,banana,cherry");
+//        assertThat(flattened.get("intArray").asText()).isEqualTo("1,2,3,4,5");
+//        assertThat(flattened.get("doubleArray").asText()).isEqualTo("1.1,2.2,3.3");
+//        assertThat(flattened.get("booleanArray").asText()).isEqualTo("true,false,true");
 //
 //        // Verify NO statistics fields exist
 //        assertThat(flattened.has("stringArray_count")).isFalse();
@@ -1379,7 +1382,7 @@
 //    }
 //
 //    @Test
-//    void testNestedArraysWithoutStatistics() {
+//    void testNestedArraysWithoutStatistics() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1418,11 +1421,11 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Verify consolidation works
-//        assertThat(flattened.getString("users_name")).isEqualTo("Alice,Bob,Charlie");
-//        assertThat(flattened.getString("users_scores")).isEqualTo("90,85,95,80,75,88,92,87,91");
+//        assertThat(flattened.get("users_name").asText()).isEqualTo("Alice,Bob,Charlie");
+//        assertThat(flattened.get("users_scores").asText()).isEqualTo("90,85,95,80,75,88,92,87,91");
 //
 //        // Verify no statistics
 //        assertThat(flattened.has("users_name_count")).isFalse();
@@ -1431,7 +1434,7 @@
 //    }
 //
 //    @Test
-//    void testEmptyArraysWithoutStatistics() {
+//    void testEmptyArraysWithoutStatistics() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1455,11 +1458,11 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Empty arrays should be null when nullPlaceholder is null
-//        assertThat(flattened.isNull("emptyStrings")).isTrue();
-//        assertThat(flattened.isNull("emptyNumbers")).isTrue();
+//        assertThat(flattened.isNull()).isTrue();
+//        assertThat(flattened.isNull()).isTrue();
 //
 //        // No statistics for empty arrays
 //        assertThat(flattened.has("emptyStrings_count")).isFalse();
@@ -1468,7 +1471,7 @@
 //    }
 //
 //    @Test
-//    void testSingleValueArrayWithoutStatistics() {
+//    void testSingleValueArrayWithoutStatistics() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1492,11 +1495,11 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Single values should still be present
-//        assertThat(flattened.getString("singleString")).isEqualTo("onlyValue");
-//        assertThat(flattened.getString("singleNumber")).isEqualTo("42.0");
+//        assertThat(flattened.get("singleString").asText()).isEqualTo("onlyValue");
+//        assertThat(flattened.get("singleNumber").asText()).isEqualTo("42.0");
 //
 //        // No statistics
 //        assertThat(flattened.has("singleString_count")).isFalse();
@@ -1506,7 +1509,7 @@
 //    }
 //
 //    @Test
-//    void testLargeArrayWithoutStatistics() {
+//    void testLargeArrayWithoutStatistics() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1524,17 +1527,17 @@
 //            largeArray.add(i);
 //        }
 //
-//        JSONObject json = new JSONObject();
+//        JsonNode json = MAPPER.readTree(avroSchemaJson);
 //        json.put("bigArray", largeArray);
 //
 //        JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(json.toString());
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Verify array is consolidated
-//        String arrayValue = flattened.getString("bigArray");
+//        String arrayValue = flattened.get("bigArray").asText();
 //        assertThat(arrayValue.split(",")).hasSize(500);
 //
 //        // No statistics should be generated
@@ -1547,7 +1550,7 @@
 //    }
 //
 //    @Test
-//    void testArraysWithNullsNoStatistics() {
+//    void testArraysWithNullsNoStatistics() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1571,11 +1574,11 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Arrays should be consolidated with empty strings for nulls
-//        assertThat(flattened.getString("mixedArray")).isEqualTo("first,,third,,fifth");
-//        assertThat(flattened.getString("numberArray")).isEqualTo("1,,3,,5");
+//        assertThat(flattened.get("mixedArray").asText()).isEqualTo("first,,third,,fifth");
+//        assertThat(flattened.get("numberArray").asText()).isEqualTo("1,,3,,5");
 //
 //        // No statistics
 //        assertThat(flattened.has("mixedArray_count")).isFalse();
@@ -1583,7 +1586,7 @@
 //    }
 //
 //    @Test
-//    void testComplexObjectArraysNoStatistics() {
+//    void testComplexObjectArraysNoStatistics() throws JsonProcessingException {
 //        String avroSchemaJson = """
 //            {
 //              "type": "record",
@@ -1633,13 +1636,13 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Verify consolidation
-//        assertThat(flattened.getString("products_id")).isEqualTo("P001,P002");
-//        assertThat(flattened.getString("products_name")).isEqualTo("Laptop,Mouse");
-//        assertThat(flattened.getString("products_price")).isEqualTo("999.99,29.99");
-//        assertThat(flattened.getString("products_tags")).contains("electronics").contains("computers").contains("accessories");
+//        assertThat(flattened.get("products_id").asText()).isEqualTo("P001,P002");
+//        assertThat(flattened.get("products_name").asText()).isEqualTo("Laptop,Mouse");
+//        assertThat(flattened.get("products_price").asText()).isEqualTo("999.99,29.99");
+//        assertThat(flattened.get("products_tags").asText()).contains("electronics").contains("computers").contains("accessories");
 //
 //        // No statistics for any field
 //        assertThat(flattened.has("products_id_count")).isFalse();
@@ -1650,7 +1653,7 @@
 //    }
 //
 //    @Test
-//    void testMixedTypeArraysNoStatistics() {
+//    void testMixedTypeArraysNoStatistics() throws JsonProcessingException {
 //        String testJson = """
 //            {
 //              "mixed": ["string", 123, true, 45.67, false, "another string"]
@@ -1661,10 +1664,10 @@
 //                ",", null, 50, 1000, false, false
 //        );
 //        String flattenedJson = flattener.flattenAndConsolidateJson(testJson);
-//        JSONObject flattened = new JSONObject(flattenedJson);
+//        JsonNode flattened = MAPPER.readTree(flattenedJson);
 //
 //        // Array should be consolidated with all values as strings
-//        assertThat(flattened.getString("mixed")).isEqualTo("string,123,true,45.67,false,another string");
+//        assertThat(flattened.get("mixed").asText()).isEqualTo("string,123,true,45.67,false,another string");
 //
 //        // No type detection or statistics
 //        assertThat(flattened.has("mixed_type")).isFalse();
@@ -1672,7 +1675,7 @@
 //    }
 //
 //    @Test
-//    void testCompareStatisticsEnabledVsDisabled() {
+//    void testCompareStatisticsEnabledVsDisabled() throws JsonProcessingException {
 //        String testJson = """
 //            {
 //              "data": ["apple", "banana", "cherry", "date"]
@@ -1684,22 +1687,22 @@
 //                ",", null, 50, 1000, false, true
 //        );
 //        String withStatsJson = withStats.flattenAndConsolidateJson(testJson);
-//        JSONObject withStatsObj = new JSONObject(withStatsJson);
+//        JsonNode withStatsObj = MAPPER.readTree(withStatsJson);
 //
 //        // With statistics disabled
 //        JsonFlattenerConsolidator withoutStats = new JsonFlattenerConsolidator(
 //                ",", null, 50, 1000, false, false
 //        );
 //        String withoutStatsJson = withoutStats.flattenAndConsolidateJson(testJson);
-//        JSONObject withoutStatsObj = new JSONObject(withoutStatsJson);
+//        JsonNode withoutStatsObj = MAPPER.readTree(withoutStatsJson);
 //
 //        // Both should have the same consolidated array
-//        assertThat(withStatsObj.getString("data")).isEqualTo(withoutStatsObj.getString("data"));
-//        assertThat(withStatsObj.getString("data")).isEqualTo("apple,banana,cherry,date");
+//        assertThat(withStatsObj.get("data").asText()).isEqualTo(withoutStatsObj.get("data").asText());
+//        assertThat(withStatsObj.get("data").asText()).isEqualTo("apple,banana,cherry,date");
 //
 //        // Only the one with stats should have statistics fields
 //        assertThat(withStatsObj.has("data_count")).isTrue();
-//        assertThat(withStatsObj.getLong("data_count")).isEqualTo(4L);
+//        assertThat(withStatsObj.get("data_count").asLong()).isEqualTo(4L);
 //        assertThat(withStatsObj.has("data_type")).isTrue();
 //
 //        // The one without stats should not have any statistics fields
@@ -1715,9 +1718,9 @@
 //    }
 //
 //    @Test
-//    void testPerformanceWithoutStatistics() {
+//    void testPerformanceWithoutStatistics() throws JsonProcessingException {
 //        // Create a complex JSON with many arrays
-//        JSONObject complexJson = new JSONObject();
+//        JsonNode complexJson = MAPPER.readTree();
 //        for (int i = 0; i < 50; i++) {
 //            List<String> array = new ArrayList<>();
 //            for (int j = 0; j < 100; j++) {
@@ -1747,7 +1750,7 @@
 //        System.out.println("Time with statistics: " + timeWithStats + "ms");
 //
 //        // Verify no statistics in the no-stats result
-//        JSONObject noStatsObj = new JSONObject(noStatsResult);
+//        JsonNode noStatsObj = MAPPER.readTree(noStatsResult);
 //        for (int i = 0; i < 50; i++) {
 //            assertThat(noStatsObj.has("array_" + i + "_count")).isFalse();
 //            assertThat(noStatsObj.has("array_" + i + "_type")).isFalse();
@@ -1758,7 +1761,7 @@
 //    }
 //
 //    @Test
-//    void testExtremelyComplexSchemaEndToEnd() {
+//    void testExtremelyComplexSchemaEndToEnd() throws JsonProcessingException {
 //        // This test simulates a complex financial trading system with extensive nesting
 //        String avroSchemaJson = """
 //            {
@@ -2472,7 +2475,7 @@
 //        assertThat(result.<String>getAs("notes")).contains("Account upgraded").contains("Whale alert");
 //
 //        // Verify the flattened JSON is valid
-//        JSONObject flatObj = new JSONObject(flattenedJson);
+//        JsonNode flatObj = MAPPER.readTree(flattenedJson);
 //        assertThat(flatObj.keySet().size()).isGreaterThan(100); // Should have many flattened fields
 //
 //        // Performance check - ensure processing completes in reasonable time

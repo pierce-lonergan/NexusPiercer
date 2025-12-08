@@ -1,11 +1,13 @@
 //package io.github.pierce.spark;
 //
+//import com.fasterxml.jackson.core.JsonProcessingException;
 //import org.apache.spark.sql.AnalysisException;
 //import org.apache.spark.sql.Dataset;
 //import org.apache.spark.sql.Encoders;
 //import org.apache.spark.sql.Row;
 //import org.apache.spark.sql.SparkSession;
-//import org.json.JSONObject;
+//import com.fasterxml.jackson.databind.JsonNode;
+//import com.fasterxml.jackson.databind.ObjectMapper;
 //import org.junit.jupiter.api.*;
 //
 //import java.util.Arrays;
@@ -23,6 +25,7 @@
 //
 //
 //class NexusPiercerFunctionsTest {
+//    private static final ObjectMapper MAPPER = new ObjectMapper();
 //
 //    private SparkSession spark;
 //    private Dataset<Row> df;
@@ -72,32 +75,32 @@
 //    @DisplayName("Flattening Functions")
 //    class FlatteningFunctionsTest {
 //        @Test
-//        void flattenJson_shouldFlattenWithDefaultDelimiter() {
+//        void flattenJson_shouldFlattenWithDefaultDelimiter() throws JsonProcessingException {
 //            Dataset<Row> result = df.withColumn("flattened", flattenJson(col("json")));
 //            String flattened = result.filter(col("json").equalTo(complexJson)).select("flattened").as(Encoders.STRING()).first();
 //
-//            JSONObject obj = new JSONObject(flattened);
-//            assertThat(obj.getString("user_name")).isEqualTo("Alice");
-//            assertThat(obj.getString("tags")).isEqualTo("dev,java");
+//            JsonNode obj = MAPPER.readTree(flattened);
+//            assertThat(obj.get("user_name").asText()).isEqualTo("Alice");
+//            assertThat(obj.get("tags").asText()).isEqualTo("dev,java");
 //        }
 //
 //        @Test
-//        void flattenJsonWithDelimiter_shouldFlattenWithCustomDelimiter() {
+//        void flattenJsonWithDelimiter_shouldFlattenWithCustomDelimiter() throws JsonProcessingException {
 //            Dataset<Row> result = df.withColumn("flattened", flattenJson(col("json"), "|"));
 //            String flattened = result.filter(col("json").equalTo(complexJson)).select("flattened").as(Encoders.STRING()).first();
 //
-//            JSONObject obj = new JSONObject(flattened);
-//            assertThat(obj.getString("tags")).isEqualTo("dev|java");
+//            JsonNode obj = MAPPER.readTree(flattened);
+//            assertThat(obj.get("tags").asText()).isEqualTo("dev|java");
 //        }
 //
 //        @Test
-//        void flattenJsonWithStatistics_shouldIncludeArrayStats() {
+//        void flattenJsonWithStatistics_shouldIncludeArrayStats() throws JsonProcessingException {
 //            Dataset<Row> result = df.withColumn("flattened", flattenJsonWithStatistics(col("json")));
 //            String flattened = result.filter(col("json").equalTo(complexJson)).select("flattened").as(Encoders.STRING()).first();
 //
-//            JSONObject obj = new JSONObject(flattened);
-//            assertThat(obj.getLong("tags_count")).isEqualTo(2L);
-//            assertThat(obj.getLong("scores_history_distinct_count")).isEqualTo(2L);
+//            JsonNode obj = MAPPER.readTree(flattened);
+//            assertThat(obj.get("tags_count").asLong()).isEqualTo(2L);
+//            assertThat(obj.get("scores_history_distinct_count").asLong()).isEqualTo(2L);
 //        }
 //    }
 //
@@ -230,42 +233,5 @@
 //            spark.catalog().dropTempView("test_data");
 //        }
 //
-//        @Test
-//        void registerAll_shouldMakeAllFunctionsAvailableInSql() {
-//            registerAll(spark);
 //
-//            Dataset<Row> result = spark.sql("SELECT " +
-//                    "flatten_json(json) as flat, " +
-//                    "json_array_count(json, 'tags') as tag_count " +
-//                    "FROM test_data WHERE json = '" + complexJson + "'");
-//
-//            assertThat(result.count()).isEqualTo(1);
-//            Row row = result.first();
-//            assertThat(row.getString(0)).contains("\"user_name\":\"Alice\"");
-//            assertThat(row.getLong(1)).isEqualTo(2L);
-//        }
-//
-//        // Inside NexusPiercerFunctionsTest.java -> SqlRegistrationTest class
-//
-//        @Test
-//        void register_shouldMakeSpecificFunctionsAvailable() {
-//            register(spark, "is_valid_json", "extract_nested_field");
-//
-//            Dataset<Row> result = spark.sql("SELECT " +
-//                    "is_valid_json(json) as is_valid, " +
-//                    "extract_nested_field(json, 'user.name') as name " +
-//                    "FROM test_data WHERE json = '" + complexJson + "'");
-//
-//            assertThat(result.first().getBoolean(0)).isTrue();
-//            assertThat(result.first().getString(1)).isEqualTo("Alice");
-//
-//            // --- FIX IS HERE ---
-//            // Make the assertion more robust to changes in Spark error messages.
-//            // Check for the error code and the function name.
-//            assertThatThrownBy(() -> spark.sql("SELECT flatten_json(json) FROM test_data"))
-//                    .isInstanceOf(AnalysisException.class)
-//                    .hasMessageContaining("UNRESOLVED_ROUTINE")
-//                    .hasMessageContaining("`flatten_json`"); // Using backticks as seen in the error
-//        }
-//    }
-//}
+//}}

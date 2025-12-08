@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 
 /**
  * JsonFlattenerConsolidator - Flattens nested JSON into flat key-value pairs with array consolidation.
- * 
+ *
  * This class uses Jackson for JSON processing (Apache 2.0 License).
  */
 public class JsonFlattenerConsolidator implements Serializable {
@@ -32,7 +32,9 @@ public class JsonFlattenerConsolidator implements Serializable {
     private final Set<String> explosionPaths;
     private final boolean explosionEnabled;
 
-    private final Set<String> arrayFields = new HashSet<>();
+    // Thread-local storage for array fields tracking - ensures thread safety
+    private static final ThreadLocal<Set<String>> arrayFieldsThreadLocal =
+            ThreadLocal.withInitial(HashSet::new);
 
     private static final Pattern ARRAY_INDEX_STRIP_PATTERN = Pattern.compile("\\[\\d+\\]");
     private static final Pattern ALL_INDICES_PATTERN = Pattern.compile("\\[(\\d+)\\]");
@@ -104,8 +106,8 @@ public class JsonFlattenerConsolidator implements Serializable {
                 return "{}";
             }
 
-            // Clear array fields tracking for this run
-            arrayFields.clear();
+            // Clear array fields tracking for this run (thread-local)
+            arrayFieldsThreadLocal.get().clear();
 
             // Step 1: Flatten the JSON
             Map<String, Object> flattened = flattenJson(jsonNode);
@@ -152,7 +154,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                 return Collections.singletonList("{}");
             }
 
-            arrayFields.clear();
+            arrayFieldsThreadLocal.get().clear();
 
             // Step 1: Use SPECIAL flattening that doesn't consolidate arrays in explosion paths
             Map<String, Object> flattened = flattenJsonForExplosion(jsonNode);
@@ -423,7 +425,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                 ArrayNode array = (ArrayNode) currentValue;
                 if (array.isEmpty()) {
                     flattenedOutput.put(currentTask.prefix, nullPlaceholder);
-                    arrayFields.add(currentTask.prefix);
+                    arrayFieldsThreadLocal.get().add(currentTask.prefix);
                 } else {
                     boolean shouldKeepElements = shouldKeepAsArrayElements(currentTask.prefix);
 
@@ -449,7 +451,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                             }
                         }
                         flattenedOutput.put(currentTask.prefix, sb.toString());
-                        arrayFields.add(currentTask.prefix);
+                        arrayFieldsThreadLocal.get().add(currentTask.prefix);
                     } else {
                         int limit = Math.min(array.size(), maxArraySize);
                         for (int i = 0; i < limit; i++) {
@@ -457,7 +459,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                             String newPrefix = currentTask.prefix + "[" + i + "]";
                             taskQueue.add(new FlattenTask(newPrefix, item, currentTask.depth + 1));
                         }
-                        arrayFields.add(currentTask.prefix);
+                        arrayFieldsThreadLocal.get().add(currentTask.prefix);
                     }
                 }
             } else {
@@ -561,7 +563,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                 ArrayNode array = (ArrayNode) currentValue;
                 if (array.isEmpty()) {
                     flattenedOutput.put(currentTask.prefix, nullPlaceholder);
-                    arrayFields.add(currentTask.prefix);
+                    arrayFieldsThreadLocal.get().add(currentTask.prefix);
                 } else {
                     int limit = Math.min(array.size(), maxArraySize);
                     for (int i = 0; i < limit; i++) {
@@ -569,7 +571,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                         String newPrefix = currentTask.prefix + "[" + i + "]";
                         taskQueue.add(new FlattenTask(newPrefix, item, currentTask.depth + 1));
                     }
-                    arrayFields.add(currentTask.prefix);
+                    arrayFieldsThreadLocal.get().add(currentTask.prefix);
                 }
             } else {
                 Object val = getNodeValue(currentValue);
@@ -636,7 +638,7 @@ public class JsonFlattenerConsolidator implements Serializable {
                                       Map<String, Object> consolidatedOutput) {
         String originalBaseKey = consolidatedKey.replace("_", ".");
         boolean wasTrackedAsArray = false;
-        for (String arrayField : arrayFields) {
+        for (String arrayField : arrayFieldsThreadLocal.get()) {
             String normalizedArrayField = arrayField.replaceAll("\\[\\d+\\]", "");
             if (originalBaseKey.startsWith(normalizedArrayField)) {
                 wasTrackedAsArray = true;
