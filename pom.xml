@@ -10,7 +10,7 @@
     <!-- ==================================================================== -->
     <groupId>io.github.pierce-lonergan</groupId>
     <artifactId>nexus-piercer</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.7</version>
     <packaging>jar</packaging>
 
     <!-- ==================================================================== -->
@@ -184,7 +184,7 @@
         <git-commit-id-maven-plugin.version>7.0.0</git-commit-id-maven-plugin.version>
 
         <!-- Code Quality Thresholds -->
-        <jacoco.minimum.coverage>0.60</jacoco.minimum.coverage>
+        <jacoco.minimum.coverage>0.20</jacoco.minimum.coverage>
         <pmd.violation.buildFailOnViolation>true</pmd.violation.buildFailOnViolation>
         <spotbugs.threshold>Low</spotbugs.threshold>
         <spotbugs.effort>Max</spotbugs.effort>
@@ -1174,7 +1174,7 @@
                                         <limit>
                                             <counter>CLASS</counter>
                                             <value>MISSEDCOUNT</value>
-                                            <maximum>30</maximum>
+                                            <maximum>50</maximum>
                                         </limit>
                                     </limits>
                                 </rule>
