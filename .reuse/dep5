@@ -1,0 +1,36 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: NexusPiercer
+Upstream-Contact: Pierce Lonergan
+Source: https://github.com/piercelonergan/nexuspiercer
+
+Files: *
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: src/main/java/*
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: src/test/java/*
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: src/main/groovy/*
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: docs/*
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: pom.xml
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: README.md
+Copyright: 2025 Pierce Lonergan
+License: Apache-2.0
+
+Files: .gitignore
+Copyright: 2025 Pierce Lonergan
+License: CC0-1.0

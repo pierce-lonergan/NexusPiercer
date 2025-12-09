@@ -1,0 +1,39 @@
+NexusPiercer
+Copyright 2025 Pierce Lonergan
+
+This product includes software developed by Pierce Lonergan.
+
+================================================================================
+
+Third-Party Dependencies
+------------------------
+
+This project uses the following third-party libraries:
+
+Apache Avro - https://avro.apache.org/
+  License: Apache License 2.0
+  SPDX-License-Identifier: Apache-2.0
+
+Apache Iceberg - https://iceberg.apache.org/
+  License: Apache License 2.0
+  SPDX-License-Identifier: Apache-2.0
+
+Apache Spark - https://spark.apache.org/
+  License: Apache License 2.0
+  SPDX-License-Identifier: Apache-2.0
+
+Jackson JSON Processor - https://github.com/FasterXML/jackson
+  License: Apache License 2.0
+  SPDX-License-Identifier: Apache-2.0
+
+SLF4J - https://www.slf4j.org/
+  License: MIT License
+  SPDX-License-Identifier: MIT
+
+JUnit 5 - https://junit.org/junit5/
+  License: Eclipse Public License 2.0
+  SPDX-License-Identifier: EPL-2.0
+
+AssertJ - https://assertj.github.io/doc/
+  License: Apache License 2.0
+  SPDX-License-Identifier: Apache-2.0
