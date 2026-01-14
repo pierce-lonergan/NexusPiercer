@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapFlattener Array Serialization - Technical Deep Dive</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a26;
+            --bg-code: #0d0d14;
+            --text-primary: #e4e4eb;
+            --text-secondary: #9898a8;
+            --text-muted: #6b6b7b;
+            --accent-amber: #f59e0b;
+            --accent-amber-dim: #d97706;
+            --accent-emerald: #10b981;
+            --accent-cyan: #06b6d4;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --border-color: #2a2a3a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border-bottom: 1px solid var(--border-color);
+            padding: 3rem 0;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .logo {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--accent-amber) 0%, var(--accent-amber-dim) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 8px 32px rgba(245, 158, 11, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-amber) 0%, #fb923c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Navigation */
+        nav {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .nav-links a {
+            padding: 0.75rem 1.25rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            background: var(--bg-tertiary);
+            color: var(--accent-amber);
+        }
+
+        /* Main Content */
+        main {
+            padding: 3rem 0;
+        }
+
+        section {
+            margin-bottom: 4rem;
+        }
+
+        h2 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: var(--accent-amber);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        h3 {
+            font-size: 1.375rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 2rem 0 1rem;
+        }
+
+        h4 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card.highlight {
+            border-color: var(--accent-amber);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(217, 119, 6, 0.05) 100%);
+        }
+
+        .card.danger {
+            border-color: var(--accent-red);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(220, 38, 38, 0.05) 100%);
+        }
+
+        .card.success {
+            border-color: var(--accent-emerald);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%);
+        }
+
+        /* Code blocks */
+        pre, code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        code {
+            background: var(--bg-code);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: var(--accent-amber);
+        }
+
+        pre {
+            background: var(--bg-code);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+
+        .code-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        /* Grid layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge.success { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+        .badge.warning { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+        .badge.danger { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+        .badge.info { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+
+        /* Comparison boxes */
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .comparison-item {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 2px solid var(--border-color);
+        }
+
+        .comparison-item.correct { border-color: var(--accent-emerald); }
+        .comparison-item.wrong { border-color: var(--accent-red); }
+
+        .comparison-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .comparison-item.correct .comparison-header { color: var(--accent-emerald); }
+        .comparison-item.wrong .comparison-header { color: var(--accent-red); }
+
+        /* Visual diagrams */
+        .diagram {
+            background: var(--bg-code);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .tree-node {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 0.25rem;
+        }
+
+        .tree-node.root { background: var(--accent-purple); color: white; }
+        .tree-node.array { background: var(--accent-emerald); color: white; }
+        .tree-node.item { background: var(--accent-amber); color: black; }
+        .tree-node.leaf { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+
+        .arrow {
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            margin: 0 0.5rem;
+        }
+
+        /* Alert boxes */
+        .alert {
+            padding: 1.25rem 1.5rem;
+            border-radius: 12px;
+            margin: 1.5rem 0;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .alert.warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .alert.danger {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .alert.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .alert-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .alert.warning .alert-title { color: var(--accent-amber); }
+        .alert.danger .alert-title { color: var(--accent-red); }
+        .alert.success .alert-title { color: var(--accent-emerald); }
+
+        /* Highlight text */
+        .highlight-text { color: var(--accent-amber); font-weight: 600; }
+        .danger-text { color: var(--accent-red); font-weight: 600; }
+        .success-text { color: var(--accent-emerald); font-weight: 600; }
+        .info-text { color: var(--accent-cyan); font-weight: 600; }
+
+        /* Checkmarks and X marks */
+        .check { color: var(--accent-emerald); }
+        .cross { color: var(--accent-red); }
+
+        /* Footer */
+        footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 2rem 0;
+            margin-top: 4rem;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Table of contents styles */
+        .toc {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .toc h3 {
+            margin: 0 0 1rem 0;
+            font-size: 1rem;
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc li {
+            margin: 0.5rem 0;
+        }
+
+        .toc a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .toc a:hover {
+            color: var(--accent-amber);
+        }
+
+        /* Interactive demo area */
+        .demo-area {
+            background: var(--bg-code);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+        }
+
+        .demo-area input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .demo-area input:focus {
+            outline: none;
+            border-color: var(--accent-amber);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">📊</div>
+                <div>
+                    <h1>MapFlattener & AvroReconstructor</h1>
+                    <p class="subtitle">Technical Deep Dive: Array Serialization and Bracket Preservation</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav>
+        <div class="container">
+            <div class="nav-links">
+                <a href="#overview" class="active">Overview</a>
+                <a href="#problem">The Problem</a>
+                <a href="#delimiter">Delimiter Collision</a>
+                <a href="#nested">Nested Arrays</a>
+                <a href="#business">Business Concern</a>
+                <a href="#solutions">Solutions</a>
+                <a href="#code">Code Reference</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <div class="container">
+            <!-- Table of Contents -->
+            <div class="toc">
+                <h3>📑 Document Contents</h3>
+                <ul>
+                    <li>1. <a href="#overview">Executive Overview</a></li>
+                    <li>2. <a href="#problem">Why Brackets Cannot Be Removed</a></li>
+                    <li>3. <a href="#delimiter">Delimiter Collision: The Comma Problem</a></li>
+                    <li>4. <a href="#nested">Nested Array Structure Preservation</a></li>
+                    <li>5. <a href="#business">Addressing Business Simplification Requests</a></li>
+                    <li>6. <a href="#solutions">Solutions & Trade-offs Analysis</a></li>
+                    <li>7. <a href="#code">Code Reference & Examples</a></li>
+                </ul>
+            </div>
+
+            <!-- Section 1: Overview -->
+            <section id="overview">
+                <h2><span>📋</span> Executive Overview</h2>
+                
+                <div class="card highlight">
+                    <h3>What This Document Addresses</h3>
+                    <p>This technical documentation explains why the <code>MapFlattener</code> class preserves array brackets during serialization and why removing them would result in <span class="danger-text">unrecoverable data loss</span>.</p>
+                    
+                    <div class="grid-2" style="margin-top: 1.5rem;">
+                        <div>
+                            <h4>Key Components</h4>
+                            <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                                <li><code>MapFlattener.groovy</code> - Flattens nested structures</li>
+                                <li><code>AvroReconstructor.groovy</code> - Reconstructs from flattened</li>
+                                <li><code>deserializeBracketList()</code> - Parses bracket arrays</li>
+                                <li><code>splitBracketAware()</code> - Handles nested brackets</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4>Serialization Formats Available</h4>
+                            <table>
+                                <tr><td><code>JSON</code></td><td>["a","b","c"]</td></tr>
+                                <tr><td><code>COMMA_SEPARATED</code></td><td>a,b,c</td></tr>
+                                <tr><td><code>PIPE_SEPARATED</code></td><td>a|b|c</td></tr>
+                                <tr><td><code>BRACKET_LIST</code></td><td>[a, b, c]</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert warning">
+                    <div class="alert-icon">⚠️</div>
+                    <div class="alert-content">
+                        <div class="alert-title">Critical Understanding</div>
+                        <p style="margin: 0;">The bracket structure in flattened output encodes <em>essential hierarchical relationships</em>. Removing or "simplifying" brackets destroys the information needed to reconstruct the original data structure.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: The Problem -->
+            <section id="problem">
+                <h2><span>🔐</span> Why Brackets Cannot Be Removed</h2>
+
+                <h3>The Data Transformation Pipeline</h3>
+                <div class="diagram">
+                    <span class="tree-node root">Original Nested JSON</span>
+                    <span class="arrow">→</span>
+                    <span class="tree-node array">MapFlattener</span>
+                    <span class="arrow">→</span>
+                    <span class="tree-node item">Flattened Map</span>
+                    <span class="arrow">→</span>
+                    <span class="tree-node array">AvroReconstructor</span>
+                    <span class="arrow">→</span>
+                    <span class="tree-node root">Reconstructed JSON</span>
+                </div>
+
+                <h3>Concrete Example: Products with Attributes</h3>
+                
+                <div class="comparison">
+                    <div class="comparison-item">
+                        <div class="code-label">Original Nested Structure</div>
+<pre><code>{
+  "products": [
+    {
+      "productId": "PROD-001",
+      "attributes": [
+        {"name": "RAM", "value": "32GB"},
+        {"name": "Storage", "value": "1TB"}
+      ]
+    },
+    {
+      "productId": "PROD-002", 
+      "attributes": [
+        {"name": "Bluetooth", "value": "5.0"}
+      ]
+    }
+  ]
+}</code></pre>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="code-label">After MapFlattener (BRACKET_LIST)</div>
+<pre><code>{
+  "products_productId": "[PROD-001, PROD-002]",
+  "products_attributes_name": "[[RAM, Storage], [Bluetooth]]",
+  "products_attributes_value": "[[32GB, 1TB], [5.0]]"
+}</code></pre>
+                    </div>
+                </div>
+
+                <h3>What the Bracket Structure Encodes</h3>
+                
+                <div class="card">
+                    <div class="code-label">products_attributes_name: "[[RAM, Storage], [Bluetooth]]"</div>
+                    <table style="margin-top: 1rem;">
+                        <thead>
+                            <tr>
+                                <th>Bracket Level</th>
+                                <th>Meaning</th>
+                                <th>Values</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>[ [...], [...] ]</code></td>
+                                <td>Outer array = products array</td>
+                                <td>2 products total</td>
+                            </tr>
+                            <tr>
+                                <td><code>[RAM, Storage]</code></td>
+                                <td>First inner = Product[0]'s attributes</td>
+                                <td>2 attributes</td>
+                            </tr>
+                            <tr>
+                                <td><code>[Bluetooth]</code></td>
+                                <td>Second inner = Product[1]'s attributes</td>
+                                <td>1 attribute</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert danger">
+                    <div class="alert-icon">🚨</div>
+                    <div class="alert-content">
+                        <div class="alert-title">If We Remove the Outer Brackets</div>
+                        <p>Converting <code>[[RAM, Storage], [Bluetooth]]</code> to <code>[RAM, Storage, Bluetooth]</code> results in:</p>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem; margin-top: 0.5rem;">
+                            <li>❌ Lost: Which attributes belong to which product</li>
+                            <li>❌ Lost: Product[0] had 2 attributes, Product[1] had 1</li>
+                            <li>❌ Result: Data structure becomes <span class="danger-text">unrecoverable</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Delimiter Collision -->
+            <section id="delimiter">
+                <h2><span>💥</span> Delimiter Collision: The Comma Problem</h2>
+
+                <h3>The Fundamental Issue</h3>
+                <p>When data <em>contains</em> the same character used as a delimiter, parsing becomes ambiguous and potentially incorrect.</p>
+
+                <div class="card danger">
+                    <h4>Scenario: Data with Commas</h4>
+                    <div class="grid-2">
+                        <div>
+                            <div class="code-label">Original Array (2 elements)</div>
+<pre><code>["fg,fg", "dfgh"]</code></pre>
+                        </div>
+                        <div>
+                            <div class="code-label">Comma-Separated Output</div>
+<pre><code>fg,fg,dfgh</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h4 style="margin-top: 1.5rem;">The Ambiguity</h4>
+                    <p>Given <code>fg,fg,dfgh</code>, the parser cannot determine the original structure:</p>
+                    
+                    <div class="grid-3" style="margin-top: 1rem;">
+                        <div style="background: var(--bg-code); padding: 1rem; border-radius: 8px;">
+                            <div class="code-label">Interpretation A</div>
+                            <code>["fg,fg", "dfgh"]</code>
+                            <p style="margin-top: 0.5rem; color: var(--text-muted);">2 elements</p>
+                        </div>
+                        <div style="background: var(--bg-code); padding: 1rem; border-radius: 8px;">
+                            <div class="code-label">Interpretation B</div>
+                            <code>["fg", "fg", "dfgh"]</code>
+                            <p style="margin-top: 0.5rem; color: var(--text-muted);">3 elements</p>
+                        </div>
+                        <div style="background: var(--bg-code); padding: 1rem; border-radius: 8px;">
+                            <div class="code-label">Interpretation C</div>
+                            <code>["fg", "fg,dfgh"]</code>
+                            <p style="margin-top: 0.5rem; color: var(--text-muted);">2 elements (different split)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Real-World Examples</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data Type</th>
+                            <th>Original Values</th>
+                            <th>Comma-Separated</th>
+                            <th>Problem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Names</td>
+                            <td><code>["Smith, John", "Doe, Jane"]</code></td>
+                            <td><code>Smith, John,Doe, Jane</code></td>
+                            <td>4 values or 2?</td>
+                        </tr>
+                        <tr>
+                            <td>Addresses</td>
+                            <td><code>["123 Main St, NYC", "456 Oak Ave"]</code></td>
+                            <td><code>123 Main St, NYC,456 Oak Ave</code></td>
+                            <td>3 values or 2?</td>
+                        </tr>
+                        <tr>
+                            <td>Descriptions</td>
+                            <td><code>["Red, blue, green colors"]</code></td>
+                            <td><code>Red, blue, green colors</code></td>
+                            <td>4 values or 1?</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="alert success">
+                    <div class="alert-icon">✅</div>
+                    <div class="alert-content">
+                        <div class="alert-title">Why BRACKET_LIST Solves This</div>
+                        <p>The BRACKET_LIST format preserves the original structure with proper quoting:</p>
+<pre style="margin-top: 0.5rem; background: var(--bg-code);"><code>["Smith, John", "Doe, Jane"]  →  ["Smith, John", "Doe, Jane"]</code></pre>
+                        <p style="margin: 0;">The brackets and quotes make element boundaries unambiguous.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Nested Arrays -->
+            <section id="nested">
+                <h2><span>📦</span> Nested Array Structure Preservation</h2>
+
+                <h3>Two-Level Nesting Example</h3>
+                <p>Consider this common data structure from the test cases:</p>
+
+                <div class="card">
+                    <div class="code-label">Original: Order → Products → Attributes</div>
+<pre><code>Order {
+  products: [
+    Product[0] {
+      attributes: [
+        {name: "my number"}           ← Attribute[0] of Product[0]
+      ]
+    },
+    Product[1] {
+      attributes: [
+        {name: "his number"},          ← Attribute[0] of Product[1]
+        {name: "his other number"}     ← Attribute[1] of Product[1]
+      ]
+    }
+  ]
+}</code></pre>
+                </div>
+
+                <h3>Flattened Representation</h3>
+                <div class="comparison">
+                    <div class="comparison-item correct">
+                        <div class="comparison-header"><span class="check">✓</span> Correct: With All Brackets</div>
+<pre><code>products_attributes_name: 
+"[[my number], [his number, his other number]]"</code></pre>
+                        <p style="margin-top: 1rem;"><span class="success-text">Structure preserved:</span></p>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Product[0] → 1 attribute</li>
+                            <li>Product[1] → 2 attributes</li>
+                            <li>Reconstruction is deterministic</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-item wrong">
+                        <div class="comparison-header"><span class="cross">✗</span> Wrong: Outer Brackets Removed</div>
+<pre><code>products_attributes_name: 
+"[my number], [his number, his other number]"</code></pre>
+                        <p style="margin-top: 1rem;"><span class="danger-text">Problems:</span></p>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Is this 2 arrays or CSV field content?</li>
+                            <li>How many products are there?</li>
+                            <li>Parsing becomes context-dependent</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>From BracketAwareSplitTest.groovy</h3>
+                <div class="card">
+                    <h4>Test Case: Why Naive Split Fails</h4>
+<pre><code>// Input
+String input = "[[RAM, Storage, Processor], [Connectivity, Battery Life]]";
+
+// WRONG: Naive comma split
+String content = input.substring(1, input.length() - 1);  // "[RAM, Storage, Processor], [Connectivity, Battery Life]"
+String[] oldResult = content.split(",");  
+
+// Result: 5 broken elements!
+// [0]: "[RAM"                    ← BROKEN: Missing closing bracket
+// [1]: " Storage"                ← LOST: Context of which array
+// [2]: " Processor]"             ← BROKEN: Random closing bracket
+// [3]: " [Connectivity"          ← BROKEN
+// [4]: " Battery Life]"          ← BROKEN
+
+// CORRECT: Bracket-aware split
+// [0]: "[RAM, Storage, Processor]"          ← Intact inner array
+// [1]: "[Connectivity, Battery Life]"       ← Intact inner array</code></pre>
+                </div>
+            </section>
+
+            <!-- Section 5: Business Concern -->
+            <section id="business">
+                <h2><span>💼</span> Addressing Business Simplification Requests</h2>
+
+                <div class="card highlight">
+                    <h3>The Business Request</h3>
+                    <blockquote style="border-left: 3px solid var(--accent-amber); padding-left: 1rem; color: var(--text-secondary); font-style: italic;">
+                        "If the data is <code>[[my number], [his number, his other number]]</code>, why can't we simplify it to <code>[my number], [his number, his other number]</code>? They look the same, and we don't want quotes like <code>["fg,fg", "dfgh"]</code>."
+                    </blockquote>
+                </div>
+
+                <h3>Why They Look "The Same" But Aren't</h3>
+                
+                <div class="comparison">
+                    <div class="comparison-item">
+                        <h4 style="margin-top: 0;">Format A: <code>[[a], [b, c]]</code></h4>
+                        <p><span class="success-text">Semantics:</span> An array containing 2 arrays</p>
+                        <ul style="color: var(--text-secondary); list-style: none; padding: 0;">
+                            <li>✓ Unambiguous: exactly 2 inner arrays</li>
+                            <li>✓ First inner has 1 element</li>
+                            <li>✓ Second inner has 2 elements</li>
+                            <li>✓ Parser knows this is a nested structure</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-item">
+                        <h4 style="margin-top: 0;">Format B: <code>[a], [b, c]</code></h4>
+                        <p><span class="danger-text">Semantics:</span> Undefined/ambiguous</p>
+                        <ul style="color: var(--text-secondary); list-style: none; padding: 0;">
+                            <li>? Could be 2 separate array values in a CSV</li>
+                            <li>? Could be a single string containing brackets</li>
+                            <li>? Could be display formatting, not data</li>
+                            <li>? Parser has no signal this is nested</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="alert danger">
+                    <div class="alert-icon">🚨</div>
+                    <div class="alert-content">
+                        <div class="alert-title">The Fundamental Truth</div>
+                        <p style="margin: 0;"><strong>The outer brackets are the ONLY signal that tells the parser: "this is a collection of arrays, not individual values."</strong> Without them, the parser must <em>guess</em> — and guessing leads to data corruption.</p>
+                    </div>
+                </div>
+
+                <h3>What About Quotes?</h3>
+                <p>Business doesn't want <code>["fg,fg", "dfgh"]</code> — they want <code>[fg,fg, dfgh]</code>.</p>
+                
+                <div class="card danger">
+                    <h4>The Problem with Removing Quotes</h4>
+                    <p>Without quotes, there's no way to differentiate:</p>
+                    <div class="grid-2" style="margin-top: 1rem;">
+                        <div style="background: var(--bg-code); padding: 1rem; border-radius: 8px;">
+                            <p style="margin: 0;"><code>[fg,fg, dfgh]</code></p>
+                            <p style="margin: 0.5rem 0 0 0; color: var(--text-muted);">→ Could be <code>["fg,fg", "dfgh"]</code> (2 elements)</p>
+                        </div>
+                        <div style="background: var(--bg-code); padding: 1rem; border-radius: 8px;">
+                            <p style="margin: 0;"><code>[fg,fg, dfgh]</code></p>
+                            <p style="margin: 0.5rem 0 0 0; color: var(--text-muted);">→ Could be <code>["fg", "fg", "dfgh"]</code> (3 elements)</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 6: Solutions -->
+            <section id="solutions">
+                <h2><span>✅</span> Solutions & Trade-offs Analysis</h2>
+
+                <div class="grid-2">
+                    <div class="card success">
+                        <span class="badge success">RECOMMENDED</span>
+                        <h3 style="margin-top: 0.75rem;">Solution 1: Keep BRACKET_LIST with Nesting</h3>
+                        <div class="code-label">Format</div>
+<pre><code>[[value1, value2], [value3]]</code></pre>
+                        <h4>Advantages</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Preserves all structural information</li>
+                            <li>Always reconstructable</li>
+                            <li>Handles any data content</li>
+                            <li>No data loss possible</li>
+                        </ul>
+                        <h4>Trade-offs</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Slightly more verbose</li>
+                            <li>Business sees "extra brackets"</li>
+                            <li>Requires stakeholder education</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <span class="badge warning">PARTIAL FIX</span>
+                        <h3 style="margin-top: 0.75rem;">Solution 2: Alternative Delimiters</h3>
+                        <div class="code-label">Examples</div>
+<pre><code>Pipe:    value1|value2|value3
+Tab:     value1\tvalue2\tvalue3
+Custom:  value1§value2§value3</code></pre>
+                        <h4>Advantages</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Works if data doesn't contain delimiter</li>
+                            <li>Athena supports custom delimiters</li>
+                        </ul>
+                        <h4>Trade-offs</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li><span class="danger-text">Only shifts the problem</span></li>
+                            <li>Data might contain ANY character</li>
+                            <li>Game of whack-a-mole</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <span class="badge info">ENTERPRISE STANDARD</span>
+                        <h3 style="margin-top: 0.75rem;">Solution 3: JSON Format</h3>
+                        <div class="code-label">Format</div>
+<pre><code>[["fg,fg", "dfgh"], ["another"]]</code></pre>
+                        <h4>Advantages</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Handles ALL special characters</li>
+                            <li>Industry standard</li>
+                            <li>Native parser support everywhere</li>
+                        </ul>
+                        <h4>Trade-offs</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Adds quotes around strings</li>
+                            <li>Business doesn't like quotes</li>
+                            <li>Slightly larger storage size</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <span class="badge danger">COMPLEX</span>
+                        <h3 style="margin-top: 0.75rem;">Solution 4: Escape Sequences</h3>
+                        <div class="code-label">Format</div>
+<pre><code>fg\,fg,dfgh  →  ["fg,fg", "dfgh"]</code></pre>
+                        <h4>Advantages</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Preserves meaning without quotes</li>
+                        </ul>
+                        <h4>Trade-offs</h4>
+                        <ul style="color: var(--text-secondary); list-style: disc; padding-left: 1.5rem;">
+                            <li>Must escape the escape char (\\)</li>
+                            <li>Hard to read</li>
+                            <li>Custom parsing required</li>
+                            <li>Error-prone</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card success" style="margin-top: 2rem;">
+                    <h3>🎯 Final Recommendation</h3>
+                    <p><strong>Keep the current BRACKET_LIST format with full nesting preservation:</strong></p>
+<pre><code>[[value1, value2], [value3, value4, value5]]</code></pre>
+                    <p>The brackets are <em>not</em> redundant — they encode essential structural information. Removing them makes data <span class="danger-text">unrecoverable</span>.</p>
+                    <p style="margin: 0;"><span class="highlight-text">Educating stakeholders is easier than debugging data corruption.</span></p>
+                </div>
+            </section>
+
+            <!-- Section 7: Code Reference -->
+            <section id="code">
+                <h2><span>💻</span> Code Reference & Examples</h2>
+
+                <h3>MapFlattener Array Serialization (Lines 745-806)</h3>
+<pre><code>private String serializeArray(List<?> values) {
+    switch (arrayFormat) {
+        case JSON:
+            return objectMapper.writeValueAsString(serializedValues);
+            
+        case COMMA_SEPARATED:
+            return serializedValues.stream()
+                    .map(v -> v == null ? "" : v.toString())
+                    .collect(Collectors.joining(","));
+                    
+        case PIPE_SEPARATED:
+            return serializedValues.stream()
+                    .map(v -> v == null ? "" : v.toString())
+                    .collect(Collectors.joining("|"));
+                    
+        case BRACKET_LIST:
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < serializedValues.size(); i++) {
+                if (i > 0) sb.append(", ");
+                Object v = serializedValues.get(i);
+                if (v instanceof List) {
+                    // Recursively serialize nested lists ← KEY: Preserves structure
+                    sb.append(serializeArray((List<?>) v));
+                } else {
+                    sb.append(v.toString());
+                }
+            }
+            sb.append("]");
+            return sb.toString();
+    }
+}</code></pre>
+
+                <h3>AvroReconstructor Bracket-Aware Split (Lines 2542-2583)</h3>
+<pre><code>private List<Object> splitBracketAware(String content) {
+    List<Object> result = new ArrayList<>();
+    StringBuilder current = new StringBuilder();
+    int bracketDepth = 0;
+    boolean inQuotes = false;
+
+    for (int i = 0; i < content.length(); i++) {
+        char c = content.charAt(i);
+
+        if (c == '"' && (i == 0 || content.charAt(i - 1) != '\\')) {
+            inQuotes = !inQuotes;
+            current.append(c);
+        } else if (!inQuotes) {
+            if (c == '[') {
+                bracketDepth++;      // ← Track bracket depth
+                current.append(c);
+            } else if (c == ']') {
+                bracketDepth--;
+                current.append(c);
+            } else if (c == ',' && bracketDepth == 0) {
+                // Only split on commas at depth 0 ← KEY: Respects nesting
+                String item = current.toString().trim();
+                if (!item.isEmpty()) {
+                    result.add(unquoteString(item));
+                }
+                current = new StringBuilder();
+            } else {
+                current.append(c);
+            }
+        } else {
+            current.append(c);
+        }
+    }
+    // ... rest of method
+}</code></pre>
+
+                <h3>Test Case: AsymmetricDoublyNestedArrayTest.groovy</h3>
+<pre><code>// Product 1: 3 attributes
+// Product 2: 2 attributes (ASYMMETRIC!)
+
+Map<String, Object> flattened = flattener.flatten(order);
+// products_attributes_name: [[RAM, Storage, Processor], [Connectivity, Battery]]
+//                            ^----- 3 elements -----^  ^----- 2 elements ----^
+
+// Reconstruction correctly handles different inner array sizes
+Map<String, Object> reconstructed = reconstructor.reconstructToMap(flattened, schema);
+
+assertEquals(3, attrs1.size(), "Product 1 should have 3 attributes");
+assertEquals(2, attrs2.size(), "Product 2 should have 2 attributes");</code></pre>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div>
+                    <code>io.github.pierce</code> — MapFlattener & AvroReconstructor
+                </div>
+                <div>
+                    Array Formats: JSON | COMMA_SEPARATED | PIPE_SEPARATED | BRACKET_LIST
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
