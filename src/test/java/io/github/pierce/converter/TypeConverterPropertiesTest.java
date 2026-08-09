@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.*;
  * These tests verify converter behavior across a wide range of inputs,
  * catching edge cases that might be missed by example-based tests.
  */
-class TypeConverterProperties {
+class TypeConverterPropertiesTest {
 
     private final ConversionConfig config = ConversionConfig.defaults();
 

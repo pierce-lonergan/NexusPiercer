@@ -10,6 +10,11 @@ public abstract class SparkTestBase {
 
     @BeforeAll
     static void setUpSpark() {
+        // Must be the first statement here, not in a subclass @BeforeEach: @BeforeAll runs
+        // first, so a guard placed downstream never gets the chance to skip.
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                SparkAvailability.isAvailable(), SparkAvailability::reason);
+
         spark = SparkSession.builder()
                 .appName("Test")
                 .master("local[2]")
