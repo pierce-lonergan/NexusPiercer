@@ -33,32 +33,46 @@ These are documented rather than hidden. All are tracked in
 | `quality/NP-002` | `AvroSchemaFlattener.collectRecordDefinitions` recurses with no depth or cycle guard. | A self-referential `.avsc` causes `StackOverflowError`. |
 | `quality/NP-003` | `SchemaBasedMapConverter.flattenAvroSchema` tracks a depth counter it never checks. | `record Node { Node next }` loops until heap exhaustion — an unkillable hang rather than a fast failure. |
 | `quality/NP-013` | JSON explosion produces an unbounded cross-product. | Three array paths of 1,000 elements yields 10⁹ records — OOM on adversarial input. |
-| `arch/NP-002` | Flattened key encoding is not injective; the separator is not escaped. | Silent data corruption, not a crash. Fields whose names contain the separator collide. |
-| `perf/NP-021` | **Reconstruction cost is superlinear in the number of separator characters inside field names.** See below. | Heap exhaustion. A document with ordinary snake_case field names can hang a driver. |
+| `arch/NP-002` | ~~Flattened key encoding is not injective~~ | **Fixed on `main`** — see below. Unreleased. |
+| `perf/NP-021` | ~~Reconstruction cost superlinear in separator count~~ | **Fixed on `main`** — see below. Unreleased. |
+| `recon/NP-022` | A field literally named `___` collides with the reconstructor's `__*__` sentinel namespace and is silently dropped. | Silent field loss for that specific name shape. |
 
-### `perf/NP-021` — separator-driven reconstruction blow-up
+### `arch/NP-002` / `perf/NP-021` — fixed by an injective key encoding
 
-Found by the JMH harness on its first run and reproduced deterministically. Structure held
-completely fixed at 5 sibling record arrays × N records × 8 fields, producing an identical
-**40 flattened keys** in every case. The only variable is how many literal underscores appear in
-each field name (JDK 21, 1 GB heap):
+**Still present in the released 1.0.8. Fixed on `main`, unreleased.**
 
-| Field name | 25 records | 50 records | 75 records |
-|---|---:|---:|---:|
-| `field_{n}` — one `_` | 196 ms | 174 ms | 233 ms *(flat through 150 records)* |
-| `nested_field_{n}` — two `_` | 1,198 ms | 3,435 ms | **OutOfMemoryError** |
+The old encoding concatenated path segments without escaping, so `{"user_id": 1}` and
+`{"user": {"id": 1}}` both produced the key `user_id`. That was known to be lossy. The JMH harness
+then found it was also a denial-of-service vector: because the reconstructor could not tell a
+structural separator from a literal one, it grouped by every candidate prefix, and each extra
+underscore in a field name multiplied both the groupings and the paths falsely detected as arrays.
 
-One extra underscore per field name takes reconstruction from flat-and-linear to heap exhaustion.
-The reconstructor cannot distinguish a structural separator from a literal one, so the number of
-candidate groupings it must consider grows with underscores-per-name and field count.
+Structure held completely fixed at 40 flattened keys (5 record arrays × N records × 8 fields),
+varying only underscores per field name — JDK 21, 1 GB heap:
 
-This matters because `nested_field_x` is an unremarkable name — and so are `user_id`,
-`created_at`, and `order_total`, which dominate this library's target domain. **A document that
-looks entirely ordinary can exhaust the heap.**
+| Field name | 25 recs | 50 recs | 75 recs | 150 recs |
+|---|---:|---:|---:|---:|
+| `nested_field_{n}` — **before** | 1,198 ms | 3,435 ms | **OOM** | — |
+| `nested_field_{n}` — **after** | 3 ms | 4 ms | 4 ms | 7 ms |
+| `deep_nested_field_{n}` (3 `_`) — after | 3 ms | 3 ms | 6 ms | 6 ms |
 
-Mitigation until the encoding is fixed: configure a separator that cannot occur in your field
-names, and bound document size before reconstruction. Pinned by
-`SeparatorInFieldNameRegressionTest` so it cannot silently worsen.
+`FlattenedPath` escapes separator characters inside segments, so `record_array_0` is one segment
+rather than three. Reconstruction cost is now **independent of how many separator characters a
+field name contains** — that independence, rather than the ~860x speedup, is the property that
+makes the input space safe.
+
+**If you are on 1.0.8**, configure a separator that cannot occur in your field names and bound
+document size before reconstruction.
+
+### `recon/NP-022` — sentinel namespace collision
+
+`JsonReconstructor` reserves the `__*__` shape for internal bookkeeping (`__isArray__`,
+`__arrayPath__`) and skips any key matching `startsWith("__") && endsWith("__")`. A field named
+`___` satisfies both — characters 0-1 and 1-2 are each `"__"` — so it is dropped.
+
+The encoding round-trips the name correctly; the loss is downstream, so the fix is to replace the
+magic-string sentinels with a private holder type. Asserted as present by
+`SeparatorInFieldNameRegressionTest` rather than left latent.
 
 **Until these are fixed, treat schema paths and JSON documents passed to this library as trusted
 input.** If you must accept untrusted input, validate and bound it before it reaches NexusPiercer.

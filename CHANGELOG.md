@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Breaking
+
+- **Flattened key encoding is now injective.** `FlattenedPath` escapes separator characters
+  inside field names, so a field literally named `user_id` encodes to `user\_id` and no longer
+  collides with the nested path `user` → `id`. Field names containing no separator encode
+  byte-identically to before, so the common case is unaffected; this is asserted by a property
+  test. `FlattenedPath.encodeLegacy` is retained, deprecated, for reading older data.
+
+  This fixes two defects at once:
+  - `arch/NP-002` — reconstruction was lossy for any schema whose field names contain the
+    separator, i.e. most snake_case schemas.
+  - `perf/NP-021` — reconstruction cost was superlinear in the number of separator characters per
+    field name. Holding structure fixed at 40 flattened keys, `nested_field_{n}` went 1,198 ms →
+    3,435 ms → OutOfMemoryError as record count rose. It is now 3–7 ms and, more importantly,
+    **independent of underscore count**: a three-underscore field name costs the same as a
+    one-underscore name. The `reconstruct_arrayHeavy` benchmark went from exhausting a 2 GB heap
+    to allocating ~1.0 MB/op.
+
 ### Added
 - Continuous integration (`ci.yml`): full test suite on JDK 17 and 21 across Linux and Windows,
   a coverage gate, and a cold-clone reproducibility check.

@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.temporal.Temporal
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap;
+import io.github.pierce.path.FlattenedPath;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -324,13 +325,48 @@ public class MapFlattener implements Serializable {
         return result;
     }
 
+    /**
+     * Builds a flattened key by appending one escaped segment.
+     *
+     * <p>The segment is escaped so that a separator character occurring inside a field name
+     * cannot be mistaken for a structural separator. Without this, {@code {"user_id": 1}} and
+     * {@code {"user": {"id": 1}}} produce the identical key {@code "user_id"} and reconstruction
+     * cannot tell them apart.</p>
+     *
+     * <p>That ambiguity was not only lossy, it was quadratic: the reconstructor groups by every
+     * possible prefix, so each extra separator inside a field name multiplies the candidate
+     * groupings and the number of paths falsely detected as arrays. Holding structure fixed at 40
+     * flattened keys, one additional underscore per field name took reconstruction from ~200 ms
+     * to heap exhaustion.</p>
+     *
+     * <p>Escaping incrementally here — rather than collecting segments and encoding at each leaf
+     * — keeps this O(1) appends per level, and produces byte-identical output to
+     * {@link FlattenedPath#encode}.</p>
+     */
     private String buildKey(String prefix, String separator, String key) {
-        if (prefix == null || prefix.isEmpty()) {
-            return key;
-        }
+        return joinEncodedKey(prefix, separator, FlattenedPath.escapeSegment(key, separator));
+    }
 
-        // Use StringBuilder for efficiency
-        return prefix + separator + key;
+    /**
+     * Appends an ALREADY-ENCODED path fragment, without escaping it again.
+     *
+     * <p>The array-extraction paths recursively call {@code flattenObject} on each element and
+     * then prefix the resulting keys. Those keys are complete encoded paths — their internal
+     * separators are structural and were escaped correctly on the way in — so passing them
+     * through {@link #buildKey} would escape the structure itself, turning
+     * {@code accounts_electronicDelivery_consentIndicator} into
+     * {@code accounts_electronicDelivery\_consentIndicator} and collapsing two real levels into
+     * one literal field name.</p>
+     *
+     * <p>Keeping the two operations separate is what guarantees every segment is escaped exactly
+     * once: {@link #buildKey} at the raw-field-name boundary, this method everywhere a
+     * pre-encoded path is being extended.</p>
+     */
+    private String joinEncodedKey(String prefix, String separator, String encodedPath) {
+        if (prefix == null || prefix.isEmpty()) {
+            return encodedPath;
+        }
+        return prefix + separator + encodedPath;
     }
 
     private Map<String, Object> flattenValue(String key, Object value, int depth) {
@@ -494,7 +530,7 @@ public class MapFlattener implements Serializable {
                     // No field extraction - just use the base key
                     fieldKey = key;
                 } else {
-                    fieldKey = buildKey(key, separator, fieldName);
+                    fieldKey = joinEncodedKey(key, separator, fieldName);
                 }
 
                 result.put(fieldKey, serializeArray(entry.getValue()));
@@ -519,7 +555,7 @@ public class MapFlattener implements Serializable {
 
                     // Collect the flattened fields
                     for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {
-                        String fieldKey = buildKey(key, separator, entry.getKey());
+                        String fieldKey = joinEncodedKey(key, separator, entry.getKey());
 
                         if (!fieldValues.containsKey(fieldKey)) {
                             fieldValues.put(fieldKey, new ArrayList<>());

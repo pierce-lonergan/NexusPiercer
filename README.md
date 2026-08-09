@@ -140,14 +140,14 @@ where it actually stands than to imply it is finished. A full audit
 
 Known limitations you should weigh today:
 
-- **Flattened keys are not escaped.** A field literally named `user_id` and a nested `user.id`
-  produce the same flattened key, so reconstruction is lossy for schemas whose field names contain
-  the separator. This affects most snake_case schemas. Fix is scheduled for 2.0.
-- **Reconstruction can exhaust the heap on ordinary input.** Cost is superlinear in the number of
-  separator characters inside field names. Holding structure fixed at 40 flattened keys, field
-  names with one underscore reconstruct in ~200 ms while names with two go 1.2 s → 3.4 s → OOM as
-  record count rises. `nested_field_x` is enough to trigger it. Configure a separator that cannot
-  occur in your field names, and bound document size. Details in [SECURITY.md](SECURITY.md).
+- **Flattened keys are not escaped in 1.0.8.** A field literally named `user_id` and a nested
+  `user.id` produce the same flattened key, so reconstruction is lossy for schemas whose field
+  names contain the separator — which is most snake_case schemas. The same ambiguity also made
+  reconstruction exhaust the heap on ordinary input. **Both are fixed on `main`** by an injective
+  encoding, but are not yet released. If you are on 1.0.8, configure a separator that cannot occur
+  in your field names. Details in [SECURITY.md](SECURITY.md).
+- **A field literally named `___` is silently dropped** during reconstruction — it collides with
+  an internal sentinel namespace. Not yet fixed.
 - **Recursive Avro schemas are not guarded.** A self-referential `.avsc` will exhaust the stack
   or the heap rather than failing with a typed error.
 - **`FileFinder`'s `validatePaths`, `allowedExtensions`, and `maxFileSize` options are not

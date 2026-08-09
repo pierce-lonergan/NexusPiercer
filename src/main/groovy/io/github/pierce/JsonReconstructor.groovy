@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import io.github.pierce.path.FlattenedPath;
 import java.util.stream.Collectors;
 
 /**
@@ -436,7 +437,7 @@ public class JsonReconstructor implements Serializable {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            String[] parts = key.split(Pattern.quote(separator));
+            String[] parts = FlattenedPath.decodeSegments(key, separator).toArray(new String[0]);
 
             // Track all intermediate paths
             StringBuilder pathBuilder = new StringBuilder();
@@ -444,14 +445,14 @@ public class JsonReconstructor implements Serializable {
                 if (pathBuilder.length() > 0) {
                     pathBuilder.append(separator);
                 }
-                pathBuilder.append(parts[i]);
+                pathBuilder.append(FlattenedPath.escapeSegment(parts[i], separator));
                 analysis.allPaths.add(pathBuilder.toString());
             }
 
             // Group by all possible prefixes
             for (int i = 1; i < parts.length; i++) {
-                String prefix = String.join(separator, Arrays.copyOfRange(parts, 0, i));
-                String suffix = String.join(separator, Arrays.copyOfRange(parts, i, parts.length));
+                String prefix = FlattenedPath.encode(Arrays.asList(Arrays.copyOfRange(parts, 0, i)), separator);
+                String suffix = FlattenedPath.encode(Arrays.asList(Arrays.copyOfRange(parts, i, parts.length)), separator);
 
                 prefixToSuffixes.computeIfAbsent(prefix, k -> new LinkedHashSet<>()).add(suffix);
                 prefixToValues.computeIfAbsent(prefix, k -> new ArrayList<>()).add(value);
@@ -696,7 +697,7 @@ public class JsonReconstructor implements Serializable {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            String[] parts = key.split(Pattern.quote(separator));
+            String[] parts = FlattenedPath.decodeSegments(key, separator).toArray(new String[0]);
             setNestedValue(root, parts, value, analysis);
         }
 
@@ -713,7 +714,7 @@ public class JsonReconstructor implements Serializable {
 
         for (int i = 0; i < parts.length - 1; i++) {
             String part = parts[i];
-            String currentPath = String.join(separator, Arrays.copyOfRange(parts, 0, i + 1));
+            String currentPath = FlattenedPath.encode(Arrays.asList(Arrays.copyOfRange(parts, 0, i + 1)), separator);
 
             Object existing = current.get(part);
 
@@ -864,7 +865,8 @@ public class JsonReconstructor implements Serializable {
                 // Process nested structures
                 if (valueAtIndex instanceof Map) {
                     valueAtIndex = processArrays((Map<String, Object>) valueAtIndex,
-                            analysis, arrayPath + separator + fieldName);
+                            analysis,
+                            arrayPath + separator + FlattenedPath.escapeSegment(fieldName, separator));
                 }
 
                 if (valueAtIndex != null || preserveNulls) {

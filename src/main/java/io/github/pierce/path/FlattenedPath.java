@@ -147,6 +147,28 @@ public final class FlattenedPath {
     }
 
     /**
+     * Escapes a single segment so it can be appended to a key without introducing a spurious
+     * separator.
+     *
+     * <p>Exists so a recursive flattener can build keys incrementally — appending one escaped
+     * segment per level — instead of collecting every segment and calling {@link #encode} at each
+     * leaf. The results are identical:</p>
+     *
+     * <pre>{@code
+     *   encode(List.of("a", "b", "c"), "_")
+     *     .equals(escapeSegment("a","_") + "_" + escapeSegment("b","_") + "_" + escapeSegment("c","_"))
+     * }</pre>
+     *
+     * <p>Returns the original instance unchanged when nothing needs escaping, which is the common
+     * case and keeps the hot path allocation-free.</p>
+     */
+    public static String escapeSegment(String segment, String separator) {
+        Objects.requireNonNull(segment, "segment");
+        requireSeparator(separator);
+        return escape(segment, separator);
+    }
+
+    /**
      * The pre-2.0 encoding: plain concatenation, no escaping.
      *
      * @deprecated Not injective — {@code ["user_id"]} and {@code ["user","id"]} both encode to
