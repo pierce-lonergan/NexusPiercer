@@ -12,7 +12,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Feature branches are included deliberately. Restricting `push` to main means a long-lived
+    # branch gets no signal at all until a PR is opened, which for the branch that INTRODUCED this
+    # pipeline meant it could not run on itself.
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'refactor/**'
+      - 'perf/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
