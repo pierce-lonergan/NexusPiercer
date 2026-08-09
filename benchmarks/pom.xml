@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  JMH benchmark harness for NexusPiercer.
+
+  DELIBERATELY A STANDALONE PROJECT, not a module of the library reactor.
+
+  Two reasons, in order of importance:
+
+  1. Annotation processing vs. joint compilation. JMH generates its harness classes with an
+     annotation processor, which needs a javac pass. The library module interleaves
+     maven-compiler-plugin with a five-execution gmavenplus lifecycle
+     (addSources -> generateStubs -> compile, then the test equivalents). Running an annotation
+     processor inside that sequence means it sees a source tree that includes generated Java
+     stubs for the Groovy classes, which produces duplicate-class errors and ordering that
+     varies with which compile execution wins the race. Keeping benchmarks in a pure-Java
+     project with no gmavenplus avoids the problem outright.
+
+  2. It measures the shipped bytecode. This project depends on the library ARTIFACT, so JMH runs
+     against exactly what groovyc emitted and what Maven Central receives — not a recompilation
+     under different flags.
+
+  Build the library first (`./mvnw install` in the parent directory), then:
+
+      mvn -f benchmarks/pom.xml package
+      java -jar benchmarks/target/benchmarks.jar -f 3 -wi 5 -i 10 -prof gc -rf json -rff results.json
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.github.pierce-lonergan</groupId>
+    <artifactId>nexus-piercer-benchmarks</artifactId>
+    <version>1.0.8</version>
+    <packaging>jar</packaging>
+
+    <name>NexusPiercer Benchmarks</name>
+    <description>JMH benchmark harness. Never published.</description>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jmh.version>1.37</jmh.version>
+        <uberjar.name>benchmarks</uberjar.name>
+        <!-- This project is a measurement tool; it must never reach a repository. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.install.skip>true</maven.install.skip>
+        <gpg.skip>true</gpg.skip>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.pierce-lonergan</groupId>
+            <artifactId>nexus-piercer</artifactId>
+            <version>1.0.8</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>${jmh.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <version>${jmh.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${uberjar.name}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <!--
+                      Declared explicitly rather than relying on classpath discovery. Newer JDKs
+                      default to -proc:none, under which classpath-discovered processors silently
+                      do nothing — and a JMH build with no processor produces a jar containing
+                      zero benchmarks that still exits 0.
+                    -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.openjdk.jmh</groupId>
+                            <artifactId>jmh-generator-annprocess</artifactId>
+                            <version>${jmh.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <finalName>${uberjar.name}</finalName>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>org.openjdk.jmh.Main</mainClass>
+                                </transformer>
+                                <!--
+                                  REQUIRED. JMH stores its benchmark inventory in
+                                  META-INF/BenchmarkList and META-INF/CompilerHints. Without
+                                  service/resource merging the uber-jar finds zero benchmarks and
+                                  reports "No matching benchmarks" while exiting successfully.
+                                -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/BenchmarkList</resource>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/CompilerHints</resource>
+                                </transformer>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
