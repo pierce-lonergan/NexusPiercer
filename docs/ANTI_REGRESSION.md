@@ -155,8 +155,27 @@ works", not "works".
 | SBOM generation | Live |
 | Checkstyle / PMD / SpotBugs | **Reporting only** — flips to blocking in Phase 2 |
 | OWASP CVE scan | **Reporting only** — two known CVEs to clear first |
-| JMH Tier 1 / Tier 2 | Harness live; **baseline not yet recorded** |
-| Gate-failure drills | **Not yet run** |
+| JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md) |
+| `invokedynamic` ratchet at 7,168 | Live |
+| Tier 1 / Tier 2 comparison gate | Live, and **drilled in both directions** |
+| Gate-failure drills (CI-level) | **Not yet run** — the four in the table above |
+
+### Drills completed
+
+`compare.py` has been exercised against both outcomes on the real baseline:
+
+| Input | Result |
+|---|---|
+| Baseline vs. itself | `No regressions detected`, geometric-mean drift +0.00%, exit 0 |
+| Baseline vs. synthesized +25% allocation / +40% time | Tier 1 failure reported, `BLOCKED`, exit 1 |
+
+The first attempt at that second drill produced a **false pass**: it exited 1, but from a
+`FileNotFoundError` rather than a gate decision. Worth recording, because an exit code alone does
+not tell you the gate fired — the drill has to assert on the reported reason.
+
+The four CI-level drills (syntax error, coverage drop, hoisted `Pattern.compile`, per-node
+allocation) still need to be run against a live pull request before the pipeline as a whole can
+be described as verified.
 
 The reporting-only entries are a deliberate, time-boxed state, not the end state. Turning
 Checkstyle, PMD, and SpotBugs on for the first time against ~19,860 never-linted lines produces a
