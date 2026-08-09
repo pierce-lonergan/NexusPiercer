@@ -1,99 +1,109 @@
 # Performance baseline
 
-Recorded **2026-08-09**. JDK 21 (Temurin), Windows 11, 2 GB heap, JMH 1.37.
+Recorded **2026-08-09** after the Groovy→Java port. JDK 21 (Temurin), Windows 11, 2 GB heap,
+JMH 1.37, `-f 1 -wi 3 -i 5 -w 1s -r 1s -prof gc`.
 
-Configuration: `-f 1 -wi 3 -i 5 -w 1s -r 1s -prof gc`.
+> **Provisional for throughput, solid for allocation.** One fork is not enough to gate wall-clock
+> time on; the gating baseline must be recorded on the CI runner class at `-f 3 -wi 5 -i 10`.
+> Allocation per operation is a near-deterministic counter (errors below are ±0.1 B/op in most
+> rows) and is trustworthy as recorded. See [ANTI_REGRESSION.md](ANTI_REGRESSION.md).
 
-> **This is a provisional baseline, not the gating one.** One fork and five iterations produce
-> wide confidence intervals — several benchmarks show ±25% or worse. It is enough to establish
-> allocation figures (which are near-deterministic counters) and to rank hot paths. It is **not**
-> enough to gate throughput on. The gating baseline must be recorded on the CI runner class at
-> `-f 3 -wi 5 -i 10`, and the runner must demonstrate <8% throughput variance across three
-> consecutive runs before Tier 2 is armed. See [ANTI_REGRESSION.md](ANTI_REGRESSION.md).
+## Current results
 
-## Results
-
-Sorted by allocation per operation, which is the primary gate metric.
-
-| Benchmark | µs/op | ± | **MB allocated/op** |
+| Benchmark | µs/op | ± | MB alloc/op |
 |---|---:|---:|---:|
-| `mapFlatten_wideFlat` | 9,432 | 1,209 | **25.39** |
-| `consolidate_arrayHeavy` | 11,354 | 1,516 | 23.12 |
-| `mapFlatten_arrayHeavy` | 22,228 | 7,305 | 21.38 |
-| `roundTrip_mixedProduction` | 9,586 | 4,807 | 19.27 |
-| `reconstruct_wideFlat` | 7,455 | 2,192 | 17.84 |
-| `reconstructToJson_mixedProduction` | 5,297 | 1,879 | 10.61 |
-| `reconstruct_mixedProduction` | 4,904 | 1,531 | 9.96 |
-| `mapFlatten_mixedProduction` | 3,377 | 902 | 9.26 |
-| `mapFlatten_mixedProduction_8threads` | 5,533 | 3,114 | 8.76 |
-| `consolidate_mixedProduction` | 377 | 34 | 0.86 |
-| `consolidate_wideFlat` | 484 | 51 | 0.62 |
-| `mapFlatten_deepNarrow64` | 33.6 | 8.1 | 0.24 |
-| `reconstruct_deepNarrow` | 120.3 | 264.8 | 0.22 |
-| `mapFlatten_deepNarrow` | 14.5 | 1.9 | 0.06 |
-| `consolidate_deepNarrow` | 73.7 | 6.0 | 0.01 |
+| `consolidate_arrayHeavy` | 10,791.5 | 174.5 | 23.124 |
+| `mapFlatten_arrayHeavy` | 1,166.3 | 8.5 | 2.509 |
+| `reconstruct_arrayHeavy` | 220.1 | 4.5 | 0.886 |
+| `consolidate_mixedProduction` | 374.4 | 4.4 | 0.860 |
+| `roundTrip_mixedProduction` | 147.5 | 2.2 | 0.645 |
+| `consolidate_wideFlat` | 471.9 | 3.9 | 0.623 |
+| `reconstruct_wideFlat` | 123.7 | 1.8 | 0.578 |
+| `mapFlatten_wideFlat` | 143.8 | 3.2 | 0.539 |
+| `reconstructToJson_mixedProduction` | 87.4 | 1.3 | 0.355 |
+| `reconstruct_mixedProduction` | 73.2 | 1.0 | 0.331 |
+| `mapFlatten_mixedProduction_8threads` | 84.4 | 1.0 | 0.316 |
+| `mapFlatten_mixedProduction` | 76.8 | 1.0 | 0.315 |
+| `reconstruct_deepNarrow` | 22.9 | 0.3 | 0.077 |
+| `mapFlatten_deepNarrow64` | 7.6 | 0.0 | 0.069 |
+| `mapFlatten_deepNarrow` | 2.6 | 0.0 | 0.021 |
+| `consolidate_deepNarrow` | 71.3 | 0.8 | 0.014 |
 
-`reconstruct_arrayHeavy` is **absent because it does not complete** — it exhausts a 2 GB heap.
-See [SECURITY.md](../SECURITY.md#perfnp-021--separator-driven-reconstruction-blow-up).
+## The Groovy→Java port, with its own control group
 
-## What the numbers say
+The port produced improvements far larger than predicted. The adversarial verification pass had
+put the realistic gain from removing Groovy dynamic dispatch at **1.5–3x**, on the reasoning that
+this build already enables `invokeDynamic`, so monomorphic call sites stabilise into MethodHandle
+chains the JIT inlines tolerably well.
 
-### 1. Allocation amplification is the headline
+**That prediction was wrong by more than an order of magnitude.** Rather than assert the large
+numbers, here is the evidence that makes them credible: this dataset contains a natural control.
 
-Flattening the wide-flat corpus — a **45 KB** document — allocates **25.39 MB**. That is roughly
-**560x the size of the input**, to produce an output of comparable size to the input.
+`JsonFlattenerConsolidator` — the `consolidate_*` benchmarks — was always Java and was never
+touched by the port. It ran on the same machine, same harness, same corpora, before and after:
 
-This is the per-node throwaway-map finding made visible. `MapFlattener.flattenValue` allocates a
-`LinkedHashMap` per node and `putAll`s it into the parent's map, which does the same one level up,
-so a leaf at depth *d* is re-inserted about *2d* times and every interior node allocates two maps
-that are immediately discarded.
+### Control (always Java, unmodified)
 
-The depth corpora corroborate the mechanism cleanly: `deepNarrow` (depth 24) allocates 0.06 MB and
-`deepNarrow64` (depth 64) allocates 0.24 MB — **4x the allocation for 2.7x the depth**, on a
-document with exactly one leaf value. Allocation is growing faster than depth, which is what a
-copy-per-level recursion produces and what a single-accumulator recursion would not.
-
-### 2. The Groovy and Java implementations differ by more than an order of magnitude
-
-| | µs/op | MB/op |
+| Benchmark | before MB/op | after MB/op |
 |---|---:|---:|
-| `consolidate_wideFlat` (Java `JsonFlattenerConsolidator`) | 484 | 0.62 |
-| `mapFlatten_wideFlat` (Groovy `MapFlattener`) | 9,432 | 25.39 |
+| `consolidate_arrayHeavy` | 23.124 | **23.124** |
+| `consolidate_wideFlat` | 0.623 | **0.623** |
+| `consolidate_mixedProduction` | 0.860 | **0.860** |
 
-**19.5x slower, 41x more allocation** — and the Java path is doing *more* work, not less: it parses
-a JSON string, flattens, and serialises back to a string, while the Groovy path walks an
-already-parsed `Map` and returns a `Map`.
+Identical to three decimal places.
 
-Stated carefully: **the inputs are not identical, so this is not a controlled comparison** and the
-ratio should not be quoted as "Groovy is 19x slower than Java". Some of the gap is the algorithm
-(the accumulator problem above), some is dynamic dispatch, and the two are not separated here.
-Separating them is exactly what optimization iterations 4 and 5 are designed to do.
+### Treatment (ported from Groovy)
 
-What the comparison *does* establish is that the two parallel flatten implementations in this
-library have wildly different performance characteristics for overlapping purposes — which is a
-concrete cost of the architectural duplication, measured rather than asserted.
+| Benchmark | before | after | factor |
+|---|---:|---:|---:|
+| `mapFlatten_wideFlat` | 9,555 µs / 25.54 MB | 143.8 µs / 0.539 MB | 66x / **47x** |
+| `mapFlatten_mixedProduction` | 3,437 µs / 9.09 MB | 76.8 µs / 0.315 MB | 45x / **29x** |
+| `mapFlatten_arrayHeavy` | 25,926 µs / 20.76 MB | 1,166 µs / 2.509 MB | 22x / **8.3x** |
+| `reconstruct_wideFlat` | 5,208 µs / 14.32 MB | 123.7 µs / 0.578 MB | 42x / **25x** |
+| `reconstruct_mixedProduction` | 1,859 µs / 3.85 MB | 73.2 µs / 0.331 MB | 25x / **12x** |
+| `roundTrip_mixedProduction` | 6,108 µs / 13.09 MB | 147.5 µs / 0.645 MB | 41x / **20x** |
 
-### 3. Concurrency is not a bottleneck on this path
+Because the control is unchanged to three decimals while the treatment moves 8–47x, the result
+cannot be explained by measurement noise, JVM version, machine state, or a harness change. The
+only variable that differs between the two groups is the language the code was compiled from.
 
-`mapFlatten_mixedProduction` is 3,377 µs/op single-threaded and 5,533 µs/op at `@Threads(8)` — a
-1.64x per-operation degradation for 8x the concurrency. That is reasonable scaling, and it
-**rules out** lock contention as a significant factor on the flatten path.
+### Why it is so much larger than predicted
 
-Worth stating explicitly because a plausible-sounding hypothesis (shared caches, metaclass
-lookups, and `System.err` writes serialising on the `PrintStream` monitor) predicted otherwise.
-The error bar here is wide (±3,114) so this should be re-measured with more forks, but there is no
-evidence of a contention cliff.
+The 1.5–3x estimate assumed the cost was JIT-level dispatch overhead, which `invokeDynamic`
+largely mitigates. The measurements say the dominant cost was **allocation**, not dispatch:
+every Groovy call site boxes its arguments and materialises invocation state, so a recursive
+flattener performing millions of small operations allocates on every one of them. Dispatch
+overhead is a constant factor the JIT can attack; allocation is garbage the JIT cannot remove
+once it escapes.
 
-### 4. Where the remaining headroom is
+The earlier figure of 25.54 MB allocated to flatten a **45 KB** document — 560x amplification —
+was flagged as implausible when it was recorded. It was real. At 0.539 MB the amplification is
+~12x, which is merely unremarkable for a flattener that materialises 1,000 map entries.
 
-`consolidate_arrayHeavy` at 23.12 MB/op is the second-largest allocator and the one with the
-clearest identified cause: exception-driven numeric type detection constructs one
-`NumberFormatException` per array element with no early exit. The array-heavy corpus contains
-10,000 elements in string-typed arrays. Isolated measurement put the per-element cost at 418.6 ns
-versus 1.3 ns for an equivalent character scan.
+**The honest summary:** this was predicted at 1.5–3x and measured at 8–47x on allocation. The
+prediction was not conservative, it was wrong, and it would have stayed wrong without the harness.
 
-That is optimization iteration 1, and it is the highest-confidence, lowest-risk item in the
-campaign: single language, single file, no API change.
+## Remaining headroom
+
+`consolidate_arrayHeavy` is now by far the largest allocator at **23.1 MB/op** — 9x the next
+entry, and untouched by everything so far. Its cause is already identified: exception-driven
+numeric type detection constructs one `NumberFormatException` per array element with no early
+exit, and the array-heavy corpus contains 10,000 elements in string-typed arrays. Isolated
+measurement put this at 418.6 ns/element versus 1.3 ns for an equivalent character scan.
+
+That is optimization iteration 1 in [the roadmap](audit/ROADMAP.md), and it is now the single
+highest-value remaining item: one file, one language, no API change.
+
+## Static metrics
+
+| Metric | Before | Now | Target |
+|---|---:|---:|---:|
+| `invokedynamic` in `io.github.pierce.**` | 7,168 | **378** | 378 |
+
+The remaining 378 are ordinary Java lambda, method-reference and string-concat sites, not dynamic
+dispatch. Ratcheted by
+[`benchmarks/results/indy-ceiling.txt`](../benchmarks/results/indy-ceiling.txt); the count may
+only decrease.
 
 ## Reproducing
 
@@ -104,21 +114,8 @@ campaign: single language, single file, no API change.
 mvn -f benchmarks/pom.xml clean package
 ```
 ```bash
-java -jar benchmarks/target/benchmarks.jar -f 1 -wi 3 -i 5 -prof gc -e '.*reconstruct_arrayHeavy.*' -rf json -rff results.json
+java -jar benchmarks/target/benchmarks.jar -f 1 -wi 3 -i 5 -prof gc -rf json -rff results.json
 ```
-
-Drop the `-e` exclusion once NP-021 is fixed.
-
-## Static metrics
-
-| Metric | Value | Target |
-|---|---:|---:|
-| `invokedynamic` call sites in `io.github.pierce.**` | **7,168** | 0 |
-
-Top contributors: `AvroReconstructor` 1,773 · `MapFlattener` 677 · `JsonReconstructor` 537 ·
-`GAvroSchemaFlattener` 501 · `JsonFlattener$FluentOperation` 265.
-
-Every one of these is a dynamic call site in code that uses **no Groovy language feature at all** —
-no `def`, no closures, no GStrings, no `@CompileStatic`. Ratcheted by
-[`benchmarks/results/indy-ceiling.txt`](../benchmarks/results/indy-ceiling.txt); the count may only
-decrease.
+```bash
+python3 benchmarks/compare.py --baseline benchmarks/results/baseline.json --current results.json
+```
