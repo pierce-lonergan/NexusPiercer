@@ -1,0 +1,122 @@
+# Contributing to NexusPiercer
+
+Thanks for your interest. This document is short and specific — it covers what the build expects
+and what will block your PR.
+
+## Prerequisites
+
+- **JDK 17** (the build targets 17; CI also runs 21)
+- No Maven install needed — use the wrapper: `./mvnw`
+
+Verify your toolchain matches the build's:
+
+```bash
+./mvnw -v
+```
+
+If your `JAVA_HOME` points at a JDK newer than 21, set it to 17 for local work. Maven and `java`
+resolving to *different* JDKs is a known source of confusing failures here.
+
+## Build and test
+
+```bash
+./mvnw verify
+```
+
+That runs the full suite (~1,200 test invocations, roughly 4 minutes). Faster loops:
+
+```bash
+./mvnw -Pfast package
+```
+```bash
+./mvnw test -Dtest=JsonFlattenerConsolidatorTest
+```
+
+Static analysis and supply-chain scans run under their own profiles:
+
+```bash
+./mvnw -Pquality verify
+```
+```bash
+./mvnw -Psecurity verify
+```
+
+## What CI checks
+
+Every pull request runs three independent gates. All three must be green to merge.
+
+| Axis | Workflow | What blocks you |
+|---|---|---|
+| **Correctness** | `ci.yml` | Any test failure on JDK 17 or 21, Linux or Windows. Coverage below the `jacoco.minimum.coverage` floor. A cold-clone build failure. Groovy sources compiling more than once. |
+| **Quality** | `quality.yml` | New dependencies with high-severity advisories. CodeQL security findings. Checkstyle/PMD/SpotBugs violations *(reporting only until Phase 2 — see the roadmap)*. |
+| **Performance** | `benchmark.yml` | Allocation per operation up more than 2% against baseline. Throughput down more than 10% with disjoint confidence intervals. |
+
+The performance gate is two-tier because allocation counters and wall-clock timings have very
+different noise characteristics — details in
+[docs/audit/ROADMAP.md](docs/audit/ROADMAP.md#regression-gate).
+
+## Coverage is a ratchet
+
+`jacoco.minimum.coverage` in `pom.xml` may only ever go **up**. If your PR raises coverage, raise
+the floor to match in the same PR. It is not permitted to lower it to make a build pass.
+
+This rule exists because the floor previously sat at `0.20` against 60.3% actual coverage, which
+meant the gate could report success through a two-thirds regression.
+
+## Benchmarks
+
+If you change anything on a flatten, reconstruct, or conversion path, include a JMH delta:
+
+```bash
+./mvnw -Pbenchmarks package
+java -jar benchmarks/target/benchmarks.jar -f 3 -wi 5 -i 10 -prof gc -rf json -rff after.json
+```
+
+Paste the before/after into the PR. If a change intentionally trades throughput for correctness,
+add an entry to `benchmarks/waivers.yml` with a justification and an expiry date — accepted
+regressions should be visible and time-boxed, not silently absorbed.
+
+## Commit messages
+
+[Conventional Commits](https://www.conventionalcommits.org/). The release notes are generated
+from them.
+
+```
+feat(flatten): thread a single accumulator through the recursion
+fix(avro): guard against self-referential schemas
+perf(reconstruct): hoist schema fingerprint out of the per-record path
+docs(readme): correct the NexusPiercerPatterns method list
+```
+
+Use `!` or a `BREAKING CHANGE:` footer for anything that changes public API.
+
+The history before this convention was adopted contains sequences like `enhanced the project`
+repeated three times and `added type conversion logic` repeated seven; please don't extend it.
+
+## Pull requests
+
+1. Branch from `main`.
+2. Keep one logical change per PR. Refactors, behaviour changes, and performance work must not be
+   combined — a mixed PR cannot be bisected or reverted cleanly.
+3. Add tests. New behaviour without a test will be asked for one.
+4. Do not commit binaries. `lib/` is gitignored for this reason.
+5. Fill in the PR template, including the benchmark section when it applies.
+
+## Adding tests
+
+- Java tests: `src/test/java`, named `*Test.java`.
+- Groovy tests: `src/test/groovy`, named `*Test.groovy`.
+- Property tests use [jqwik](https://jqwik.net/) and must be named `*Test.java` to be picked up
+  by Surefire. A file named `*Properties.java` **will not run** — that mistake previously left 26
+  property tests silently unexecuted.
+- Integration tests are `*IntegrationTest.java` and run under Failsafe.
+
+Avoid wall-clock assertions. Tests that assert on absolute milliseconds or on `System.gc()`
+memory deltas are flaky by construction; assert on complexity or allocation behaviour instead.
+
+## Reporting bugs
+
+Open an issue with a minimal reproducing input — for this library that usually means the smallest
+JSON document or `.avsc` that shows the problem, plus the expected and actual output.
+
+Security issues go to [SECURITY.md](SECURITY.md), not the public tracker.

@@ -1,0 +1,67 @@
+name: Bug report
+description: Something behaves incorrectly
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities, use [SECURITY.md](../blob/main/SECURITY.md) instead —
+        not this form.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproducing input
+      description: >
+        The smallest JSON document or .avsc that shows the problem, plus the call that triggers
+        it. This is the single most useful thing you can provide.
+      render: java
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: NexusPiercer version
+      placeholder: 1.0.8
+    validations:
+      required: true
+
+  - type: input
+    id: java
+    attributes:
+      label: Java version
+      placeholder: 'Temurin 17.0.15'
+    validations:
+      required: true
+
+  - type: input
+    id: spark
+    attributes:
+      label: Spark version (if applicable)
+      placeholder: '3.5.0 / Scala 2.12'
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Stack trace or logs
+      render: text
+
+  - type: checkboxes
+    id: known
+    attributes:
+      label: Known limitations
+      description: >
+        Please confirm this is not one of the documented limitations in the README's
+        "Project status" section.
+      options:
+        - label: This is not a known limitation (unescaped separator in flattened keys, absent JSON reconstruction, unguarded recursive schemas, unenforced FileFinder validation)
+          required: true
