@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclude filter for NexusPiercer.
+
+  Every entry below must state WHY it is suppressed. An unexplained suppression is
+  indistinguishable from a bug someone hid, and this repository already demonstrates what
+  happens when a gate's configuration is never read by a human.
+
+  Do not add blanket <Match><Bug category="..."/></Match> entries. Suppress a specific
+  pattern in a specific class, or fix the finding.
+-->
+<FindBugsFilter
+        xmlns="https://github.com/spotbugs/filter/3.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/4.8.3/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- Generated Avro classes are not ours to fix. -->
+    <Match>
+        <Source name="~.*[\\/]generated-sources[\\/].*"/>
+    </Match>
+    <Match>
+        <Source name="~.*[\\/]generated-test-sources[\\/].*"/>
+    </Match>
+
+    <!--
+      Groovy-compiled classes carry compiler-synthesised members (callsite arrays, metaclass
+      fields, $getStaticMetaClass) that trip a broad set of detectors and that no source-level
+      change can address. Scoped to the five .groovy-originated classes by name rather than
+      applied package-wide, so newly added Java classes are never accidentally exempt.
+
+      This block is expected to become dead once the Groovy sources are ported to Java; the
+      Tier-1 invokedynamic gate will make that visible.
+    -->
+    <Match>
+        <Or>
+            <Class name="io.github.pierce.AvroReconstructor"/>
+            <Class name="io.github.pierce.GAvroSchemaFlattener"/>
+            <Class name="io.github.pierce.JsonFlattener"/>
+            <Class name="io.github.pierce.JsonReconstructor"/>
+            <Class name="io.github.pierce.MapFlattener"/>
+        </Or>
+        <Or>
+            <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE"/>
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+            <Bug pattern="SIC_INNER_SHOULD_BE_STATIC_ANON"/>
+            <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
+            <Bug pattern="UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD"/>
+        </Or>
+    </Match>
+
+    <!--
+      EI_EXPOSE_REP / EI_EXPOSE_REP2 fire on every builder and config object that stores or
+      returns a caller-supplied collection. Defensive-copying all of them would add an
+      allocation to the per-record path that the benchmark corpus is specifically designed to
+      measure. Suppressed only for the immutable-by-contract config carriers; NOT suppressed
+      globally.
+    -->
+    <Match>
+        <Or>
+            <Class name="~io\.github\.pierce\.converter\.ConversionConfig.*"/>
+            <Class name="~io\.github\.pierce\..*\$.*Builder"/>
+        </Or>
+        <Or>
+            <Bug pattern="EI_EXPOSE_REP"/>
+            <Bug pattern="EI_EXPOSE_REP2"/>
+        </Or>
+    </Match>
+
+</FindBugsFilter>

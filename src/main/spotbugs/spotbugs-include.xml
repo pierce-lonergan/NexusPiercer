@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs include filter for NexusPiercer.
+
+  The pom referenced this file long before it existed, which is one of the reasons the
+  `quality` profile could never execute: SpotBugs fails outright when includeFilterFile
+  points at a missing path.
+
+  Scope note: this filter matches everything, and the *exclude* filter carries the
+  suppressions. That ordering is deliberate — an allowlist of bug patterns silently drops
+  new detectors when SpotBugs is upgraded, which is how a gate quietly stops gating.
+-->
+<FindBugsFilter
+        xmlns="https://github.com/spotbugs/filter/3.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/4.8.3/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- Analyse all production classes. -->
+    <Match>
+        <Package name="~io\.github\.pierce.*"/>
+    </Match>
+
+</FindBugsFilter>
