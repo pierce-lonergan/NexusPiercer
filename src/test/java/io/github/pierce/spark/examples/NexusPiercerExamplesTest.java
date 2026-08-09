@@ -1773,10 +1773,22 @@ class NexusPiercerExamplesTest {
 
 
 
-        // Validate field count is significant but controlled (terminal arrays generate many statistics)
-        assertThat(allColumns.size()).as("Should have significant field count with many terminal arrays")
-                .isGreaterThan(200)
-                .isLessThan(400); // Terminal arrays + statistics = many fields, but controlled
+        // Field count with array statistics DISABLED (see .disableArrayStatistics() above).
+        //
+        // This assertion previously required >200 fields, justified by a comment reading
+        // "Terminal arrays + statistics = many fields" - but the pipeline under test explicitly
+        // turns statistics off, and the call site's own comment says that "will significantly
+        // reduce field count". The test contradicted itself: it asserted the
+        // statistics-enabled count against a statistics-disabled run.
+        //
+        // The real figure is 131. The bounds below are set around that rather than pinned to it,
+        // so a genuine change in flattening breadth still trips the assertion while ordinary
+        // schema edits do not. If array statistics are ever re-enabled here, expect roughly 2-3x
+        // this number and update both the call and this bound together.
+        assertThat(allColumns.size())
+                .as("Terminal-array schema with statistics disabled should flatten to ~131 columns")
+                .isGreaterThan(100)
+                .isLessThan(200);
 
         // Validate data integrity
         Row sampleRow = processedData.first();
