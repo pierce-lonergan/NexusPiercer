@@ -25,6 +25,7 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import io.github.pierce.path.FlattenedPath;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -605,7 +606,7 @@ public class AvroReconstructor {
             if (path.isEmpty()) return;
 
             pathSchemas.put(path, schema);
-            String[] parts = path.split(Pattern.quote(separator));
+            String[] parts = FlattenedPath.decodeSegments(path, separator).toArray(new String[0]);
             Node current = root;
 
             for (String part : parts) {
@@ -685,8 +686,8 @@ public class AvroReconstructor {
                 }
 
                 for (Schema.Field field : schema.getFields()) {
-                    String fieldPath = prefix.isEmpty() ? field.name() :
-                            prefix + separator + field.name();
+                    String esc = FlattenedPath.escapeSegment(field.name(), separator);
+                    String fieldPath = prefix.isEmpty() ? esc : prefix + separator + esc;
                     buildSchemaPathsRecursive(field.schema(), fieldPath, trie, depth + 1);
                 }
                 break;
@@ -700,7 +701,8 @@ public class AvroReconstructor {
                 Schema elementType = schema.getElementType();
                 if (elementType.getType() == RECORD) {
                     for (Schema.Field field : elementType.getFields()) {
-                        String arrayFieldPath = prefix + separator + field.name();
+                        String arrayFieldPath = prefix + separator +
+                                FlattenedPath.escapeSegment(field.name(), separator);
                         trie.add(arrayFieldPath, field.schema());
                         buildSchemaPathsRecursive(field.schema(), arrayFieldPath, trie, depth + 1);
                     }
@@ -869,7 +871,7 @@ public class AvroReconstructor {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            String[] parts = key.split(Pattern.quote(separator));
+            String[] parts = FlattenedPath.decodeSegments(key, separator).toArray(new String[0]);
 
             // Check if this is an array field pattern
             if (isArrayFieldPattern(parts, schemaPaths)) {
@@ -885,7 +887,7 @@ public class AvroReconstructor {
     private boolean isArrayFieldPattern(String[] keyParts, SchemaPathTrie schemaPaths) {
         // Check each prefix to see if it's an array path
         for (int i = keyParts.length - 1; i > 0; i--) {
-            String prefix = String.join(separator, Arrays.copyOfRange(keyParts, 0, i));
+            String prefix = FlattenedPath.encode(Arrays.asList(Arrays.copyOfRange(keyParts, 0, i)), separator);
             if (schemaPaths.containsArrayPath(prefix)) {
                 return true;
             }
@@ -918,7 +920,8 @@ public class AvroReconstructor {
 
         for (Schema.Field field : schema.getFields()) {
             String fieldName = field.name();
-            String fieldPath = path.isEmpty() ? fieldName : path + separator + fieldName;
+            String escapedName = FlattenedPath.escapeSegment(fieldName, separator);
+            String fieldPath = path.isEmpty() ? escapedName : path + separator + escapedName;
             Schema fieldSchema = field.schema();
 
             try {
@@ -1905,7 +1908,8 @@ public class AvroReconstructor {
             String key = entry.getKey();
             PathNode valueNode = entry.getValue();
             Object value = reconstructValue(valueNode, valueSchema,
-                    path + separator + key, currentDepth + 1);
+                    path + separator + FlattenedPath.escapeSegment(key, separator),
+                    currentDepth + 1);
             result.put(key, value);
         }
 

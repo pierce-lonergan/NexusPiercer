@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory
 
 import java.nio.ByteBuffer
+import io.github.pierce.path.FlattenedPath;
 
 /**
  * Flattens Avro schemas to match MapFlattener output and applies type casting
@@ -293,9 +294,10 @@ public class GAvroSchemaFlattener implements Serializable {
                         List<Field> recordFields = actualElementSchema.getFields();
 
                         for (Field recordField : recordFields) {
+                            String escName = FlattenedPath.escapeSegment(recordField.name(), separator);
                             String fieldPath = node.path.isEmpty()
-                                    ? recordField.name()
-                                    : node.path + separator + recordField.name();
+                                    ? escName
+                                    : node.path + separator + escName;
 
                             // Recursively handle nested structures in array elements
                             Map<String, FlattenedFieldType> nestedFields =
@@ -316,9 +318,10 @@ public class GAvroSchemaFlattener implements Serializable {
                             // Array of arrays of records - extract record fields
                             String separator = config.useArrayBoundarySeparator ? "__" : "_";
                             for (Field recordField : innerElement.getFields()) {
+                                String escName = FlattenedPath.escapeSegment(recordField.name(), separator);
                                 String fieldPath = node.path.isEmpty()
-                                        ? recordField.name()
-                                        : node.path + separator + recordField.name();
+                                        ? escName
+                                        : node.path + separator + escName;
                                 Map<String, FlattenedFieldType> nestedFields =
                                         flattenSchemaForArrayElement(recordField.schema(), fieldPath, node.depth + 1);
                                 result.putAll(nestedFields);
@@ -394,7 +397,8 @@ public class GAvroSchemaFlattener implements Serializable {
                 // Recursively flatten nested record
                 String separator = config.useArrayBoundarySeparator ? "__" : "_";
                 for (Field field : actualSchema.getFields()) {
-                    String fieldPath = basePath + separator + field.name();
+                    String fieldPath = basePath + separator +
+                            FlattenedPath.escapeSegment(field.name(), separator);
                     Map<String, FlattenedFieldType> nestedFields =
                             flattenSchemaForArrayElement(field.schema(), fieldPath, depth + 1);
                     result.putAll(nestedFields);
@@ -417,7 +421,8 @@ public class GAvroSchemaFlattener implements Serializable {
                     // Array of records within array - extract fields from the nested record
                     String separator = config.useArrayBoundarySeparator ? "__" : "_";
                     for (Field recordField : nestedElementSchema.getFields()) {
-                        String fieldPath = basePath + separator + recordField.name();
+                        String fieldPath = basePath + separator +
+                                FlattenedPath.escapeSegment(recordField.name(), separator);
                         Map<String, FlattenedFieldType> nestedFields =
                                 flattenSchemaForArrayElement(recordField.schema(), fieldPath, depth + 1);
                         result.putAll(nestedFields);
@@ -547,10 +552,11 @@ public class GAvroSchemaFlattener implements Serializable {
      * Build field path with appropriate separator
      */
     private String buildPath(String prefix, String fieldName) {
+        String escaped = FlattenedPath.escapeSegment(fieldName, config.getSeparator());
         if (prefix == null || prefix.isEmpty()) {
-            return fieldName;
+            return escaped;
         }
-        return prefix + config.getSeparator() + fieldName;
+        return prefix + config.getSeparator() + escaped;
     }
 
     /**
