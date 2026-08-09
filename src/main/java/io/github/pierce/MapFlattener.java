@@ -6,17 +6,32 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.github.pierce.MapFlattener.ArraySerializationFormat.*;
-import static io.github.pierce.MapFlattener.FieldNamingStrategy.*
+import static io.github.pierce.MapFlattener.FieldNamingStrategy.*;
 
-import java.lang.reflect.Array
-import java.nio.ByteBuffer
+import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.time.temporal.Temporal
-import java.util.Base64
+import java.time.temporal.Temporal;
+import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 import io.github.pierce.path.FlattenedPath;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Production-hardened Map flattener with comprehensive edge case handling
@@ -24,13 +39,13 @@ import java.util.stream.Collectors;
  * Thread-safe, handles circular references correctly, and provides extensive
  * configuration options for edge cases.
  *
- * <h3>Basic Flattening</h3>
+ * <h2>Basic Flattening</h2>
  * <pre>
  * {user: {name: "John", age: 30}}
  * → {user_name: "John", user_age: 30}
  * </pre>
  *
- * <h3>Array Handling</h3>
+ * <h2>Array Handling</h2>
  * Arrays are converted to strings based on ArraySerializationFormat:
  * <pre>
  * Input: {scores: [1, 2, 3]}
@@ -57,7 +72,7 @@ import java.util.stream.Collectors;
  * Output: {data_name: "[["A"]]", data_value: "[[null],["text"]]"}
  * </pre>
  *
- * <h3>For AWS Athena</h3>
+ * <h2>For AWS Athena</h2>
  * Recommended formats:
  * <pre>
  * // For CSV with simple values:
@@ -70,7 +85,7 @@ import java.util.stream.Collectors;
  * .arrayFormat(ArraySerializationFormat.BRACKET_LIST)
  * </pre>
  *
- * <h3>Important: Delimiter Collisions</h3>
+ * <h2>Important: Delimiter Collisions</h2>
  * When using COMMA_SEPARATED or PIPE_SEPARATED formats, values containing
  * those delimiters will create ambiguous output:
  * <pre>
@@ -85,18 +100,18 @@ import java.util.stream.Collectors;
  * <b>Recommendation:</b> Use JSON format if values may contain delimiters,
  * or sanitize/validate data before flattening.
  *
- * <h3>Null Handling in Delimited Formats</h3>
+ * <h2>Null Handling in Delimited Formats</h2>
  * In COMMA_SEPARATED and PIPE_SEPARATED formats, null values become empty strings:
  * <pre>
  * [null, "", "value"] → ",,value"
  * </pre>
  * Empty string and null are indistinguishable in the output.
  *
- * <h3>Circular References</h3>
+ * <h2>Circular References</h2>
  * Detected and marked as [CIRCULAR_REFERENCE] when enabled.
  * Shared references (same object in multiple places) work correctly.
  *
- * <h3>Thread Safety</h3>
+ * <h2>Thread Safety</h2>
  * Fully thread-safe. Multiple threads can share a single MapFlattener instance.
  * Uses ThreadLocal for circular reference detection without contention.
  */
@@ -932,13 +947,13 @@ public class MapFlattener implements Serializable {
         if (value instanceof Double) {
             double d = (Double) value;
             if (Double.isNaN(d) || Double.isInfinite(d)) {
-                return d.toString();
+                return Double.toString(d);
             }
         }
         if (value instanceof Float) {
             float f = (Float) value;
             if (Float.isNaN(f) || Float.isInfinite(f)) {
-                return f.toString();
+                return Float.toString(f);
             }
         }
 
@@ -1179,7 +1194,7 @@ public class MapFlattener implements Serializable {
         switch (namingStrategy) {
             case SNAKE_CASE:
                 // CamelCase to snake_case
-                return key.replaceAll("([A-Z])", "_\$1")
+                return key.replaceAll("([A-Z])", "_$1")
                         .toLowerCase()
                         .replaceAll("^_", "")
                         .replaceAll("_+", "_");

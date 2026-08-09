@@ -13,12 +13,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.github.pierce.path.FlattenedPath;
-import java.util.stream.Collectors;
 
 /**
  * Production-grade JSON Reconstructor - Converts flattened Maps back to hierarchical JSON.
@@ -27,7 +24,7 @@ import java.util.stream.Collectors;
  * {@link MapFlattener} or {@link JsonFlattener}. Unlike AvroReconstructor, this class does NOT
  * require a schema - it infers the structure from the flattened keys themselves.</p>
  *
- * <h3>Key Features:</h3>
+ * <h2>Key Features:</h2>
  * <ul>
  *   <li>Schema-less reconstruction from flattened key patterns</li>
  *   <li>Automatic detection of arrays vs nested objects</li>
@@ -39,7 +36,7 @@ import java.util.stream.Collectors;
  *   <li>Detailed error reporting with path information</li>
  * </ul>
  *
- * <h3>Basic Usage:</h3>
+ * <h2>Basic Usage:</h2>
  * <pre>
  * // 1. Flatten original data
  * MapFlattener flattener = MapFlattener.builder().build();
@@ -60,7 +57,7 @@ import java.util.stream.Collectors;
  * }
  * </pre>
  *
- * <h3>With Custom Configuration:</h3>
+ * <h2>With Custom Configuration:</h2>
  * <pre>
  * JsonReconstructor reconstructor = JsonReconstructor.builder()
  *     .separator("__")                                    // Match MapFlattener separator
@@ -72,7 +69,7 @@ import java.util.stream.Collectors;
  * Map&lt;String, Object&gt; reconstructed = reconstructor.reconstruct(flattened);
  * </pre>
  *
- * <h3>Fluent API:</h3>
+ * <h2>Fluent API:</h2>
  * <pre>
  * // Simple one-liner
  * Map&lt;String, Object&gt; result = JsonReconstructor.create()
@@ -91,7 +88,7 @@ import java.util.stream.Collectors;
  *     .toMap();
  * </pre>
  *
- * <h3>Array Handling:</h3>
+ * <h2>Array Handling:</h2>
  * <p>The reconstructor detects arrays from flattened patterns:</p>
  * <ul>
  *   <li>Multiple keys with same prefix but different field suffixes: {@code users_name, users_age}
@@ -125,8 +122,11 @@ public class JsonReconstructor implements Serializable {
     }
 
     // Patterns for detection
-    private static final Pattern JSON_ARRAY_PATTERN = Pattern.compile("^\\s*\\[.*\\]\\s*\$", Pattern.DOTALL);
-    private static final Pattern BRACKET_LIST_PATTERN = Pattern.compile("^\\s*\\[(.*)\\]\\s*\$", Pattern.DOTALL);
+    // Note: the '$' anchors were written as '\$' in the Groovy source, where a bare '$' inside a
+    // double-quoted string starts a GString interpolation and must be escaped. Java has no such
+    // escape and rejects '\$' outright, so the backslashes are dropped here.
+    private static final Pattern JSON_ARRAY_PATTERN = Pattern.compile("^\\s*\\[.*\\]\\s*$", Pattern.DOTALL);
+    private static final Pattern BRACKET_LIST_PATTERN = Pattern.compile("^\\s*\\[(.*)\\]\\s*$", Pattern.DOTALL);
 
     // Type references
     private static final TypeReference<Map<String, Object>> MAP_TYPE_REF =
@@ -515,13 +515,13 @@ public class JsonReconstructor implements Serializable {
         String trimmed = value.trim();
 
         switch (arrayFormat) {
-            case ArraySerializationFormat.JSON:
+            case JSON:
                 return trimmed.startsWith("[") && trimmed.endsWith("]");
-            case ArraySerializationFormat.BRACKET_LIST:
+            case BRACKET_LIST:
                 return trimmed.startsWith("[") && trimmed.endsWith("]");
-            case ArraySerializationFormat.COMMA_SEPARATED:
+            case COMMA_SEPARATED:
                 return trimmed.contains(",");
-            case ArraySerializationFormat.PIPE_SEPARATED:
+            case PIPE_SEPARATED:
                 return trimmed.contains("|");
             default:
                 return trimmed.startsWith("[") && trimmed.endsWith("]");
@@ -557,22 +557,22 @@ public class JsonReconstructor implements Serializable {
 
         // Try format-specific parsing
         switch (arrayFormat) {
-            case ArraySerializationFormat.BRACKET_LIST:
+            case BRACKET_LIST:
                 return parseBracketList(strValue);
 
-            case ArraySerializationFormat.COMMA_SEPARATED:
+            case COMMA_SEPARATED:
                 if (strValue.contains(",")) {
                     return splitRespectingBrackets(strValue, (char) ',');
                 }
                 break;
 
-            case ArraySerializationFormat.PIPE_SEPARATED:
+            case PIPE_SEPARATED:
                 if (strValue.contains("|")) {
                     return splitRespectingBrackets(strValue, (char) '|');
                 }
                 break;
 
-            case ArraySerializationFormat.JSON:
+            case JSON:
             default:
                 // Already tried JSON above
                 break;

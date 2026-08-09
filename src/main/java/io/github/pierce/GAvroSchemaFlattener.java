@@ -32,7 +32,7 @@ import io.github.pierce.path.FlattenedPath;
  * <p>
  * Thread-safe for concurrent use in streaming applications.
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>
  * // One-time schema flattening (cache this result)
  * Schema avroSchema = ...; // Your Avro schema
