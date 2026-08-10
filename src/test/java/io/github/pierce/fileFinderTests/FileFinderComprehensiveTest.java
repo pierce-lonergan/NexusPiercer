@@ -5,6 +5,8 @@ import io.github.pierce.AvroSchemaFlattener;
 import io.github.pierce.AvroSchemaLoader;
 import io.github.pierce.files.FileFinder;
 import org.apache.avro.Schema;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -244,8 +246,19 @@ class FileFinderComprehensiveTest {
 
     // ===== PATH HANDLING TESTS =====
 
+    /**
+     * Windows-only by construction.
+     *
+     * <p>The test rewrites '/' to '\' and asserts the file is still found. On Windows that is a
+     * valid separator swap; on Linux '\' is an ordinary filename character, so the rewritten path
+     * refers to a file that genuinely does not exist and the assertion correctly fails.</p>
+     *
+     * <p>This surfaced on the first CI run — the suite had only ever executed on Windows, so a
+     * platform assumption baked into a test had never been challenged.</p>
+     */
     @Test
     @Order(30)
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("Should handle Windows paths correctly")
     void testWindowsPathHandling() throws IOException {
         // Given

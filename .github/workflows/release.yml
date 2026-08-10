@@ -110,7 +110,7 @@ jobs:
           echo "key_id=${KEY_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Generate SBOM
-        run: ./mvnw ${MAVEN_ARGS} -Psecurity cyclonedx:makeAggregateBom -DskipTests
+        run: ./mvnw ${MAVEN_ARGS} -Psecurity cyclonedx:makeAggregateBom -DskipTests -Dcyclonedx.skipNotDeployed=false
 
       # -Prelease is the load-bearing flag: it sets gpg.skip=false AND contributes the
       # maven-gpg-plugin execution. Without it the deploy silently produces unsigned artifacts,

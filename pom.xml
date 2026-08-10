@@ -1498,6 +1498,16 @@
                         <artifactId>cyclonedx-maven-plugin</artifactId>
                         <version>${cyclonedx.version}</version>
                         <configuration>
+                            <!--
+                              REQUIRED here. central-publishing-maven-plugin sets
+                              maven.deploy.skip=true so the stock deploy plugin does not publish
+                              alongside it, and CycloneDX reads that as "this module is not
+                              deployed, so it needs no SBOM". The goal then logs
+                              "Skipping CycloneDX goal, because module skips deploy" and exits 0,
+                              producing no bom and no error - the artifact IS published, just by a
+                              different plugin.
+                            -->
+                            <skipNotDeployed>false</skipNotDeployed>
                             <projectType>library</projectType>
                             <schemaVersion>1.5</schemaVersion>
                             <outputFormat>all</outputFormat>

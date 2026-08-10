@@ -1801,9 +1801,18 @@ class NexusPiercerExamplesTest {
         assertThat(sampleRow.<String>getAs("primaryLineItem_productName")).isEqualTo("Enterprise Laptop Pro 15");
         assertThat(sampleRow.<String>getAs("primaryShipment_carrier")).isEqualTo("UPS");
 
-        // Validate deep nesting with terminal arrays
+        // Validate deep nesting with terminal arrays.
+        //
+        // The source JSON writes these as 37.7740 and -122.4200, and the test originally asserted
+        // those exact strings. The Avro schema declares the field `double`, and 37.7740 IS 37.774
+        // as a double - Double.toString emits the shortest representation that round-trips, so the
+        // trailing zero is gone before any flattening happens. The old expectation was
+        // unsatisfiable for a double-typed field, not a flattening defect.
+        //
+        // Preserving source formatting would require carrying the values as BigDecimal or as raw
+        // text, which is a schema-type decision, not something the flattener can recover.
         assertThat(sampleRow.<String>getAs("customer_primaryAddress_geoLocation_boundaryPolygon_coordinates"))
-                .contains("37.7740", "-122.4200");
+                .contains("37.774", "-122.42");
         assertThat(sampleRow.<String>getAs("primaryLineItem_product_specifications_certifications_complianceStandards"))
                 .contains("ISO-14001", "ENERGY-STAR");
 

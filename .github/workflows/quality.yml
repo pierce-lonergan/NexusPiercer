@@ -159,7 +159,7 @@ jobs:
           cache: maven
 
       - name: Generate CycloneDX SBOM
-        run: ./mvnw ${MAVEN_ARGS} -Psecurity cyclonedx:makeAggregateBom -DskipTests
+        run: ./mvnw ${MAVEN_ARGS} -Psecurity cyclonedx:makeAggregateBom -DskipTests -Dcyclonedx.skipNotDeployed=false
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
