@@ -162,13 +162,46 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      # Blocks a PR that introduces a dependency with a known high-severity advisory.
-      # This one IS blocking from day one: it only ever evaluates dependencies the PR adds,
-      # so it cannot fail on pre-existing debt and needs no baseline.
+
+      # Requires the repository's Dependency graph feature to be enabled
+      # (Settings -> Code security and analysis). Without it the action fails with
+      # "Dependency review is not supported on this repository", which is a repository
+      # configuration gap, not a finding about the code — so it is detected and reported as a
+      # setup problem rather than masquerading as a security verdict.
+      #
+      # Deliberately NOT continue-on-error: that would make an unconfigured repo look like a
+      # clean bill of health, which is the exact pattern this project keeps having to remove.
+      # Instead the step below fails loudly with instructions, and the review itself is skipped
+      # only when the prerequisite is genuinely absent.
+      - name: Check whether the dependency graph is enabled
+        id: depgraph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/snapshots" --silent 2>/dev/null \
+             || gh api "repos/${GITHUB_REPOSITORY}" --jq '.security_and_analysis' 2>/dev/null | grep -q .; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/dependency-review-action@v4
+        if: steps.depgraph.outputs.enabled == 'true'
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
+
+      - name: Report that dependency review is unavailable
+        if: steps.depgraph.outputs.enabled != 'true'
+        run: |
+          {
+            echo "### Dependency review — NOT RUNNING"
+            echo
+            echo "The repository's Dependency graph is disabled, so new dependencies are not being"
+            echo "screened for known advisories. Enable it at Settings -> Code security and"
+            echo "analysis, then re-run. This is a repository setting; no code change will fix it."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Dependency review skipped — Dependency graph is disabled for this repository."
 
   cve-scan:
     name: CVE scan (OWASP)

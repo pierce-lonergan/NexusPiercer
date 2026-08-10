@@ -111,8 +111,10 @@ public class AvroReconstructor {
     }
 
     // Compiled patterns for performance
-    private static final Pattern ARRAY_INDEX_PATTERN = Pattern.compile("\\[\\d+\\]");
-    private static final Pattern JSON_ARRAY_PATTERN = Pattern.compile("^\\[.*\\]$");
+    // ARRAY_INDEX_PATTERN and JSON_ARRAY_PATTERN were declared here and never referenced. PMD
+    // flagged both as UnusedPrivateField once the file became Java and was analysed for the first
+    // time — while it was .groovy, no static analyser looked at it at all. Dead code, deleted
+    // rather than suppressed.
     private static final Pattern BRACKET_LIST_PATTERN = Pattern.compile("^\\[(.*)\\]$");
 
     // Logical type converters
