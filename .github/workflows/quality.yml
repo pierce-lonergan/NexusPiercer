@@ -77,14 +77,39 @@ jobs:
       - name: Enforce violation ratchet
         shell: bash
         run: |
-          count() { [[ -f "$1" ]] && grep -o "$2" "$1" | wc -l || echo 0; }
+          set -euo pipefail
+
+          # A MISSING report is a hard failure, never zero.
+          #
+          # The first version of this step defaulted to 0 when a report was absent, which meant a
+          # run where analysis never executed reported "0 violations" and passed. That is the
+          # precise failure this whole exercise exists to eliminate — and it was caught by
+          # deliberately drilling the gate rather than by watching it go green.
+          #
+          # tr -d strips the padding wc emits on some platforms; without it the arithmetic
+          # comparison below dies with "invalid arithmetic operator".
+          count() {
+            local file=$1 pattern=$2
+            if [[ ! -f "$file" ]]; then
+              echo "::error::${file} was not produced. Static analysis did not run; refusing to report a passing gate." >&2
+              exit 1
+            fi
+            # `|| true` is load-bearing: grep exits 1 when it matches nothing, and with
+            # `pipefail` that aborts the whole step. Without it the gate fails exactly when a
+            # tool reports ZERO violations — which is the state we are working toward. Checkstyle
+            # is already at 0, so this bit immediately when drilled.
+            { grep -o "$pattern" "$file" || true; } | wc -l | tr -d '[:space:]'
+          }
 
           cs=$(count target/checkstyle-result.xml '<error ')
           pmd=$(count target/pmd.xml '<violation ')
           sb=$(count target/spotbugsXml.xml '<BugInstance ')
 
+          # tr -d '\r' guards against a CRLF-emitting interpreter: a trailing carriage return on
+          # the last field turns `(( actual > max ))` into "invalid arithmetic operator", and the
+          # error is easy to miss because the surrounding checks still print normally.
           read -r cs_max pmd_max sb_max < <(
-            python3 -c "import json;d=json.load(open('.github/quality-baseline.json'));print(d['checkstyle']['ceiling'],d['pmd']['ceiling'],d['spotbugs']['ceiling'])"
+            python3 -c "import json;d=json.load(open('.github/quality-baseline.json'));print(d['checkstyle']['ceiling'],d['pmd']['ceiling'],d['spotbugs']['ceiling'])" | tr -d '\r'
           )
 
           status=0
