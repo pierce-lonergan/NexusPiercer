@@ -200,6 +200,50 @@ jobs:
           if [[ "${missing}" -eq 1 ]]; then exit 1; fi
           echo "All artifacts carry .asc signatures."
 
+      # ALWAYS upload, tag or not.
+      #
+      # The first execution of this workflow finished green having produced nothing anyone could
+      # install: artifacts were built and checksummed, then the only publishing step was skipped
+      # because it is tag-gated and the run was a workflow_dispatch. A release job that reports
+      # success and emits no consumable output is the same failure this project has now hit a
+      # dozen times — a control that looks like it worked.
+      #
+      # A workflow_dispatch run is exactly how someone gets a build of an unreleased branch, so it
+      # must yield a downloadable artifact. Tagged runs additionally create a GitHub Release.
+      - name: Upload artifacts to the workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-piercer-artifacts
+          path: |
+            target/*.jar
+            target/*.pom
+            target/*.sha256
+            target/bom.json
+            target/bom.xml
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Verify something installable was actually produced
+        shell: bash
+        run: |
+          shopt -s nullglob
+          jars=(target/*.jar)
+          if (( ${#jars[@]} == 0 )); then
+            echo "::error::No jars were produced. A release run must never report success with no artifact."
+            exit 1
+          fi
+          {
+            echo "### Artifacts"
+            echo
+            echo "| file | size |"
+            echo "|---|---:|"
+            for f in "${jars[@]}"; do
+              printf '| `%s` | %s |\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
+            done
+            echo
+            echo "Install instructions: [docs/INSTALL.md](../blob/main/docs/INSTALL.md)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Attach artifacts to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
