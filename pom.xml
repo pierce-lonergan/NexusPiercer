@@ -140,7 +140,7 @@
         <checker-qual.version>3.43.0</checker-qual.version>
         <error-prone.version>2.28.0</error-prone.version>
         <aircompressor.version>0.27</aircompressor.version>
-        <caffeine.version>3.1.8</caffeine.version>
+        <caffeine.version>3.2.4</caffeine.version>
         <junit-platform.version>1.13.1</junit-platform.version>
 
         <!-- Test Dependency Versions -->
