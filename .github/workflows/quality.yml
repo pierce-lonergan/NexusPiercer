@@ -50,46 +50,73 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # PHASE 2 FLIP: delete `continue-on-error` AND the three -Dfail* overrides below to make
-      # analysis merge-blocking.
+      # Analysis runs to completion so all three tools report. The per-tool fail switches are off
+      # HERE only; the gate is enforced by the ratchet step below, against recorded ceilings.
       #
-      # The overrides matter for report mode specifically. SpotBugs runs first and, left to its
-      # own devices, fails the build on the first violation — which meant the initial run reported
-      # "242 bugs" and Checkstyle and PMD never executed at all. A report phase that only reports
-      # one of three tools cannot produce the debt baseline it exists to produce. Forcing all
-      # three to complete gives the real numbers; continue-on-error then keeps the job green while
-      # the debt is being worked down.
+      # Why not just let the plugins fail the build? Because SpotBugs runs first and would abort
+      # before Checkstyle and PMD executed at all — the first run reported "242 bugs" and silently
+      # analysed nothing else. And because 700 pre-existing violations cannot be fixed in one
+      # change, so a zero-tolerance gate would simply be switched back off, which is precisely how
+      # this project ended up with three analysers that had never run.
+      #
+      # -Djacoco.skip=true because this job runs -DskipTests; without it jacoco:check fails the
+      # build on 0% coverage, which says nothing about code quality.
       - name: Run static analysis
-        id: analysis
-        continue-on-error: true
         run: |
-          ./mvnw ${MAVEN_ARGS} -Pquality verify -DskipTests \
-            -Dspotbugs.failOnError=false \
-            -Dpmd.failOnViolation=false \
-            -Dcheckstyle.failOnViolation=false
+          ./mvnw ${MAVEN_ARGS} -Pquality verify -DskipTests -Djacoco.skip=true \
+            -Dspotbugs.fail=false \
+            -Dcheckstyle.fail=false \
+            -Dpmd.violation.buildFailOnViolation=false
 
-      - name: Summarise violations
-        if: always()
+      # THE GATE. Blocking from this commit onward.
+      #
+      # Counts may not exceed the ceilings in .github/quality-baseline.json. Checkstyle is
+      # zero-tolerance (its 9 violations were unused imports and are fixed); PMD and SpotBugs are
+      # ratchets that can only be lowered. New debt is blocked immediately; existing debt is
+      # visible and shrinking.
+      - name: Enforce violation ratchet
         shell: bash
         run: |
+          count() { [[ -f "$1" ]] && grep -o "$2" "$1" | wc -l || echo 0; }
+
+          cs=$(count target/checkstyle-result.xml '<error ')
+          pmd=$(count target/pmd.xml '<violation ')
+          sb=$(count target/spotbugsXml.xml '<BugInstance ')
+
+          read -r cs_max pmd_max sb_max < <(
+            python3 -c "import json;d=json.load(open('.github/quality-baseline.json'));print(d['checkstyle']['ceiling'],d['pmd']['ceiling'],d['spotbugs']['ceiling'])"
+          )
+
+          status=0
           {
             echo "### Static analysis"
             echo
-            echo "| tool | violations |"
-            echo "|---|---:|"
-
-            cs=$( [[ -f target/checkstyle-result.xml ]] && grep -c '<error ' target/checkstyle-result.xml || echo 'n/a' )
-            pmd=$( [[ -f target/pmd.xml ]] && grep -c '<violation ' target/pmd.xml || echo 'n/a' )
-            sb=$( [[ -f target/spotbugsXml.xml ]] && grep -c '<BugInstance ' target/spotbugsXml.xml || echo 'n/a' )
-
-            echo "| Checkstyle | ${cs} |"
-            echo "| PMD | ${pmd} |"
-            echo "| SpotBugs | ${sb} |"
-            echo
-            if [[ "${{ steps.analysis.outcome }}" == "failure" ]]; then
-              echo "> Analysis reported problems. These are **not yet merge-blocking** — see Phase 2 in \`docs/audit/ROADMAP.md\`."
-            fi
+            echo "| tool | violations | ceiling | |"
+            echo "|---|---:|---:|---|"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          check() {
+            local name=$1 actual=$2 max=$3 mark
+            if (( actual > max )); then
+              mark="❌ over by $(( actual - max ))"
+              echo "::error::${name} rose from ${max} to ${actual}. Fix the new violations, or justify raising the ceiling in .github/quality-baseline.json."
+              status=1
+            elif (( actual < max )); then
+              mark="✅ improved by $(( max - actual ))"
+              echo "::notice::${name} fell from ${max} to ${actual}. Lower the ceiling in .github/quality-baseline.json to lock it in."
+            else
+              mark="✅"
+            fi
+            echo "| ${name} | ${actual} | ${max} | ${mark} |" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          check Checkstyle "$cs"  "$cs_max"
+          check PMD        "$pmd" "$pmd_max"
+          check SpotBugs   "$sb"  "$sb_max"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Ceilings may only decrease — see \`.github/quality-baseline.json\`." >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Upload analysis reports
         if: always()

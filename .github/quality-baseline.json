@@ -1,0 +1,54 @@
+{
+  "_comment": [
+    "Static-analysis debt ceilings. These may only ever DECREASE.",
+    "",
+    "Checkstyle, PMD and SpotBugs had never executed against this codebase before 2026-08-09 —",
+    "the audit proved it by observing that none of the three plugins had ever been downloaded to",
+    "the local repository. Turning them on produced 700 violations at once, which is far too many",
+    "to fix in one change and far too many to justify leaving ungated.",
+    "",
+    "A ratchet resolves that. The gate does not demand zero; it demands 'no worse than today'.",
+    "New debt is blocked from the first run, and every fix lowers the ceiling permanently. This is",
+    "the same mechanism already used for line coverage (jacoco.minimum.coverage) and for dynamic",
+    "dispatch (benchmarks/results/indy-ceiling.txt).",
+    "",
+    "Checkstyle is NOT ratcheted — its 9 violations were all unused imports and were fixed",
+    "outright, so it is a hard zero-tolerance gate.",
+    "",
+    "To lower a ceiling: fix violations, run",
+    "  ./mvnw -Pquality verify -DskipTests -Djacoco.skip=true \\",
+    "      -Dspotbugs.fail=false -Dcheckstyle.fail=false -Dpmd.violation.buildFailOnViolation=false",
+    "then set the new counts here in the same commit. Raising a ceiling requires a written",
+    "justification in the commit message and CODEOWNERS approval."
+  ],
+
+  "recorded": "2026-08-09",
+
+  "checkstyle": {
+    "ceiling": 0,
+    "mode": "zero-tolerance",
+    "note": "All 9 original violations were unused imports and are fixed."
+  },
+
+  "pmd": {
+    "ceiling": 449,
+    "mode": "ratchet",
+    "topRules": {
+      "AvoidFieldNameMatchingMethodName": 88,
+      "AvoidLiteralsInIfCondition": 58,
+      "GuardLogStatement": 44,
+      "UnusedFormalParameter": 40,
+      "NullAssignment": 37,
+      "EmptyCatchBlock": 25,
+      "AvoidDuplicateLiterals": 25,
+      "ReturnEmptyCollectionRatherThanNull": 16
+    },
+    "note": "EmptyCatchBlock (25) is the one to attack first — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
+  },
+
+  "spotbugs": {
+    "ceiling": 242,
+    "mode": "ratchet",
+    "note": "Includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization."
+  }
+}

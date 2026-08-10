@@ -206,6 +206,14 @@
         <spotbugs.effort>Max</spotbugs.effort>
         <checkstyle.violationSeverity>warning</checkstyle.violationSeverity>
 
+        <!--
+          Static-analysis fail switches. Default to TRUE so the gates bite for anyone running
+          -Pquality locally or in a release. CI's report phase overrides all three to false while
+          the recorded debt is worked down; Phase 2 stops overriding them.
+        -->
+        <spotbugs.fail>true</spotbugs.fail>
+        <checkstyle.fail>true</checkstyle.fail>
+
         <!-- Skip Configuration (can be overridden via CLI) -->
         <skipTests>false</skipTests>
         <skipITs>false</skipITs>
@@ -1371,7 +1379,10 @@
                         <configuration>
                             <effort>${spotbugs.effort}</effort>
                             <threshold>${spotbugs.threshold}</threshold>
-                            <failOnError>true</failOnError>
+                            <!-- Property-driven: an inline `true` here overrides -D on the
+                                 command line, which is how report mode ended up dying at the
+                                 first SpotBugs violation and never running Checkstyle or PMD. -->
+                            <failOnError>${spotbugs.fail}</failOnError>
                             <includeFilterFile>${project.basedir}/src/main/spotbugs/spotbugs-include.xml</includeFilterFile>
                             <excludeFilterFile>${project.basedir}/src/main/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
                             <plugins>
@@ -1434,7 +1445,8 @@
                             <suppressionsLocation>${project.basedir}/src/main/checkstyle/checkstyle-suppressions.xml</suppressionsLocation>
                             <encoding>UTF-8</encoding>
                             <consoleOutput>true</consoleOutput>
-                            <failsOnError>true</failsOnError>
+                            <failsOnError>${checkstyle.fail}</failsOnError>
+                            <failOnViolation>${checkstyle.fail}</failOnViolation>
                             <violationSeverity>${checkstyle.violationSeverity}</violationSeverity>
                             <includeTestSourceDirectory>false</includeTestSourceDirectory>
                         </configuration>

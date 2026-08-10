@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+<!--
+  Checkstyle suppressions.
+
+  This file was referenced by checkstyle.xml long before it existed. Checkstyle treats a missing
+  suppressions file as a hard error, so the plugin aborted before analysing anything and emitted
+  a zero-byte checkstyle-result.xml — reporting "0 violations" while having checked nothing.
+
+  That is the third configuration file in this project referenced by a quality tool without being
+  created (the two SpotBugs filters were the others). Each produced the same signature: a tool
+  that appears configured, produces a report, and inspects no code.
+
+  Rules for entries here: name the check, name the path, say why. A suppression without a reason
+  is indistinguishable from a violation someone hid.
+-->
+<suppressions>
+
+    <!-- Generated sources are not ours to style. -->
+    <suppress files="[\\/]generated-sources[\\/]" checks=".*"/>
+    <suppress files="[\\/]generated-test-sources[\\/]" checks=".*"/>
+
+    <!--
+      Tests are held to the import rules but not to naming or length conventions: fixture classes
+      legitimately use long descriptive method names, and the Avro/Spark suites carry large inline
+      schema literals that no line-length limit accommodates sensibly.
+    -->
+    <suppress files="[\\/]src[\\/]test[\\/]" checks="LineLength|MethodLength|MethodName"/>
+
+</suppressions>

@@ -111,7 +111,14 @@ public class AvroReconstructor {
     private final boolean enableVerification;
 
     // Schema cache for performance
-    private final ConcurrentHashMap<String, SchemaCacheEntry> schemaCache;
+    /**
+     * Keyed by {@link Schema} rather than by a canonical-form fingerprint string.
+     *
+     * <p>Avro memoises {@code Schema.hashCode()} and its {@code equals} short-circuits on
+     * identity, so lookup is effectively free after the first call. Building a fingerprint key
+     * instead meant serialising the whole schema to canonical form on every record.</p>
+     */
+    private final ConcurrentHashMap<Schema, SchemaCacheEntry> schemaCache;
 
     /**
      * Schema cache entry with metadata
@@ -633,12 +640,33 @@ public class AvroReconstructor {
         }
     }
 
+    /**
+     * Resolves the cached path trie for a schema.
+     *
+     * <p>This used to build the cache key with
+     * {@link SchemaNormalization#parsingFingerprint64(Schema)} on <b>every call</b> — and it is
+     * called once per record. That constructs the schema's full canonical form (several KB of
+     * string for a 250-field schema) and Rabin-hashes it, purely to look up an entry that never
+     * changes. The key cost more than the value it retrieved.</p>
+     *
+     * <p>Keying on the {@link Schema} itself removes that entirely. Avro's {@code Schema.hashCode()}
+     * is content-based and memoised after the first call, and {@code equals} short-circuits on
+     * identity, so the steady-state lookup is a field read and a reference comparison.</p>
+     *
+     * <p><b>Correctness note.</b> This depends on Avro schemas being effectively immutable after
+     * parsing, which they are — the API exposes no mutator that changes structure. Two schemas
+     * parsed separately from the same text are distinct objects but compare equal, so they
+     * correctly share one entry; that is asserted by
+     * {@code AvroSchemaCacheTest.samePathParsedTwiceSharesOneEntry}. If a schema were mutated
+     * in place after being cached, the entry would go stale — the previous fingerprint key had
+     * the same exposure, since it was also computed before the mutation.</p>
+     */
     private SchemaCacheEntry getOrBuildSchemaCacheEntry(Schema schema) {
-        String fingerprint = getSchemaFingerprint(schema);
-
-        return schemaCache.computeIfAbsent(fingerprint, k -> {
-            SchemaPathTrie trie = buildSchemaPathTrie(schema);
-            return new SchemaCacheEntry(trie, fingerprint);
+        return schemaCache.computeIfAbsent(schema, k -> {
+            SchemaPathTrie trie = buildSchemaPathTrie(k);
+            // The fingerprint is retained for diagnostics only; computing it once per distinct
+            // schema is fine, once per record was not.
+            return new SchemaCacheEntry(trie, getSchemaFingerprint(k));
         });
     }
 
