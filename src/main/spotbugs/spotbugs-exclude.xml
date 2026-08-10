@@ -66,4 +66,31 @@
         </Or>
     </Match>
 
+    <!--
+      Two accessors on FlattenedField, named individually rather than by package so a future field
+      that starts leaking state is not covered by inheritance from this entry.
+
+      properties() returns the internal map ON PURPOSE. A LeafInterceptor annotates a leaf during
+      the flatten — that is the whole point of the hook, documented on both types. A defensive copy
+      would make every interceptor silently ineffective: the caller mutates a copy, sees no error,
+      and gets an unenriched field. That is precisely the failure mode this repository keeps
+      finding, so it is the copy that would be the bug here.
+
+      schema() returns the Avro Schema. Schema is mutable via addProp, but it is also interned and
+      shared throughout Avro itself; deep-copying one per leaf would cost a parse per field and
+      still hand back something the caller could mutate. Callers must not mutate it — stated on
+      the accessor.
+
+      The other five findings SpotBugs raised against this package (SE_BAD_FIELD x2,
+      UC_USELESS_OBJECT, SE_NO_SERIALVERSIONID) were fixed, not suppressed.
+    -->
+    <Match>
+        <Class name="io.github.pierce.schema.FlattenedField"/>
+        <Or>
+            <Method name="properties"/>
+            <Method name="schema"/>
+        </Or>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+
 </FindBugsFilter>

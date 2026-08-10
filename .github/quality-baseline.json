@@ -22,7 +22,7 @@
     "justification in the commit message and CODEOWNERS approval."
   ],
 
-  "recorded": "2026-08-09",
+  "recorded": "2026-08-10",
 
   "checkstyle": {
     "ceiling": 0,
@@ -31,11 +31,10 @@
   },
 
   "pmd": {
-    "ceiling": 449,
+    "ceiling": 361,
     "mode": "ratchet",
     "topRules": {
-      "AvoidFieldNameMatchingMethodName": 88,
-      "AvoidLiteralsInIfCondition": 58,
+            "AvoidLiteralsInIfCondition": 58,
       "GuardLogStatement": 44,
       "UnusedFormalParameter": 40,
       "NullAssignment": 37,
@@ -43,12 +42,12 @@
       "AvoidDuplicateLiterals": 25,
       "ReturnEmptyCollectionRatherThanNull": 16
     },
-    "note": "EmptyCatchBlock (25) is the one to attack first — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
+    "note": "449 -> 361 on 2026-08-10: AvoidFieldNameMatchingMethodName (88) is now excluded project-wide in pmd-ruleset.xml, because it fires on the record-style accessor convention the language itself generates. EmptyCatchBlock (25) is the one to attack first — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
   },
 
   "spotbugs": {
-    "ceiling": 242,
+    "ceiling": 241,
     "mode": "ratchet",
-    "note": "Includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization."
+    "note": "242 -> 241 on 2026-08-10: the io.github.pierce.schema package added 6 findings and now contributes 0. Four were fixed (SE_BAD_FIELD x2 - FlattenOptions declared Serializable while holding non-serializable TypeMapper and LeafInterceptor fields, so it could not serialize at all, not even with defaults; UC_USELESS_OBJECT; SE_NO_SERIALVERSIONID). Two EI_EXPOSE_REP on FlattenedField are suppressed by named method in spotbugs-exclude.xml with reasoning. Still includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization."
   }
 }
