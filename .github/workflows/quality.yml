@@ -50,11 +50,23 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # PHASE 2 FLIP: delete `continue-on-error` to make analysis merge-blocking.
+      # PHASE 2 FLIP: delete `continue-on-error` AND the three -Dfail* overrides below to make
+      # analysis merge-blocking.
+      #
+      # The overrides matter for report mode specifically. SpotBugs runs first and, left to its
+      # own devices, fails the build on the first violation — which meant the initial run reported
+      # "242 bugs" and Checkstyle and PMD never executed at all. A report phase that only reports
+      # one of three tools cannot produce the debt baseline it exists to produce. Forcing all
+      # three to complete gives the real numbers; continue-on-error then keeps the job green while
+      # the debt is being worked down.
       - name: Run static analysis
         id: analysis
         continue-on-error: true
-        run: ./mvnw ${MAVEN_ARGS} -Pquality verify -DskipTests
+        run: |
+          ./mvnw ${MAVEN_ARGS} -Pquality verify -DskipTests \
+            -Dspotbugs.failOnError=false \
+            -Dpmd.failOnViolation=false \
+            -Dcheckstyle.failOnViolation=false
 
       - name: Summarise violations
         if: always()
