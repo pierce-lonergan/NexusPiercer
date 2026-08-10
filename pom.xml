@@ -152,7 +152,7 @@
 
         <!-- Groovy Configuration -->
         <groovy.version>4.0.21</groovy.version>
-        <gmavenplus.version>3.0.2</gmavenplus.version>
+        <gmavenplus.version>5.1.0</gmavenplus.version>
 
         <!-- Maven Plugin Versions -->
         <maven.minimum.version>3.8.1</maven.minimum.version>
