@@ -940,7 +940,21 @@ public class MapFlattener implements Serializable {
         }
 
         if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValue();
+            // longValue() TRUNCATES the low 64 bits on overflow rather than failing, so a
+            // BigInteger outside long range silently became a different — often negative —
+            // number. Measured: 123456789012345678901234567890 flattened to
+            // -4362896299872285998. That is not a fidelity gap, it is a plausible-looking wrong
+            // answer, and nothing downstream can detect it.
+            //
+            // longValueExact() throws instead; out-of-range values fall back to their exact
+            // decimal text, which is lossless and round-trips. This matches the stricter
+            // behaviour already implemented in converter/IntegerConverter, whose range checks
+            // were the correct model all along.
+            try {
+                return ((BigInteger) value).longValueExact();
+            } catch (ArithmeticException tooLargeForLong) {
+                return value.toString();
+            }
         }
 
         // Handle Double/Float special values
