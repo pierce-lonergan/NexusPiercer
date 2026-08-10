@@ -115,4 +115,56 @@ class AvroSchemaCacheTest {
 
         assertThat(reconstructor.getSchemaCacheSize()).isEqualTo(1);
     }
+
+    /**
+     * The retention test. This is the case that exposed the bug the {@code Schema}-keyed cache
+     * introduced.
+     *
+     * <p>{@code DEFAULT_MAX_CACHE_SIZE = 100} was passed to the {@code ConcurrentHashMap}
+     * constructor, which takes an INITIAL CAPACITY, not a maximum — so the cache was unbounded
+     * despite the constant's name. Re-keying it from a short fingerprint string to the
+     * {@link Schema} object made every retained entry a whole schema graph rather than ~40
+     * characters, so the optimisation quietly turned a mild leak into a serious one for any
+     * long-lived driver handling many distinct schemas.</p>
+     *
+     * <p>250 distinct schemas against a bound of 100.</p>
+     */
+    @Test
+    @DisplayName("many distinct schemas do not grow the cache without bound")
+    void manyDistinctSchemasStayBounded() {
+        for (int i = 0; i < 250; i++) {
+            Schema s = new Schema.Parser().parse(
+                    SCHEMA_JSON.replace("\"Order\"", "\"Order" + i + "\""));
+            Map<String, Object> src = new LinkedHashMap<>();
+            src.put("order_id", "ORD-" + i);
+            src.put("created_at", "2026-08-09");
+            reconstructor.reconstructToMap(new MapFlattener(false, 50, 1000).flatten(src), s);
+        }
+
+        assertThat(reconstructor.getSchemaCacheSize())
+                .as("cache must be bounded; an unbounded cache retains every Schema graph forever")
+                .isLessThanOrEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("eviction does not break correctness — an evicted schema still reconstructs")
+    void evictedSchemaStillWorks() {
+        Schema first = new Schema.Parser().parse(SCHEMA_JSON);
+        Map<String, Object> flat = flatSource();
+        Map<String, Object> before = reconstructor.reconstructToMap(flat, first);
+
+        // Push it out of the cache.
+        for (int i = 0; i < 150; i++) {
+            Schema s = new Schema.Parser().parse(
+                    SCHEMA_JSON.replace("\"Order\"", "\"Filler" + i + "\""));
+            Map<String, Object> src = new LinkedHashMap<>();
+            src.put("order_id", "x");
+            src.put("created_at", "y");
+            reconstructor.reconstructToMap(new MapFlattener(false, 50, 1000).flatten(src), s);
+        }
+
+        assertThat(reconstructor.reconstructToMap(flat, first))
+                .as("a cache miss must rebuild the trie, not change the answer")
+                .isEqualTo(before);
+    }
 }

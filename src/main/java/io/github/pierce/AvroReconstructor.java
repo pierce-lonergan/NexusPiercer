@@ -121,6 +121,16 @@ public class AvroReconstructor {
     private final ConcurrentHashMap<Schema, SchemaCacheEntry> schemaCache;
 
     /**
+     * Insertion order for cache eviction. Separate from the map so the read path stays lock-free;
+     * see {@link #evictIfOverCapacity()} for why this is insertion-ordered rather than LRU.
+     */
+    private final java.util.concurrent.ConcurrentLinkedQueue<Schema> insertionOrder =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** Hard upper bound on cached schemas. Previously only an initial capacity, so unbounded. */
+    private final int maxCacheSize;
+
+    /**
      * Schema cache entry with metadata
      */
     private static class SchemaCacheEntry {
@@ -218,6 +228,7 @@ public class AvroReconstructor {
         this.objectMapper = builder.customObjectMapper != null ?
                 builder.customObjectMapper : SHARED_OBJECT_MAPPER;
         this.schemaCache = new ConcurrentHashMap<>(DEFAULT_MAX_CACHE_SIZE);
+        this.maxCacheSize = DEFAULT_MAX_CACHE_SIZE;
     }
 
     public static Builder builder() {
@@ -662,12 +673,57 @@ public class AvroReconstructor {
      * the same exposure, since it was also computed before the mutation.</p>
      */
     private SchemaCacheEntry getOrBuildSchemaCacheEntry(Schema schema) {
-        return schemaCache.computeIfAbsent(schema, k -> {
-            SchemaPathTrie trie = buildSchemaPathTrie(k);
+        // Lock-free fast path. This runs once per record and is the reason keying on Schema
+        // rather than on a canonical-form fingerprint is worth doing at all.
+        SchemaCacheEntry hit = schemaCache.get(schema);
+        if (hit != null) {
+            return hit;
+        }
+
+        boolean[] wasBuilt = {false};
+        SchemaCacheEntry built = schemaCache.computeIfAbsent(schema, k -> {
+            wasBuilt[0] = true;
             // The fingerprint is retained for diagnostics only; computing it once per distinct
             // schema is fine, once per record was not.
-            return new SchemaCacheEntry(trie, getSchemaFingerprint(k));
+            return new SchemaCacheEntry(buildSchemaPathTrie(k), getSchemaFingerprint(k));
         });
+        if (wasBuilt[0]) {
+            // Record insertion order on the miss that actually inserted, so eviction has a queue
+            // to work from. Recording only once already over capacity would evict the entry just
+            // added and cache nothing.
+            insertionOrder.add(schema);
+            evictIfOverCapacity();
+        }
+        return built;
+    }
+
+    /**
+     * Bounds the schema cache.
+     *
+     * <p>{@code DEFAULT_MAX_CACHE_SIZE} was previously passed to the {@code ConcurrentHashMap}
+     * constructor, which takes an INITIAL CAPACITY, not a maximum. The cache was therefore
+     * unbounded despite the constant's name, and re-keying it from a fingerprint string to the
+     * {@link Schema} itself made each retained entry dramatically heavier — a whole schema graph
+     * instead of a ~40-character string. A long-lived Spark driver handling many distinct schemas
+     * (a schema-registry stream, a multi-tenant job) would retain all of them for the life of the
+     * JVM.</p>
+     *
+     * <p>Eviction is insertion-ordered rather than LRU: a strict LRU needs a write on every read,
+     * which would put a contended mutation back on the per-record path that this whole change
+     * exists to keep clean. For a schema cache the distinction barely matters — the working set
+     * is small and stable, and the penalty for an unlucky eviction is one trie rebuild.</p>
+     */
+    private void evictIfOverCapacity() {
+        while (schemaCache.size() > maxCacheSize) {
+            Schema oldest = insertionOrder.poll();
+            if (oldest == null) {
+                // Queue drained but the map is still over capacity — only reachable under a race.
+                // Clear rather than let the map grow without bound.
+                schemaCache.clear();
+                break;
+            }
+            schemaCache.remove(oldest);
+        }
     }
 
     private String getSchemaFingerprint(Schema schema) {
@@ -3001,6 +3057,7 @@ public class AvroReconstructor {
 
     public void clearSchemaCache() {
         schemaCache.clear();
+        insertionOrder.clear();
     }
 
     public int getSchemaCacheSize() {
