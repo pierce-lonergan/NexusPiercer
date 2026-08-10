@@ -96,18 +96,69 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
+      # Publishing to Central needs three secrets. When they are absent — a fork, or a repository
+      # where they were never configured — the correct outcome is NOT to fail the release and
+      # produce nothing. It is to build, verify, and publish installable artifacts to the GitHub
+      # release, so users have a route that does not depend on Central at all
+      # (see docs/INSTALL.md). Central is a convenience, not the only supported path.
+      - name: Detect available publishing credentials
+        id: creds
+        shell: bash
+        env:
+          HAS_USER: ${{ secrets.MAVEN_CENTRAL_USERNAME != '' }}
+          HAS_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN != '' }}
+          HAS_GPG: ${{ secrets.MAVEN_GPG_PRIVATE_KEY != '' }}
+        run: |
+          if [[ "${HAS_USER}" == "true" && "${HAS_TOKEN}" == "true" && "${HAS_GPG}" == "true" ]]; then
+            echo "mode=central" >> "$GITHUB_OUTPUT"
+            echo "Central credentials present; will sign and publish."
+          else
+            echo "mode=artifacts-only" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Publishing to Maven Central: SKIPPED"
+              echo
+              echo "| secret | present |"
+              echo "|---|---|"
+              echo "| MAVEN_CENTRAL_USERNAME | ${HAS_USER} |"
+              echo "| MAVEN_CENTRAL_TOKEN | ${HAS_TOKEN} |"
+              echo "| MAVEN_GPG_PRIVATE_KEY | ${HAS_GPG} |"
+              echo
+              echo "Building unsigned, installable artifacts for the GitHub release instead."
+              echo "Consumers install via \`docs/INSTALL.md\` route 2, 3 or 4."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Central credentials absent — publishing installable artifacts to the GitHub release only."
+          fi
+
       - name: Resolve GPG key id
         id: gpg
+        if: steps.creds.outputs.mode == 'central'
         shell: bash
         run: |
           # maven-gpg-plugin's <keyname> reads ${gpg.keyname}, which was never defined. Derive
           # it from the key that setup-java just imported instead of hardcoding a fingerprint.
           KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
           if [[ -z "${KEY_ID}" ]]; then
-            echo "::error::No secret GPG key was imported; artifacts would be published unsigned"
+            echo "::error::Credentials claimed a GPG key but none was imported; refusing to publish unsigned artifacts to Central"
             exit 1
           fi
           echo "key_id=${KEY_ID}" >> "$GITHUB_OUTPUT"
+
+      # Always produced, credentials or not. This is what makes the non-Central install routes
+      # real rather than theoretical.
+      - name: Build installable artifacts
+        run: |
+          ./mvnw ${MAVEN_ARGS} package -DskipTests
+          ./mvnw ${MAVEN_ARGS} package -Pshade -DskipTests
+
+      - name: Checksum every artifact
+        shell: bash
+        run: |
+          shopt -s nullglob
+          cd target
+          for f in *.jar *.pom; do
+            sha256sum "$f" > "$f.sha256"
+          done
+          ls -1 *.sha256 | sed 's/^/  /'
 
       - name: Generate SBOM
         run: ./mvnw ${MAVEN_ARGS} -Psecurity cyclonedx:makeAggregateBom -DskipTests -Dcyclonedx.skipNotDeployed=false
@@ -116,7 +167,7 @@ jobs:
       # maven-gpg-plugin execution. Without it the deploy silently produces unsigned artifacts,
       # which Central rejects — or worse, accepts into a draft that then sits unnoticed.
       - name: Deploy (dry run)
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        if: steps.creds.outputs.mode == 'central' && github.event_name == 'workflow_dispatch' && inputs.dry_run
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         run: |
@@ -124,7 +175,7 @@ jobs:
             -Dgpg.keyname="${{ steps.gpg.outputs.key_id }}"
 
       - name: Deploy to Maven Central
-        if: github.event_name == 'push' || !inputs.dry_run
+        if: steps.creds.outputs.mode == 'central' && (github.event_name == 'push' || !inputs.dry_run)
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
@@ -135,6 +186,7 @@ jobs:
 
       # Catches the unsigned-artifact failure mode directly rather than trusting the flags.
       - name: Assert every artifact is signed
+        if: steps.creds.outputs.mode == 'central'
         shell: bash
         run: |
           shopt -s nullglob
@@ -153,10 +205,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body_path: docs/INSTALL.md
           files: |
             target/*.jar
             target/*.jar.asc
             target/*.pom
             target/*.pom.asc
+            target/*.sha256
             target/bom.json
             target/bom.xml

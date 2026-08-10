@@ -96,11 +96,26 @@ jobs:
             -prof gc -foe true \
             -rf json -rff current.json
 
+      # Allocation gates HARD. Throughput is advisory until a baseline is recorded on this runner
+      # class.
+      #
+      # The committed baseline was measured on a developer workstation. Comparing it against a
+      # GitHub shared-vCPU runner failed every timing benchmark by +100% to +125% — uniformly,
+      # across unrelated code paths, while every allocation metric passed. Uniformity across
+      # unrelated paths is the signature of a machine change, not a regression.
+      #
+      # This is not a threshold that needs loosening. gc.alloc.rate.norm is a counter from
+      # thread-allocation accounting and is machine-independent; wall-clock is not. Gating timing
+      # against a baseline from a different machine measures the machines.
+      #
+      # To make throughput blocking: run this workflow on main via workflow_dispatch with
+      # update_baseline, commit the runner-recorded baseline, then drop --throughput advisory.
       - name: Compare against baseline
         run: |
           python3 benchmarks/compare.py \
             --baseline benchmarks/results/baseline.json \
-            --current current.json
+            --current current.json \
+            --throughput advisory
 
       - name: Upload results
         if: always()

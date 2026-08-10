@@ -98,8 +98,24 @@ def main() -> int:
     ap.add_argument("--current", required=True)
     ap.add_argument("--update", action="store_true",
                     help="Overwrite the baseline with the current run (merge job on main only).")
+    ap.add_argument("--throughput", choices=("blocking", "advisory"), default="blocking",
+                    help="Whether Tier 2 (timing) can fail the build. Allocation is ALWAYS "
+                         "blocking. Use 'advisory' when the baseline was not recorded on the same "
+                         "machine class as the current run - see below.")
     ap.add_argument("--summary", default=os.environ.get("GITHUB_STEP_SUMMARY"))
     args = ap.parse_args()
+
+    # Why --throughput advisory exists.
+    #
+    # The first CI run of this gate failed every timing benchmark by +100% to +125%, uniformly,
+    # while every allocation metric passed. A real regression is not uniform across unrelated
+    # code paths; a machine change is. The baseline had been recorded on a developer workstation
+    # and compared against a GitHub shared-vCPU runner, which is roughly half the speed.
+    #
+    # That is a property of the metric, not a tuning problem. gc.alloc.rate.norm is a counter
+    # derived from thread-allocation accounting and is identical on any machine; wall-clock is
+    # not. So allocation gates hard everywhere, and throughput only gates against a baseline
+    # recorded on the same runner class.
 
     if args.update:
         with open(args.current, encoding="utf-8") as src:
@@ -119,6 +135,7 @@ def main() -> int:
 
     tier1: list[str] = []
     tier2: list[str] = []
+    tier2_advisory: list[str] = []
     rows: list[tuple[str, str, str, str, str]] = []
     ratios: list[float] = []
 
@@ -142,7 +159,8 @@ def main() -> int:
         verdict = "ok"
         if worse_pct > THROUGHPUT_TOLERANCE * 100 and significant:
             verdict = "REGRESSION"
-            tier2.append(f"{key}: {worse_pct:+.1f}% (CIs disjoint)")
+            (tier2 if args.throughput == "blocking" else tier2_advisory).append(
+                f"{key}: {worse_pct:+.1f}% (CIs disjoint)")
         elif worse_pct > THROUGHPUT_TOLERANCE * 100:
             # Point estimate is bad but the intervals overlap - explicitly not a failure.
             verdict = "noisy"
@@ -167,7 +185,8 @@ def main() -> int:
         drift = (geomean - 1.0) * 100
         geo_note = f"{drift:+.2f}%"
         if drift > GEOMEAN_TOLERANCE * 100:
-            tier2.append(f"suite geometric mean regressed {drift:+.2f}%")
+            (tier2 if args.throughput == "blocking" else tier2_advisory).append(
+                f"suite geometric mean regressed {drift:+.2f}%")
 
     # --- report ---------------------------------------------------------------------------
     lines = ["### Benchmark comparison", "",
@@ -183,8 +202,13 @@ def main() -> int:
     if tier2:
         lines += ["#### Tier 2 failures (throughput - CIs disjoint)", ""]
         lines += [f"- {m}" for m in tier2] + [""]
+    if tier2_advisory:
+        lines += ["#### Tier 2 (throughput) — ADVISORY, not blocking", "",
+                  "The baseline was not recorded on this runner class, so timing is reported "
+                  "rather than gated. Allocation remains blocking.", ""]
+        lines += [f"- {m}" for m in tier2_advisory] + [""]
     if not tier1 and not tier2:
-        lines += ["No regressions detected.", ""]
+        lines += ["No blocking regressions detected.", ""]
 
     report = "\n".join(lines)
     print(report)
