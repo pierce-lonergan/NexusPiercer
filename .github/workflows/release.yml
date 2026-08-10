@@ -150,6 +150,22 @@ jobs:
           ./mvnw ${MAVEN_ARGS} package -DskipTests
           ./mvnw ${MAVEN_ARGS} package -Pshade -DskipTests
 
+      # The POM must ship alongside the jar.
+      #
+      # docs/INSTALL.md route 2 tells users to run
+      #   mvn install:install-file -Dfile=...jar -DpomFile=...pom
+      # and the first artifact set contained no .pom at all, so that instruction could not be
+      # followed. Maven does not place a .pom in target/ for a jar project; it has to be copied
+      # under the artifact's name. Without it install:install-file synthesises a POM with no
+      # dependencies, and the consumer gets NoClassDefFoundError on first use — a failure that
+      # surfaces far from its cause.
+      - name: Stage the POM beside the jars
+        shell: bash
+        run: |
+          VERSION=$(./mvnw ${MAVEN_ARGS} -q help:evaluate -Dexpression=project.version -DforceStdout | tr -d '[:space:]')
+          cp pom.xml "target/nexus-piercer-${VERSION}.pom"
+          echo "staged target/nexus-piercer-${VERSION}.pom"
+
       - name: Checksum every artifact
         shell: bash
         run: |

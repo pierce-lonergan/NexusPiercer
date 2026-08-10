@@ -121,13 +121,25 @@ pass "ran against the uber jar alone: $(tail -1 "$WORK/uber.log")"
 # ---------------------------------------------------------------- route 2: install-file
 step "Route 2 — install a downloaded jar with install:install-file"
 
+# Uses the STAGED pom under its release filename, not the source pom.xml. The first release
+# artifact set contained no .pom at all, so the documented command referenced a file the user
+# would not have. Verifying against pom.xml hid that; verifying against the artifact name shows it.
+cp pom.xml "target/nexus-piercer-${VERSION}.pom"
+
 mvn -B -ntp -q install:install-file \
     -Dfile="target/nexus-piercer-${VERSION}.jar" \
-    -DpomFile=pom.xml \
+    -DpomFile="target/nexus-piercer-${VERSION}.pom" \
     -DlocalRepositoryPath="$WORK/repo2" >/dev/null
 [[ -d "$WORK/repo2/io/github/pierce-lonergan/nexus-piercer/${VERSION}" ]] \
     || fail "install:install-file did not populate the repository"
-pass "install:install-file works, as documented for the GitHub release jar"
+
+# A dependency-less POM installs happily and fails at the consumer's first call, far from the
+# cause. Assert the installed POM actually carries dependencies.
+INSTALLED_POM="$WORK/repo2/io/github/pierce-lonergan/nexus-piercer/${VERSION}/nexus-piercer-${VERSION}.pom"
+[[ -f "$INSTALLED_POM" ]] || fail "no POM installed alongside the jar"
+grep -c "jackson-databind" "$INSTALLED_POM" >/dev/null \
+    || fail "installed POM declares no dependencies — consumers would hit NoClassDefFoundError"
+pass "install:install-file works and the installed POM carries its dependencies"
 
 # ---------------------------------------------------------------- route 4: offline
 step "Route 4 — offline build"
