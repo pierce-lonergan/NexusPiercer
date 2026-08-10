@@ -132,6 +132,11 @@ class AvroSchemaCacheTest {
     @Test
     @DisplayName("many distinct schemas do not grow the cache without bound")
     void manyDistinctSchemasStayBounded() {
+        // Explicit bound rather than the default: this asserts that bounding WORKS, not what the
+        // default happens to be. Pinning it to the default made it fail the moment the default was
+        // re-derived from the cliff benchmark, which is a test coupled to the wrong thing.
+        reconstructor = AvroReconstructor.builder().maxSchemaCacheSize(100).build();
+
         for (int i = 0; i < 250; i++) {
             Schema s = new Schema.Parser().parse(
                     SCHEMA_JSON.replace("\"Order\"", "\"Order" + i + "\""));
@@ -166,5 +171,54 @@ class AvroSchemaCacheTest {
         assertThat(reconstructor.reconstructToMap(flat, first))
                 .as("a cache miss must rebuild the trie, not change the answer")
                 .isEqualTo(before);
+    }
+
+    /**
+     * The cliff is observable, and raising the bound removes it for a given working set.
+     *
+     * <p>Bounding a cache cannot eliminate the boundary — a working set larger than the cache does
+     * not fit in the cache, and no eviction policy changes that. What it can do is site the bound
+     * sensibly and make the hit rate visible so the cliff is diagnosable instead of mysterious.</p>
+     */
+    @Test
+    @DisplayName("hit rate collapses past capacity and recovers when the bound is raised")
+    void hitRateExposesTheCliff() {
+        int workingSet = 40;
+
+        AvroReconstructor tooSmall = AvroReconstructor.builder()
+                .maxSchemaCacheSize(10)
+                .build();
+        rotate(tooSmall, workingSet, 3);
+
+        AvroReconstructor bigEnough = AvroReconstructor.builder()
+                .maxSchemaCacheSize(100)
+                .build();
+        rotate(bigEnough, workingSet, 3);
+
+        double starved = tooSmall.getSchemaCacheStats().hitRate();
+        double healthy = bigEnough.getSchemaCacheStats().hitRate();
+
+        assertThat(starved)
+                .as("a rotation larger than the bound should mostly miss")
+                .isLessThan(0.2);
+        assertThat(healthy)
+                .as("a rotation inside the bound should mostly hit after the first pass")
+                .isGreaterThan(0.6);
+        assertThat(tooSmall.getSchemaCacheStats().size()).isLessThanOrEqualTo(10);
+    }
+
+    private static void rotate(AvroReconstructor r, int distinct, int passes) {
+        MapFlattener f = new MapFlattener(false, 50, 1000);
+        Map<String, Object> src = new LinkedHashMap<>();
+        src.put("order_id", "x");
+        src.put("created_at", "y");
+        Map<String, Object> flat = f.flatten(src);
+
+        for (int pass = 0; pass < passes; pass++) {
+            for (int i = 0; i < distinct; i++) {
+                r.reconstructToMap(flat, new Schema.Parser().parse(
+                        SCHEMA_JSON.replace("\"Order\"", "\"Rot" + i + "\"")));
+            }
+        }
     }
 }

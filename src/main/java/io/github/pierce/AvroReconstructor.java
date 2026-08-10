@@ -79,7 +79,26 @@ public class AvroReconstructor {
 
     // Constants
     private static final int DEFAULT_MAX_DEPTH = 100;
-    private static final int DEFAULT_MAX_CACHE_SIZE = 100;
+    /**
+     * Default schema-cache bound.
+     *
+     * <p>Was 100 — a number that had never been chosen as a cache size. It was a
+     * {@code ConcurrentHashMap} initial-capacity argument whose constant name misdescribed it as a
+     * maximum, and it was carried over unexamined when the cache was actually bounded. A magic
+     * number inherited from a bug is still a magic number.</p>
+     *
+     * <p>Re-derived from measurement. Rotating through N distinct schemas
+     * ({@code SchemaCacheCliffBenchmark}) costs a flat ~0.36 us/op while N fits the bound and
+     * jumps to ~1.11 us/op — 3.1x — the moment N exceeds it, then stays flat: past capacity a
+     * strict rotation has a 0% hit rate, because every lookup evicts the entry it will want next.
+     * That cliff cannot be removed by a smarter eviction policy; a working set larger than the
+     * cache does not fit in the cache. It can only be sited sensibly and made visible.</p>
+     *
+     * <p>256 covers schema-registry and multi-tenant workloads that 100 did not, at a few hundred
+     * KB of retained schema graphs. Workloads beyond it should raise the bound explicitly via
+     * {@code maxSchemaCacheSize} and watch {@link SchemaCacheStats#hitRate()}.</p>
+     */
+    private static final int DEFAULT_MAX_CACHE_SIZE = 256;
 
     // Shared ObjectMapper - configured for consistent JSON handling
     private static final ObjectMapper SHARED_OBJECT_MAPPER = createConfiguredMapper();
@@ -130,6 +149,33 @@ public class AvroReconstructor {
     /** Hard upper bound on cached schemas. Previously only an initial capacity, so unbounded. */
     private final int maxCacheSize;
 
+    private final java.util.concurrent.atomic.LongAdder cacheHits =
+            new java.util.concurrent.atomic.LongAdder();
+    private final java.util.concurrent.atomic.LongAdder cacheMisses =
+            new java.util.concurrent.atomic.LongAdder();
+
+    /**
+     * Observable schema-cache behaviour.
+     *
+     * <p>Exists because bounding a cache creates a performance cliff at the capacity boundary, and
+     * a cliff nobody can see is one you discover from a latency graph months later. Past capacity
+     * a rotating workload drops to a 0% hit rate and pays ~3.1x per record; the hit rate is the
+     * signal that says so.</p>
+     */
+    public record SchemaCacheStats(long hits, long misses, int size, int maxSize) {
+        /** Fraction of lookups served from cache, or 1.0 before any lookup. */
+        public double hitRate() {
+            long total = hits + misses;
+            return total == 0 ? 1.0 : (double) hits / total;
+        }
+    }
+
+    /** Current cache statistics. Cheap; safe to poll from a metrics thread. */
+    public SchemaCacheStats getSchemaCacheStats() {
+        return new SchemaCacheStats(cacheHits.sum(), cacheMisses.sum(),
+                schemaCache.size(), maxCacheSize);
+    }
+
     /**
      * Schema cache entry with metadata
      */
@@ -159,6 +205,7 @@ public class AvroReconstructor {
      * Builder for AvroReconstructor configuration
      */
     public static class Builder {
+        private int maxSchemaCacheSize = DEFAULT_MAX_CACHE_SIZE;
         private ArraySerializationFormat arrayFormat = ArraySerializationFormat.JSON;
         private boolean useArrayBoundarySeparator = false;
         private boolean strictValidation = true;
@@ -190,6 +237,19 @@ public class AvroReconstructor {
 
         public Builder useSchemaDefaults(boolean use) {
             this.useSchemaDefaults = use;
+            return this;
+        }
+
+        /**
+         * Bounds the schema cache. Raise it when the working set of distinct schemas exceeds the
+         * default, which costs a 3.1x per-record penalty at 100% miss rate — see
+         * {@link AvroReconstructor#DEFAULT_MAX_CACHE_SIZE}.
+         */
+        public Builder maxSchemaCacheSize(int size) {
+            if (size < 1) {
+                throw new IllegalArgumentException("maxSchemaCacheSize must be >= 1");
+            }
+            this.maxSchemaCacheSize = size;
             return this;
         }
 
@@ -228,7 +288,7 @@ public class AvroReconstructor {
         this.objectMapper = builder.customObjectMapper != null ?
                 builder.customObjectMapper : SHARED_OBJECT_MAPPER;
         this.schemaCache = new ConcurrentHashMap<>(DEFAULT_MAX_CACHE_SIZE);
-        this.maxCacheSize = DEFAULT_MAX_CACHE_SIZE;
+        this.maxCacheSize = builder.maxSchemaCacheSize;
     }
 
     public static Builder builder() {
@@ -677,8 +737,10 @@ public class AvroReconstructor {
         // rather than on a canonical-form fingerprint is worth doing at all.
         SchemaCacheEntry hit = schemaCache.get(schema);
         if (hit != null) {
+            cacheHits.increment();
             return hit;
         }
+        cacheMisses.increment();
 
         boolean[] wasBuilt = {false};
         SchemaCacheEntry built = schemaCache.computeIfAbsent(schema, k -> {
