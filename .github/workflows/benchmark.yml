@@ -1,0 +1,217 @@
+# Performance regression gate — the third axis of the anti-regression system.
+#
+# Correctness is gated by ci.yml, quality by quality.yml, and performance here. All three must be
+# capable of blocking a merge, or the project can regress on that axis without anyone noticing.
+#
+# Two tiers, because the metrics have different noise characteristics:
+#
+#   Tier 1 — gc.alloc.rate.norm (bytes allocated per operation). A counter derived from
+#            thread-allocation accounting, not a clock, so it does not move with runner load.
+#            Gated at 2%. Runs on every PR. Never retried.
+#
+#   Tier 2 — throughput. A GitHub-hosted shared-vCPU runner cannot produce a trustworthy timing
+#            measurement inside a PR-latency budget, so this runs on the merge queue and nightly.
+#            Blocks only when the 99.9% confidence intervals are disjoint AND the point estimate
+#            is >10% worse. Overlapping intervals never fail, which is what prevents the false
+#            failures that get perf gates switched off.
+
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/main/**'
+      - 'benchmarks/**'
+      - 'pom.xml'
+      - '.github/workflows/benchmark.yml'
+  merge_group:
+  schedule:
+    # Nightly full run at 04:00 ET; the nightly is the trustworthy timing measurement.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: 'Replace the committed baseline with this run'
+        type: boolean
+        default: false
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: JMH
+    runs-on: ubuntu-latest
+    # A cold JMH run with 3 forks across ~20 benchmarks is not fast.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      - name: Install the library into the local repository
+        # The benchmarks project depends on the library ARTIFACT rather than its sources, so it
+        # measures exactly the bytecode that ships — including whatever groovyc emitted.
+        run: ./mvnw -B -ntp install -DskipTests -Dmaven.javadoc.skip=true -Dgpg.skip=true
+
+      - name: Build the benchmark jar
+        run: mvn -B -ntp -f benchmarks/pom.xml clean package
+
+      - name: Assert the jar actually contains benchmarks
+        # A shade misconfiguration produces an uber-jar with zero benchmarks that still exits 0.
+        # Without this check the gate would silently pass forever.
+        run: |
+          COUNT=$(java -jar benchmarks/target/benchmarks.jar -l | grep -c '^io\.github\.pierce\.bench' || true)
+          echo "Discovered ${COUNT} benchmarks"
+          if [[ "${COUNT}" -lt 10 ]]; then
+            echo "::error::Only ${COUNT} benchmarks discovered; expected at least 10. Check the shade ServicesResourceTransformer and META-INF/BenchmarkList merging."
+            exit 1
+          fi
+
+      # PR runs use a single fork and fewer iterations: enough for the deterministic allocation
+      # counter, deliberately not presented as a trustworthy timing measurement.
+      - name: Run benchmarks (PR — Tier 1 only)
+        if: github.event_name == 'pull_request'
+        run: |
+          java -jar benchmarks/target/benchmarks.jar \
+            -f 1 -wi 3 -i 5 -w 1s -r 1s \
+            -prof gc -foe true \
+            -rf json -rff current.json
+
+      - name: Run benchmarks (merge queue / nightly — full)
+        if: github.event_name != 'pull_request'
+        run: |
+          java -jar benchmarks/target/benchmarks.jar \
+            -f 3 -wi 5 -i 10 -w 1s -r 1s \
+            -prof gc -foe true \
+            -rf json -rff current.json
+
+      # Allocation gates HARD. Throughput is advisory until a baseline is recorded on this runner
+      # class.
+      #
+      # The committed baseline was measured on a developer workstation. Comparing it against a
+      # GitHub shared-vCPU runner failed every timing benchmark by +100% to +125% — uniformly,
+      # across unrelated code paths, while every allocation metric passed. Uniformity across
+      # unrelated paths is the signature of a machine change, not a regression.
+      #
+      # This is not a threshold that needs loosening. gc.alloc.rate.norm is a counter from
+      # thread-allocation accounting and is machine-independent; wall-clock is not. Gating timing
+      # against a baseline from a different machine measures the machines.
+      #
+      # To make throughput blocking: run this workflow on main via workflow_dispatch with
+      # update_baseline, commit the runner-recorded baseline, then drop --throughput advisory.
+      - name: Compare against baseline
+        run: |
+          python3 benchmarks/compare.py \
+            --baseline benchmarks/results/baseline.json \
+            --current current.json \
+            --throughput advisory
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmh-results-${{ github.run_id }}
+          path: current.json
+          retention-days: 90
+
+      # The baseline is regenerated only by an explicit dispatch, never automatically and never
+      # from a fork. An auto-updating baseline silently absorbs regressions — each run becomes
+      # the new normal and the gate measures nothing.
+      - name: Update baseline
+        if: github.event_name == 'workflow_dispatch' && inputs.update_baseline
+        run: |
+          python3 benchmarks/compare.py \
+            --baseline benchmarks/results/baseline.json \
+            --current current.json --update
+          echo "Baseline updated. Commit benchmarks/results/baseline.json to record it."
+
+  # Deterministic static metrics: zero variance, so they get absolute thresholds rather than a
+  # noise band. These catch things a timing benchmark cannot see reliably.
+  static-metrics:
+    name: static metrics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      - name: Compile
+        run: ./mvnw -B -ntp clean compile -DskipTests
+
+      - name: Count invokedynamic call sites
+        # Every Groovy dynamic call site is an invokedynamic. The count is a direct, zero-variance
+        # proxy for how much of the hot path is still dynamically dispatched. It must only ever go
+        # down; the target is 0 once the Groovy sources are ported to Java.
+        run: |
+          TOTAL=0
+          {
+            echo "### Dynamic dispatch (invokedynamic call sites)"
+            echo
+            echo "| class | invokedynamic |"
+            echo "|---|---:|"
+            while IFS= read -r class; do
+              n=$(javap -c -p "$class" 2>/dev/null | grep -c invokedynamic || true)
+              if [[ "$n" -gt 0 ]]; then
+                echo "| $(basename "$class" .class) | $n |"
+                TOTAL=$((TOTAL + n))
+              fi
+            done < <(find target/classes -name '*.class' | sort)
+            echo
+            echo "**Total: ${TOTAL}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$TOTAL" > indy-count.txt
+          echo "Total invokedynamic: $TOTAL"
+
+      # LANGUAGE PURITY — this is the property the invokedynamic count was a proxy for.
+      #
+      # The ratchet existed to track Groovy dynamic dispatch, which went 7,168 -> ~378 when the
+      # five .groovy sources were ported and is now ZERO. What remains is ordinary Java: lambdas,
+      # method references, string concatenation, and record accessors. Those legitimately grow.
+      #
+      # It fired as predicted: adding a `record` for cache statistics took the count 378 -> 381
+      # and failed the build for writing idiomatic Java. A gate that blocks correct work is worse
+      # than no gate, because the fix everyone reaches for is to switch it off.
+      #
+      # So assert the real invariant directly — no Groovy in the shipped source — and keep the
+      # count as an observation rather than a verdict.
+      - name: Assert no Groovy in main sources
+        run: |
+          COUNT=$(find src/main -name '*.groovy' | wc -l)
+          if [[ "${COUNT}" -ne 0 ]]; then
+            echo "::error::${COUNT} .groovy files under src/main. The port to Java is a one-way door: Groovy costs dynamic dispatch on the per-record path and hides errors until runtime."
+            find src/main -name '*.groovy'
+            exit 1
+          fi
+          echo "src/main is Groovy-free."
+
+      - name: Report invokedynamic count (observation, not a gate)
+        run: |
+          ACTUAL=$(cat indy-count.txt)
+          RECORDED=$(cat benchmarks/results/indy-ceiling.txt 2>/dev/null || echo 'n/a')
+          {
+            echo "### Dynamic dispatch"
+            echo
+            echo "| metric | value |"
+            echo "|---|---:|"
+            echo "| invokedynamic call sites | ${ACTUAL} |"
+            echo "| last recorded | ${RECORDED} |"
+            echo
+            echo "Tracked, not gated. Was 7,168 before the Groovy port; the remainder is ordinary"
+            echo "Java lambda, method-reference and record machinery, which grows legitimately."
+            echo "The enforced invariant is that \`src/main\` contains no Groovy."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "${ACTUAL}" > benchmarks/results/indy-ceiling.txt

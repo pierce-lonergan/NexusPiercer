@@ -6,8 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import org.slf4j.Logger;
@@ -37,7 +35,7 @@ import java.util.zip.GZIPOutputStream;
  * into flat key-value representations, with full support for streaming, batch processing,
  * validation, and multiple serialization formats.
  *
- * <h3>Key Features:</h3>
+ * <h2>Key Features:</h2>
  * <ul>
  *   <li>Fluent API for intuitive chaining</li>
  *   <li>Multiple input sources: String, File, InputStream, Reader, byte[], Path, URL</li>
@@ -50,7 +48,7 @@ import java.util.zip.GZIPOutputStream;
  *   <li>Thread-safe for concurrent use</li>
  * </ul>
  *
- * <h3>Basic Usage:</h3>
+ * <h2>Basic Usage:</h2>
  * <pre>
  * // Simple JSON string flattening
  * String result = JsonFlattener.create()
@@ -69,7 +67,7 @@ import java.util.zip.GZIPOutputStream;
  *     .toJson(OutputOptions.pretty());
  * </pre>
  *
- * <h3>File Processing:</h3>
+ * <h2>File Processing:</h2>
  * <pre>
  * // File to file
  * JsonFlattener.create()
@@ -82,7 +80,7 @@ import java.util.zip.GZIPOutputStream;
  *     .toFile(Path.of("output.json.gz"), OutputOptions.gzipped());
  * </pre>
  *
- * <h3>Batch Processing:</h3>
+ * <h2>Batch Processing:</h2>
  * <pre>
  * // Process multiple JSON objects
  * List&lt;String&gt; inputs = Arrays.asList(json1, json2, json3);
@@ -99,7 +97,7 @@ import java.util.zip.GZIPOutputStream;
  *     .toJsonStrings();
  * </pre>
  *
- * <h3>Streaming (NDJSON/JSON Lines):</h3>
+ * <h2>Streaming (NDJSON/JSON Lines):</h2>
  * <pre>
  * // Process large NDJSON file line by line
  * JsonFlattener.create()
@@ -114,7 +112,7 @@ import java.util.zip.GZIPOutputStream;
  *     .toNdjsonFile(outputPath);
  * </pre>
  *
- * <h3>Validation and Transformation:</h3>
+ * <h2>Validation and Transformation:</h2>
  * <pre>
  * // With validation
  * JsonFlattener.create()

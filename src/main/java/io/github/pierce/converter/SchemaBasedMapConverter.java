@@ -3,15 +3,11 @@ package io.github.pierce.converter;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 
 /**
  * Unified schema-based map converter that casts map values according to a schema.

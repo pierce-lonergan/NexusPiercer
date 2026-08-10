@@ -10,7 +10,7 @@
     <!-- ==================================================================== -->
     <groupId>io.github.pierce-lonergan</groupId>
     <artifactId>nexus-piercer</artifactId>
-    <version>1.0.8</version>
+    <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <!-- ==================================================================== -->
@@ -111,7 +111,7 @@
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
 
         <!-- Reproducible Builds -->
-        <project.build.outputTimestamp>2024-01-01T00:00:00Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-08-10T11:53:30Z</project.build.outputTimestamp>
 
         <!-- Core Dependency Versions -->
         <spark.version>3.5.0</spark.version>
@@ -131,6 +131,10 @@
         <lombok.version>1.18.30</lombok.version>
         <jqwik.version>1.9.3</jqwik.version>
         <iceberg.version>1.7.1</iceberg.version>
+
+        <!-- Supply-chain tooling (see the `security` profile) -->
+        <dependency-check.version>10.0.4</dependency-check.version>
+        <cyclonedx.version>2.9.0</cyclonedx.version>
 
         <!-- Transitive dependency versions for convergence -->
         <checker-qual.version>3.43.0</checker-qual.version>
@@ -155,7 +159,7 @@
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.2.2</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>3.2.2</maven-failsafe-plugin.version>
-        <maven-shade-plugin.version>3.5.1</maven-shade-plugin.version>
+        <maven-shade-plugin.version>3.6.0</maven-shade-plugin.version>
         <maven-source-plugin.version>3.3.0</maven-source-plugin.version>
         <maven-javadoc-plugin.version>3.6.3</maven-javadoc-plugin.version>
         <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
@@ -184,11 +188,31 @@
         <git-commit-id-maven-plugin.version>7.0.0</git-commit-id-maven-plugin.version>
 
         <!-- Code Quality Thresholds -->
-        <jacoco.minimum.coverage>0.20</jacoco.minimum.coverage>
+        <!--
+          COVERAGE RATCHET — this value may only ever go UP.
+
+          It sat at 0.20 while actual instruction coverage was 60.3%, which meant the gate could
+          report "All coverage checks have been met" through a two-thirds regression. A floor
+          that far below reality is worse than no floor, because it looks like a control.
+
+          Set just under the measured figure so ordinary run-to-run variation does not produce
+          false failures, and raised whenever coverage improves. If your PR increases coverage,
+          raise this in the same PR. Lowering it to make a build pass is not permitted — see
+          CONTRIBUTING.md.
+        -->
+        <jacoco.minimum.coverage>0.58</jacoco.minimum.coverage>
         <pmd.violation.buildFailOnViolation>true</pmd.violation.buildFailOnViolation>
         <spotbugs.threshold>Low</spotbugs.threshold>
         <spotbugs.effort>Max</spotbugs.effort>
         <checkstyle.violationSeverity>warning</checkstyle.violationSeverity>
+
+        <!--
+          Static-analysis fail switches. Default to TRUE so the gates bite for anyone running
+          -Pquality locally or in a release. CI's report phase overrides all three to false while
+          the recorded debt is worked down; Phase 2 stops overriding them.
+        -->
+        <spotbugs.fail>true</spotbugs.fail>
+        <checkstyle.fail>true</checkstyle.fail>
 
         <!-- Skip Configuration (can be overridden via CLI) -->
         <skipTests>false</skipTests>
@@ -379,16 +403,24 @@
     <dependencies>
 
         <!-- Groovy dependencies -->
+            <!--
+              TEST scope. src/main became 100% Java when the five .groovy sources were ported, and
+              carries no groovy import; only the remaining classes under src/test/groovy need it.
+              At compile scope every downstream consumer inherited the Groovy runtime — two
+              artifacts and several MB — for a language the shipped code no longer uses.
+            -->
         <dependency>
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy</artifactId>
             <version>${groovy.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-json</artifactId>
             <version>${groovy.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- Test dependencies -->
@@ -559,10 +591,24 @@
             <version>${slf4j.version}</version>
         </dependency>
 
+        <!--
+          Property-based testing.
+
+          Previously this declared ONLY jqwik-api, and at compile scope. Two consequences:
+            1. No jqwik-engine on the classpath meant the JUnit Platform had nothing to execute
+               @Property methods with, so all 26 properties in TypeConverterPropertiesTest were
+               silently collected and never run.
+            2. Compile scope leaked a test-only API into the published artifact's dependency
+               graph, so every downstream consumer inherited jqwik-api.
+
+          The `jqwik` aggregate pulls api + engine together; test scope keeps it out of the POM
+          that ships to Maven Central.
+        -->
         <dependency>
             <groupId>net.jqwik</groupId>
-            <artifactId>jqwik-api</artifactId>
+            <artifactId>jqwik</artifactId>
             <version>${jqwik.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-core -->
@@ -722,15 +768,13 @@
                     <artifactId>gmavenplus-plugin</artifactId>
                     <version>${gmavenplus.version}</version>
                     <executions>
-                        <execution>
-                            <id>compile</id>
-                            <goals>
-                                <goal>addSources</goal>
-                                <goal>addTestSources</goal>
-                                <goal>compile</goal>
-                                <goal>compileTests</goal>
-                            </goals>
-                        </execution>
+                        <!--
+                          NOTE: do NOT declare a source-compiling execution here. Maven merges
+                          pluginManagement executions with build/plugins executions BY ID, and the
+                          real bindings in <build><plugins> use ids add-sources/compile-groovy/etc.
+                          A differently-named execution here is therefore additive, not an override,
+                          and every Groovy source gets compiled twice per build.
+                        -->
                         <execution>
                             <id>groovydoc</id>
                             <phase>site</phase>
@@ -857,10 +901,13 @@
                                 <requireJavaVersion>
                                     <version>[${java.version},)</version>
                                 </requireJavaVersion>
-                                <requireOS>
-                                    <family>unix</family>
-                                    <family>windows</family>
-                                </requireOS>
+                                <!--
+                                  requireOS takes a SINGLE <family>; repeating the element silently
+                                  keeps only the last value, so the previous two-element form
+                                  evaluated to family=windows and hard-failed every Linux CI run at
+                                  the validate phase. The rule gates nothing useful for a pure-JVM
+                                  library, so it is removed rather than narrowed.
+                                -->
                                 <banDuplicatePomDependencyVersions/>
                                 <dependencyConvergence/>
                                 <requireReleaseDeps>
@@ -1302,19 +1349,14 @@
     <!-- PROFILES                                                             -->
     <!-- ==================================================================== -->
     <profiles>
-        <!-- Development Profile (Active by default) -->
-        <profile>
-            <id>development</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <gpg.skip>true</gpg.skip>
-                <checkstyle.skip>true</checkstyle.skip>
-                <pmd.skip>true</pmd.skip>
-                <spotbugs.skip>true</spotbugs.skip>
-            </properties>
-        </profile>
+        <!--
+          The `development` profile used to live here with <activeByDefault>true</activeByDefault>
+          and checkstyle.skip/pmd.skip/spotbugs.skip=true. It was the single reason the checked-in
+          Checkstyle and PMD rulesets had never executed: every ordinary `mvn verify` silently
+          disabled them. gpg.skip=true already defaults in <properties>, so the profile carried no
+          value beyond turning the quality gates off. Removed deliberately — do not reintroduce an
+          activeByDefault profile that disables analysis.
+        -->
 
         <!-- Fast Build Profile (Skip all checks) -->
         <profile>
@@ -1345,7 +1387,10 @@
                         <configuration>
                             <effort>${spotbugs.effort}</effort>
                             <threshold>${spotbugs.threshold}</threshold>
-                            <failOnError>true</failOnError>
+                            <!-- Property-driven: an inline `true` here overrides -D on the
+                                 command line, which is how report mode ended up dying at the
+                                 first SpotBugs violation and never running Checkstyle or PMD. -->
+                            <failOnError>${spotbugs.fail}</failOnError>
                             <includeFilterFile>${project.basedir}/src/main/spotbugs/spotbugs-include.xml</includeFilterFile>
                             <excludeFilterFile>${project.basedir}/src/main/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
                             <plugins>
@@ -1408,7 +1453,8 @@
                             <suppressionsLocation>${project.basedir}/src/main/checkstyle/checkstyle-suppressions.xml</suppressionsLocation>
                             <encoding>UTF-8</encoding>
                             <consoleOutput>true</consoleOutput>
-                            <failsOnError>true</failsOnError>
+                            <failsOnError>${checkstyle.fail}</failsOnError>
+                            <failOnViolation>${checkstyle.fail}</failOnViolation>
                             <violationSeverity>${checkstyle.violationSeverity}</violationSeverity>
                             <includeTestSourceDirectory>false</includeTestSourceDirectory>
                         </configuration>
@@ -1416,6 +1462,88 @@
                             <execution>
                                 <goals>
                                     <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+          Supply-chain profile: CVE scanning and SBOM generation.
+
+          Kept out of the default build because dependency-check downloads and maintains a
+          multi-hundred-megabyte NVD mirror; running it on every local `mvn verify` would make
+          the build unusable. CI invokes it explicitly (.github/workflows/quality.yml) with a
+          cached data directory.
+        -->
+        <profile>
+            <id>security</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>${dependency-check.version}</version>
+                        <configuration>
+                            <!-- Fail on High and Critical. Medium findings are reported, not gated. -->
+                            <failBuildOnCVSS>7</failBuildOnCVSS>
+                            <formats>
+                                <format>HTML</format>
+                                <format>JSON</format>
+                                <format>SARIF</format>
+                            </formats>
+                            <!-- Test-scope CVEs never ship to a consumer; report but do not gate. -->
+                            <skipTestScope>false</skipTestScope>
+                            <failOnError>true</failOnError>
+                            <suppressionFiles>
+                                <suppressionFile>${project.basedir}/.github/dependency-check-suppressions.xml</suppressionFile>
+                            </suppressionFiles>
+                            <nvdApiKey>${env.NVD_API_KEY}</nvdApiKey>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>cve-scan</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <version>${cyclonedx.version}</version>
+                        <configuration>
+                            <!--
+                              REQUIRED here. central-publishing-maven-plugin sets
+                              maven.deploy.skip=true so the stock deploy plugin does not publish
+                              alongside it, and CycloneDX reads that as "this module is not
+                              deployed, so it needs no SBOM". The goal then logs
+                              "Skipping CycloneDX goal, because module skips deploy" and exits 0,
+                              producing no bom and no error - the artifact IS published, just by a
+                              different plugin.
+                            -->
+                            <skipNotDeployed>false</skipNotDeployed>
+                            <projectType>library</projectType>
+                            <schemaVersion>1.5</schemaVersion>
+                            <outputFormat>all</outputFormat>
+                            <outputName>bom</outputName>
+                            <!-- Runtime graph is what a consumer actually inherits. -->
+                            <includeCompileScope>true</includeCompileScope>
+                            <includeRuntimeScope>true</includeRuntimeScope>
+                            <includeProvidedScope>false</includeProvidedScope>
+                            <includeTestScope>false</includeTestScope>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>build-sbom</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeAggregateBom</goal>
                                 </goals>
                             </execution>
                         </executions>

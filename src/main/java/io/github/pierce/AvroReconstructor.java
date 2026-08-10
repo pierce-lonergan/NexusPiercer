@@ -15,7 +15,6 @@ import static org.apache.avro.Schema.Type.*;
 
 import static io.github.pierce.AvroReconstructor.ArraySerializationFormat.*;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
@@ -25,6 +24,7 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import io.github.pierce.path.FlattenedPath;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
  * original hierarchical structure using the corresponding Avro schema. It includes
  * comprehensive verification utilities to validate reconstruction correctness.
  *
- * <h3>Key Features:</h3>
+ * <h2>Key Features:</h2>
  * <ul>
  *   <li>Perfect reconstruction of nested records, arrays, and maps</li>
  *   <li>Full support for all Avro logical types (decimals, timestamps, UUIDs, etc.)</li>
@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
  *   <li>Memory-safe iterative algorithms (no stack overflow)</li>
  * </ul>
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>
  * // 1. Flatten original data
  * MapFlattener flattener = new MapFlattener();
@@ -79,7 +79,26 @@ public class AvroReconstructor {
 
     // Constants
     private static final int DEFAULT_MAX_DEPTH = 100;
-    private static final int DEFAULT_MAX_CACHE_SIZE = 100;
+    /**
+     * Default schema-cache bound.
+     *
+     * <p>Was 100 — a number that had never been chosen as a cache size. It was a
+     * {@code ConcurrentHashMap} initial-capacity argument whose constant name misdescribed it as a
+     * maximum, and it was carried over unexamined when the cache was actually bounded. A magic
+     * number inherited from a bug is still a magic number.</p>
+     *
+     * <p>Re-derived from measurement. Rotating through N distinct schemas
+     * ({@code SchemaCacheCliffBenchmark}) costs a flat ~0.36 us/op while N fits the bound and
+     * jumps to ~1.11 us/op — 3.1x — the moment N exceeds it, then stays flat: past capacity a
+     * strict rotation has a 0% hit rate, because every lookup evicts the entry it will want next.
+     * That cliff cannot be removed by a smarter eviction policy; a working set larger than the
+     * cache does not fit in the cache. It can only be sited sensibly and made visible.</p>
+     *
+     * <p>256 covers schema-registry and multi-tenant workloads that 100 did not, at a few hundred
+     * KB of retained schema graphs. Workloads beyond it should raise the bound explicitly via
+     * {@code maxSchemaCacheSize} and watch {@link SchemaCacheStats#hitRate()}.</p>
+     */
+    private static final int DEFAULT_MAX_CACHE_SIZE = 256;
 
     // Shared ObjectMapper - configured for consistent JSON handling
     private static final ObjectMapper SHARED_OBJECT_MAPPER = createConfiguredMapper();
@@ -92,9 +111,11 @@ public class AvroReconstructor {
     }
 
     // Compiled patterns for performance
-    private static final Pattern ARRAY_INDEX_PATTERN = Pattern.compile("\\[\\d+\\]");
-    private static final Pattern JSON_ARRAY_PATTERN = Pattern.compile("^\\[.*\\]\$");
-    private static final Pattern BRACKET_LIST_PATTERN = Pattern.compile("^\\[(.*)\\]\$");
+    // ARRAY_INDEX_PATTERN and JSON_ARRAY_PATTERN were declared here and never referenced. PMD
+    // flagged both as UnusedPrivateField once the file became Java and was analysed for the first
+    // time — while it was .groovy, no static analyser looked at it at all. Dead code, deleted
+    // rather than suppressed.
+    private static final Pattern BRACKET_LIST_PATTERN = Pattern.compile("^\\[(.*)\\]$");
 
     // Logical type converters
     private static final Conversions.DecimalConversion DECIMAL_CONVERSION =
@@ -111,7 +132,51 @@ public class AvroReconstructor {
     private final boolean enableVerification;
 
     // Schema cache for performance
-    private final ConcurrentHashMap<String, SchemaCacheEntry> schemaCache;
+    /**
+     * Keyed by {@link Schema} rather than by a canonical-form fingerprint string.
+     *
+     * <p>Avro memoises {@code Schema.hashCode()} and its {@code equals} short-circuits on
+     * identity, so lookup is effectively free after the first call. Building a fingerprint key
+     * instead meant serialising the whole schema to canonical form on every record.</p>
+     */
+    private final ConcurrentHashMap<Schema, SchemaCacheEntry> schemaCache;
+
+    /**
+     * Insertion order for cache eviction. Separate from the map so the read path stays lock-free;
+     * see {@link #evictIfOverCapacity()} for why this is insertion-ordered rather than LRU.
+     */
+    private final java.util.concurrent.ConcurrentLinkedQueue<Schema> insertionOrder =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** Hard upper bound on cached schemas. Previously only an initial capacity, so unbounded. */
+    private final int maxCacheSize;
+
+    private final java.util.concurrent.atomic.LongAdder cacheHits =
+            new java.util.concurrent.atomic.LongAdder();
+    private final java.util.concurrent.atomic.LongAdder cacheMisses =
+            new java.util.concurrent.atomic.LongAdder();
+
+    /**
+     * Observable schema-cache behaviour.
+     *
+     * <p>Exists because bounding a cache creates a performance cliff at the capacity boundary, and
+     * a cliff nobody can see is one you discover from a latency graph months later. Past capacity
+     * a rotating workload drops to a 0% hit rate and pays ~3.1x per record; the hit rate is the
+     * signal that says so.</p>
+     */
+    public record SchemaCacheStats(long hits, long misses, int size, int maxSize) {
+        /** Fraction of lookups served from cache, or 1.0 before any lookup. */
+        public double hitRate() {
+            long total = hits + misses;
+            return total == 0 ? 1.0 : (double) hits / total;
+        }
+    }
+
+    /** Current cache statistics. Cheap; safe to poll from a metrics thread. */
+    public SchemaCacheStats getSchemaCacheStats() {
+        return new SchemaCacheStats(cacheHits.sum(), cacheMisses.sum(),
+                schemaCache.size(), maxCacheSize);
+    }
 
     /**
      * Schema cache entry with metadata
@@ -142,6 +207,7 @@ public class AvroReconstructor {
      * Builder for AvroReconstructor configuration
      */
     public static class Builder {
+        private int maxSchemaCacheSize = DEFAULT_MAX_CACHE_SIZE;
         private ArraySerializationFormat arrayFormat = ArraySerializationFormat.JSON;
         private boolean useArrayBoundarySeparator = false;
         private boolean strictValidation = true;
@@ -173,6 +239,19 @@ public class AvroReconstructor {
 
         public Builder useSchemaDefaults(boolean use) {
             this.useSchemaDefaults = use;
+            return this;
+        }
+
+        /**
+         * Bounds the schema cache. Raise it when the working set of distinct schemas exceeds the
+         * default, which costs a 3.1x per-record penalty at 100% miss rate — see
+         * {@link AvroReconstructor#DEFAULT_MAX_CACHE_SIZE}.
+         */
+        public Builder maxSchemaCacheSize(int size) {
+            if (size < 1) {
+                throw new IllegalArgumentException("maxSchemaCacheSize must be >= 1");
+            }
+            this.maxSchemaCacheSize = size;
             return this;
         }
 
@@ -211,6 +290,7 @@ public class AvroReconstructor {
         this.objectMapper = builder.customObjectMapper != null ?
                 builder.customObjectMapper : SHARED_OBJECT_MAPPER;
         this.schemaCache = new ConcurrentHashMap<>(DEFAULT_MAX_CACHE_SIZE);
+        this.maxCacheSize = builder.maxSchemaCacheSize;
     }
 
     public static Builder builder() {
@@ -605,7 +685,7 @@ public class AvroReconstructor {
             if (path.isEmpty()) return;
 
             pathSchemas.put(path, schema);
-            String[] parts = path.split(Pattern.quote(separator));
+            String[] parts = FlattenedPath.decodeSegments(path, separator).toArray(new String[0]);
             Node current = root;
 
             for (String part : parts) {
@@ -633,13 +713,81 @@ public class AvroReconstructor {
         }
     }
 
+    /**
+     * Resolves the cached path trie for a schema.
+     *
+     * <p>This used to build the cache key with
+     * {@link SchemaNormalization#parsingFingerprint64(Schema)} on <b>every call</b> — and it is
+     * called once per record. That constructs the schema's full canonical form (several KB of
+     * string for a 250-field schema) and Rabin-hashes it, purely to look up an entry that never
+     * changes. The key cost more than the value it retrieved.</p>
+     *
+     * <p>Keying on the {@link Schema} itself removes that entirely. Avro's {@code Schema.hashCode()}
+     * is content-based and memoised after the first call, and {@code equals} short-circuits on
+     * identity, so the steady-state lookup is a field read and a reference comparison.</p>
+     *
+     * <p><b>Correctness note.</b> This depends on Avro schemas being effectively immutable after
+     * parsing, which they are — the API exposes no mutator that changes structure. Two schemas
+     * parsed separately from the same text are distinct objects but compare equal, so they
+     * correctly share one entry; that is asserted by
+     * {@code AvroSchemaCacheTest.samePathParsedTwiceSharesOneEntry}. If a schema were mutated
+     * in place after being cached, the entry would go stale — the previous fingerprint key had
+     * the same exposure, since it was also computed before the mutation.</p>
+     */
     private SchemaCacheEntry getOrBuildSchemaCacheEntry(Schema schema) {
-        String fingerprint = getSchemaFingerprint(schema);
+        // Lock-free fast path. This runs once per record and is the reason keying on Schema
+        // rather than on a canonical-form fingerprint is worth doing at all.
+        SchemaCacheEntry hit = schemaCache.get(schema);
+        if (hit != null) {
+            cacheHits.increment();
+            return hit;
+        }
+        cacheMisses.increment();
 
-        return schemaCache.computeIfAbsent(fingerprint, k -> {
-            SchemaPathTrie trie = buildSchemaPathTrie(schema);
-            return new SchemaCacheEntry(trie, fingerprint);
+        boolean[] wasBuilt = {false};
+        SchemaCacheEntry built = schemaCache.computeIfAbsent(schema, k -> {
+            wasBuilt[0] = true;
+            // The fingerprint is retained for diagnostics only; computing it once per distinct
+            // schema is fine, once per record was not.
+            return new SchemaCacheEntry(buildSchemaPathTrie(k), getSchemaFingerprint(k));
         });
+        if (wasBuilt[0]) {
+            // Record insertion order on the miss that actually inserted, so eviction has a queue
+            // to work from. Recording only once already over capacity would evict the entry just
+            // added and cache nothing.
+            insertionOrder.add(schema);
+            evictIfOverCapacity();
+        }
+        return built;
+    }
+
+    /**
+     * Bounds the schema cache.
+     *
+     * <p>{@code DEFAULT_MAX_CACHE_SIZE} was previously passed to the {@code ConcurrentHashMap}
+     * constructor, which takes an INITIAL CAPACITY, not a maximum. The cache was therefore
+     * unbounded despite the constant's name, and re-keying it from a fingerprint string to the
+     * {@link Schema} itself made each retained entry dramatically heavier — a whole schema graph
+     * instead of a ~40-character string. A long-lived Spark driver handling many distinct schemas
+     * (a schema-registry stream, a multi-tenant job) would retain all of them for the life of the
+     * JVM.</p>
+     *
+     * <p>Eviction is insertion-ordered rather than LRU: a strict LRU needs a write on every read,
+     * which would put a contended mutation back on the per-record path that this whole change
+     * exists to keep clean. For a schema cache the distinction barely matters — the working set
+     * is small and stable, and the penalty for an unlucky eviction is one trie rebuild.</p>
+     */
+    private void evictIfOverCapacity() {
+        while (schemaCache.size() > maxCacheSize) {
+            Schema oldest = insertionOrder.poll();
+            if (oldest == null) {
+                // Queue drained but the map is still over capacity — only reachable under a race.
+                // Clear rather than let the map grow without bound.
+                schemaCache.clear();
+                break;
+            }
+            schemaCache.remove(oldest);
+        }
     }
 
     private String getSchemaFingerprint(Schema schema) {
@@ -685,8 +833,8 @@ public class AvroReconstructor {
                 }
 
                 for (Schema.Field field : schema.getFields()) {
-                    String fieldPath = prefix.isEmpty() ? field.name() :
-                            prefix + separator + field.name();
+                    String esc = FlattenedPath.escapeSegment(field.name(), separator);
+                    String fieldPath = prefix.isEmpty() ? esc : prefix + separator + esc;
                     buildSchemaPathsRecursive(field.schema(), fieldPath, trie, depth + 1);
                 }
                 break;
@@ -700,7 +848,8 @@ public class AvroReconstructor {
                 Schema elementType = schema.getElementType();
                 if (elementType.getType() == RECORD) {
                     for (Schema.Field field : elementType.getFields()) {
-                        String arrayFieldPath = prefix + separator + field.name();
+                        String arrayFieldPath = prefix + separator +
+                                FlattenedPath.escapeSegment(field.name(), separator);
                         trie.add(arrayFieldPath, field.schema());
                         buildSchemaPathsRecursive(field.schema(), arrayFieldPath, trie, depth + 1);
                     }
@@ -809,55 +958,55 @@ public class AvroReconstructor {
          */
         private static List<String> splitRespectingBrackets(String str, String delimiter) {
             if (delimiter == null || delimiter.length() != 1) {
-                throw new IllegalArgumentException("Delimiter must be a single character")
+                throw new IllegalArgumentException("Delimiter must be a single character");
             }
-            char delimiterChar = delimiter.charAt(0)
+            char delimiterChar = delimiter.charAt(0);
 
-            List<String> result = new ArrayList<>()
-            StringBuilder current = new StringBuilder()
-            int bracketDepth = 0
-            boolean inQuotes = false
+            List<String> result = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+            int bracketDepth = 0;
+            boolean inQuotes = false;
 
             for (int i = 0; i < str.length(); i++) {
-                char c = str.charAt(i)
+                char c = str.charAt(i);
 
                 if (c == '"' && (i == 0 || str.charAt(i - 1) != '\\')) {
-                    inQuotes = !inQuotes
-                    current.append(c)
+                    inQuotes = !inQuotes;
+                    current.append(c);
                 } else if (!inQuotes) {
                     if (c == '[') {
-                        bracketDepth++
-                        current.append(c)
+                        bracketDepth++;
+                        current.append(c);
                     } else if (c == ']') {
-                        bracketDepth--
-                        current.append(c)
+                        bracketDepth--;
+                        current.append(c);
                     } else if (c == delimiterChar && bracketDepth == 0) {
-                        String item = current.toString().trim()
+                        String item = current.toString().trim();
                         // Strip quotes from string values
                         if (item.startsWith("\"") && item.endsWith("\"") && item.length() >= 2) {
-                            item = item.substring(1, item.length() - 1)
+                            item = item.substring(1, item.length() - 1);
                         }
-                        result.add(item)
-                        current = new StringBuilder()
+                        result.add(item);
+                        current = new StringBuilder();
                     } else {
-                        current.append(c)
+                        current.append(c);
                     }
                 } else {
-                    current.append(c)
+                    current.append(c);
                 }
             }
 
             // Add the last part
             if (current.length() > 0) {
-                String item = current.toString().trim()
+                String item = current.toString().trim();
                 // Strip quotes from string values
                 if (item.startsWith("\"") && item.endsWith("\"") && item.length() >= 2) {
-                    item = item.substring(1, item.length() - 1)
+                    item = item.substring(1, item.length() - 1);
                 }
-                result.add(item)
+                result.add(item);
             }
 
-            return result
+            return result;
         }
     }
 
@@ -869,7 +1018,7 @@ public class AvroReconstructor {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            String[] parts = key.split(Pattern.quote(separator));
+            String[] parts = FlattenedPath.decodeSegments(key, separator).toArray(new String[0]);
 
             // Check if this is an array field pattern
             if (isArrayFieldPattern(parts, schemaPaths)) {
@@ -885,7 +1034,7 @@ public class AvroReconstructor {
     private boolean isArrayFieldPattern(String[] keyParts, SchemaPathTrie schemaPaths) {
         // Check each prefix to see if it's an array path
         for (int i = keyParts.length - 1; i > 0; i--) {
-            String prefix = String.join(separator, Arrays.copyOfRange(keyParts, 0, i));
+            String prefix = FlattenedPath.encode(Arrays.asList(Arrays.copyOfRange(keyParts, 0, i)), separator);
             if (schemaPaths.containsArrayPath(prefix)) {
                 return true;
             }
@@ -918,7 +1067,8 @@ public class AvroReconstructor {
 
         for (Schema.Field field : schema.getFields()) {
             String fieldName = field.name();
-            String fieldPath = path.isEmpty() ? fieldName : path + separator + fieldName;
+            String escapedName = FlattenedPath.escapeSegment(fieldName, separator);
+            String fieldPath = path.isEmpty() ? escapedName : path + separator + escapedName;
             Schema fieldSchema = field.schema();
 
             try {
@@ -1158,13 +1308,13 @@ public class AvroReconstructor {
                 hasAnyField = true;
             } else {
                 // Check if there's a child node for this field (for deeply nested structures)
-                PathNode fieldChildNode = childNode.children.get(nestedFieldName)
-                Schema actualFieldSchema = unwrapNullable(nestedField.schema())
+                PathNode fieldChildNode = childNode.children.get(nestedFieldName);
+                Schema actualFieldSchema = unwrapNullable(nestedField.schema());
 
                 if (fieldChildNode != null) {
                     // Reconstruct from child node based on schema type
                     if (actualFieldSchema.getType() == ARRAY) {
-                        Schema elementSchema = actualFieldSchema.getElementType()
+                        Schema elementSchema = actualFieldSchema.getElementType();
 
                         // Check if this is an array of records with indexed data
                         if (elementSchema.getType() == RECORD &&
@@ -1174,18 +1324,18 @@ public class AvroReconstructor {
                             // Pass the outer index so we get the correct slice of data
                             Object reconstructed = reconstructNestedArrayOfRecordsAtIndex(
                                     fieldChildNode, elementSchema, index,
-                                    path + "." + nestedFieldName, 0)
+                                    path + "." + nestedFieldName, 0);
                             if (reconstructed != null) {
-                                builder.set(nestedFieldName, reconstructed)
-                                hasAnyField = true
+                                builder.set(nestedFieldName, reconstructed);
+                                hasAnyField = true;
                             }
                         } else {
                             // For primitive arrays or arrays without indexed data
                             Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
-                                    path + "." + fieldPrefix + "." + nestedFieldName, 0)
+                                    path + "." + fieldPrefix + "." + nestedFieldName, 0);
                             if (reconstructed != null) {
-                                builder.set(nestedFieldName, reconstructed)
-                                hasAnyField = true
+                                builder.set(nestedFieldName, reconstructed);
+                                hasAnyField = true;
                             }
                         }
                     } else if (actualFieldSchema.getType() == RECORD) {
@@ -1194,26 +1344,26 @@ public class AvroReconstructor {
                         // and the outer index so we get the correct values
                         GenericRecord nestedRecord = reconstructNestedRecordFromArray(
                                 childNode, actualFieldSchema, nestedFieldName, index,
-                                path + "." + fieldPrefix)
+                                path + "." + fieldPrefix);
                         if (nestedRecord != null) {
-                            builder.set(nestedFieldName, nestedRecord)
-                            hasAnyField = true
+                            builder.set(nestedFieldName, nestedRecord);
+                            hasAnyField = true;
                         }
                     } else {
                         // Other types - try generic reconstruction
                         Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
-                                path + "." + fieldPrefix + "." + nestedFieldName, 0)
+                                path + "." + fieldPrefix + "." + nestedFieldName, 0);
                         if (reconstructed != null) {
-                            builder.set(nestedFieldName, reconstructed)
-                            hasAnyField = true
+                            builder.set(nestedFieldName, reconstructed);
+                            hasAnyField = true;
                         }
                     }
                 } else if (nestedField.hasDefaultValue()) {
-                    builder.set(nestedFieldName, nestedField.defaultVal())
-                    hasAnyField = true
+                    builder.set(nestedFieldName, nestedField.defaultVal());
+                    hasAnyField = true;
                 } else if (isNullable(nestedField.schema())) {
-                    builder.set(nestedFieldName, null)
-                    hasAnyField = true
+                    builder.set(nestedFieldName, null);
+                    hasAnyField = true;
                 }
             }
         }
@@ -1233,100 +1383,100 @@ public class AvroReconstructor {
     private List<Object> reconstructArrayOfRecords(PathNode node, Schema elementSchema,
                                                    String path, int currentDepth) {
         if (elementSchema.getType() != RECORD) {
-            throw new IllegalStateException("Expected RECORD element type at: " + path)
+            throw new IllegalStateException("Expected RECORD element type at: " + path);
         }
 
         // Step 1: Collect all field values, parsing JSON arrays where needed
-        Map<String, List<Object>> parsedFieldValues = new LinkedHashMap<>()
+        Map<String, List<Object>> parsedFieldValues = new LinkedHashMap<>();
 
         if (node.arrayFieldValues != null) {
             for (Map.Entry<String, List<Object>> entry : node.arrayFieldValues.entrySet()) {
-                String fieldName = entry.getKey()
-                List<Object> rawValues = entry.getValue()
+                String fieldName = entry.getKey();
+                List<Object> rawValues = entry.getValue();
 
                 if (rawValues != null && !rawValues.isEmpty()) {
                     // Check if values need JSON parsing (they're stored as a single JSON string)
                     if (rawValues.size() == 1 && rawValues.get(0) instanceof String) {
-                        String strValue = ((String) rawValues.get(0)).trim()
+                        String strValue = ((String) rawValues.get(0)).trim();
                         if (strValue.startsWith("[") && strValue.endsWith("]")) {
                             try {
-                                List<Object> parsed = objectMapper.readValue(strValue, List.class)
-                                parsedFieldValues.put(fieldName, parsed)
-                                continue
+                                List<Object> parsed = objectMapper.readValue(strValue, List.class);
+                                parsedFieldValues.put(fieldName, parsed);
+                                continue;
                             } catch (Exception e) {
-                                log.debug("Could not parse as JSON array: {}", strValue)
+                                log.debug("Could not parse as JSON array: {}", strValue);
                             }
                         }
                     }
-                    parsedFieldValues.put(fieldName, rawValues)
+                    parsedFieldValues.put(fieldName, rawValues);
                 }
             }
         }
 
         // Step 2: Determine array size from the parsed field values
-        int arraySize = determineArraySize(parsedFieldValues, node, elementSchema)
+        int arraySize = determineArraySize(parsedFieldValues, node, elementSchema);
 
         if (arraySize == 0) {
-            return new ArrayList<>()
+            return new ArrayList<>();
         }
 
-        List<Object> result = new ArrayList<>(arraySize)
+        List<Object> result = new ArrayList<>(arraySize);
 
         // Step 3: Build each record in the array
         for (int i = 0; i < arraySize; i++) {
-            GenericRecordBuilder elementBuilder = new GenericRecordBuilder(elementSchema)
+            GenericRecordBuilder elementBuilder = new GenericRecordBuilder(elementSchema);
 
             for (Schema.Field field : elementSchema.getFields()) {
-                String fieldName = field.name()
-                Schema fieldSchema = field.schema()
-                Schema actualFieldSchema = unwrapNullable(fieldSchema)
+                String fieldName = field.name();
+                Schema fieldSchema = field.schema();
+                Schema actualFieldSchema = unwrapNullable(fieldSchema);
 
                 // Check parsed field values first
-                List<Object> fieldValues = parsedFieldValues.get(fieldName)
+                List<Object> fieldValues = parsedFieldValues.get(fieldName);
 
                 if (fieldValues != null && i < fieldValues.size()) {
-                    Object valueAtIndex = fieldValues.get(i)
+                    Object valueAtIndex = fieldValues.get(i);
 
                     // Handle nested arrays (arrays within the record)
                     if (actualFieldSchema.getType() == ARRAY) {
                         Object arrayValue = reconstructNestedArray(
                                 valueAtIndex, actualFieldSchema, node, fieldName, i,
-                                path + "[" + i + "]." + fieldName, currentDepth + 1)
-                        elementBuilder.set(fieldName, arrayValue)
+                                path + "[" + i + "]." + fieldName, currentDepth + 1);
+                        elementBuilder.set(fieldName, arrayValue);
                     } else {
                         // Regular primitive or nested record field
                         Object converted = convertPrimitive(valueAtIndex, fieldSchema,
-                                path + "[" + i + "]." + fieldName)
-                        elementBuilder.set(fieldName, converted)
+                                path + "[" + i + "]." + fieldName);
+                        elementBuilder.set(fieldName, converted);
                     }
                 } else if (actualFieldSchema.getType() == RECORD) {
                     // Handle nested record - look for child fields with prefix
                     GenericRecord nestedRecord = reconstructNestedRecordFromArray(
-                            node, actualFieldSchema, fieldName, i, path + "[" + i + "]")
+                            node, actualFieldSchema, fieldName, i, path + "[" + i + "]");
                     if (nestedRecord != null) {
-                        elementBuilder.set(fieldName, nestedRecord)
+                        elementBuilder.set(fieldName, nestedRecord);
                     } else {
-                        handleMissingField(elementBuilder, field)
+                        handleMissingField(elementBuilder, field);
                     }
                 } else if (actualFieldSchema.getType() == ARRAY) {
                     // Handle nested array that wasn't in direct field values
                     Object arrayValue = reconstructNestedArrayFromChildNode(
                             node, fieldName, actualFieldSchema, i,
-                            path + "[" + i + "]." + fieldName, currentDepth + 1)
+                            path + "[" + i + "]." + fieldName, currentDepth + 1);
                     if (arrayValue != null) {
-                        elementBuilder.set(fieldName, arrayValue)
+                        elementBuilder.set(fieldName, arrayValue);
                     } else {
-                        elementBuilder.set(fieldName, new ArrayList<>())
+                        elementBuilder.set(fieldName, new ArrayList<>());
                     }
                 } else {
-                    handleMissingField(elementBuilder, field)
+                    handleMissingField(elementBuilder, field);
                 }
             }
 
-            result.add(elementBuilder.build())
+            result.add(elementBuilder.build());
         }
 
-        return result
+        return result;
     }
 
 /**
@@ -1334,12 +1484,12 @@ public class AvroReconstructor {
  */
     private int determineArraySize(Map<String, List<Object>> parsedFieldValues,
                                    PathNode node, Schema elementSchema) {
-        int maxSize = 0
+        int maxSize = 0;
 
         // Check parsed field values
         for (List<Object> values : parsedFieldValues.values()) {
             if (values != null) {
-                maxSize = Math.max(maxSize, values.size())
+                maxSize = Math.max(maxSize, values.size());
             }
         }
 
@@ -1350,14 +1500,14 @@ public class AvroReconstructor {
                     for (List<Object> values : child.arrayFieldValues.values()) {
                         if (values != null && !values.isEmpty()) {
                             // Check if first value is a JSON array string
-                            Object first = values.get(0)
+                            Object first = values.get(0);
                             if (first instanceof String) {
-                                String strValue = ((String) first).trim()
+                                String strValue = ((String) first).trim();
                                 if (strValue.startsWith("[[")) {
                                     // Nested array - count outer elements
                                     try {
-                                        List<Object> parsed = objectMapper.readValue(strValue, List.class)
-                                        maxSize = Math.max(maxSize, parsed.size())
+                                        List<Object> parsed = objectMapper.readValue(strValue, List.class);
+                                        maxSize = Math.max(maxSize, parsed.size());
                                     } catch (Exception e) {
                                         // Ignore parsing errors
                                     }
@@ -1369,7 +1519,7 @@ public class AvroReconstructor {
             }
         }
 
-        return maxSize > 0 ? maxSize : 1
+        return maxSize > 0 ? maxSize : 1;
     }
 
 /**
@@ -1379,40 +1529,40 @@ public class AvroReconstructor {
  */
     private Object reconstructNestedArray(Object value, Schema arraySchema, PathNode parentNode,
                                           String fieldName, int outerIndex, String path, int depth) {
-        Schema elementSchema = arraySchema.getElementType()
+        Schema elementSchema = arraySchema.getElementType();
 
         if (value == null) {
-            return new ArrayList<>()
+            return new ArrayList<>();
         }
 
         // If value is already a List, process it directly
         if (value instanceof List) {
-            List<Object> listValue = (List<Object>) value
-            return reconstructArrayFromValues(listValue, elementSchema, path, depth)
+            List<Object> listValue = (List<Object>) value;
+            return reconstructArrayFromValues(listValue, elementSchema, path, depth);
         }
 
         // If value is a JSON string (nested array serialized as string)
         if (value instanceof String) {
-            String strValue = ((String) value).trim()
+            String strValue = ((String) value).trim();
 
             // Try to parse as JSON array
             if (strValue.startsWith("[") && strValue.endsWith("]")) {
                 try {
-                    List<Object> parsed = objectMapper.readValue(strValue, List.class)
-                    return reconstructArrayFromValues(parsed, elementSchema, path, depth)
+                    List<Object> parsed = objectMapper.readValue(strValue, List.class);
+                    return reconstructArrayFromValues(parsed, elementSchema, path, depth);
                 } catch (Exception e) {
-                    log.debug("Failed to parse nested array JSON at {}: {}", path, e.getMessage())
+                    log.debug("Failed to parse nested array JSON at {}: {}", path, e.getMessage());
                 }
             }
 
             // Single value - wrap in list
             if (!strValue.isEmpty()) {
-                Object converted = convertPrimitive(strValue, elementSchema, path)
-                return Collections.singletonList(converted)
+                Object converted = convertPrimitive(strValue, elementSchema, path);
+                return Collections.singletonList(converted);
             }
         }
 
-        return new ArrayList<>()
+        return new ArrayList<>();
     }
 
 /**
@@ -1423,30 +1573,33 @@ public class AvroReconstructor {
     private Object reconstructNestedArrayFromChildNode(PathNode parentNode, String fieldName,
                                                        Schema arraySchema, int outerIndex,
                                                        String path, int depth) {
-        PathNode childNode = parentNode.children?.get(fieldName)
+        // Was Groovy's safe-navigation operator: parentNode.children?.get(fieldName)
+        PathNode childNode = parentNode.children == null
+                ? null
+                : parentNode.children.get(fieldName);
 
         if (childNode == null) {
-            return null
+            return null;
         }
 
-        Schema elementSchema = arraySchema.getElementType()
+        Schema elementSchema = arraySchema.getElementType();
 
         // Check if child node has array field values
         if (childNode.arrayFieldValues != null && !childNode.arrayFieldValues.isEmpty()) {
             // This is an array of records - need to extract values for this outer index
             if (elementSchema.getType() == RECORD) {
                 return reconstructNestedArrayOfRecordsAtIndex(
-                        childNode, elementSchema, outerIndex, path, depth)
+                        childNode, elementSchema, outerIndex, path, depth);
             }
         }
 
         // Check if child node is a leaf with array value
         if (childNode.isLeaf && childNode.value != null) {
-            List<Object> deserialized = deserializeArray(childNode.value)
-            return reconstructArrayFromValues(deserialized, elementSchema, path, depth)
+            List<Object> deserialized = deserializeArray(childNode.value);
+            return reconstructArrayFromValues(deserialized, elementSchema, path, depth);
         }
 
-        return null
+        return null;
     }
 
 /**
@@ -1471,93 +1624,96 @@ public class AvroReconstructor {
                                                                 int outerIndex,
                                                                 String path, int depth) {
         // First, parse all field values and extract the nested structure for THIS outerIndex
-        Map<String, List<Object>> fieldValuesAtIndex = new LinkedHashMap<>()
-        int innerArraySize = 0
+        Map<String, List<Object>> fieldValuesAtIndex = new LinkedHashMap<>();
+        int innerArraySize = 0;
 
         for (Schema.Field field : recordSchema.getFields()) {
-            String fieldName = field.name()
-            List<Object> rawValues = childNode.arrayFieldValues?.get(fieldName)
+            String fieldName = field.name();
+            // Was Groovy's safe-navigation operator: childNode.arrayFieldValues?.get(fieldName)
+            List<Object> rawValues = childNode.arrayFieldValues == null
+                    ? null
+                    : childNode.arrayFieldValues.get(fieldName);
 
             if (rawValues != null && !rawValues.isEmpty()) {
                 // KEY FIX: Use outerIndex to select the correct element
-                Object rawValue = outerIndex < rawValues.size() ? rawValues.get(outerIndex) : rawValues.get(0)
+                Object rawValue = outerIndex < rawValues.size() ? rawValues.get(outerIndex) : rawValues.get(0);
 
                 if (rawValue instanceof String) {
-                    String strValue = ((String) rawValue).trim()
+                    String strValue = ((String) rawValue).trim();
 
                     // Check for doubly-nested array: "[[v1,v2],[v3,v4]]"
                     if (strValue.startsWith("[[")) {
                         try {
-                            List<List<Object>> parsed = objectMapper.readValue(strValue, List.class)
+                            List<List<Object>> parsed = objectMapper.readValue(strValue, List.class);
                             // For doubly-nested, we've ALREADY selected the outer element,
                             // so just use the first (and only) inner list
                             if (!parsed.isEmpty()) {
-                                List<Object> innerList = parsed.get(0)
-                                fieldValuesAtIndex.put(fieldName, innerList)
-                                innerArraySize = Math.max(innerArraySize, innerList.size())
+                                List<Object> innerList = parsed.get(0);
+                                fieldValuesAtIndex.put(fieldName, innerList);
+                                innerArraySize = Math.max(innerArraySize, innerList.size());
                             }
-                            continue
+                            continue;
                         } catch (Exception e) {
-                            log.debug("Failed to parse doubly-nested array: {}", strValue)
+                            log.debug("Failed to parse doubly-nested array: {}", strValue);
                         }
                     }
 
                     // Check for single nested array: "[v1,v2,v3]"
                     if (strValue.startsWith("[") && strValue.endsWith("]")) {
                         try {
-                            List<Object> parsed = objectMapper.readValue(strValue, List.class)
-                            fieldValuesAtIndex.put(fieldName, parsed)
-                            innerArraySize = Math.max(innerArraySize, parsed.size())
-                            continue
+                            List<Object> parsed = objectMapper.readValue(strValue, List.class);
+                            fieldValuesAtIndex.put(fieldName, parsed);
+                            innerArraySize = Math.max(innerArraySize, parsed.size());
+                            continue;
                         } catch (Exception e) {
-                            log.debug("Failed to parse nested array: {}", strValue)
+                            log.debug("Failed to parse nested array: {}", strValue);
                         }
                     }
 
                     // Single value - wrap in list
-                    fieldValuesAtIndex.put(fieldName, Collections.singletonList(strValue))
-                    innerArraySize = Math.max(innerArraySize, 1)
+                    fieldValuesAtIndex.put(fieldName, Collections.singletonList(strValue));
+                    innerArraySize = Math.max(innerArraySize, 1);
                 } else if (rawValue instanceof List) {
                     // Already parsed as list
-                    List<Object> listValue = (List<Object>) rawValue
-                    fieldValuesAtIndex.put(fieldName, listValue)
-                    innerArraySize = Math.max(innerArraySize, listValue.size())
+                    List<Object> listValue = (List<Object>) rawValue;
+                    fieldValuesAtIndex.put(fieldName, listValue);
+                    innerArraySize = Math.max(innerArraySize, listValue.size());
                 } else if (rawValue != null) {
                     // Single non-string value
-                    fieldValuesAtIndex.put(fieldName, Collections.singletonList(rawValue))
-                    innerArraySize = Math.max(innerArraySize, 1)
+                    fieldValuesAtIndex.put(fieldName, Collections.singletonList(rawValue));
+                    innerArraySize = Math.max(innerArraySize, 1);
                 }
             }
         }
 
         if (innerArraySize == 0) {
-            return new ArrayList<>()
+            return new ArrayList<>();
         }
 
         // Build records for the inner array
-        List<Object> result = new ArrayList<>(innerArraySize)
+        List<Object> result = new ArrayList<>(innerArraySize);
 
         for (int j = 0; j < innerArraySize; j++) {
-            GenericRecordBuilder builder = new GenericRecordBuilder(recordSchema)
+            GenericRecordBuilder builder = new GenericRecordBuilder(recordSchema);
 
             for (Schema.Field field : recordSchema.getFields()) {
-                String fieldName = field.name()
-                List<Object> values = fieldValuesAtIndex.get(fieldName)
+                String fieldName = field.name();
+                List<Object> values = fieldValuesAtIndex.get(fieldName);
 
                 if (values != null && j < values.size()) {
-                    Object value = values.get(j)
+                    Object value = values.get(j);
                     Object converted = convertPrimitive(value, field.schema(),
-                            path + "[" + j + "]." + fieldName)
-                    builder.set(fieldName, converted)
+                            path + "[" + j + "]." + fieldName);
+                    builder.set(fieldName, converted);
                 } else {
-                    handleMissingField(builder, field)
+                    handleMissingField(builder, field);
                 }
             }
 
-            result.add(builder.build())
+            result.add(builder.build());
         }
 
-        return result
+        return result;
     }
 
 /**
@@ -1565,37 +1721,37 @@ public class AvroReconstructor {
  */
     private void handleMissingField(GenericRecordBuilder builder, Schema.Field field) {
         if (field.hasDefaultValue()) {
-            builder.set(field.name(), field.defaultVal())
+            builder.set(field.name(), field.defaultVal());
         } else if (isNullable(field.schema())) {
-            builder.set(field.name(), null)
+            builder.set(field.name(), null);
         } else {
-            Schema actualSchema = unwrapNullable(field.schema())
+            Schema actualSchema = unwrapNullable(field.schema());
             // Provide type-appropriate defaults for required fields
             switch (actualSchema.getType()) {
                 case ARRAY:
-                    builder.set(field.name(), new ArrayList<>())
-                    break
+                    builder.set(field.name(), new ArrayList<>());
+                    break;
                 case STRING:
-                    builder.set(field.name(), "")
-                    break
+                    builder.set(field.name(), "");
+                    break;
                 case INT:
-                    builder.set(field.name(), 0)
-                    break
+                    builder.set(field.name(), 0);
+                    break;
                 case LONG:
-                    builder.set(field.name(), 0L)
-                    break
+                    builder.set(field.name(), 0L);
+                    break;
                 case FLOAT:
-                    builder.set(field.name(), 0.0f)
-                    break
+                    builder.set(field.name(), 0.0f);
+                    break;
                 case DOUBLE:
-                    builder.set(field.name(), 0.0d)
-                    break
+                    builder.set(field.name(), 0.0d);
+                    break;
                 case BOOLEAN:
-                    builder.set(field.name(), false)
-                    break
+                    builder.set(field.name(), false);
+                    break;
                 default:
                     log.warn("Cannot provide default for required field {} of type {}",
-                            field.name(), actualSchema.getType())
+                            field.name(), actualSchema.getType());
             }
         }
     }
@@ -1905,7 +2061,8 @@ public class AvroReconstructor {
             String key = entry.getKey();
             PathNode valueNode = entry.getValue();
             Object value = reconstructValue(valueNode, valueSchema,
-                    path + separator + key, currentDepth + 1);
+                    path + separator + FlattenedPath.escapeSegment(key, separator),
+                    currentDepth + 1);
             result.put(key, value);
         }
 
@@ -1914,18 +2071,18 @@ public class AvroReconstructor {
 
     private Object reconstructUnionValue(PathNode node, Schema unionSchema,
                                          String path, int currentDepth) {
-        List<Schema> types = unionSchema.getTypes()
+        List<Schema> types = unionSchema.getTypes();
 
         // Handle nullable union (most common case: ["null", "SomeType"])
         if (types.size() == 2) {
-            Schema nullSchema = null
-            Schema nonNullSchema = null
+            Schema nullSchema = null;
+            Schema nonNullSchema = null;
 
             for (Schema type : types) {
                 if (type.getType() == NULL) {
-                    nullSchema = type
+                    nullSchema = type;
                 } else {
-                    nonNullSchema = type
+                    nonNullSchema = type;
                 }
             }
 
@@ -1933,16 +2090,16 @@ public class AvroReconstructor {
             if (nullSchema == null) {
                 for (Schema type : types) {
                     try {
-                        return reconstructValue(node, type, path, currentDepth)
+                        return reconstructValue(node, type, path, currentDepth);
                     } catch (Exception e) {
                         // Try next type
-                        continue
+                        continue;
                     }
                 }
                 if (strictValidation) {
-                    throw new IllegalStateException("Could not match any union type at: " + path)
+                    throw new IllegalStateException("Could not match any union type at: " + path);
                 }
-                return null
+                return null;
             }
 
             // It's a nullable union - determine if we have actual content
@@ -1952,36 +2109,36 @@ public class AvroReconstructor {
             if (nonNullSchema.getType() == RECORD) {
                 // Check if we have children (nested record fields)
                 if (!node.children.isEmpty()) {
-                    return reconstructValue(node, nonNullSchema, path, currentDepth)
+                    return reconstructValue(node, nonNullSchema, path, currentDepth);
                 }
                 // No children = null record
-                return null
+                return null;
             }
 
             if (nonNullSchema.getType() == ARRAY) {
                 // Check for array content
                 boolean hasContent = (node.arrayFieldValues != null && !node.arrayFieldValues.isEmpty()) ||
                         !node.children.isEmpty() ||
-                        (node.isLeaf && node.value != null)
+                        (node.isLeaf && node.value != null);
                 if (hasContent) {
-                    return reconstructValue(node, nonNullSchema, path, currentDepth)
+                    return reconstructValue(node, nonNullSchema, path, currentDepth);
                 }
-                return null
+                return null;
             }
 
             if (nonNullSchema.getType() == MAP) {
                 if (!node.children.isEmpty()) {
-                    return reconstructValue(node, nonNullSchema, path, currentDepth)
+                    return reconstructValue(node, nonNullSchema, path, currentDepth);
                 }
-                return null
+                return null;
             }
 
             // For primitives and other types, check the value
             if (node.value == null || "null".equals(String.valueOf(node.value).trim())) {
-                return null
+                return null;
             }
 
-            return reconstructValue(node, nonNullSchema, path, currentDepth)
+            return reconstructValue(node, nonNullSchema, path, currentDepth);
         }
 
         // Multi-type union (3+ types) - try each type in order
@@ -2068,10 +2225,10 @@ public class AvroReconstructor {
         }
 
         if (strictValidation) {
-            throw new IllegalStateException("Could not match any union type at: " + path)
+            throw new IllegalStateException("Could not match any union type at: " + path);
         }
 
-        return null
+        return null;
     }
 
     /**
@@ -2540,46 +2697,46 @@ public class AvroReconstructor {
      * Also properly handles and strips quotes from string values.
      */
     private List<Object> splitBracketAware(String content) {
-        List<Object> result = new ArrayList<>()
-        StringBuilder current = new StringBuilder()
-        int bracketDepth = 0
-        boolean inQuotes = false
+        List<Object> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int bracketDepth = 0;
+        boolean inQuotes = false;
 
         for (int i = 0; i < content.length(); i++) {
-            char c = content.charAt(i)
+            char c = content.charAt(i);
 
             if (c == '"' && (i == 0 || content.charAt(i - 1) != '\\')) {
-                inQuotes = !inQuotes
+                inQuotes = !inQuotes;
                 // DON'T append the quote character - we'll handle unquoting at the end
-                current.append(c)
+                current.append(c);
             } else if (!inQuotes) {
                 if (c == '[') {
-                    bracketDepth++
-                    current.append(c)
+                    bracketDepth++;
+                    current.append(c);
                 } else if (c == ']') {
-                    bracketDepth--
-                    current.append(c)
+                    bracketDepth--;
+                    current.append(c);
                 } else if (c == ',' && bracketDepth == 0) {
-                    String item = current.toString().trim()
+                    String item = current.toString().trim();
                     if (!item.isEmpty()) {
-                        result.add(unquoteString(item))
+                        result.add(unquoteString(item));
                     }
-                    current = new StringBuilder()
+                    current = new StringBuilder();
                 } else {
-                    current.append(c)
+                    current.append(c);
                 }
             } else {
-                current.append(c)
+                current.append(c);
             }
         }
 
         // Add the last item
-        String item = current.toString().trim()
+        String item = current.toString().trim();
         if (!item.isEmpty()) {
-            result.add(unquoteString(item))
+            result.add(unquoteString(item));
         }
 
-        return result.isEmpty() ? Collections.singletonList(content) : result
+        return result.isEmpty() ? Collections.singletonList(content) : result;
     }
 
 /**
@@ -2587,39 +2744,39 @@ public class AvroReconstructor {
  */
     private Object unquoteString(String value) {
         if (value == null || value.isEmpty()) {
-            return value
+            return value;
         }
 
-        String trimmed = value.trim()
+        String trimmed = value.trim();
 
         // Handle quoted strings
         if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length() >= 2) {
             return trimmed.substring(1, trimmed.length() - 1)
                     .replace("\\\"", "\"")
                     .replace("\\n", "\n")
-                    .replace("\\t", "\t")
+                    .replace("\\t", "\t");
         }
 
         // Handle null
         if ("null".equals(trimmed)) {
-            return null
+            return null;
         }
 
         // Handle nested arrays/objects - return as-is
         if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-            return trimmed
+            return trimmed;
         }
 
         // Try to parse as number
         try {
             if (trimmed.contains(".")) {
-                return Double.parseDouble(trimmed)
+                return Double.parseDouble(trimmed);
             } else {
-                return Long.parseLong(trimmed)
+                return Long.parseLong(trimmed);
             }
         } catch (NumberFormatException e) {
             // Return as string
-            return trimmed
+            return trimmed;
         }
     }
 
@@ -2964,6 +3121,7 @@ public class AvroReconstructor {
 
     public void clearSchemaCache() {
         schemaCache.clear();
+        insertionOrder.clear();
     }
 
     public int getSchemaCacheSize() {

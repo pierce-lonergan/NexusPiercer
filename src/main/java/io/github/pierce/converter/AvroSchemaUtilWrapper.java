@@ -8,7 +8,6 @@ import org.apache.iceberg.types.Types;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Utility class for converting between Avro and Iceberg schemas.

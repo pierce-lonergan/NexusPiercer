@@ -5,9 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory
+import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import io.github.pierce.path.FlattenedPath;
 
 /**
  * Flattens Avro schemas to match MapFlattener output and applies type casting
@@ -20,7 +32,7 @@ import java.nio.ByteBuffer
  * <p>
  * Thread-safe for concurrent use in streaming applications.
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>
  * // One-time schema flattening (cache this result)
  * Schema avroSchema = ...; // Your Avro schema
@@ -264,7 +276,7 @@ public class GAvroSchemaFlattener implements Serializable {
             }
 
             switch (currentSchema.getType()) {
-                case Schema.Type.RECORD:
+                case RECORD:
                     // Add fields to stack in reverse order (to maintain field order)
                     List<Field> fields = currentSchema.getFields();
                     for (int i = fields.size() - 1; i >= 0; i--) {
@@ -275,7 +287,7 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     break;
 
-                case Schema.Type.ARRAY:
+                case ARRAY:
                     Schema elementSchema = currentSchema.getElementType();
 
                     // Unwrap union if present
@@ -293,9 +305,10 @@ public class GAvroSchemaFlattener implements Serializable {
                         List<Field> recordFields = actualElementSchema.getFields();
 
                         for (Field recordField : recordFields) {
+                            String escName = FlattenedPath.escapeSegment(recordField.name(), separator);
                             String fieldPath = node.path.isEmpty()
-                                    ? recordField.name()
-                                    : node.path + separator + recordField.name();
+                                    ? escName
+                                    : node.path + separator + escName;
 
                             // Recursively handle nested structures in array elements
                             Map<String, FlattenedFieldType> nestedFields =
@@ -316,9 +329,10 @@ public class GAvroSchemaFlattener implements Serializable {
                             // Array of arrays of records - extract record fields
                             String separator = config.useArrayBoundarySeparator ? "__" : "_";
                             for (Field recordField : innerElement.getFields()) {
+                                String escName = FlattenedPath.escapeSegment(recordField.name(), separator);
                                 String fieldPath = node.path.isEmpty()
-                                        ? recordField.name()
-                                        : node.path + separator + recordField.name();
+                                        ? escName
+                                        : node.path + separator + escName;
                                 Map<String, FlattenedFieldType> nestedFields =
                                         flattenSchemaForArrayElement(recordField.schema(), fieldPath, node.depth + 1);
                                 result.putAll(nestedFields);
@@ -339,7 +353,7 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     break;
 
-                case Schema.Type.MAP:
+                case MAP:
                     // Avro maps are not directly supported by MapFlattener
                     // Treat as serialized string
                     log.warn("Avro MAP type at path {} will be serialized as STRING", node.path);
@@ -389,19 +403,24 @@ public class GAvroSchemaFlattener implements Serializable {
             }
         }
 
+        // Hoisted above the switch: Java switch cases share one scope, so a declaration inside
+        // `case RECORD:` is visible but definitely-unassigned when control enters via
+        // `case ARRAY:`. Groovy allowed both the shadowing and the fall-through use.
+        String separator = config.useArrayBoundarySeparator ? "__" : "_";
+
         switch (actualSchema.getType()) {
-            case Schema.Type.RECORD:
+            case RECORD:
                 // Recursively flatten nested record
-                String separator = config.useArrayBoundarySeparator ? "__" : "_";
                 for (Field field : actualSchema.getFields()) {
-                    String fieldPath = basePath + separator + field.name();
+                    String fieldPath = basePath + separator +
+                            FlattenedPath.escapeSegment(field.name(), separator);
                     Map<String, FlattenedFieldType> nestedFields =
                             flattenSchemaForArrayElement(field.schema(), fieldPath, depth + 1);
                     result.putAll(nestedFields);
                 }
                 break;
 
-            case Schema.Type.ARRAY:
+            case ARRAY:
                 // Nested array in array element - check if it contains records
                 Schema nestedElementSchema = actualSchema.getElementType();
 
@@ -415,9 +434,9 @@ public class GAvroSchemaFlattener implements Serializable {
 
                 if (nestedElementSchema.getType() == Schema.Type.RECORD) {
                     // Array of records within array - extract fields from the nested record
-                    String separator = config.useArrayBoundarySeparator ? "__" : "_";
                     for (Field recordField : nestedElementSchema.getFields()) {
-                        String fieldPath = basePath + separator + recordField.name();
+                        String fieldPath = basePath + separator +
+                                FlattenedPath.escapeSegment(recordField.name(), separator);
                         Map<String, FlattenedFieldType> nestedFields =
                                 flattenSchemaForArrayElement(recordField.schema(), fieldPath, depth + 1);
                         result.putAll(nestedFields);
@@ -430,7 +449,7 @@ public class GAvroSchemaFlattener implements Serializable {
                 }
                 break;
 
-            case Schema.Type.MAP:
+            case MAP:
                 // Maps are serialized - but MapFlattener extracts map keys as fields
                 // This is a limitation - we can't know the keys at schema time
                 log.warn("MAP type at path {} in array element - keys will be extracted by MapFlattener", basePath);
@@ -516,25 +535,25 @@ public class GAvroSchemaFlattener implements Serializable {
         }
 
         switch (actualSchema.getType()) {
-            case Schema.Type.STRING:
-            case Schema.Type.ENUM:
+            case STRING:
+            case ENUM:
                 return DataType.STRING;
-            case Schema.Type.INT:
+            case INT:
                 return DataType.INT;
-            case Schema.Type.LONG:
+            case LONG:
                 return DataType.LONG;
-            case Schema.Type.FLOAT:
+            case FLOAT:
                 return DataType.FLOAT;
-            case Schema.Type.DOUBLE:
+            case DOUBLE:
                 return DataType.DOUBLE;
-            case Schema.Type.BOOLEAN:
+            case BOOLEAN:
                 return DataType.BOOLEAN;
-            case Schema.Type.BYTES:
-            case Schema.Type.FIXED:
+            case BYTES:
+            case FIXED:
                 return DataType.BYTES;
-            case Schema.Type.ARRAY:
-            case Schema.Type.MAP:
-            case Schema.Type.RECORD:
+            case ARRAY:
+            case MAP:
+            case RECORD:
                 // Complex types are serialized
                 return DataType.STRING;
             default:
@@ -547,10 +566,11 @@ public class GAvroSchemaFlattener implements Serializable {
      * Build field path with appropriate separator
      */
     private String buildPath(String prefix, String fieldName) {
+        String escaped = FlattenedPath.escapeSegment(fieldName, config.getSeparator());
         if (prefix == null || prefix.isEmpty()) {
-            return fieldName;
+            return escaped;
         }
-        return prefix + config.getSeparator() + fieldName;
+        return prefix + config.getSeparator() + escaped;
     }
 
     /**
@@ -733,42 +753,42 @@ public class GAvroSchemaFlattener implements Serializable {
 
         try {
             switch (targetType) {
-                case DataType.STRING:
+                case STRING:
                     return value.toString();
 
-                case DataType.INT:
+                case INT:
                     if (value instanceof Number) {
                         return ((Number) value).intValue();
                     }
                     return Integer.parseInt(value.toString());
 
-                case DataType.LONG:
-                case DataType.BIGINT:
+                case LONG:
+                case BIGINT:
                     if (value instanceof Number) {
                         return ((Number) value).longValue();
                     }
                     return Long.parseLong(value.toString());
 
-                case DataType.FLOAT:
+                case FLOAT:
                     if (value instanceof Number) {
                         return ((Number) value).floatValue();
                     }
                     return Float.parseFloat(value.toString());
 
-                case DataType.DOUBLE:
+                case DOUBLE:
                     if (value instanceof Number) {
                         return ((Number) value).doubleValue();
                     }
                     return Double.parseDouble(value.toString());
 
-                case DataType.BOOLEAN:
+                case BOOLEAN:
                     if (value instanceof Boolean) {
                         return value;
                     }
                     String strValue = value.toString().toLowerCase();
                     return "true".equals(strValue) || "1".equals(strValue);
 
-                case DataType.DECIMAL:
+                case DECIMAL:
                     if (value instanceof BigDecimal) {
                         return value;
                     }
@@ -777,7 +797,7 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     return new BigDecimal(value.toString());
 
-                case DataType.BYTES:
+                case BYTES:
                     if (value instanceof byte[]) {
                         return value;
                     }
@@ -789,8 +809,8 @@ public class GAvroSchemaFlattener implements Serializable {
                     }
                     return value.toString().getBytes();
 
-                case DataType.TIMESTAMP:
-                case DataType.DATE:
+                case TIMESTAMP:
+                case DATE:
                     // Keep as string for Glue compatibility
                     return value.toString();
 
@@ -810,22 +830,22 @@ public class GAvroSchemaFlattener implements Serializable {
      */
     private boolean isCorrectType(Object value, DataType targetType) {
         switch (targetType) {
-            case DataType.STRING:
+            case STRING:
                 return value instanceof String;
-            case DataType.INT:
+            case INT:
                 return value instanceof Integer;
-            case DataType.LONG:
-            case DataType.BIGINT:
+            case LONG:
+            case BIGINT:
                 return value instanceof Long;
-            case DataType.FLOAT:
+            case FLOAT:
                 return value instanceof Float;
-            case DataType.DOUBLE:
+            case DOUBLE:
                 return value instanceof Double;
-            case DataType.BOOLEAN:
+            case BOOLEAN:
                 return value instanceof Boolean;
-            case DataType.DECIMAL:
+            case DECIMAL:
                 return value instanceof BigDecimal;
-            case DataType.BYTES:
+            case BYTES:
                 return value instanceof byte[] || value instanceof ByteBuffer;
             default:
                 return false;
@@ -837,22 +857,22 @@ public class GAvroSchemaFlattener implements Serializable {
      */
     private Object getDefaultValue(DataType dataType) {
         switch (dataType) {
-            case DataType.STRING:
+            case STRING:
                 return "";
-            case DataType.INT:
+            case INT:
                 return 0;
-            case DataType.LONG:
-            case DataType.BIGINT:
+            case LONG:
+            case BIGINT:
                 return 0L;
-            case DataType.FLOAT:
+            case FLOAT:
                 return 0.0f;
-            case DataType.DOUBLE:
+            case DOUBLE:
                 return 0.0;
-            case DataType.BOOLEAN:
+            case BOOLEAN:
                 return false;
-            case DataType.DECIMAL:
+            case DECIMAL:
                 return BigDecimal.ZERO;
-            case DataType.BYTES:
+            case BYTES:
                 return new byte[0];
             default:
                 return null;

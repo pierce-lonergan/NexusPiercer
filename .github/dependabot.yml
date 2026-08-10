@@ -1,0 +1,61 @@
+# Dependency update automation.
+#
+# The audit found no update mechanism of any kind, alongside two live advisories
+# (poi-ooxml 5.2.5 / CVE-2025-31672 at compile scope; logback 1.4.14 / CVE-2024-12798 and
+# CVE-2024-12801 at test scope). Security updates are ungrouped so they arrive as individual,
+# immediately reviewable PRs.
+
+version: 2
+
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/New_York
+    open-pull-requests-limit: 10
+    labels: [dependencies, java]
+    commit-message:
+      prefix: 'build(deps)'
+      prefix-development: 'build(deps-dev)'
+      include: scope
+
+    groups:
+      # Spark and Hadoop must move together or dependency convergence breaks; a lone
+      # spark-avro bump against a pinned spark-sql fails the enforcer, not the tests.
+      spark-ecosystem:
+        patterns: ['org.apache.spark:*', 'org.apache.hadoop:*']
+      # Jackson is BOM-managed; splitting the modules across PRs guarantees convergence errors.
+      jackson:
+        patterns: ['com.fasterxml.jackson*']
+      test-tooling:
+        patterns: ['org.junit*', 'org.mockito:*', 'net.jqwik:*', 'org.spockframework:*', 'org.assertj:*']
+      maven-plugins:
+        patterns: ['org.apache.maven.plugins:*', 'org.codehaus.mojo:*']
+
+    ignore:
+      # Major Spark upgrades change the Scala binary version and the whole Iceberg/Avro
+      # compatibility matrix. Deliberate, hand-planned work — not a bot PR.
+      - dependency-name: 'org.apache.spark:*'
+        update-types: [version-update:semver-major]
+      # Groovy 5 is a migration, not an update: the workstation's lib/ already holds 5.0.0
+      # jars that disagree with the 4.0.21 the build uses, and the Groovy sources are slated
+      # for a port to Java. Pin until that resolves.
+      - dependency-name: 'org.apache.groovy:*'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/New_York
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: 'ci(deps)'
+    groups:
+      actions:
+        patterns: ['*']

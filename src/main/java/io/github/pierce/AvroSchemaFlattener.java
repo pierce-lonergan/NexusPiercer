@@ -14,8 +14,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -193,16 +191,34 @@ public class AvroSchemaFlattener implements Serializable {
         processFieldRecursively(prefix, field, fieldSchema, flattenedFields, isWithinArray, depth, path, null);
     }
 
+
     private void processFieldRecursively(String prefix, Field field, Schema fieldSchema,
                                          List<Field> flattenedFields, boolean isWithinArray,
                                          int depth, String path, Boolean overrideNullable) {
         String fieldName = prefix.isEmpty() ? field.name() : prefix + "_" + field.name();
         String currentPath = path.isEmpty() ? field.name() : path + "." + field.name();
 
-        // Track field hierarchy for reconstruction
-        fieldHierarchyMap.put(fieldName, new FieldHierarchy(
+        // Track field hierarchy for reconstruction.
+        //
+        // This put is also where a flattened-name collision first becomes observable, and it must
+        // be detected HERE rather than by inspecting the finished field list: two distinct source
+        // paths that flatten to the same name overwrite each other in this very map, so by the
+        // time the list is complete the evidence of the collision has already been destroyed.
+        // (An earlier version of this guard checked the finished list, read the origin back out of
+        // this map, and therefore compared each duplicate against itself — it never fired.)
+        FieldHierarchy previous = fieldHierarchyMap.put(fieldName, new FieldHierarchy(
                 fieldName, currentPath, depth, field.schema().toString(), isWithinArray
         ));
+        if (previous != null && !previous.originalPath.equals(currentPath)) {
+            throw new IllegalStateException(String.format(
+                    "Flattened name collision: source paths '%s' and '%s' both flatten to column "
+                            + "'%s'. Joining path segments with '_' is not reversible when a field "
+                            + "name contains '_', so one field would silently overwrite the other. "
+                            + "Rename one of the fields, or flatten via MapFlattener, which escapes "
+                            + "the separator. Escaping is not available here because Avro and Spark "
+                            + "column names cannot contain a backslash.",
+                    previous.originalPath, currentPath, fieldName));
+        }
 
         schemaStats.maxNestingDepth = Math.max(schemaStats.maxNestingDepth, depth);
 

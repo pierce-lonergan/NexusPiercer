@@ -1,0 +1,14 @@
+# Every change requires review from the maintainer.
+* @pierce-lonergan
+
+# Load-bearing configuration. Changes here can silently disable a gate, which is exactly
+# how this project ended up with static analysis that had never once executed.
+/pom.xml                @pierce-lonergan
+/.github/workflows/     @pierce-lonergan
+/src/main/checkstyle/   @pierce-lonergan
+/src/main/pmd/          @pierce-lonergan
+/src/main/spotbugs/     @pierce-lonergan
+
+# Performance baselines and waivers. A waiver is an accepted, time-boxed regression and
+# must not be self-approved.
+/benchmarks/            @pierce-lonergan

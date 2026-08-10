@@ -2,7 +2,6 @@ package io.github.pierce.converter;
 
 
 import org.apache.avro.LogicalType;
-import org.apache.avro.LogicalTypes;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type;

@@ -1,0 +1,28 @@
+# Accepted, time-boxed performance regressions.
+#
+# A waiver is how you say "this change costs throughput and that is the right trade" without
+# switching the gate off. The distinction matters: a disabled gate is invisible, a waiver is a
+# line in a file with your name on it and an expiry date.
+#
+# Rules:
+#   * Every waiver names one benchmark, one accepted percentage, one expiry, one justification.
+#   * Waivers require CODEOWNERS approval — you cannot self-approve your own regression.
+#   * Expired waivers FAIL the build. That is deliberate: it forces a re-decision rather than
+#     letting a temporary allowance become permanent by inattention.
+#   * A waiver is not for "the benchmark is noisy". Noise is handled by the confidence-interval
+#     rule in compare.py. If a benchmark is genuinely unstable, fix or delete the benchmark.
+#
+# Shape:
+#
+# waivers:
+#   - benchmark: io.github.pierce.bench.FlattenBenchmark.mapFlatten_mixedProduction
+#     metric: throughput          # throughput | alloc
+#     accepted_regression: 8      # percent
+#     expires: 2026-12-31
+#     issue: https://github.com/pierce-lonergan/NexusPiercer/issues/NNN
+#     justification: >
+#       Escaping the separator in flattened keys (arch/NP-002) costs a scan per key. The
+#       alternative is continuing to silently corrupt data for snake_case schemas, so the
+#       trade is correct. Revisit once the hand-rolled encoder replaces String.replace.
+
+waivers: []

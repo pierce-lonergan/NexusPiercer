@@ -6,7 +6,6 @@ import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.util.Utf8;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;

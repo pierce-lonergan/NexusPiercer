@@ -6,16 +6,32 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.github.pierce.MapFlattener.ArraySerializationFormat.*;
-import static io.github.pierce.MapFlattener.FieldNamingStrategy.*
+import static io.github.pierce.MapFlattener.FieldNamingStrategy.*;
 
-import java.lang.reflect.Array
-import java.nio.ByteBuffer
+import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.time.temporal.Temporal
-import java.util.Base64
+import java.time.temporal.Temporal;
+import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
+import io.github.pierce.path.FlattenedPath;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Production-hardened Map flattener with comprehensive edge case handling
@@ -23,13 +39,13 @@ import java.util.stream.Collectors;
  * Thread-safe, handles circular references correctly, and provides extensive
  * configuration options for edge cases.
  *
- * <h3>Basic Flattening</h3>
+ * <h2>Basic Flattening</h2>
  * <pre>
  * {user: {name: "John", age: 30}}
  * → {user_name: "John", user_age: 30}
  * </pre>
  *
- * <h3>Array Handling</h3>
+ * <h2>Array Handling</h2>
  * Arrays are converted to strings based on ArraySerializationFormat:
  * <pre>
  * Input: {scores: [1, 2, 3]}
@@ -56,7 +72,7 @@ import java.util.stream.Collectors;
  * Output: {data_name: "[["A"]]", data_value: "[[null],["text"]]"}
  * </pre>
  *
- * <h3>For AWS Athena</h3>
+ * <h2>For AWS Athena</h2>
  * Recommended formats:
  * <pre>
  * // For CSV with simple values:
@@ -69,7 +85,7 @@ import java.util.stream.Collectors;
  * .arrayFormat(ArraySerializationFormat.BRACKET_LIST)
  * </pre>
  *
- * <h3>Important: Delimiter Collisions</h3>
+ * <h2>Important: Delimiter Collisions</h2>
  * When using COMMA_SEPARATED or PIPE_SEPARATED formats, values containing
  * those delimiters will create ambiguous output:
  * <pre>
@@ -84,18 +100,18 @@ import java.util.stream.Collectors;
  * <b>Recommendation:</b> Use JSON format if values may contain delimiters,
  * or sanitize/validate data before flattening.
  *
- * <h3>Null Handling in Delimited Formats</h3>
+ * <h2>Null Handling in Delimited Formats</h2>
  * In COMMA_SEPARATED and PIPE_SEPARATED formats, null values become empty strings:
  * <pre>
  * [null, "", "value"] → ",,value"
  * </pre>
  * Empty string and null are indistinguishable in the output.
  *
- * <h3>Circular References</h3>
+ * <h2>Circular References</h2>
  * Detected and marked as [CIRCULAR_REFERENCE] when enabled.
  * Shared references (same object in multiple places) work correctly.
  *
- * <h3>Thread Safety</h3>
+ * <h2>Thread Safety</h2>
  * Fully thread-safe. Multiple threads can share a single MapFlattener instance.
  * Uses ThreadLocal for circular reference detection without contention.
  */
@@ -324,13 +340,48 @@ public class MapFlattener implements Serializable {
         return result;
     }
 
+    /**
+     * Builds a flattened key by appending one escaped segment.
+     *
+     * <p>The segment is escaped so that a separator character occurring inside a field name
+     * cannot be mistaken for a structural separator. Without this, {@code {"user_id": 1}} and
+     * {@code {"user": {"id": 1}}} produce the identical key {@code "user_id"} and reconstruction
+     * cannot tell them apart.</p>
+     *
+     * <p>That ambiguity was not only lossy, it was quadratic: the reconstructor groups by every
+     * possible prefix, so each extra separator inside a field name multiplies the candidate
+     * groupings and the number of paths falsely detected as arrays. Holding structure fixed at 40
+     * flattened keys, one additional underscore per field name took reconstruction from ~200 ms
+     * to heap exhaustion.</p>
+     *
+     * <p>Escaping incrementally here — rather than collecting segments and encoding at each leaf
+     * — keeps this O(1) appends per level, and produces byte-identical output to
+     * {@link FlattenedPath#encode}.</p>
+     */
     private String buildKey(String prefix, String separator, String key) {
-        if (prefix == null || prefix.isEmpty()) {
-            return key;
-        }
+        return joinEncodedKey(prefix, separator, FlattenedPath.escapeSegment(key, separator));
+    }
 
-        // Use StringBuilder for efficiency
-        return prefix + separator + key;
+    /**
+     * Appends an ALREADY-ENCODED path fragment, without escaping it again.
+     *
+     * <p>The array-extraction paths recursively call {@code flattenObject} on each element and
+     * then prefix the resulting keys. Those keys are complete encoded paths — their internal
+     * separators are structural and were escaped correctly on the way in — so passing them
+     * through {@link #buildKey} would escape the structure itself, turning
+     * {@code accounts_electronicDelivery_consentIndicator} into
+     * {@code accounts_electronicDelivery\_consentIndicator} and collapsing two real levels into
+     * one literal field name.</p>
+     *
+     * <p>Keeping the two operations separate is what guarantees every segment is escaped exactly
+     * once: {@link #buildKey} at the raw-field-name boundary, this method everywhere a
+     * pre-encoded path is being extended.</p>
+     */
+    private String joinEncodedKey(String prefix, String separator, String encodedPath) {
+        if (prefix == null || prefix.isEmpty()) {
+            return encodedPath;
+        }
+        return prefix + separator + encodedPath;
     }
 
     private Map<String, Object> flattenValue(String key, Object value, int depth) {
@@ -494,7 +545,7 @@ public class MapFlattener implements Serializable {
                     // No field extraction - just use the base key
                     fieldKey = key;
                 } else {
-                    fieldKey = buildKey(key, separator, fieldName);
+                    fieldKey = joinEncodedKey(key, separator, fieldName);
                 }
 
                 result.put(fieldKey, serializeArray(entry.getValue()));
@@ -519,7 +570,7 @@ public class MapFlattener implements Serializable {
 
                     // Collect the flattened fields
                     for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {
-                        String fieldKey = buildKey(key, separator, entry.getKey());
+                        String fieldKey = joinEncodedKey(key, separator, entry.getKey());
 
                         if (!fieldValues.containsKey(fieldKey)) {
                             fieldValues.put(fieldKey, new ArrayList<>());
@@ -889,20 +940,34 @@ public class MapFlattener implements Serializable {
         }
 
         if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValue();
+            // longValue() TRUNCATES the low 64 bits on overflow rather than failing, so a
+            // BigInteger outside long range silently became a different — often negative —
+            // number. Measured: 123456789012345678901234567890 flattened to
+            // -4362896299872285998. That is not a fidelity gap, it is a plausible-looking wrong
+            // answer, and nothing downstream can detect it.
+            //
+            // longValueExact() throws instead; out-of-range values fall back to their exact
+            // decimal text, which is lossless and round-trips. This matches the stricter
+            // behaviour already implemented in converter/IntegerConverter, whose range checks
+            // were the correct model all along.
+            try {
+                return ((BigInteger) value).longValueExact();
+            } catch (ArithmeticException tooLargeForLong) {
+                return value.toString();
+            }
         }
 
         // Handle Double/Float special values
         if (value instanceof Double) {
             double d = (Double) value;
             if (Double.isNaN(d) || Double.isInfinite(d)) {
-                return d.toString();
+                return Double.toString(d);
             }
         }
         if (value instanceof Float) {
             float f = (Float) value;
             if (Float.isNaN(f) || Float.isInfinite(f)) {
-                return f.toString();
+                return Float.toString(f);
             }
         }
 
@@ -1143,7 +1208,7 @@ public class MapFlattener implements Serializable {
         switch (namingStrategy) {
             case SNAKE_CASE:
                 // CamelCase to snake_case
-                return key.replaceAll("([A-Z])", "_\$1")
+                return key.replaceAll("([A-Z])", "_$1")
                         .toLowerCase()
                         .replaceAll("^_", "")
                         .replaceAll("_+", "_");

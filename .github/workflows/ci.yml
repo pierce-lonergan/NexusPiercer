@@ -1,0 +1,212 @@
+# Continuous integration for NexusPiercer.
+#
+# Before this file existed there was no CI at all: the repository's only workflow sat at the
+# repo root as `maven-publish.yml`, where GitHub Actions never looks. Every one of the audit's
+# findings was therefore invisible to the project — nothing ran anywhere except one Windows
+# workstation.
+#
+# This is the correctness half of the anti-regression system. The quality half lives in
+# quality.yml and the performance half in benchmark.yml.
+
+name: CI
+
+on:
+  push:
+    # Feature branches are included deliberately. Restricting `push` to main means a long-lived
+    # branch gets no signal at all until a PR is opened, which for the branch that INTRODUCED this
+    # pipeline meant it could not run on itself.
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'refactor/**'
+      - 'perf/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to a PR makes the in-flight run obsolete. Cancel it rather than paying for it.
+# `main` is deliberately excluded from cancellation: those runs publish the coverage baseline.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_ARGS: -B -ntp -Dstyle.color=always
+
+jobs:
+  build:
+    name: build (JDK ${{ matrix.java }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never cancel siblings: a JDK-21-only or Windows-only failure is exactly the signal
+      # this matrix exists to produce, and fail-fast would hide it behind the first red cell.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        java: ['17', '21']
+        include:
+          # The project is developed on Windows, so Windows must stay green — but it is the
+          # slow runner, so it is pinned to a single JDK rather than crossed with the matrix.
+          - os: windows-latest
+            java: '17'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so maven-git-commit-id-plugin can resolve a real commit, and so
+          # release tooling can see tags.
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+          cache: maven
+
+      - name: Show toolchain
+        shell: bash
+        run: |
+          ./mvnw ${MAVEN_ARGS} -v
+          java -version
+
+      # Spark + Hadoop reflect into JDK internals; the POM's spark.test.jvm.args supplies the
+      # required --add-opens. This step exists to fail loudly with a readable message if that
+      # property is ever dropped, rather than surfacing as an InaccessibleObjectException
+      # buried in a Spark stack trace.
+      - name: Verify --add-opens are configured
+        shell: bash
+        run: |
+          if ! grep -q 'add-opens java.base/java.lang=ALL-UNNAMED' pom.xml; then
+            echo "::error file=pom.xml::spark.test.jvm.args no longer contains the --add-opens block; Spark tests will fail on JDK 17+"
+            exit 1
+          fi
+
+      # `-Dnexuspiercer.spark.tests=require` turns "Spark could not start" from a skip into a
+      # hard failure. The Spark tests self-skip on environments that cannot open an NIO selector
+      # (see SparkAvailability) so that a developer workstation with restrictive endpoint security
+      # is not permanently red — but on a Linux runner that condition means the build is broken,
+      # not that the tests are inapplicable. Without this flag the entire io.github.pierce.spark
+      # package could silently return to 0% coverage and CI would still be green.
+      - name: Build and test
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            ./mvnw ${MAVEN_ARGS} verify -Dnexuspiercer.spark.tests=require
+          else
+            ./mvnw ${MAVEN_ARGS} verify
+          fi
+
+      # Surefire's own summary scrolls away in a long log. Surface it in the job summary so a
+      # reviewer sees counts without opening the raw output.
+      - name: Test summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Tests — JDK ${{ matrix.java }} / ${{ matrix.os }}"
+            echo
+            if compgen -G "target/surefire-reports/*.txt" > /dev/null; then
+              grep -h "Tests run" target/surefire-reports/*.txt \
+                | awk -F'[ ,]+' '{t+=$3; f+=$5; e+=$7; s+=$9}
+                                 END {printf "| tests | failures | errors | skipped |\n|---:|---:|---:|---:|\n| %d | %d | %d | %d |\n", t, f, e, s}'
+            else
+              echo "_No surefire reports were produced._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.os }}-jdk${{ matrix.java }}
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 14
+          if-no-files-found: warn
+
+  coverage:
+    name: coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      # jacoco:check is bound to `verify` and enforces the ratcheting floor held in the
+      # jacoco.minimum.coverage property. The floor is meaningful only if it tracks reality:
+      # it sat at 0.20 against 60.3% actual coverage, which permitted a 40-point regression
+      # while printing "All coverage checks have been met".
+      - name: Verify with coverage
+        run: ./mvnw ${MAVEN_ARGS} verify -Dnexuspiercer.spark.tests=require
+
+      - name: Report coverage
+        if: always()
+        shell: bash
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          {
+            echo "### Coverage"
+            echo
+            if [[ -f "$CSV" ]]; then
+              awk -F, 'NR>1 {m+=$4; c+=$5} END {
+                total = m + c
+                if (total == 0) { print "_No instructions recorded._"; exit }
+                printf "| metric | value |\n|---|---:|\n"
+                printf "| instruction coverage | %.2f%% |\n", (c / total) * 100
+                printf "| covered | %d |\n| missed | %d |\n", c, m
+              }' "$CSV"
+              echo
+              echo "Gate: \`jacoco.minimum.coverage\` in pom.xml"
+            else
+              echo "_jacoco.csv not produced._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 14
+          if-no-files-found: warn
+
+  # A build that only works because of a warm ~/.m2 is not reproducible. This job proves a
+  # cold clone resolves and builds, which is the exit criterion for Phase 0.
+  cold-clone:
+    name: cold-clone reproducibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          # Deliberately NO cache: maven — the point is an empty local repository.
+
+      - name: Build from a cold local repository
+        run: ./mvnw ${MAVEN_ARGS} -Dmaven.repo.local="${RUNNER_TEMP}/m2-cold" verify -DskipTests
+
+      # gmavenplus was declared in BOTH pluginManagement and build/plugins with differing
+      # execution ids, so Maven merged rather than overrode them and compiled all 76 Groovy
+      # sources twice on every build. This asserts the fix stays fixed.
+      - name: Assert Groovy sources compile exactly once
+        shell: bash
+        run: |
+          ./mvnw ${MAVEN_ARGS} -Dmaven.repo.local="${RUNNER_TEMP}/m2-cold" clean compile | tee build.log
+          COUNT=$(grep -c 'Compiled .* files' build.log || true)
+          echo "gmavenplus compile invocations: ${COUNT}"
+          if [[ "${COUNT}" -gt 1 ]]; then
+            echo "::error::Groovy sources compiled ${COUNT} times; expected 1. Check for duplicate gmavenplus executions in pom.xml."
+            exit 1
+          fi

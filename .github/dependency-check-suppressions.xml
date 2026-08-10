@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP dependency-check suppressions.
+
+  Rules for this file:
+    * Every suppression states WHY, and carries an expiry via <until> where the underlying
+      issue is expected to be fixed upstream. A permanent suppression needs a permanent reason.
+    * Suppress a specific CVE against a specific coordinate. Never suppress by broad regex.
+    * A false positive is a reason. "Noisy" is not.
+
+  Currently empty by design: the two known advisories in this project's tree
+  (poi-ooxml 5.2.5 / CVE-2025-31672, logback 1.4.14 / CVE-2024-12798 + CVE-2024-12801) should
+  be FIXED by upgrading, not suppressed. They are tracked as SUP-002 in docs/audit/FINDINGS.md.
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <!-- Example of the required shape; remove when the first real suppression is added.
+    <suppress until="2026-12-31Z">
+        <notes>
+            Reason this does not apply to NexusPiercer, in a sentence a reviewer can check.
+        </notes>
+        <packageUrl regex="true">^pkg:maven/group/artifact@.*$</packageUrl>
+        <cve>CVE-0000-00000</cve>
+    </suppress>
+    -->
+
+</suppressions>

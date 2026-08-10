@@ -1,5 +1,22 @@
 target/
 !.mvn/wrapper/maven-wrapper.jar
+
+### Locally-downloaded jars ###
+# 16MB of Groovy 5.0.0 jars live here on at least one workstation while the build
+# compiles against Groovy 4.0.21. Maven owns dependency resolution; nothing in the
+# build reads this directory. Ignored so a stray `git add -A` cannot write binaries
+# into the permanent history of a published repository.
+lib/
+
+### Benchmark output ###
+benchmarks/results/*.json
+!benchmarks/results/baseline.json
+benchmarks/target/
+
+### jqwik ###
+# Records which property tests previously failed, so failing samples are retried first.
+# Machine-local state, not shared history.
+.jqwik-database
 !**/src/main/**/target/
 !**/src/test/**/target/
 
