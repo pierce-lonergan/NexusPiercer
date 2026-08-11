@@ -1539,13 +1539,25 @@
                         <version>${cyclonedx.version}</version>
                         <configuration>
                             <!--
-                              REQUIRED here. central-publishing-maven-plugin sets
-                              maven.deploy.skip=true so the stock deploy plugin does not publish
-                              alongside it, and CycloneDX reads that as "this module is not
-                              deployed, so it needs no SBOM". The goal then logs
-                              "Skipping CycloneDX goal, because module skips deploy" and exits 0,
-                              producing no bom and no error - the artifact IS published, just by a
-                              different plugin.
+                              REQUIRED here. OBSERVED: with this left at its default, the SBOM job
+                              logged "Skipping CycloneDX goal, because module skips deploy" and
+                              exited 0, producing no bom and no error. A security job that reports
+                              success having generated nothing is the failure mode this repository
+                              keeps finding, so the setting stays.
+
+                              MECHANISM: not verified, and deliberately not guessed at here. This
+                              comment used to assert that central-publishing-maven-plugin "sets
+                              maven.deploy.skip=true" and that CycloneDX reads that property. The
+                              first half is measurably false - see the distributionManagement
+                              comment near the top of this file, where the same claim was
+                              disproved by help:evaluate and by disassembling
+                              DeployLifecycleParticipant, which clears the deploy plugin's
+                              executions rather than setting any property. Whatever CycloneDX is
+                              actually keying on, it is not that property being true.
+
+                              The symptom is measured and the fix is justified by the symptom
+                              alone. Restating a disproved mechanism in a second place is how a
+                              wrong explanation survives being corrected in the first.
                             -->
                             <skipNotDeployed>false</skipNotDeployed>
                             <projectType>library</projectType>
