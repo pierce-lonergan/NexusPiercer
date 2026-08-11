@@ -5,18 +5,25 @@ import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import io.github.pierce.AvroReconstructor
-import io.github.pierce.MapFlattener
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Comprehensive test for complex real-world Avro schemas
- * Tests deep nesting, arrays, unions, logical types, and edge cases
+ * Comprehensive test for complex real-world Avro schemas.
+ * Tests deep nesting, arrays, unions, logical types, and edge cases.
+ *
+ * <p>Ported from src/test/groovy/ComplexAvroReconstructionTest.groovy as part of the
+ * Groovy toolchain removal (roadmap Phase 5). The Groovy source contained 1 executed
+ * test case; this port contains 1.
  */
 public class ComplexAvroReconstructionTest {
 
@@ -76,8 +83,9 @@ public class ComplexAvroReconstructionTest {
 
         System.out.println(verification.getReport());
 
-        assertTrue(verification.isPerfect(),
-                "Complex order reconstruction should be perfect");
+        assertThat(verification.isPerfect())
+                .as("Complex order reconstruction should be perfect")
+                .isTrue();
     }
 
     /**

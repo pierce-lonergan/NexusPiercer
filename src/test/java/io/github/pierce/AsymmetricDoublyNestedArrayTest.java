@@ -5,19 +5,27 @@ import org.apache.avro.SchemaBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Test ASYMMETRIC doubly nested arrays - inner arrays of different sizes
+ * Test ASYMMETRIC doubly nested arrays - inner arrays of different sizes.
  * This is what's failing in ComplexAvroReconstructionTest!
+ *
+ * <p>Ported from {@code src/test/groovy/AsymmetricDoublyNestedArrayTest.groovy}
+ * (1 {@code @Test} method in, 1 out). The source was already pure Java syntax; the only
+ * changes are JUnit assertions restated in AssertJ and explicit {@code java.util} imports.</p>
  */
-public class AsymmetricDoublyNestedArrayTest {
+class AsymmetricDoublyNestedArrayTest {
 
     @Test
     @DisplayName("Asymmetric doubly nested arrays - Product 1 has 3 attrs, Product 2 has 2")
-    public void testAsymmetricInnerArrays() {
+    @SuppressWarnings("unchecked")
+    void testAsymmetricInnerArrays() {
         // Same schema as before
         Schema attributeSchema = SchemaBuilder.record("Attribute")
                 .fields()
@@ -111,7 +119,8 @@ public class AsymmetricDoublyNestedArrayTest {
             List<Map<String, Object>> attrs1 = (List<Map<String, Object>>) recon1.get("attributes");
             System.out.println("  attributes count: " + attrs1.size());
             for (int i = 0; i < attrs1.size(); i++) {
-                System.out.println("    [" + i + "] name=" + attrs1.get(i).get("name") + ", value=" + attrs1.get(i).get("value"));
+                System.out.println("    [" + i + "] name=" + attrs1.get(i).get("name")
+                        + ", value=" + attrs1.get(i).get("value"));
             }
 
             System.out.println("\nProduct 2:");
@@ -120,30 +129,31 @@ public class AsymmetricDoublyNestedArrayTest {
             List<Map<String, Object>> attrs2 = (List<Map<String, Object>>) recon2.get("attributes");
             System.out.println("  attributes count: " + attrs2.size());
             for (int i = 0; i < attrs2.size(); i++) {
-                System.out.println("    [" + i + "] name=" + attrs2.get(i).get("name") + ", value=" + attrs2.get(i).get("value"));
+                System.out.println("    [" + i + "] name=" + attrs2.get(i).get("name")
+                        + ", value=" + attrs2.get(i).get("value"));
             }
 
             // Verify counts
-            assertEquals(3, attrs1.size(), "Product 1 should have 3 attributes");
-            assertEquals(2, attrs2.size(), "Product 2 should have 2 attributes");
+            assertThat(attrs1).as("Product 1 should have 3 attributes").hasSize(3);
+            assertThat(attrs2).as("Product 2 should have 2 attributes").hasSize(2);
 
             // Verify Product 1
-            assertEquals("RAM", attrs1.get(0).get("name"));
-            assertEquals("32GB", attrs1.get(0).get("value"));
-            assertEquals("Storage", attrs1.get(1).get("name"));
-            assertEquals("1TB", attrs1.get(1).get("value"));
-            assertEquals("Processor", attrs1.get(2).get("name"));
-            assertEquals("Intel i9", attrs1.get(2).get("value"));
+            assertThat(attrs1.get(0).get("name")).isEqualTo("RAM");
+            assertThat(attrs1.get(0).get("value")).isEqualTo("32GB");
+            assertThat(attrs1.get(1).get("name")).isEqualTo("Storage");
+            assertThat(attrs1.get(1).get("value")).isEqualTo("1TB");
+            assertThat(attrs1.get(2).get("name")).isEqualTo("Processor");
+            assertThat(attrs1.get(2).get("value")).isEqualTo("Intel i9");
 
             // Verify Product 2
-            assertEquals("Connectivity", attrs2.get(0).get("name"));
-            assertEquals("Bluetooth", attrs2.get(0).get("value"));
-            assertEquals("Battery", attrs2.get(1).get("name"));
-            assertEquals("6 months", attrs2.get(1).get("value"));
+            assertThat(attrs2.get(0).get("name")).isEqualTo("Connectivity");
+            assertThat(attrs2.get(0).get("value")).isEqualTo("Bluetooth");
+            assertThat(attrs2.get(1).get("name")).isEqualTo("Battery");
+            assertThat(attrs2.get(1).get("value")).isEqualTo("6 months");
 
             System.out.println("\n✅ TEST PASSED!");
 
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             System.out.println("\n❌ RECONSTRUCTION FAILED:");
             System.out.println("This is likely the same error as ComplexAvroReconstructionTest!");
             e.printStackTrace();

@@ -5,18 +5,28 @@ import org.apache.avro.SchemaBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Minimal test to isolate the doubly-nested array issue
+ * Minimal test to isolate the doubly-nested array issue.
+ *
+ * <p>Ported from {@code src/test/groovy/DoublyNestedArrayTest.groovy}
+ * (2 {@code @Test} methods in, 2 out). The source was already pure Java syntax; the only
+ * changes are JUnit assertions restated in AssertJ and explicit {@code java.util} imports.</p>
+ *
+ * <p>{@code debugShowFlattenedStructure} asserts nothing in the original and asserts nothing
+ * here — it prints the flattened shape and always passes.</p>
  */
-public class DoublyNestedArrayTest {
+class DoublyNestedArrayTest {
 
     @Test
     @DisplayName("Minimal doubly nested array test - attributes in product")
-    public void testMinimalDoublyNestedArray() {
+    void testMinimalDoublyNestedArray() {
         // Create minimal schema: Product with array of Attribute records
         Schema attributeSchema = SchemaBuilder.record("Attribute")
                 .fields()
@@ -52,10 +62,10 @@ public class DoublyNestedArrayTest {
         order.put("products", Arrays.asList(product1));
 
         System.out.println("=== ORIGINAL DATA ===");
-        System.out.println("products[0].attributes[0].name = " +
-                ((Map)((List)((Map)((List)order.get("products")).get(0)).get("attributes")).get(0)).get("name"));
-        System.out.println("products[0].attributes[0].value = " +
-                ((Map)((List)((Map)((List)order.get("products")).get(0)).get("attributes")).get(0)).get("value"));
+        System.out.println("products[0].attributes[0].name = "
+                + ((Map) ((List) ((Map) ((List) order.get("products")).get(0)).get("attributes")).get(0)).get("name"));
+        System.out.println("products[0].attributes[0].value = "
+                + ((Map) ((List) ((Map) ((List) order.get("products")).get(0)).get("attributes")).get(0)).get("value"));
 
         // Flatten
         MapFlattener flattener = MapFlattener.builder()
@@ -80,22 +90,26 @@ public class DoublyNestedArrayTest {
             Map<String, Object> reconstructed = reconstructor.reconstructToMap(flattened, orderSchema);
 
             System.out.println("\n=== RECONSTRUCTED DATA ===");
-            System.out.println("products[0].attributes[0].name = " +
-                    ((Map)((List)((Map)((List)reconstructed.get("products")).get(0)).get("attributes")).get(0)).get("name"));
-            System.out.println("products[0].attributes[0].value = " +
-                    ((Map)((List)((Map)((List)reconstructed.get("products")).get(0)).get("attributes")).get(0)).get("value"));
+            System.out.println("products[0].attributes[0].name = "
+                    + ((Map) ((List) ((Map) ((List) reconstructed.get("products")).get(0)).get("attributes")).get(0))
+                    .get("name"));
+            System.out.println("products[0].attributes[0].value = "
+                    + ((Map) ((List) ((Map) ((List) reconstructed.get("products")).get(0)).get("attributes")).get(0))
+                    .get("value"));
 
             // Verify
-            assertEquals("RAM",
-                    ((Map)((List)((Map)((List)reconstructed.get("products")).get(0)).get("attributes")).get(0)).get("name"),
-                    "First attribute name should be RAM");
-            assertEquals("32GB",
-                    ((Map)((List)((Map)((List)reconstructed.get("products")).get(0)).get("attributes")).get(0)).get("value"),
-                    "First attribute value should be 32GB");
+            assertThat(((Map) ((List) ((Map) ((List) reconstructed.get("products")).get(0)).get("attributes")).get(0))
+                    .get("name"))
+                    .as("First attribute name should be RAM")
+                    .isEqualTo("RAM");
+            assertThat(((Map) ((List) ((Map) ((List) reconstructed.get("products")).get(0)).get("attributes")).get(0))
+                    .get("value"))
+                    .as("First attribute value should be 32GB")
+                    .isEqualTo("32GB");
 
             System.out.println("\n✅ TEST PASSED!");
 
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             System.out.println("\n❌ RECONSTRUCTION FAILED:");
             e.printStackTrace();
             throw e;
@@ -104,7 +118,7 @@ public class DoublyNestedArrayTest {
 
     @Test
     @DisplayName("Debug: Show what the flattened data looks like")
-    public void debugShowFlattenedStructure() {
+    void debugShowFlattenedStructure() {
         // Same schema and data as above
         Schema attributeSchema = SchemaBuilder.record("Attribute")
                 .fields()
@@ -122,6 +136,9 @@ public class DoublyNestedArrayTest {
                 .fields()
                 .name("products").type().array().items(productSchema).noDefault()
                 .endRecord();
+
+        // NOTE: orderSchema is built and then never used, exactly as in the Groovy original —
+        // this method only prints what the reconstructor would receive, it never reconstructs.
 
         // Create data with 2 products, each with 2 attributes
         Map<String, Object> attr1p1 = Map.of("name", "RAM", "value", "32GB");

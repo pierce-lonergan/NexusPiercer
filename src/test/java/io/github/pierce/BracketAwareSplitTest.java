@@ -2,15 +2,61 @@ package io.github.pierce;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit test to verify the bracket-aware split fix
  * This can be run independently to verify Bug #5 is fixed
+ *
+ * <p>PORTING NOTE: the Groovy original called
+ * {@code reconstructor.deserializeBracketList(...)} directly. That method is
+ * {@code private} on {@link AvroReconstructor}; the call only ever compiled and ran
+ * because Groovy does not enforce private access. Java does, so the call is routed
+ * through reflection below. The inputs, the invoked method and every assertion are
+ * unchanged from the original.
  */
 public class BracketAwareSplitTest {
+
+    private static final Method DESERIALIZE_BRACKET_LIST;
+
+    static {
+        try {
+            DESERIALIZE_BRACKET_LIST =
+                    AvroReconstructor.class.getDeclaredMethod("deserializeBracketList", String.class);
+            DESERIALIZE_BRACKET_LIST.setAccessible(true);
+        } catch (NoSuchMethodException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /**
+     * Reflective stand-in for the Groovy call {@code reconstructor.deserializeBracketList(value)}.
+     * Unwraps InvocationTargetException so any exception the method throws surfaces exactly as
+     * it did under Groovy.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Object> deserializeBracketList(AvroReconstructor reconstructor, String value) {
+        try {
+            return (List<Object>) DESERIALIZE_BRACKET_LIST.invoke(reconstructor, value);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Could not access AvroReconstructor.deserializeBracketList", e);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new IllegalStateException(cause);
+        }
+    }
 
     @Test
     @DisplayName("Test bracket-aware split with doubly nested arrays")
@@ -25,7 +71,7 @@ public class BracketAwareSplitTest {
         String input1 = "[[RAM, Storage, Processor], [Connectivity, Battery Life]]";
         System.out.println("Test 1 - Input: " + input1);
 
-        List<Object> outer = reconstructor.deserializeBracketList(input1);
+        List<Object> outer = deserializeBracketList(reconstructor, input1);
         System.out.println("Outer array size: " + outer.size());
         System.out.println("Outer[0]: " + outer.get(0));
         System.out.println("Outer[1]: " + outer.get(1));
@@ -37,7 +83,7 @@ public class BracketAwareSplitTest {
                 "Second element should be intact nested array");
 
         // Parse inner arrays
-        List<Object> inner1 = reconstructor.deserializeBracketList(outer.get(0).toString());
+        List<Object> inner1 = deserializeBracketList(reconstructor, outer.get(0).toString());
         System.out.println("\nInner array 1 size: " + inner1.size());
         System.out.println("Inner1[0]: " + inner1.get(0));
         System.out.println("Inner1[1]: " + inner1.get(1));
@@ -48,7 +94,7 @@ public class BracketAwareSplitTest {
         assertEquals("Storage", inner1.get(1).toString().trim());
         assertEquals("Processor", inner1.get(2).toString().trim());
 
-        List<Object> inner2 = reconstructor.deserializeBracketList(outer.get(1).toString());
+        List<Object> inner2 = deserializeBracketList(reconstructor, outer.get(1).toString());
         System.out.println("\nInner array 2 size: " + inner2.size());
         System.out.println("Inner2[0]: " + inner2.get(0));
         System.out.println("Inner2[1]: " + inner2.get(1));
@@ -63,7 +109,7 @@ public class BracketAwareSplitTest {
         String input2 = "[[[a, b], [c, d]], [[e, f]]]";
         System.out.println("Test 2 - Input: " + input2);
 
-        List<Object> outer2 = reconstructor.deserializeBracketList(input2);
+        List<Object> outer2 = deserializeBracketList(reconstructor, input2);
         System.out.println("Outer array size: " + outer2.size());
         assertEquals(2, outer2.size(), "Should have 2 outer elements");
         assertEquals("[[a, b], [c, d]]", outer2.get(0).toString());
@@ -75,7 +121,7 @@ public class BracketAwareSplitTest {
         String input3 = "[simple, [nested, items], another]";
         System.out.println("Test 3 - Input: " + input3);
 
-        List<Object> outer3 = reconstructor.deserializeBracketList(input3);
+        List<Object> outer3 = deserializeBracketList(reconstructor, input3);
         System.out.println("Outer array size: " + outer3.size());
         assertEquals(3, outer3.size(), "Should have 3 elements");
         assertEquals("simple", outer3.get(0).toString().trim());
@@ -88,7 +134,7 @@ public class BracketAwareSplitTest {
         String input4 = "[[], [a], []]";
         System.out.println("Test 4 - Input: " + input4);
 
-        List<Object> outer4 = reconstructor.deserializeBracketList(input4);
+        List<Object> outer4 = deserializeBracketList(reconstructor, input4);
         System.out.println("Outer array size: " + outer4.size());
         assertEquals(3, outer4.size(), "Should have 3 elements");
         assertEquals("[]", outer4.get(0).toString().trim());
@@ -144,7 +190,7 @@ public class BracketAwareSplitTest {
         // So "Smith, John" needs to be a single value, not split
         String input = "[Smith John, Doe Jane]"; // Note: single space, not ", "
 
-        List<Object> result = reconstructor.deserializeBracketList(input);
+        List<Object> result = deserializeBracketList(reconstructor, input);
         System.out.println("Input: " + input);
         System.out.println("Result size: " + result.size());
         System.out.println("Result: " + result);

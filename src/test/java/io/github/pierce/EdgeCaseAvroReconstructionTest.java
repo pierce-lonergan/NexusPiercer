@@ -4,14 +4,22 @@ import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import io.github.pierce.AvroReconstructor
-import io.github.pierce.MapFlattener
-import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Edge case tests for realistic but complex scenarios
+ * Edge case tests for realistic but complex scenarios.
+ *
+ * <p>Ported from src/test/groovy/EdgeCaseAvroReconstructionTest.groovy as part of the
+ * Groovy toolchain removal (roadmap Phase 5). The Groovy source contained 7 executed
+ * test cases; this port contains 7.
  */
 public class EdgeCaseAvroReconstructionTest {
 
@@ -94,7 +102,7 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 
     @Test
@@ -185,7 +193,7 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 
     @Test
@@ -251,7 +259,7 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 
     @Test
@@ -327,7 +335,7 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 
     @Test
@@ -380,7 +388,7 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 
     @Test
@@ -443,7 +451,7 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 
     @Test
@@ -486,7 +494,9 @@ public class EdgeCaseAvroReconstructionTest {
         records.add(record2);
 
         Map<String, Object> record3 = new LinkedHashMap<>();
-        record3.put("stringField", "test with spaces and special chars: !@#\$%");
+        // Groovy source escaped the dollar sign ("!@#\$%") to suppress GString
+        // interpolation; the runtime value was the literal "!@#$%".
+        record3.put("stringField", "test with spaces and special chars: !@#$%");
         record3.put("intField", 2147483647); // Max int
         record3.put("longField", 9223372036854775807L); // Max long
         record3.put("floatField", Float.MAX_VALUE);
@@ -513,6 +523,6 @@ public class EdgeCaseAvroReconstructionTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect());
+        assertThat(verification.isPerfect()).isTrue();
     }
 }

@@ -2,27 +2,42 @@ package io.github.pierce;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
-import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
  * Comprehensive test suite for JsonFlattener.
+ *
+ * <p>Ported from src/test/groovy/JsonFlattenerTest.groovy. The Groovy original contained
+ * 62 {@code @Test} methods across 11 {@code @Nested} classes; this port contains the same
+ * 62 methods in the same 11 nested classes, with the same display names.
  *
  * @author Pierce
  */
@@ -49,9 +64,9 @@ class JsonFlattenerTest {
                     .from(json)
                     .toMap();
 
-            assertEquals(2, result.size());
-            assertEquals("John", result.get("user_name"));
-            assertEquals(30, result.get("user_age"));
+            assertThat(result).hasSize(2);
+            assertThat(result.get("user_name")).isEqualTo("John");
+            assertThat(result.get("user_age")).isEqualTo(30);
         }
 
         @Test
@@ -63,8 +78,8 @@ class JsonFlattenerTest {
                     .from(json)
                     .toMap();
 
-            assertEquals(1, result.size());
-            assertEquals("deep", result.get("a_b_c_d_e"));
+            assertThat(result).hasSize(1);
+            assertThat(result.get("a_b_c_d_e")).isEqualTo("deep");
         }
 
         @Test
@@ -76,9 +91,9 @@ class JsonFlattenerTest {
                     .from(json)
                     .toMap();
 
-            assertNotNull(result.get("users_name"));
-            assertTrue(result.get("users_name").toString().contains("Alice"));
-            assertTrue(result.get("users_name").toString().contains("Bob"));
+            assertThat(result.get("users_name")).isNotNull();
+            assertThat(result.get("users_name").toString()).contains("Alice");
+            assertThat(result.get("users_name").toString()).contains("Bob");
         }
 
         @Test
@@ -90,10 +105,10 @@ class JsonFlattenerTest {
                     .from(json)
                     .toMap();
 
-            assertEquals("value", result.get("string"));
-            assertEquals(42, result.get("number"));
-            assertEquals(true, result.get("boolean"));
-            assertNull(result.get("null"));
+            assertThat(result.get("string")).isEqualTo("value");
+            assertThat(result.get("number")).isEqualTo(42);
+            assertThat(result.get("boolean")).isEqualTo(true);
+            assertThat(result.get("null")).isNull();
         }
 
         @Test
@@ -103,7 +118,7 @@ class JsonFlattenerTest {
                     .from("{}")
                     .toMap();
 
-            assertTrue(result.isEmpty());
+            assertThat(result).isEmpty();
         }
 
         @Test
@@ -115,13 +130,11 @@ class JsonFlattenerTest {
                     .from(json)
                     .toMap();
 
-            assertEquals(3, result.size());
-            assertEquals(1, result.get("a"));
-            assertEquals(2, result.get("b"));
-            assertEquals(3, result.get("c"));
+            assertThat(result).hasSize(3);
+            assertThat(result.get("a")).isEqualTo(1);
+            assertThat(result.get("b")).isEqualTo(2);
+            assertThat(result.get("c")).isEqualTo(3);
         }
-
-
 
         @Test
         @DisplayName("Should preserve key order")
@@ -133,7 +146,7 @@ class JsonFlattenerTest {
                     .toMap();
 
             List<String> keys = new ArrayList<>(result.keySet());
-            assertEquals(Arrays.asList("z", "a", "m"), keys);
+            assertThat(keys).containsExactly("z", "a", "m");
         }
     }
 
@@ -152,8 +165,8 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
-            assertEquals(123, result.get("nested_inner"));
+            assertThat(result.get("key")).isEqualTo("value");
+            assertThat(result.get("nested_inner")).isEqualTo(123);
         }
 
         @Test
@@ -167,8 +180,8 @@ class JsonFlattenerTest {
                     .from(input)
                     .toMap();
 
-            assertEquals("Alice", result.get("name"));
-            assertEquals(25, result.get("details_age"));
+            assertThat(result.get("name")).isEqualTo("Alice");
+            assertThat(result.get("details_age")).isEqualTo(25);
         }
 
         @Test
@@ -180,7 +193,7 @@ class JsonFlattenerTest {
                     .from(bytes)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -192,7 +205,7 @@ class JsonFlattenerTest {
                     .from(bytes, StandardCharsets.UTF_16)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -204,7 +217,7 @@ class JsonFlattenerTest {
                     .from(is)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -216,7 +229,7 @@ class JsonFlattenerTest {
                     .from(reader)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -229,7 +242,7 @@ class JsonFlattenerTest {
                     .from(file.toFile())
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -242,7 +255,7 @@ class JsonFlattenerTest {
                     .from(file)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -257,7 +270,7 @@ class JsonFlattenerTest {
                     .from(file, JsonFlattener.InputOptions.gzipped())
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
@@ -269,17 +282,17 @@ class JsonFlattenerTest {
                     .from(node)
                     .toMap();
 
-            assertEquals("value", result.get("key"));
+            assertThat(result.get("key")).isEqualTo("value");
         }
 
         @Test
         @DisplayName("Should throw on invalid JSON")
         void shouldThrowOnInvalidJson() {
-            assertThrows(JsonFlattener.JsonFlattenException.class, () ->
+            assertThatThrownBy(() ->
                     JsonFlattener.create()
                             .from("not valid json")
                             .toMap()
-            );
+            ).isInstanceOf(JsonFlattener.JsonFlattenException.class);
         }
 
         @Test
@@ -287,11 +300,11 @@ class JsonFlattenerTest {
         void shouldThrowOnMissingFile() {
             Path nonExistent = tempDir.resolve("does-not-exist.json");
 
-            assertThrows(JsonFlattener.JsonFlattenException.class, () ->
+            assertThatThrownBy(() ->
                     JsonFlattener.create()
                             .from(nonExistent)
                             .toMap()
-            );
+            ).isInstanceOf(JsonFlattener.JsonFlattenException.class);
         }
     }
 
@@ -310,9 +323,13 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toJson();
 
-            assertNotNull(result);
-            assertTrue(result.contains("\"a\":1") || result.contains("\"a\": 1"));
-            assertTrue(result.contains("\"b_c\":2") || result.contains("\"b_c\": 2"));
+            assertThat(result).isNotNull();
+            assertThat(result.contains("\"a\":1") || result.contains("\"a\": 1"))
+                    .as("output should contain a compact or spaced \"a\" entry: %s", result)
+                    .isTrue();
+            assertThat(result.contains("\"b_c\":2") || result.contains("\"b_c\": 2"))
+                    .as("output should contain a compact or spaced \"b_c\" entry: %s", result)
+                    .isTrue();
         }
 
         @Test
@@ -322,8 +339,8 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toPrettyJson();
 
-            assertTrue(result.contains("\n"));
-            assertTrue(result.contains("  "));
+            assertThat(result).contains("\n");
+            assertThat(result).contains("  ");
         }
 
         @Test
@@ -333,9 +350,9 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toMap();
 
-            assertEquals(2, result.size());
-            assertEquals(1, result.get("a"));
-            assertEquals(2, result.get("b_c"));
+            assertThat(result).hasSize(2);
+            assertThat(result.get("a")).isEqualTo(1);
+            assertThat(result.get("b_c")).isEqualTo(2);
         }
 
         @Test
@@ -345,11 +362,11 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toBytes();
 
-            assertNotNull(result);
-            assertTrue(result.length > 0);
+            assertThat(result).isNotNull();
+            assertThat(result.length > 0).isTrue();
 
             String asString = new String(result, StandardCharsets.UTF_8);
-            assertTrue(asString.contains("a"));
+            assertThat(asString).contains("a");
         }
 
         @Test
@@ -359,9 +376,9 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toJsonNode();
 
-            assertNotNull(result);
-            assertTrue(result.has("a"));
-            assertTrue(result.has("b_c"));
+            assertThat(result).isNotNull();
+            assertThat(result.has("a")).isTrue();
+            assertThat(result.has("b_c")).isTrue();
         }
 
         @Test
@@ -373,9 +390,9 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toFile(file.toFile());
 
-            assertTrue(Files.exists(file));
+            assertThat(Files.exists(file)).isTrue();
             String content = Files.readString(file);
-            assertTrue(content.contains("a"));
+            assertThat(content).contains("a");
         }
 
         @Test
@@ -387,7 +404,7 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toFile(file);
 
-            assertTrue(Files.exists(file));
+            assertThat(Files.exists(file)).isTrue();
         }
 
         @Test
@@ -399,8 +416,8 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toStream(baos);
 
-            assertTrue(baos.size() > 0);
-            assertTrue(baos.toString().contains("a"));
+            assertThat(baos.size() > 0).isTrue();
+            assertThat(baos.toString()).contains("a");
         }
 
         @Test
@@ -412,7 +429,7 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toWriter(writer);
 
-            assertTrue(writer.toString().contains("a"));
+            assertThat(writer.toString()).contains("a");
         }
 
         @Test
@@ -424,12 +441,12 @@ class JsonFlattenerTest {
                     .from(testJson)
                     .toFile(file, JsonFlattener.OutputOptions.gzipped());
 
-            assertTrue(Files.exists(file));
+            assertThat(Files.exists(file)).isTrue();
 
             // Verify it's actually gzipped
             try (GZIPInputStream gis = new GZIPInputStream(Files.newInputStream(file))) {
                 String content = new String(gis.readAllBytes());
-                assertTrue(content.contains("a"));
+                assertThat(content).contains("a");
             }
         }
 
@@ -446,8 +463,8 @@ class JsonFlattenerTest {
             int mPos = result.indexOf("\"m\"");
             int zPos = result.indexOf("\"z\"");
 
-            assertTrue(aPos < mPos);
-            assertTrue(mPos < zPos);
+            assertThat(aPos < mPos).isTrue();
+            assertThat(mPos < zPos).isTrue();
         }
 
         @Test
@@ -459,7 +476,7 @@ class JsonFlattenerTest {
                     .from(json)
                     .toJson(JsonFlattener.OutputOptions.builder().includeNulls(false).build());
 
-            assertFalse(result.contains("\"b\""));
+            assertThat(result.contains("\"b\"")).isFalse();
         }
     }
 
@@ -477,9 +494,9 @@ class JsonFlattenerTest {
                     .addField("b", 2)
                     .toMap();
 
-            assertEquals(2, result.size());
-            assertEquals(1, result.get("a"));
-            assertEquals(2, result.get("b"));
+            assertThat(result).hasSize(2);
+            assertThat(result.get("a")).isEqualTo(1);
+            assertThat(result.get("b")).isEqualTo(2);
         }
 
         @Test
@@ -490,9 +507,9 @@ class JsonFlattenerTest {
                     .removeField("a")
                     .toMap();
 
-            assertEquals(1, result.size());
-            assertFalse(result.containsKey("a"));
-            assertTrue(result.containsKey("b"));
+            assertThat(result).hasSize(1);
+            assertThat(result.containsKey("a")).isFalse();
+            assertThat(result.containsKey("b")).isTrue();
         }
 
         @Test
@@ -503,8 +520,8 @@ class JsonFlattenerTest {
                     .renameField("oldName", "newName")
                     .toMap();
 
-            assertFalse(result.containsKey("oldName"));
-            assertEquals("value", result.get("newName"));
+            assertThat(result.containsKey("oldName")).isFalse();
+            assertThat(result.get("newName")).isEqualTo("value");
         }
 
         @Test
@@ -515,10 +532,10 @@ class JsonFlattenerTest {
                     .includeOnly("a", "c")
                     .toMap();
 
-            assertEquals(2, result.size());
-            assertTrue(result.containsKey("a"));
-            assertTrue(result.containsKey("c"));
-            assertFalse(result.containsKey("b"));
+            assertThat(result).hasSize(2);
+            assertThat(result.containsKey("a")).isTrue();
+            assertThat(result.containsKey("c")).isTrue();
+            assertThat(result.containsKey("b")).isFalse();
         }
 
         @Test
@@ -529,9 +546,9 @@ class JsonFlattenerTest {
                     .prefixKeys("data_")
                     .toMap();
 
-            assertTrue(result.containsKey("data_a"));
-            assertTrue(result.containsKey("data_b"));
-            assertFalse(result.containsKey("a"));
+            assertThat(result.containsKey("data_a")).isTrue();
+            assertThat(result.containsKey("data_b")).isTrue();
+            assertThat(result.containsKey("a")).isFalse();
         }
 
         @Test
@@ -547,8 +564,8 @@ class JsonFlattenerTest {
                     })
                     .toMap();
 
-            assertEquals(20, result.get("value"));
-            assertEquals(100, result.get("computed"));
+            assertThat(result.get("value")).isEqualTo(20);
+            assertThat(result.get("computed")).isEqualTo(100);
         }
     }
 
@@ -565,12 +582,12 @@ class JsonFlattenerTest {
                     .requireFields("id", "name")
                     .build();
 
-            assertDoesNotThrow({
-                JsonFlattener.create()
-                        .from("{\"id\": 1, \"name\": \"test\"}")
-                        .validate(rules)
-                        .toMap()
-            } as org.junit.jupiter.api.function.Executable);
+            assertThatCode(() ->
+                    JsonFlattener.create()
+                            .from("{\"id\": 1, \"name\": \"test\"}")
+                            .validate(rules)
+                            .toMap()
+            ).doesNotThrowAnyException();
         }
 
         @Test
@@ -580,15 +597,15 @@ class JsonFlattenerTest {
                     .requireFields("id", "name")
                     .build();
 
-            JsonFlattener.JsonValidationException ex = assertThrows(
-                    JsonFlattener.JsonValidationException.class, () ->
+            JsonFlattener.JsonValidationException ex = catchThrowableOfType(() ->
                     JsonFlattener.create()
                             .from("{\"id\": 1}")
                             .validate(rules)
-                            .toMap()
-            );
+                            .toMap(),
+                    JsonFlattener.JsonValidationException.class);
 
-            assertTrue(ex.getViolations().get(0).contains("name"));
+            assertThat(ex).isNotNull();
+            assertThat(ex.getViolations().get(0).contains("name")).isTrue();
         }
 
         @Test
@@ -598,12 +615,12 @@ class JsonFlattenerTest {
                     .maxFields(2)
                     .build();
 
-            assertThrows(JsonFlattener.JsonValidationException.class, () ->
+            assertThatThrownBy(() ->
                     JsonFlattener.create()
                             .from("{\"a\": 1, \"b\": 2, \"c\": 3}")
                             .validate(rules)
                             .toMap()
-            );
+            ).isInstanceOf(JsonFlattener.JsonValidationException.class);
         }
 
         @Test
@@ -614,14 +631,14 @@ class JsonFlattenerTest {
                     .filter(map -> (int) map.get("value") > 5)
                     .toMap();
 
-            assertFalse(result.isEmpty());
+            assertThat(result).isNotEmpty();
 
             Map<String, Object> filtered = JsonFlattener.create()
                     .from("{\"value\": 3}")
                     .filter(map -> (int) map.get("value") > 5)
                     .toMap();
 
-            assertTrue(filtered.isEmpty());
+            assertThat(filtered).isEmpty();
         }
     }
 
@@ -644,9 +661,9 @@ class JsonFlattenerTest {
                     .batch()
                     .fromStrings(inputs);
 
-            assertEquals(3, result.getSuccessCount());
-            assertEquals(0, result.getErrorCount());
-            assertTrue(result.isSuccess());
+            assertThat(result.getSuccessCount()).isEqualTo(3);
+            assertThat(result.getErrorCount()).isEqualTo(0);
+            assertThat(result.isSuccess()).isTrue();
         }
 
         @Test
@@ -662,12 +679,12 @@ class JsonFlattenerTest {
                     .parallel(4)
                     .fromStrings(inputs);
 
-            assertEquals(100, result.getSuccessCount());
+            assertThat(result.getSuccessCount()).isEqualTo(100);
 
             // Verify order is preserved
             List<Map<String, Object>> maps = result.toMaps();
             for (int i = 0; i < 100; i++) {
-                assertEquals(i, maps.get(i).get("id"));
+                assertThat(maps.get(i).get("id")).isEqualTo(i);
             }
         }
 
@@ -685,12 +702,12 @@ class JsonFlattenerTest {
                     .failFast(false)
                     .fromStrings(inputs);
 
-            assertEquals(2, result.getSuccessCount());
-            assertEquals(1, result.getErrorCount());
-            assertFalse(result.isSuccess());
+            assertThat(result.getSuccessCount()).isEqualTo(2);
+            assertThat(result.getErrorCount()).isEqualTo(1);
+            assertThat(result.isSuccess()).isFalse();
 
             JsonFlattener.BatchError error = result.getErrors().get(0);
-            assertEquals(1, error.getIndex());
+            assertThat(error.getIndex()).isEqualTo(1);
         }
 
         @Test
@@ -698,12 +715,12 @@ class JsonFlattenerTest {
         void shouldThrowWithFailFastTrue() {
             List<String> inputs = Arrays.asList("{\"valid\": 1}", "invalid");
 
-            assertThrows(JsonFlattener.JsonFlattenException.class, () ->
+            assertThatThrownBy(() ->
                     JsonFlattener.create()
                             .batch()
                             .failFast(true)
                             .fromStrings(inputs)
-            );
+            ).isInstanceOf(JsonFlattener.JsonFlattenException.class);
         }
 
         @Test
@@ -718,7 +735,7 @@ class JsonFlattenerTest {
                     .toNdjsonFile(outputFile);
 
             List<String> lines = Files.readAllLines(outputFile);
-            assertEquals(3, lines.size());
+            assertThat(lines).hasSize(3);
         }
     }
 
@@ -744,7 +761,7 @@ class JsonFlattenerTest {
                     .fromNdjsonFile(ndjsonFile)
                     .forEach(map -> count.incrementAndGet());
 
-            assertEquals(3, count.get());
+            assertThat(count.get()).isEqualTo(3);
         }
 
         @Test
@@ -763,7 +780,7 @@ class JsonFlattenerTest {
                     .fromNdjsonFile(ndjsonFile)
                     .count();
 
-            assertEquals(2, count);
+            assertThat(count).isEqualTo(2L);
         }
 
         @Test
@@ -784,8 +801,8 @@ class JsonFlattenerTest {
                     .fromNdjsonFile(ndjsonFile)
                     .toList();
 
-            assertEquals(2, results.size());
-            assertEquals(1, errorCount.get());
+            assertThat(results).hasSize(2);
+            assertThat(errorCount.get()).isEqualTo(1);
         }
 
         @Test
@@ -797,13 +814,13 @@ class JsonFlattenerTest {
                     "invalid"
             ));
 
-            assertThrows(JsonFlattener.JsonFlattenException.class, () ->
+            assertThatThrownBy(() ->
                     JsonFlattener.create()
                             .stream()
                             .skipErrors(false)
                             .fromNdjsonFile(ndjsonFile)
                             .count()
-            );
+            ).isInstanceOf(JsonFlattener.JsonFlattenException.class);
         }
 
         @Test
@@ -819,7 +836,7 @@ class JsonFlattenerTest {
                     .fromNdjsonFile(gzFile, JsonFlattener.InputOptions.gzipped())
                     .count();
 
-            assertEquals(2, count);
+            assertThat(count).isEqualTo(2L);
         }
     }
 
@@ -840,7 +857,7 @@ class JsonFlattenerTest {
                     .from("{\"TestKey\": 1}")
                     .toJson();
 
-            assertTrue(result.contains("testkey"));
+            assertThat(result).contains("testkey");
         }
 
         @Test
@@ -852,7 +869,7 @@ class JsonFlattenerTest {
                     .from("{\"a\": 1}")
                     .toJson();
 
-            assertTrue(result.contains("\n"));
+            assertThat(result).contains("\n");
         }
 
         @Test
@@ -868,7 +885,7 @@ class JsonFlattenerTest {
                     .from("{\"a\": {\"b\": 1}}")
                     .toMap();
 
-            assertTrue(result.containsKey("a__b"));
+            assertThat(result.containsKey("a__b")).isTrue();
         }
     }
 
@@ -882,29 +899,29 @@ class JsonFlattenerTest {
         @DisplayName("Should quick flatten to Map")
         void shouldQuickFlattenToMap() {
             Map<String, Object> result = JsonFlattener.quickFlatten("{\"a\": {\"b\": 1}}");
-            assertEquals(1, result.get("a_b"));
+            assertThat(result.get("a_b")).isEqualTo(1);
         }
 
         @Test
         @DisplayName("Should quick flatten to JSON")
         void shouldQuickFlattenToJson() {
             String result = JsonFlattener.quickFlattenToJson("{\"a\": {\"b\": 1}}");
-            assertTrue(result.contains("a_b"));
+            assertThat(result).contains("a_b");
         }
 
         @Test
         @DisplayName("Should quick flatten to pretty JSON")
         void shouldQuickFlattenToPrettyJson() {
             String result = JsonFlattener.quickFlattenToPrettyJson("{\"a\": 1}");
-            assertTrue(result.contains("\n"));
+            assertThat(result).contains("\n");
         }
 
         @Test
         @DisplayName("Should quick flatten Map to JSON")
         void shouldQuickFlattenMapToJson() {
-            Map<String, Object> input = Map.of("nested", Map.of("value", 42));
+            Map<String, Object> input = Map.<String, Object>of("nested", Map.of("value", 42));
             String result = JsonFlattener.quickFlattenMapToJson(input);
-            assertTrue(result.contains("nested_value"));
+            assertThat(result).contains("nested_value");
         }
     }
 
@@ -923,16 +940,16 @@ class JsonFlattenerTest {
                     .from(json)
                     .toMap();
 
-            assertEquals("こんにちは", result.get("greeting"));
-            assertEquals("🎉", result.get("emoji"));
+            assertThat(result.get("greeting")).isEqualTo("こんにちは");
+            assertThat(result.get("emoji")).isEqualTo("🎉");
         }
 
         @Test
         @DisplayName("Should throw when calling toMap without input")
         void shouldThrowWhenCallingToMapWithoutInput() {
-            assertThrows(IllegalStateException.class, () ->
+            assertThatThrownBy(() ->
                     JsonFlattener.create().toMap()
-            );
+            ).isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -943,7 +960,7 @@ class JsonFlattenerTest {
                     .transform(null)
                     .toMap();
 
-            assertEquals(1, result.get("a"));
+            assertThat(result.get("a")).isEqualTo(1);
         }
     }
 
@@ -972,8 +989,8 @@ class JsonFlattenerTest {
                                     .from(json)
                                     .toMap();
 
-                            assertEquals(threadId, result.get("thread"));
-                            assertEquals(i, result.get("op"));
+                            assertThat(result.get("thread")).isEqualTo(threadId);
+                            assertThat(result.get("op")).isEqualTo(i);
                         }
                     } catch (Exception e) {
                         exceptions.add(e);
@@ -987,7 +1004,7 @@ class JsonFlattenerTest {
                 thread.join();
             }
 
-            assertTrue(exceptions.isEmpty(), "Exceptions occurred: " + exceptions);
+            assertThat(exceptions).as("Exceptions occurred: " + exceptions).isEmpty();
         }
     }
 }

@@ -1,17 +1,25 @@
-import io.github.pierce.AvroReconstructor
-import io.github.pierce.MapFlattener
+package io.github.pierce;
+
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
-import org.apache.avro.LogicalTypes;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Comprehensive test suite demonstrating perfect reconstruction
+ * Comprehensive test suite demonstrating perfect reconstruction.
+ *
+ * <p>Ported from src/test/groovy/AvroReconstructorTest.groovy. The Groovy original lived in the
+ * default package; it is placed in {@code io.github.pierce} here because Java tooling (Checkstyle,
+ * javac cross-package references) handles the default package badly. No test case was added,
+ * removed, or renamed by that move.</p>
  */
 public class AvroReconstructorTest {
 
@@ -45,7 +53,9 @@ public class AvroReconstructorTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect(), "Reconstruction should be perfect");
+        assertThat(verification.isPerfect())
+                .as("Reconstruction should be perfect")
+                .isTrue();
     }
 
     @Test
@@ -92,7 +102,9 @@ public class AvroReconstructorTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect(), "Nested reconstruction should be perfect");
+        assertThat(verification.isPerfect())
+                .as("Nested reconstruction should be perfect")
+                .isTrue();
     }
 
     @Test
@@ -123,7 +135,9 @@ public class AvroReconstructorTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect(), "Array reconstruction should be perfect");
+        assertThat(verification.isPerfect())
+                .as("Array reconstruction should be perfect")
+                .isTrue();
     }
 
     @Test
@@ -174,8 +188,9 @@ public class AvroReconstructorTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect(),
-                "Complex nested array reconstruction should be perfect");
+        assertThat(verification.isPerfect())
+                .as("Complex nested array reconstruction should be perfect")
+                .isTrue();
     }
 
     @Test
@@ -206,7 +221,9 @@ public class AvroReconstructorTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect(), "Nullable fields should reconstruct perfectly");
+        assertThat(verification.isPerfect())
+                .as("Nullable fields should reconstruct perfectly")
+                .isTrue();
     }
 
     @Test
@@ -221,7 +238,8 @@ public class AvroReconstructorTest {
         original.put("values", Arrays.asList("alpha", "beta", "gamma"));
 
         // Test each format
-        for (MapFlattener.ArraySerializationFormat format : MapFlattener.ArraySerializationFormat.values()) {
+        for (MapFlattener.ArraySerializationFormat format
+                : MapFlattener.ArraySerializationFormat.values()) {
 
             System.out.println("\nTesting format: " + format);
 
@@ -245,8 +263,9 @@ public class AvroReconstructorTest {
             AvroReconstructor.ReconstructionVerification verification =
                     reconstructor.verifyReconstruction(original, reconstructed, schema);
 
-            assertTrue(verification.isPerfect(),
-                    "Format " + format + " should reconstruct perfectly");
+            assertThat(verification.isPerfect())
+                    .as("Format " + format + " should reconstruct perfectly")
+                    .isTrue();
         }
     }
 
@@ -304,7 +323,9 @@ public class AvroReconstructorTest {
                 reconstructor.verifyReconstruction(original, reconstructed, schema);
 
         System.out.println(verification.getReport());
-        assertTrue(verification.isPerfect(), "Deep nesting should reconstruct perfectly");
+        assertThat(verification.isPerfect())
+                .as("Deep nesting should reconstruct perfectly")
+                .isTrue();
     }
 
     @Test
@@ -344,8 +365,9 @@ public class AvroReconstructorTest {
                 reconstructor.compareFlattenedMaps(flattened1, flattened2);
 
         System.out.println(comparison);
-        assertTrue(comparison.isIdentical(),
-                "Round-trip flatten should produce identical results");
+        assertThat(comparison.isIdentical())
+                .as("Round-trip flatten should produce identical results")
+                .isTrue();
     }
 
     @Test
@@ -374,8 +396,8 @@ public class AvroReconstructorTest {
         System.out.println("Reconstructed: " + reconstructed);
 
         // Verify
-        assertNotNull(reconstructed.get("emptyArray"));
-        assertTrue(((List<?>) reconstructed.get("emptyArray")).isEmpty());
-        assertEquals("test", reconstructed.get("name"));
+        assertThat(reconstructed.get("emptyArray")).isNotNull();
+        assertThat((List<?>) reconstructed.get("emptyArray")).isEmpty();
+        assertThat(reconstructed.get("name")).isEqualTo("test");
     }
 }

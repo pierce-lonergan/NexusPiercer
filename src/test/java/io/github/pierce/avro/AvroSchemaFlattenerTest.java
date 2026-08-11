@@ -1,13 +1,25 @@
 package io.github.pierce.avro;
 
-import io.github.pierce.MapFlattener
-import io.github.pierce.GAvroSchemaFlattener
+import io.github.pierce.GAvroSchemaFlattener;
+import io.github.pierce.MapFlattener;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Ported from src/test/groovy/AvroSchemaFlattenerTest.groovy.
+ *
+ * <p>Package {@code io.github.pierce.avro} is preserved deliberately. It is a distinct class from
+ * {@code io.github.pierce.avroTesting.AvroSchemaFlattenerTest}, which tests a different class
+ * ({@code AvroSchemaFlattener}); this one tests {@code GAvroSchemaFlattener}. The simple-name
+ * collision is intentional and must not be "resolved".</p>
+ */
 public class AvroSchemaFlattenerTest {
 
     @Test
@@ -23,11 +35,11 @@ public class AvroSchemaFlattenerTest {
         Map<String, GAvroSchemaFlattener.FlattenedFieldType> flattenedSchema =
                 flattener.flattenSchema(schema);
 
-        assertEquals(2, flattenedSchema.size());
-        assertEquals(GAvroSchemaFlattener.DataType.INT,
-                flattenedSchema.get("id").getDataType());
-        assertEquals(GAvroSchemaFlattener.DataType.STRING,
-                flattenedSchema.get("name").getDataType());
+        assertThat(flattenedSchema).hasSize(2);
+        assertThat(flattenedSchema.get("id").getDataType())
+                .isEqualTo(GAvroSchemaFlattener.DataType.INT);
+        assertThat(flattenedSchema.get("name").getDataType())
+                .isEqualTo(GAvroSchemaFlattener.DataType.STRING);
     }
 
     @Test
@@ -49,9 +61,9 @@ public class AvroSchemaFlattenerTest {
         Map<String, GAvroSchemaFlattener.FlattenedFieldType> flattenedSchema =
                 flattener.flattenSchema(userSchema);
 
-        assertTrue(flattenedSchema.containsKey("name"));
-        assertTrue(flattenedSchema.containsKey("address_city"));
-        assertTrue(flattenedSchema.containsKey("address_street"));
+        assertThat(flattenedSchema).containsKey("name");
+        assertThat(flattenedSchema).containsKey("address_city");
+        assertThat(flattenedSchema).containsKey("address_street");
     }
 
     @Test
@@ -67,10 +79,12 @@ public class AvroSchemaFlattenerTest {
                 flattener.flattenSchema(schema);
 
         GAvroSchemaFlattener.FlattenedFieldType scoresType = flattenedSchema.get("scores");
-        assertNotNull(scoresType);
-        assertTrue(scoresType.isArraySerialized());
-        assertEquals(GAvroSchemaFlattener.DataType.STRING, scoresType.getDataType());
-        assertEquals(GAvroSchemaFlattener.DataType.INT, scoresType.getArrayElementType());
+        assertThat(scoresType).isNotNull();
+        assertThat(scoresType.isArraySerialized()).isTrue();
+        assertThat(scoresType.getDataType())
+                .isEqualTo(GAvroSchemaFlattener.DataType.STRING);
+        assertThat(scoresType.getArrayElementType())
+                .isEqualTo(GAvroSchemaFlattener.DataType.INT);
     }
 
     @Test
@@ -92,12 +106,12 @@ public class AvroSchemaFlattenerTest {
                 flattener.flattenSchema(schema);
 
         // Array of records creates separate fields for each record field
-        assertTrue(flattenedSchema.containsKey("accounts_id"));
-        assertTrue(flattenedSchema.containsKey("accounts_balance"));
+        assertThat(flattenedSchema).containsKey("accounts_id");
+        assertThat(flattenedSchema).containsKey("accounts_balance");
 
         // Both should be array serialized
-        assertTrue(flattenedSchema.get("accounts_id").isArraySerialized());
-        assertTrue(flattenedSchema.get("accounts_balance").isArraySerialized());
+        assertThat(flattenedSchema.get("accounts_id").isArraySerialized()).isTrue();
+        assertThat(flattenedSchema.get("accounts_balance").isArraySerialized()).isTrue();
     }
 
     @Test
@@ -113,8 +127,8 @@ public class AvroSchemaFlattenerTest {
         Map<String, GAvroSchemaFlattener.FlattenedFieldType> flattenedSchema =
                 flattener.flattenSchema(schema);
 
-        assertFalse(flattenedSchema.get("id").isNullable());
-        assertTrue(flattenedSchema.get("nickname").isNullable());
+        assertThat(flattenedSchema.get("id").isNullable()).isFalse();
+        assertThat(flattenedSchema.get("nickname").isNullable()).isTrue();
     }
 
     @Test
@@ -142,9 +156,9 @@ public class AvroSchemaFlattenerTest {
         Map<String, Object> typedData = flattener.applyTypes(flattenedData, flattenedSchema);
 
         // Verify types are corrected
-        assertEquals(123, typedData.get("id"));
-        assertEquals("Alice", typedData.get("name"));
-        assertEquals(456.78, typedData.get("balance"));
+        assertThat(typedData.get("id")).isEqualTo(123);
+        assertThat(typedData.get("name")).isEqualTo("Alice");
+        assertThat(typedData.get("balance")).isEqualTo(456.78);
     }
 
     @Test
@@ -168,7 +182,7 @@ public class AvroSchemaFlattenerTest {
 
         // Should parse and convert to correct types, then re-serialize
         String result = (String) typedData.get("scores");
-        assertEquals("[1,2,3]", result); // Integers, not strings
+        assertThat(result).isEqualTo("[1,2,3]"); // Integers, not strings
     }
 
     @Test
@@ -214,15 +228,17 @@ public class AvroSchemaFlattenerTest {
         Map<String, Object> typedData = avroFlattener.applyTypes(flattenedData, flattenedSchema);
 
         // 6. Verify results
-        assertTrue(typedData.containsKey("accounts_signingOrderCode"));
-        assertTrue(typedData.containsKey("accounts_electronicDelivery_electronicDeliveryConsentIndicator"));
+        assertThat(typedData).containsKey("accounts_signingOrderCode");
+        assertThat(typedData)
+                .containsKey("accounts_electronicDelivery_electronicDeliveryConsentIndicator");
 
         // Both should be properly typed arrays
         String signingCodes = (String) typedData.get("accounts_signingOrderCode");
-        String indicators = (String) typedData.get("accounts_electronicDelivery_electronicDeliveryConsentIndicator");
+        String indicators = (String) typedData
+                .get("accounts_electronicDelivery_electronicDeliveryConsentIndicator");
 
-        assertEquals("[\"10721557\"]", signingCodes);
-        assertEquals("[true]", indicators); // Boolean, not string "true"
+        assertThat(signingCodes).isEqualTo("[\"10721557\"]");
+        assertThat(indicators).isEqualTo("[true]"); // Boolean, not string "true"
     }
 
     @Test
@@ -248,6 +264,6 @@ public class AvroSchemaFlattenerTest {
                 flattener.flattenSchema(schema);
 
         // Should have flattened nested array structure
-        assertTrue(flattenedSchema.containsKey("data_items_value"));
+        assertThat(flattenedSchema).containsKey("data_items_value");
     }
 }

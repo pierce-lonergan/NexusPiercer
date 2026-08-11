@@ -1,9 +1,22 @@
 package io.github.pierce;
-import io.github.pierce.MapFlattener;
-import org.junit.jupiter.api.Test;
-import java.util.*;
-import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Test suite for MapFlattener.
+ *
+ * <p>Ported from src/test/groovy/MapFlattenerTest.groovy. The Groovy original contained
+ * 6 {@code @Test} methods and no nested classes; this port contains the same 6 methods.
+ */
 public class MapFlattenerTest {
 
     @Test
@@ -18,8 +31,8 @@ public class MapFlattenerTest {
 
         Map<String, Object> result = flattener.flatten(input);
 
-        assertEquals("John", result.get("user_name"));
-        assertEquals(30, result.get("user_age"));
+        assertThat(result.get("user_name")).isEqualTo("John");
+        assertThat(result.get("user_age")).isEqualTo(30);
     }
 
     @Test
@@ -43,11 +56,12 @@ public class MapFlattenerTest {
 
         Map<String, Object> result = flattener.flatten(input);
 
-        assertTrue(result.containsKey("accounts_signingOrderCode"));
-        assertTrue(result.containsKey("accounts_electronicDelivery_electronicDeliveryConsentIndicator"));
+        assertThat(result).containsKey("accounts_signingOrderCode");
+        assertThat(result).containsKey("accounts_electronicDelivery_electronicDeliveryConsentIndicator");
 
-        assertEquals("[\"10721557\"]", result.get("accounts_signingOrderCode"));
-        assertEquals("[true]", result.get("accounts_electronicDelivery_electronicDeliveryConsentIndicator"));
+        assertThat(result.get("accounts_signingOrderCode")).isEqualTo("[\"10721557\"]");
+        assertThat(result.get("accounts_electronicDelivery_electronicDeliveryConsentIndicator"))
+                .isEqualTo("[true]");
     }
 
     @Test
@@ -64,7 +78,7 @@ public class MapFlattenerTest {
         // Circular reference is detected when we try to re-enter the same object
         // First level: processes "self" -> input (input not yet visited, so we enter it)
         // Second level: processes "self" -> input (input already visited, circular detected)
-        assertEquals("[CIRCULAR_REFERENCE]", result.get("self_self"));
+        assertThat(result.get("self_self")).isEqualTo("[CIRCULAR_REFERENCE]");
     }
 
     @Test
@@ -76,19 +90,19 @@ public class MapFlattenerTest {
         MapFlattener jsonFlattener = MapFlattener.builder()
                 .arrayFormat(MapFlattener.ArraySerializationFormat.JSON)
                 .build();
-        assertEquals("[1,2,3]", jsonFlattener.flatten(input).get("values"));
+        assertThat(jsonFlattener.flatten(input).get("values")).isEqualTo("[1,2,3]");
 
         // Comma separated
         MapFlattener commaFlattener = MapFlattener.builder()
                 .arrayFormat(MapFlattener.ArraySerializationFormat.COMMA_SEPARATED)
                 .build();
-        assertEquals("1,2,3", commaFlattener.flatten(input).get("values"));
+        assertThat(commaFlattener.flatten(input).get("values")).isEqualTo("1,2,3");
 
         // Pipe separated
         MapFlattener pipeFlattener = MapFlattener.builder()
                 .arrayFormat(MapFlattener.ArraySerializationFormat.PIPE_SEPARATED)
                 .build();
-        assertEquals("1|2|3", pipeFlattener.flatten(input).get("values"));
+        assertThat(pipeFlattener.flatten(input).get("values")).isEqualTo("1|2|3");
     }
 
     @Test
@@ -107,7 +121,7 @@ public class MapFlattenerTest {
         Map<String, Object> result = flattener.flatten(level1);
 
         // Should stringify level3 due to depth limit
-        assertTrue(result.get("level2_level3").toString().contains("value"));
+        assertThat(result.get("level2_level3").toString()).contains("value");
     }
 
     @Test
@@ -121,8 +135,8 @@ public class MapFlattenerTest {
 
         Map<String, Object> result = flattener.flatten(input);
 
-        assertNull(result.get("nullValue"));
-        assertNull(result.get("emptyList"));
-        assertNull(result.get("emptyMap"));
+        assertThat(result.get("nullValue")).isNull();
+        assertThat(result.get("emptyList")).isNull();
+        assertThat(result.get("emptyMap")).isNull();
     }
 }

@@ -1,13 +1,24 @@
 package io.github.pierce.examples;
 
-import io.github.pierce.MapFlattener;
 import io.github.pierce.GAvroSchemaFlattener;
-import org.apache.avro.Schema
+import io.github.pierce.MapFlattener;
+import org.apache.avro.Schema;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Example of using AvroSchemaFlattener in a streaming application
+ * Example of using AvroSchemaFlattener in a streaming application.
+ *
+ * <p>Ported from {@code src/test/groovy/StreamingProcessorExample.groovy}. The Groovy source
+ * relied on Groovy's implicit {@code java.util.*} import for {@code Map} and {@code List};
+ * those are explicit here. {@code writeToGlueTable} was {@code private} and is now
+ * {@code protected} so a test can observe what a batch actually produced — without that, the
+ * class is unobservable and cannot be asserted on, which is why it never was.</p>
+ *
+ * <p>Exercised by {@link StreamingProcessorExampleTest}. It is deliberately not named
+ * {@code *Test} itself: it is the example, not the test.</p>
  */
 public class StreamingProcessorExample {
 
@@ -56,7 +67,7 @@ public class StreamingProcessorExample {
     /**
      * Batch processing example
      */
-    public void processBatch(java.util.List<Map<String, Object>> records,
+    public void processBatch(List<Map<String, Object>> records,
                              Schema schema,
                              String schemaId) {
         // Flatten schema once for entire batch
@@ -74,7 +85,7 @@ public class StreamingProcessorExample {
         });
     }
 
-    private void writeToGlueTable(Map<String, Object> data) {
+    protected void writeToGlueTable(Map<String, Object> data) {
         // Your Glue writing logic here
         System.out.println("Writing to Glue: " + data);
     }

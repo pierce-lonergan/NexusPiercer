@@ -186,17 +186,38 @@ jobs:
       # and failed the build for writing idiomatic Java. A gate that blocks correct work is worse
       # than no gate, because the fix everyone reaches for is to switch it off.
       #
-      # So assert the real invariant directly — no Groovy in the shipped source — and keep the
-      # count as an observation rather than a verdict.
-      - name: Assert no Groovy in main sources
+      # So assert the real invariant directly — no Groovy anywhere — and keep the count as an
+      # observation rather than a verdict.
+      #
+      # REPOINTED 2026-08-11. This gate used to scan only `src/main`. That scope was written while
+      # the main tree was still being cleared, and it went trivially true the moment it did: from
+      # then on the gate passed unconditionally while 17 .groovy test files and the whole Groovy
+      # compiler plugin sat untouched in `src/test/groovy`. A gate that cannot fail is not a gate.
+      # It now scans the entire repository, which is the invariant the project actually wants, and
+      # it also asserts that the Groovy compiler plugin has not crept back into the POM.
+      #
+      # It uses `git ls-files`, not `find`. Drilling the gate locally showed why: `find .` also
+      # walks .claude/worktrees, which is gitignored and holds full working copies of the repo
+      # (old .groovy files included), so a find-based gate fails on a developer machine for a
+      # reason that has nothing to do with the repository. `git ls-files` measures exactly the
+      # tracked contents — no build output, no scratch worktrees, no untracked junk.
+      - name: Assert no Groovy anywhere in the repository
         run: |
-          COUNT=$(find src/main -name '*.groovy' | wc -l)
+          COUNT=$(git ls-files '*.groovy' | wc -l)
           if [[ "${COUNT}" -ne 0 ]]; then
-            echo "::error::${COUNT} .groovy files under src/main. The port to Java is a one-way door: Groovy costs dynamic dispatch on the per-record path and hides errors until runtime."
-            find src/main -name '*.groovy'
+            echo "::error::${COUNT} .groovy files tracked in the repository. The port to Java is a one-way door: Groovy costs dynamic dispatch on the per-record path and hides errors until runtime."
+            git ls-files '*.groovy'
             exit 1
           fi
-          echo "src/main is Groovy-free."
+          echo "Repository is Groovy-free."
+
+          PLUGIN=$(grep -c 'gmavenplus' pom.xml || true)
+          if [[ "${PLUGIN}" -ne 0 ]]; then
+            echo "::error::pom.xml references the Groovy compiler plugin ${PLUGIN} time(s). The Groovy toolchain was removed; it must not return."
+            grep -n 'gmavenplus' pom.xml
+            exit 1
+          fi
+          echo "pom.xml is free of the Groovy compiler plugin."
 
       - name: Report invokedynamic count (observation, not a gate)
         run: |
