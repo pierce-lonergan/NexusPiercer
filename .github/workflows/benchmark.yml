@@ -61,7 +61,7 @@ jobs:
 
       - name: Install the library into the local repository
         # The benchmarks project depends on the library ARTIFACT rather than its sources, so it
-        # measures exactly the bytecode that ships — including whatever groovyc emitted.
+        # measures exactly the bytecode that ships, not a recompilation under different flags.
         run: ./mvnw -B -ntp install -DskipTests -Dmaven.javadoc.skip=true -Dgpg.skip=true
 
       - name: Build the benchmark jar
@@ -153,9 +153,12 @@ jobs:
         run: ./mvnw -B -ntp clean compile -DskipTests
 
       - name: Count invokedynamic call sites
-        # Every Groovy dynamic call site is an invokedynamic. The count is a direct, zero-variance
-        # proxy for how much of the hot path is still dynamically dispatched. It must only ever go
-        # down; the target is 0 once the Groovy sources are ported to Java.
+        # This counted Groovy dynamic dispatch, every call site of which compiled to one
+        # invokedynamic. The Groovy sources are gone, so what it counts now is ordinary Java —
+        # lambdas, method references, string concatenation, record accessors — which grows with
+        # idiomatic code and carries no dynamic-dispatch cost. Reported for continuity with the
+        # 7,168 recorded before the port; NOT a target, and no longer a gate. See the note above
+        # the summary step.
         run: |
           TOTAL=0
           {
@@ -176,48 +179,18 @@ jobs:
           echo "$TOTAL" > indy-count.txt
           echo "Total invokedynamic: $TOTAL"
 
-      # LANGUAGE PURITY — this is the property the invokedynamic count was a proxy for.
+      # LANGUAGE PURITY IS NOT GATED HERE. It is gated by the `language-purity` job in ci.yml,
+      # which runs scripts/assert-groovy-free.sh.
       #
-      # The ratchet existed to track Groovy dynamic dispatch, which went 7,168 -> ~378 when the
-      # five .groovy sources were ported and is now ZERO. What remains is ordinary Java: lambdas,
-      # method references, string concatenation, and record accessors. Those legitimately grow.
+      # It was briefly gated here, on 2026-08-11, and that was a mistake worth recording. This
+      # workflow's pull_request trigger is path-filtered to src/main, benchmarks, pom.xml and
+      # itself (see the `paths:` list at the top of the file). A PR adding a .groovy file under
+      # src/test matches none of them, so the workflow never starts and no job in it — including
+      # this one — ever runs. The gate was correct and unreachable, which is indistinguishable
+      # from absent. ci.yml has no path filter, so that is where it belongs.
       #
-      # It fired as predicted: adding a `record` for cache statistics took the count 378 -> 381
-      # and failed the build for writing idiomatic Java. A gate that blocks correct work is worse
-      # than no gate, because the fix everyone reaches for is to switch it off.
-      #
-      # So assert the real invariant directly — no Groovy anywhere — and keep the count as an
-      # observation rather than a verdict.
-      #
-      # REPOINTED 2026-08-11. This gate used to scan only `src/main`. That scope was written while
-      # the main tree was still being cleared, and it went trivially true the moment it did: from
-      # then on the gate passed unconditionally while 17 .groovy test files and the whole Groovy
-      # compiler plugin sat untouched in `src/test/groovy`. A gate that cannot fail is not a gate.
-      # It now scans the entire repository, which is the invariant the project actually wants, and
-      # it also asserts that the Groovy compiler plugin has not crept back into the POM.
-      #
-      # It uses `git ls-files`, not `find`. Drilling the gate locally showed why: `find .` also
-      # walks .claude/worktrees, which is gitignored and holds full working copies of the repo
-      # (old .groovy files included), so a find-based gate fails on a developer machine for a
-      # reason that has nothing to do with the repository. `git ls-files` measures exactly the
-      # tracked contents — no build output, no scratch worktrees, no untracked junk.
-      - name: Assert no Groovy anywhere in the repository
-        run: |
-          COUNT=$(git ls-files '*.groovy' | wc -l)
-          if [[ "${COUNT}" -ne 0 ]]; then
-            echo "::error::${COUNT} .groovy files tracked in the repository. The port to Java is a one-way door: Groovy costs dynamic dispatch on the per-record path and hides errors until runtime."
-            git ls-files '*.groovy'
-            exit 1
-          fi
-          echo "Repository is Groovy-free."
-
-          PLUGIN=$(grep -c 'gmavenplus' pom.xml || true)
-          if [[ "${PLUGIN}" -ne 0 ]]; then
-            echo "::error::pom.xml references the Groovy compiler plugin ${PLUGIN} time(s). The Groovy toolchain was removed; it must not return."
-            grep -n 'gmavenplus' pom.xml
-            exit 1
-          fi
-          echo "pom.xml is free of the Groovy compiler plugin."
+      # Do not move it back. If a future edit wants a language check in this workflow, the
+      # `paths:` filter has to go first.
 
       - name: Report invokedynamic count (observation, not a gate)
         run: |
@@ -233,6 +206,14 @@ jobs:
             echo
             echo "Tracked, not gated. Was 7,168 before the Groovy port; the remainder is ordinary"
             echo "Java lambda, method-reference and record machinery, which grows legitimately."
-            echo "The enforced invariant is that \`src/main\` contains no Groovy."
+            echo "The enforced invariant is that NO \`.groovy\` file is tracked anywhere in the"
+            echo "repository, that no POM declares gmavenplus, a Groovy runtime or Spock, and that"
+            echo "no Groovy or Spock artifact reaches the resolved test classpath. It is enforced"
+            echo "by the \`no Groovy anywhere\` job in ci.yml, not here."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "${ACTUAL}" > benchmarks/results/indy-ceiling.txt
+
+          # There used to be an `echo "${ACTUAL}" > benchmarks/results/indy-ceiling.txt` here.
+          # Nothing committed it, so it wrote into a runner working copy that is thrown away at
+          # the end of the job — which is exactly how the tracked file came to say 378 while the
+          # real count was 413. A write that looks like it records something and records nothing
+          # is worse than no write; the file is updated by hand when someone looks at it.

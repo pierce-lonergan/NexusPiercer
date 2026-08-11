@@ -15,10 +15,6 @@ Files: src/test/java/*
 Copyright: 2025 Pierce Lonergan
 License: Apache-2.0
 
-Files: src/main/groovy/*
-Copyright: 2025 Pierce Lonergan
-License: Apache-2.0
-
 Files: docs/*
 Copyright: 2025 Pierce Lonergan
 License: Apache-2.0

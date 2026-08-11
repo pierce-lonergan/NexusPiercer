@@ -9,8 +9,11 @@
     "",
     "A ratchet resolves that. The gate does not demand zero; it demands 'no worse than today'.",
     "New debt is blocked from the first run, and every fix lowers the ceiling permanently. This is",
-    "the same mechanism already used for line coverage (jacoco.minimum.coverage) and for dynamic",
-    "dispatch (benchmarks/results/indy-ceiling.txt).",
+    "the same mechanism already used for line coverage (jacoco.minimum.coverage). It was also used",
+    "for dynamic dispatch (benchmarks/results/indy-ceiling.txt); that one was retired on",
+    "2026-08-11 because it counted invokedynamic as a proxy for Groovy, and with Groovy gone it",
+    "only counted lambdas and record accessors — it failed a build for adding a `record`. It is",
+    "now an observation. A ratchet on a metric that grows with correct work gets switched off.",
     "",
     "Checkstyle is NOT ratcheted — its 9 violations were all unused imports and were fixed",
     "outright, so it is a hard zero-tolerance gate.",
@@ -22,12 +25,33 @@
     "justification in the commit message and CODEOWNERS approval."
   ],
 
-  "recorded": "2026-08-10",
+  "recorded": "2026-08-11",
+
+  "_scope_2026_08_11": [
+    "WHY THE GROOVY REMOVAL LOWERED NOTHING HERE, measured rather than assumed.",
+    "",
+    "The removal deleted 7,778 lines of Groovy, all of it under src/test. It was predicted to",
+    "move SpotBugs down. It moved nothing, and the reason is that none of the three analysers",
+    "can see test code at all:",
+    "",
+    "  Checkstyle  <includeTestSourceDirectory>false</includeTestSourceDirectory>  (pom.xml)",
+    "  PMD         <includeTests>false</includeTests>                              (pom.xml)",
+    "  SpotBugs    target/spotbugsXml.xml records exactly one analysed <Jar>:",
+    "              target/classes. No test tree, no test classes.",
+    "",
+    "So the deletion was invisible to all three by construction, and equally the ~2,700 lines of",
+    "Java the port ADDED under src/test could not have raised them either. Counts re-measured",
+    "after the removal: Checkstyle 0, PMD 361, SpotBugs 241 — all three identical to the",
+    "pre-removal ceilings, which is the expected result once the scoping above is known.",
+    "",
+    "Recorded so the next reader does not spend the same hour rediscovering that a src/test",
+    "change cannot move a src/main metric."
+  ],
 
   "checkstyle": {
     "ceiling": 0,
     "mode": "zero-tolerance",
-    "note": "All 9 original violations were unused imports and are fixed."
+    "note": "All 9 original violations were unused imports and are fixed. Re-measured 0 on 2026-08-11 after the Groovy removal. Note this gate never saw the ported test sources: includeTestSourceDirectory is false, so the default-package AvroReconstructorTest that was moved into io.github.pierce during the port was moved for Java-tooling reasons, not because Checkstyle would have rejected it — Checkstyle was never going to look."
   },
 
   "pmd": {
@@ -48,7 +72,7 @@
   "spotbugs": {
     "ceiling": 241,
     "mode": "ratchet",
-    "note_2026_08_11": "UNCHANGED at 241 by the Groovy-toolchain removal, and that is itself the finding. SpotBugs analyses src/main only, so deleting ~7,800 lines of Groovy TEST code could not move it. The removal was expected to retire the spotbugs-exclude.xml block labelled 'Groovy-compiled classes'; it did not, because that label was already false. All five classes it names (AvroReconstructor, GAvroSchemaFlattener, JsonFlattener, JsonReconstructor, MapFlattener) are ordinary Java and have been since src/main was cleared. Measured by deleting the block: 241 -> 251. It actively masks 10 findings in hand-written Java - UPM_UNCALLED_PRIVATE_METHOD x5, SIC_INNER_SHOULD_BE_STATIC_ANON x3, RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE x2 - none of them a compiler artefact. The block was therefore RETAINED (deleting it would raise the ceiling, which is forbidden) but NARROWED from five suppressed patterns to the three that actually fire; the other two were a standing exemption for future code. FOLLOW-UP OWED: the five UPM findings are dead private methods in the shipped library - AvroReconstructor.calculateArraySize, .reconstructNestedArrayOfRecords, .unwrapUnion, GAvroSchemaFlattener.isNullable, MapFlattener.flattenSingleValue. Either they are unreachable and should be deleted, or a caller was lost and something is silently not running.",
+    "note_2026_08_11": "UNCHANGED at 241 by the Groovy-toolchain removal, and that is itself the finding. RE-MEASURED INDEPENDENTLY on 2026-08-11 during adversarial-review follow-up, because the review task asserted the exclude block 'named five now-deleted classes' and that SpotBugs should therefore fall. Both halves are false. (1) All five classes are present as ordinary Java: src/main/java/io/github/pierce/{AvroReconstructor,GAvroSchemaFlattener,JsonFlattener,JsonReconstructor,MapFlattener}.java. None was deleted, and src/main went Groovy-free well before this change, so nothing about porting src/test/groovy could have retired the block. Its old 'Groovy-compiled classes' label was already false when written. (2) Deleting the block and re-running spotbugs:spotbugs gives 251 <BugInstance> entries against 241 with it - 10 masked findings in hand-written Java, none a compiler artefact: UPM_UNCALLED_PRIVATE_METHOD x5, SIC_INNER_SHOULD_BE_STATIC_ANON x3, RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE x2. The block is therefore RETAINED - deleting it would RAISE the ceiling, which is forbidden - but was NARROWED from five suppressed patterns to the three that actually fire; NP_LOAD_OF_KNOWN_NULL_VALUE and UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD suppressed nothing and were a standing exemption for future code. No SpotBugs ceiling reduction was earned by the Groovy removal. FOLLOW-UP OWED: the five UPM findings are dead private methods in the SHIPPED library - AvroReconstructor.calculateArraySize, .reconstructNestedArrayOfRecords, .unwrapUnion, GAvroSchemaFlattener.isNullable, MapFlattener.flattenSingleValue. Either they are unreachable and should be deleted, or a caller was lost and something is silently not running. Not fixed here: changing library behaviour inside a build-tooling change would hide it.",
     "note": "242 -> 241 on 2026-08-10: the io.github.pierce.schema package added 6 findings and now contributes 0. Four were fixed (SE_BAD_FIELD x2 - FlattenOptions declared Serializable while holding non-serializable TypeMapper and LeafInterceptor fields, so it could not serialize at all, not even with defaults; UC_USELESS_OBJECT; SE_NO_SERIALVERSIONID). Two EI_EXPOSE_REP on FlattenedField are suppressed by named method in spotbugs-exclude.xml with reasoning. Still includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization."
   }
 }

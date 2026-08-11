@@ -30,8 +30,11 @@ updates:
       # Jackson is BOM-managed; splitting the modules across PRs guarantees convergence errors.
       jackson:
         patterns: ['com.fasterxml.jackson*']
+      # No org.spockframework here on purpose: Spock was removed with the Groovy toolchain on
+      # 2026-08-11 and must not come back — it is Groovy-native and drags the Groovy runtime onto
+      # the test classpath transitively. ci.yml's `no Groovy anywhere` job fails if it returns.
       test-tooling:
-        patterns: ['org.junit*', 'org.mockito:*', 'net.jqwik:*', 'org.spockframework:*', 'org.assertj:*']
+        patterns: ['org.junit*', 'org.mockito:*', 'net.jqwik:*', 'org.assertj:*']
       maven-plugins:
         patterns: ['org.apache.maven.plugins:*', 'org.codehaus.mojo:*']
 
@@ -40,11 +43,11 @@ updates:
       # compatibility matrix. Deliberate, hand-planned work — not a bot PR.
       - dependency-name: 'org.apache.spark:*'
         update-types: [version-update:semver-major]
-      # Groovy 5 is a migration, not an update: the workstation's lib/ already holds 5.0.0
-      # jars that disagree with the 4.0.21 the build uses, and the Groovy sources are slated
-      # for a port to Java. Pin until that resolves.
-      - dependency-name: 'org.apache.groovy:*'
-        update-types: [version-update:semver-major]
+      # REMOVED 2026-08-11: the 'org.apache.groovy:*' major-update pin. It existed because "the
+      # Groovy sources are slated for a port to Java. Pin until that resolves." That port has
+      # resolved — the toolchain, the runtime and Spock are all gone — so the rule was pinning a
+      # dependency the build no longer declares. Nothing to ignore, and leaving it would imply
+      # Groovy is still expected here.
 
   - package-ecosystem: github-actions
     directory: /

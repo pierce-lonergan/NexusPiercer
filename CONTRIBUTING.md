@@ -47,8 +47,8 @@ Every pull request runs three independent gates. All three must be green to merg
 
 | Axis | Workflow | What blocks you |
 |---|---|---|
-| **Correctness** | `ci.yml` | Any test failure on JDK 17 or 21, Linux or Windows. Coverage below the `jacoco.minimum.coverage` floor. A cold-clone build failure. Groovy sources compiling more than once. |
-| **Quality** | `quality.yml` | New dependencies with high-severity advisories. CodeQL security findings. Checkstyle/PMD/SpotBugs violations *(reporting only until Phase 2 — see the roadmap)*. |
+| **Correctness** | `ci.yml` | Any test failure on JDK 17 or 21, Linux or Windows. Coverage below the `jacoco.minimum.coverage` floor. A cold-clone build failure. Any `.groovy` file, or any Groovy/Spock coordinate, reappearing in the repository. |
+| **Quality** | `quality.yml` | New dependencies with high-severity advisories. CodeQL security findings. Checkstyle above 0, or PMD/SpotBugs above the ceilings in `.github/quality-baseline.json` — **blocking**, not reporting. |
 | **Performance** | `benchmark.yml` | Allocation per operation up more than 2% against baseline. Throughput down more than 10% with disjoint confidence intervals. |
 
 The performance gate is two-tier because allocation counters and wall-clock timings have very
@@ -104,8 +104,10 @@ repeated three times and `added type conversion logic` repeated seven; please do
 
 ## Adding tests
 
-- Java tests: `src/test/java`, named `*Test.java`.
-- Groovy tests: `src/test/groovy`, named `*Test.groovy`.
+- Java tests: `src/test/java`, named `*Test.java`. **Java only — this repository is Groovy-free.**
+  A `.groovy` file anywhere in the tree fails CI (`no Groovy anywhere` in `ci.yml`), and since the
+  compiler plugin was removed it would not be compiled or executed either: it would sit there
+  looking like a test and running nothing.
 - Property tests use [jqwik](https://jqwik.net/) and must be named `*Test.java` to be picked up
   by Surefire. A file named `*Properties.java` **will not run** — that mistake previously left 26
   property tests silently unexecuted.

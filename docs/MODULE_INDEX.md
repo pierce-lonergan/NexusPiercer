@@ -25,14 +25,14 @@ io.github.pierce
 | AvroSchemaLoader | Load Avro schemas from sources | ~200 | No |
 | CreateSparkStructFromAvroSchema | Generate Spark StructType | ~200 | No |
 
-**Groovy Classes:**
+**Formerly Groovy, ported to Java (all now in `src/main/java`):**
 | Class | Purpose | Lines | Explored |
 |-------|---------|-------|----------|
-| JsonFlattener | Groovy JSON flattening implementation | ~500 | No |
+| JsonFlattener | Fluent JSON flattening API over MapFlattener | ~500 | No |
 | JsonReconstructor | Reconstruct JSON from flattened | ~400 | No |
 | MapFlattener | Production Map flattening | 1300 | Partial |
 | AvroReconstructor | Reconstruct Avro from flattened | ~400 | No |
-| GAvroSchemaFlattener | Groovy Avro schema wrapper | ~200 | No |
+| GAvroSchemaFlattener | Avro schema wrapper (the `G` prefix is a fossil of its Groovy origin) | ~200 | No |
 
 ---
 

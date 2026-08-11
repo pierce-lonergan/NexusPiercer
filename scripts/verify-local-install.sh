@@ -108,7 +108,7 @@ LISTING="$(unzip -l "$UBER")"
 grep -c "com/fasterxml/jackson/" <<<"$LISTING" >/dev/null || fail "uber jar has no Jackson"
 grep -c "org/apache/avro/"       <<<"$LISTING" >/dev/null || fail "uber jar has no Avro"
 if grep -c "groovyjarjar\|/groovy/" <<<"$LISTING" >/dev/null 2>&1; then
-    fail "uber jar still bundles Groovy — src/main is pure Java, this should be test scope"
+    fail "uber jar bundles Groovy — this project has been Groovy-free since 2026-08-11 (no sources, no runtime, no Spock); a Groovy entry here means the toolchain came back. See scripts/assert-groovy-free.sh"
 fi
 pass "uber jar bundles Jackson and Avro, and no Groovy"
 

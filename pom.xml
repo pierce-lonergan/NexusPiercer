@@ -216,7 +216,20 @@
           raise this in the same PR. Lowering it to make a build pass is not permitted — see
           CONTRIBUTING.md.
         -->
-        <jacoco.minimum.coverage>0.58</jacoco.minimum.coverage>
+        <!--
+          0.58 -> 0.64 on 2026-08-11. Measured 0.6546 instruction coverage (26,483 covered /
+          40,455 total) on a local `./mvnw clean verify`, which is the WORST case available: that
+          run skipped 15 Spark tests, and CI's coverage job passes
+          -Dnexuspiercer.spark.tests=require so those run there. Coverage cannot fall below the
+          local figure on CI — the denominator is fixed by src/main and running more tests only
+          covers more of it — so 0.64 is safe on every leg of the matrix.
+
+          Not earned by the Groovy removal; the ported tests exercise the same src/main code the
+          .groovy ones did. This is pre-existing slack that surfaced on measuring, and a floor
+          seven points under reality is the same tolerated-debt shape the ratchet exists to
+          prevent. 1.5 points of headroom is left for run-to-run variation, per the rule below.
+        -->
+        <jacoco.minimum.coverage>0.64</jacoco.minimum.coverage>
         <pmd.violation.buildFailOnViolation>true</pmd.violation.buildFailOnViolation>
         <spotbugs.threshold>Low</spotbugs.threshold>
         <spotbugs.effort>Max</spotbugs.effort>

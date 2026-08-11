@@ -4,20 +4,18 @@
 
   DELIBERATELY A STANDALONE PROJECT, not a module of the library reactor.
 
-  Two reasons, in order of importance:
+  One reason now, where there used to be two:
 
-  1. Annotation processing vs. joint compilation. JMH generates its harness classes with an
-     annotation processor, which needs a javac pass. The library module interleaves
-     maven-compiler-plugin with a five-execution gmavenplus lifecycle
-     (addSources -> generateStubs -> compile, then the test equivalents). Running an annotation
-     processor inside that sequence means it sees a source tree that includes generated Java
-     stubs for the Groovy classes, which produces duplicate-class errors and ordering that
-     varies with which compile execution wins the race. Keeping benchmarks in a pure-Java
-     project with no gmavenplus avoids the problem outright.
+  1. It measures the shipped bytecode. This project depends on the library ARTIFACT, so JMH runs
+     against exactly what Maven Central receives — not a recompilation under different flags.
 
-  2. It measures the shipped bytecode. This project depends on the library ARTIFACT, so JMH runs
-     against exactly what groovyc emitted and what Maven Central receives — not a recompilation
-     under different flags.
+  2. EXPIRED 2026-08-11. The original first reason was annotation processing vs. joint
+     compilation: JMH generates its harness with an annotation processor, and the library module
+     interleaved maven-compiler-plugin with a five-execution gmavenplus lifecycle
+     (addSources -> generateStubs -> compile, then the test equivalents), so a processor there
+     would have seen a source tree containing generated Java stubs for the Groovy classes.
+     The Groovy toolchain was removed; that lifecycle no longer exists. Reason 1 is now carrying
+     the separation on its own — see benchmarks/README.md.
 
   Build the library first (`./mvnw install` in the parent directory), then:
 

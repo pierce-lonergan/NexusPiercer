@@ -31,7 +31,7 @@
 
 | ID | Category | Description | Location | Discovered |
 |----|----------|-------------|----------|------------|
-| C-001 | DEBT | JsonReconstructor.groovy is completely commented out (~1294 lines). Potential dead code or incomplete refactor that should be either removed or completed. | src/main/groovy/.../JsonReconstructor.groovy | Session 2 |
+| C-001 | DEBT | JsonReconstructor was completely commented out (~1294 lines) when filed; the file is now `src/main/java/.../JsonReconstructor.java` following the Groovy port. Potential dead code or incomplete refactor that should be either removed or completed. | src/main/java/.../JsonReconstructor.java | Session 2 |
 
 ---
 
@@ -39,7 +39,7 @@
 
 | ID | Category | Description | Location | Discovered |
 |----|----------|-------------|----------|------------|
-| C-002 | MAINTAINABILITY | Naming confusion: JsonFlattenerConsolidator (Java) vs JsonFlattener (Groovy) serve different purposes but similar names may confuse developers | src/main/java, src/main/groovy | Session 2 |
+| C-002 | MAINTAINABILITY | Naming confusion: JsonFlattenerConsolidator vs JsonFlattener serve different purposes but similar names may confuse developers. Both are Java as of 2026-08-11 — the language difference that once distinguished them is gone | src/main/java | Session 2 |
 
 ---
 
@@ -47,7 +47,7 @@
 
 | ID | Category | Description | Location | Discovered |
 |----|----------|-------------|----------|------------|
-| I-001 | ARCHITECTURE | Dual implementations: Java JsonFlattenerConsolidator + Groovy JsonFlattener exist | src/main | Session 1 |
+| I-001 | ARCHITECTURE | Dual implementations: JsonFlattenerConsolidator + JsonFlattener exist (both Java since 2026-08-11; the language split that framed this is gone — see BL-001, closed) | src/main | Session 1 |
 | I-002 | DOCUMENTATION | Comprehensive READMEs with examples provided | Root | Session 1 |
 | I-003 | ARCHITECTURE | Heavy use of Builder pattern across flatteners | Multiple | Session 1 |
 | I-004 | PERFORMANCE | Schema caching implemented with ConcurrentHashMap | NexusPiercerSparkPipeline, AvroSchemaFlattener | Session 1 |

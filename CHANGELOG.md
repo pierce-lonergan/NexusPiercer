@@ -77,11 +77,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 - `lib/` is now gitignored. It held 16MB of Groovy 5.0.0 jars, untracked but not ignored, while
-  the build compiles against Groovy 4.0.21 — one `git add -A` away from entering permanent history.
+  the build still compiled against Groovy 4.0.21 — one `git add -A` away from entering permanent
+  history. The Groovy toolchain has since been removed entirely (see **Removed** below); the
+  directory is still ignored because nothing in the build has ever read it.
+- Coverage floor `jacoco.minimum.coverage` raised `0.58` → `0.64` against a measured 65.46%
+  instruction coverage. Ratchets only tighten.
 - `README.md` now documents the API that exists. The previous documentation described four
   `NexusPiercerPatterns` methods that were never implemented; the class has two.
 
 ### Removed
+- **The Groovy toolchain, entirely.** No build-visible change for consumers — `src/main` had been
+  pure Java for some time and the published artifact never contained Groovy — but the build no
+  longer has a second language in it.
+  - `gmavenplus-plugin` deleted from `pom.xml`, along with both of its declarations (it had been
+    declared in *both* `pluginManagement` and `build/plugins` with different execution ids, so
+    Maven merged rather than overrode them and compiled every Groovy source twice per build).
+  - The Groovy runtime (`org.apache.groovy:groovy`, `:groovy-json`) and **Spock**
+    (`org.spockframework:spock-core`) dropped as dependencies. Spock is Groovy-native and pulls
+    the Groovy runtime back onto the test classpath transitively, so leaving it declared would
+    have kept the toolchain alive after the compiler plugin was gone. The repository contained no
+    Spock specification.
+  - The last 17 `.groovy` test sources (7,778 lines) ported to Java under `src/test/java`, with
+    **no loss of test coverage, verified by building both sides**: the pre-port tree was rebuilt
+    in a worktree at `fc1139e` and compared on Maven's summary line. Whole suite 2325 -> 2333,
+    0 failures both sides, 15 skipped both sides; the 14 case-bearing ported classes contribute
+    232 before and 232 after, matching one-for-one per class. The +8 is two new test classes for
+    example classes that previously had none. Packages preserved — including the two legitimate same-simple-name collisions between
+    `io.github.pierce.avro.AvroSchemaFlattenerTest` and
+    `io.github.pierce.avroTesting.AvroSchemaFlattenerTest`. `AvroReconstructorTest` was in the
+    default package and now lives in `io.github.pierce`.
+  - Replaced the now-vacuous "Groovy compiles exactly once" CI assertion with a
+    `no Groovy anywhere` gate (`scripts/assert-groovy-free.sh`, run from `ci.yml`): it fails on any
+    tracked `.groovy` file, on any POM declaring `gmavenplus`/Groovy/Spock, and on any Groovy or
+    Spock artifact reaching the resolved test classpath.
 - `maven-publish.yml` from the repository root, where GitHub Actions never executed it.
   Superseded by `.github/workflows/release.yml`.
 

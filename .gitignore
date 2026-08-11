@@ -2,10 +2,11 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 
 ### Locally-downloaded jars ###
-# 16MB of Groovy 5.0.0 jars live here on at least one workstation while the build
-# compiles against Groovy 4.0.21. Maven owns dependency resolution; nothing in the
-# build reads this directory. Ignored so a stray `git add -A` cannot write binaries
-# into the permanent history of a published repository.
+# 16MB of hand-downloaded jars live here on at least one workstation — they were Groovy
+# 5.0.0 runtime jars, left over from before the Groovy toolchain was removed on 2026-08-11.
+# Maven owns dependency resolution; nothing in the build has ever read this directory.
+# Ignored so a stray `git add -A` cannot write binaries into the permanent history of a
+# published repository.
 lib/
 
 ### Agent-harness scratch ###

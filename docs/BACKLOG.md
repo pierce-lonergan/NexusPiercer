@@ -122,12 +122,12 @@ that the knobs are dead.
 
 ## Medium Priority
 
-### [BL-007] Investigate and Resolve JsonReconstructor.groovy
+### [BL-007] Investigate and Resolve JsonReconstructor
 - **Type:** Chore
 - **Priority:** Medium
 - **Effort:** M
 - **Related Concern:** C-001
-- **Affected Files:** `src/main/groovy/io/github/pierce/JsonReconstructor.groovy`
+- **Affected Files:** `src/main/java/io/github/pierce/JsonReconstructor.java` (was `src/main/groovy/.../JsonReconstructor.groovy` when filed)
 - **Description:** The entire JsonReconstructor class (~1294 lines) is commented out. Need to determine if this is dead code to be removed, an incomplete feature to be finished, or was disabled for a specific reason. The class appears to provide schema-less JSON reconstruction, complementing the schema-based AvroReconstructor.
 - **Acceptance Criteria:** Either (a) remove the file and update any references, or (b) uncomment and test the implementation, or (c) document why it's disabled
 - **Discovered:** Session 2
@@ -142,7 +142,7 @@ that the knobs are dead.
 - **Effort:** XS
 - **Related Concern:** C-002
 - **Affected Files:** README.md, class JavaDocs
-- **Description:** The naming of JsonFlattenerConsolidator (Java) vs JsonFlattener (Groovy) is confusing since they serve different purposes. JsonFlattener is actually a fluent wrapper around MapFlattener. Consider adding clarifying documentation or renaming for clarity.
+- **Description:** The naming of JsonFlattenerConsolidator vs JsonFlattener is confusing since they serve different purposes. (Filed when one was Java and the other Groovy; both are Java now, which removes the only cue distinguishing them and makes this *more* worth doing, not less.) JsonFlattener is actually a fluent wrapper around MapFlattener. Consider adding clarifying documentation or renaming for clarity.
 - **Acceptance Criteria:** README section explaining the purpose and relationship of each flattener class
 - **Discovered:** Session 2
 
@@ -160,23 +160,13 @@ that the knobs are dead.
 
 ## Ideas / Future Consideration
 
-### [BL-001] Document Java vs Groovy Implementation Choice
-- **Type:** Documentation
-- **Priority:** Low
-- **Effort:** S
-- **Related Concern:** I-001
-- **Affected Files:** README.md, docs/
-- **Description:** Clarify when to use JsonFlattenerConsolidator (Java) vs JsonFlattener (Groovy) and their differences
-- **Acceptance Criteria:** README section explaining implementation choice and use cases
-- **Discovered:** Session 1
-
 ### [BL-002] API Reference Documentation
 - **Type:** Documentation
 - **Priority:** Low
 - **Effort:** M
 - **Related Concern:** N/A
 - **Affected Files:** docs/
-- **Description:** Generate comprehensive API reference documentation (Javadoc/Groovydoc)
+- **Description:** Generate comprehensive API reference documentation (Javadoc)
 - **Acceptance Criteria:** Published API docs for all public classes
 - **Discovered:** Session 1
 
@@ -189,6 +179,27 @@ that the knobs are dead.
 |----|-------|-----------|-----|
 | BL-003 | Remove org.json dependency (license compliance) | 2025-12-08 | Session 2 |
 | BL-004 | Dependency Hygiene & Modernization | 2025-12-08 | Session 3 |
+| BL-001 | Document Java vs Groovy Implementation Choice | 2026-08-11 | Groovy toolchain removal |
+
+### [BL-001] Document Java vs Groovy Implementation Choice — CLOSED, NOT ANSWERED ✅
+- **Type:** Documentation
+- **Priority:** Low
+- **Effort:** S
+- **Related Concern:** I-001
+- **Original description:** Clarify when to use JsonFlattenerConsolidator (Java) vs JsonFlattener
+  (Groovy) and their differences.
+- **Resolution:** **The choice was removed rather than documented.** On 2026-08-11 the Groovy
+  toolchain was deleted — `gmavenplus-plugin`, the Groovy runtime, Spock, and the last 17
+  `.groovy` test sources. `src/main` had already been ported. There is no longer a Java-vs-Groovy
+  decision for a user or a contributor to make: every class in this project is Java 17, and
+  `ci.yml`'s `no Groovy anywhere` job fails the build if a `.groovy` file returns.
+- **Why closed rather than left open:** the item asked for documentation of a distinction that no
+  longer exists. Leaving it open would keep an action item pointed at a language the project does
+  not use, and would imply to a reader of this backlog that the choice is still live.
+- **What survives:** the *naming* confusion between `JsonFlattenerConsolidator` and
+  `JsonFlattener` is real and independent of language — they are two different Java classes with
+  similar names. That is tracked separately by **BL-008** and **BL-009**, both still open.
+- **Completed:** 2026-08-11
 
 ### [BL-004] Dependency Hygiene & Modernization — COMPLETED ✅
 - **Type:** Chore

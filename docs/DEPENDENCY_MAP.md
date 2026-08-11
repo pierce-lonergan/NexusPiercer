@@ -16,7 +16,6 @@
 | Guava | 33.3.1-jre | Google core libraries | compile |
 | Commons IO | 2.15.0 | File utilities | compile |
 | SLF4J | 2.0.16 | Logging facade | compile |
-| Groovy | 4.0.21 | Groovy language support | compile |
 
 > **NOTE:** org.json was removed and replaced with Jackson for license compliance (Apache 2.0 vs JSON License)
 
@@ -25,7 +24,6 @@
 | Dependency | Version | Purpose |
 |------------|---------|---------|
 | JUnit 5 | 5.11.3 | Testing framework |
-| Spock | 2.3-groovy-4.0 | Groovy testing framework |
 | Mockito | 5.7.0 | Mocking framework |
 | AssertJ | 3.24.2 | Fluent assertions |
 | jqwik | 1.9.3 | Property-based testing |

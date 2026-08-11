@@ -6,14 +6,22 @@ JMH harness for the flatten, reconstruct, and round-trip paths.
 
 It is not a module of the library reactor, and that is deliberate.
 
-JMH generates its harness through an annotation processor. The library module interleaves
-`maven-compiler-plugin` with a five-execution gmavenplus lifecycle, so an annotation processor
-added there runs against a source tree that includes generated Java stubs for the Groovy classes
-— producing duplicate-class errors and ordering that depends on which compile execution wins.
+It depends on the library **artifact**, not its sources, so JMH measures exactly the bytecode
+that ships to Maven Central rather than a recompilation under different flags. That is the whole
+of the current justification.
 
-Keeping the benchmarks in a pure-Java project sidesteps that, and buys something more valuable:
-this project depends on the library **artifact**, so JMH measures exactly the bytecode that ships
-to Maven Central rather than a recompilation under different flags.
+It used to be half. The original rationale led with a second reason: JMH generates its harness
+through an annotation processor, and the library module interleaved `maven-compiler-plugin` with
+a five-execution gmavenplus lifecycle, so a processor added there would have run against a source
+tree containing generated Java stubs for the Groovy classes — duplicate-class errors and ordering
+that depended on which compile execution won the race.
+
+**That reason expired on 2026-08-11**, when the Groovy toolchain was removed. There is no
+gmavenplus lifecycle and no stub generation; the library module is a plain `maven-compiler-plugin`
+build. Whether the separation is still worth its cost — a second reactor, a manual `install` step,
+a `dependency-reduced-pom.xml` checked into the tree — now rests entirely on the artifact-fidelity
+argument above. Recorded rather than silently deleted, because the answer may be that these should
+be merged back, and that decision should be taken knowingly rather than inherited.
 
 ## Running
 

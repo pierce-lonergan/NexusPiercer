@@ -256,10 +256,15 @@ class DeepNestingDiagnosticTest {
 
             System.out.println("\n" + verification.getReport());
             assertThat(verification.isPerfect()).isTrue();
-        } catch (RuntimeException e) {
-            // The Groovy original caught Exception and rethrew it. AssertionError is not an
-            // Exception, so the assertThat above was never caught there either — the catch only
-            // ever saw reconstruction blowing up, and it always rethrew.
+        } catch (Exception e) {
+            // Deliberately as broad as the Groovy original's `catch (Exception e)`. The port had
+            // narrowed this to RuntimeException, which changes nothing observable — both branches
+            // rethrow unconditionally and reconstructToMap declares no checked exception — but it
+            // was the one place the port altered exception-handling breadth rather than syntax,
+            // and the diagnostic banner below is the entire reason this catch exists.
+            //
+            // AssertionError is not an Exception, so the assertThat above is not caught here and
+            // was not caught in the Groovy either: this only ever sees reconstruction blowing up.
             System.out.println("Reconstruction failed!");
             System.out.println("Error: " + e.getMessage());
             e.printStackTrace();

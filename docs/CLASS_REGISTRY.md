@@ -100,7 +100,7 @@ Each class entry follows this structure:
 - **NOTE:** Refactored to use Jackson (Apache 2.0) instead of org.json
 
 ### MapFlattener
-- **File:** `src/main/groovy/io/github/pierce/MapFlattener.groovy`
+- **File:** `src/main/java/io/github/pierce/MapFlattener.java`
 - **Layer:** DOMAIN
 - **Type:** Service (Builder Pattern)
 - **Responsibility:** Production-hardened Map-to-flat-Map transformation with circular reference detection
@@ -124,7 +124,7 @@ Each class entry follows this structure:
 - **Concerns:** None identified yet
 
 ### JsonFlattener
-- **File:** `src/main/groovy/io/github/pierce/JsonFlattener.groovy`
+- **File:** `src/main/java/io/github/pierce/JsonFlattener.java`
 - **Layer:** DOMAIN
 - **Type:** Service (Fluent API)
 - **Responsibility:** Production-grade JSON flattening utility with fluent API, streaming, batch processing, and comprehensive I/O support
@@ -143,7 +143,7 @@ Each class entry follows this structure:
 - **NOTE:** This is a fluent wrapper around MapFlattener, NOT a duplicate of JsonFlattenerConsolidator
 
 ### JsonReconstructor ⚠️ COMMENTED OUT
-- **File:** `src/main/groovy/io/github/pierce/JsonReconstructor.groovy`
+- **File:** `src/main/java/io/github/pierce/JsonReconstructor.java`
 - **Layer:** DOMAIN
 - **Type:** Service (INACTIVE)
 - **Responsibility:** Schema-less reconstruction of hierarchical JSON from flattened data
@@ -162,7 +162,7 @@ Each class entry follows this structure:
 - **NOTE:** Unlike AvroReconstructor which is active, this is completely inactive
 
 ### AvroReconstructor
-- **File:** `src/main/groovy/io/github/pierce/AvroReconstructor.groovy`
+- **File:** `src/main/java/io/github/pierce/AvroReconstructor.java`
 - **Layer:** DOMAIN
 - **Type:** Service (Builder Pattern)
 - **Responsibility:** Proof-of-concept reconstructor that perfectly rebuilds hierarchical Avro GenericRecords from flattened Maps using schema guidance
@@ -185,10 +185,10 @@ Each class entry follows this structure:
 - **Concerns:** None identified — well-designed with comprehensive verification
 
 ### GAvroSchemaFlattener
-- **File:** `src/main/groovy/io/github/pierce/GAvroSchemaFlattener.groovy`
+- **File:** `src/main/java/io/github/pierce/GAvroSchemaFlattener.java`
 - **Layer:** DOMAIN
 - **Type:** Service
-- **Responsibility:** Groovy wrapper/extension for AvroSchemaFlattener
+- **Responsibility:** Wrapper/extension for AvroSchemaFlattener (the `G` prefix is a fossil of its Groovy origin; the class is Java)
 - **Collaborators:** AvroSchemaFlattener
 - **Used By:** Unknown — needs exploration
 - **State:** Unknown
