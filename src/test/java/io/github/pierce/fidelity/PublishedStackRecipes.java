@@ -28,6 +28,15 @@ import java.util.Map;
  *
  * <p>The {@code SNIPPET-BEGIN}/{@code SNIPPET-END} markers delimit exactly the lines the manifest
  * publishes. {@code FidelitySnippetSource} extracts between them, from this file on disk.</p>
+ *
+ * <p><b>The sentence above is only true because of two invariants that were missing.</b> "A snippet
+ * cannot survive test-compile while being wrong" is a claim about compiled code, and marker text is
+ * not compiled code: javac accepts comments too. Adversarial review pasted a byte-identical copy of
+ * the MAP region into a block comment above {@link #stackMap} and changed the real body at the same
+ * time; every group of the gate stayed green while a different recipe executed. The extractor now
+ * requires each marker line to be UNIQUE and each region to lie strictly inside the source range of
+ * the method the execution tests call. Do not add a second copy of a marker anywhere in this file,
+ * commented or not - the gate will refuse to run rather than guess which one is the recipe.</p>
  */
 final class PublishedStackRecipes {
 

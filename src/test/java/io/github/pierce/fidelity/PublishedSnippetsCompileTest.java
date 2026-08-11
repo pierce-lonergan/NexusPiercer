@@ -34,13 +34,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * the statically cached {@code getFlattenedSchema(Schema)}, which none of the corpus's
  * measurements had ever executed.</p>
  *
- * <h2>Why there are five groups and not one</h2>
+ * <h2>Why there are six groups and not one</h2>
  *
  * <p>The identity test is parameterized over {@code manifest.stacks}. Gut that block and it runs
  * zero invocations and passes - the repository's signature pathology, sitting inside the fix for
  * it. So coverage is asserted by COUNT against three independently derived sets, and invocation is
  * asserted by count too, because a recipe can be declared, marker-delimited, published,
  * byte-compared and never once called.</p>
+ *
+ * <p>Group 6 exists because adversarial review broke groups 1-5 together. Text identity against a
+ * marker region is not identity against compiled code: javac accepts comments, and a byte-identical
+ * copy of the MAP region in a block comment above the real method made every group pass while a
+ * different body executed. {@link FidelitySnippetSource} now requires each marker to be unique and
+ * each region to sit strictly inside the method the execution group calls; group 6 drills both
+ * against synthetic decoys, and re-checks the real file so the new invariants are not simply
+ * rejecting everything.</p>
  */
 @DisplayName("The published stack recipes compile, match the manifest, and run")
 class PublishedSnippetsCompileTest {
@@ -49,12 +57,14 @@ class PublishedSnippetsCompileTest {
     private static final com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>> MAPS =
             new com.fasterxml.jackson.core.type.TypeReference<>() { };
 
-    /** Every recipe method on {@link PublishedStackRecipes}, keyed by its published stack name. */
-    private static final Map<String, String> RECIPE_METHODS = Map.of(
-            "MAP", "stackMap",
-            "JSON", "stackJson",
-            "AVRO", "stackAvroData",
-            "AVRO_SCHEMA", "stackAvroSchema");
+    /**
+     * Every recipe method, keyed by its published stack name.
+     *
+     * <p>Read from {@link FidelitySnippetSource} rather than declared here, because the extractor
+     * now binds each marker region to the named method. A second copy of the mapping would let the
+     * gate check one method's text while executing another's.</p>
+     */
+    private static final Map<String, String> RECIPE_METHODS = FidelitySnippetSource.RECIPE_METHODS;
 
     static Stream<String> publishedStacks() {
         JsonNode stacks = FidelityCorpus.manifest().get("stacks");
@@ -74,10 +84,12 @@ class PublishedSnippetsCompileTest {
     @DisplayName("every published snippet is byte-identical to a compiled method body")
     void publishedSnippetIsACompiledMethodBody(String stack) {
         assertThat(FidelityCorpus.manifest().get("stacks").get(stack).path("code").asText())
-                .as("manifest.stacks.%s.code is not the text between the SNIPPET markers in %s. "
-                        + "A published recipe that nothing compiles is a recipe that can be wrong "
-                        + "forever; the manifest string must be a copy of a region javac accepted.",
-                        stack, FidelitySnippetSource.RECIPES)
+                .as("manifest.stacks.%s.code is not the text between the SNIPPET markers inside "
+                        + "%s() in %s. A published recipe that nothing compiles is a recipe that "
+                        + "can be wrong forever; the manifest string must be a copy of the lines "
+                        + "javac compiled into the method the execution group below runs - not "
+                        + "merely of some region javac accepted, which a comment also is.",
+                        stack, FidelitySnippetSource.methodFor(stack), FidelitySnippetSource.RECIPES)
                 .isEqualTo(FidelitySnippetSource.extract(stack));
     }
 
@@ -199,12 +211,12 @@ class PublishedSnippetsCompileTest {
     @DisplayName("extraction refuses a missing file, a missing marker and a blank region")
     void theExtractorRefusesEveryDegenerateInput() throws Exception {
         Path missing = FidelityCorpus.moduleRoot().resolve("target/no-such-recipes.java");
-        assertThatThrownBy(() -> FidelitySnippetSource.extract(missing, "MAP"))
+        assertThatThrownBy(() -> FidelitySnippetSource.extractMarkerRegion(missing, "MAP"))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("does not");
 
         Path real = FidelitySnippetSource.recipesFile();
-        assertThatThrownBy(() -> FidelitySnippetSource.extract(real, "NO_SUCH_STACK"))
+        assertThatThrownBy(() -> FidelitySnippetSource.extractMarkerRegion(real, "NO_SUCH_STACK"))
                 .as("a renamed marker must fail loudly; returning \"\" would disarm every identity "
                         + "assertion at once while leaving the test names green")
                 .isInstanceOf(AssertionError.class)
@@ -214,21 +226,133 @@ class PublishedSnippetsCompileTest {
         java.nio.file.Files.createDirectories(blank.getParent());
         java.nio.file.Files.writeString(blank,
                 "// SNIPPET-BEGIN MAP\n// SNIPPET-END MAP\n", java.nio.charset.StandardCharsets.UTF_8);
-        assertThatThrownBy(() -> FidelitySnippetSource.extract(blank, "MAP"))
+        assertThatThrownBy(() -> FidelitySnippetSource.extractMarkerRegion(blank, "MAP"))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("blank");
 
         Path swapped = FidelityCorpus.moduleRoot().resolve("target/swapped-recipes.java");
         java.nio.file.Files.writeString(swapped,
                 "// SNIPPET-END MAP\nx\ny\n// SNIPPET-BEGIN MAP\n", java.nio.charset.StandardCharsets.UTF_8);
-        assertThatThrownBy(() -> FidelitySnippetSource.extract(swapped, "MAP"))
+        assertThatThrownBy(() -> FidelitySnippetSource.extractMarkerRegion(swapped, "MAP"))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("out of order");
+
+        assertThatThrownBy(() -> FidelitySnippetSource.methodFor("NO_SUCH_STACK"))
+                .as("a published stack with no compiled method behind it must refuse to extract "
+                        + "rather than fall back to marker-only text")
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("no compiled recipe method");
 
         String published = FidelityCorpus.manifest().get("stacks").get("MAP").path("code").asText();
         assertThat(published.replace("MapFlattener", "MapFlattenerX"))
                 .as("a one-character manifest edit must break identity")
                 .isNotEqualTo(FidelitySnippetSource.extract("MAP"));
+    }
+
+    // ------------------------------------------------------------------ 6. the comment bypass
+
+    /**
+     * The bypass adversarial review actually executed, reduced to a unit test.
+     *
+     * <p>Review pasted a byte-identical copy of the MAP marker region into a block comment above
+     * the real method and simultaneously changed the compiled body. Every group stayed green: the
+     * identity check matched the comment, and a different recipe executed. Both halves of the fix
+     * are drilled here - the duplicate marker, and a region that is only ever inside a comment -
+     * plus the {@code AVRO} / {@code AVRO_SCHEMA} prefix collision that {@code contains} had.
+     */
+    @Test
+    @DisplayName("a commented-out copy of a recipe cannot be published as the recipe")
+    void theExtractorRefusesAMarkerRegionThatIsNotTheCompiledBody() throws Exception {
+        Path duplicated = write("target/duplicated-recipes.java",
+                "final class Decoy {",
+                "    /*",
+                "        // SNIPPET-BEGIN MAP",
+                "        int decoyOne = 1;",
+                "        int decoyTwo = 2;",
+                "        // SNIPPET-END MAP",
+                "    */",
+                "    static Map<String, Object> stackMap(Map<String, Object> src) {",
+                "        // SNIPPET-BEGIN MAP",
+                "        int realOne = 3;",
+                "        int realTwo = 4;",
+                "        // SNIPPET-END MAP",
+                "        return null;",
+                "    }",
+                "}");
+        assertThatThrownBy(() ->
+                FidelitySnippetSource.extract(duplicated, "MAP", "stackMap"))
+                .as("two identical BEGIN markers must stop the gate. Taking the first is how a "
+                        + "comment gets published while other code runs.")
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("appears 2 times");
+
+        Path commentOnly = write("target/comment-only-recipes.java",
+                "final class Decoy {",
+                "    /*",
+                "        // SNIPPET-BEGIN MAP",
+                "        int decoyOne = 1;",
+                "        int decoyTwo = 2;",
+                "        // SNIPPET-END MAP",
+                "    */",
+                "    static Map<String, Object> stackMap(Map<String, Object> src) {",
+                "        return null;",
+                "    }",
+                "}");
+        assertThatThrownBy(() ->
+                FidelitySnippetSource.extract(commentOnly, "MAP", "stackMap"))
+                .as("a unique marker region that lies OUTSIDE the executed method is still not the "
+                        + "recipe; uniqueness alone would accept it")
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("strictly inside the body of stackMap");
+        assertThat(FidelitySnippetSource.extractMarkerRegion(commentOnly, "MAP"))
+                .as("CONTROL: the same file extracts fine when nothing binds the region to a "
+                        + "method, which is precisely why the marker-only extractor must not be "
+                        + "what the identity assertion calls")
+                .isEqualTo("int decoyOne = 1;\nint decoyTwo = 2;");
+
+        Path reordered = write("target/reordered-recipes.java",
+                "final class Decoy {",
+                "    static Schema stackAvroSchema(Schema schema) {",
+                "        // SNIPPET-BEGIN AVRO_SCHEMA",
+                "        int schemaOne = 1;",
+                "        int schemaTwo = 2;",
+                "        // SNIPPET-END AVRO_SCHEMA",
+                "        return null;",
+                "    }",
+                "    static Map<String, Object> stackAvroData(Schema schema, Map<String, Object> d) {",
+                "        // SNIPPET-BEGIN AVRO",
+                "        int dataOne = 3;",
+                "        int dataTwo = 4;",
+                "        // SNIPPET-END AVRO",
+                "        return null;",
+                "    }",
+                "}");
+        assertThat(FidelitySnippetSource.extract(reordered, "AVRO", "stackAvroData"))
+                .as("SNIPPET-BEGIN AVRO must not match SNIPPET-BEGIN AVRO_SCHEMA. Under contains() "
+                        + "this ordering silently retargeted the AVRO gate at the schema recipe.")
+                .isEqualTo("int dataOne = 3;\nint dataTwo = 4;");
+
+        int controls = 0;
+        for (Map.Entry<String, String> e : RECIPE_METHODS.entrySet()) {
+            assertThat(FidelitySnippetSource.extract(e.getKey()))
+                    .as("CONTROL: %s still extracts from the real recipes file, so the two new "
+                            + "invariants reject decoys rather than everything", e.getKey())
+                    .isEqualTo(FidelitySnippetSource.extractMarkerRegion(
+                            FidelitySnippetSource.recipesFile(), e.getKey()));
+            controls++;
+        }
+        assertThat(controls).as("VERIFY THE COUNT: the control loop above is the only thing "
+                + "standing between 'the new invariants reject decoys' and 'the new invariants "
+                + "reject everything', and it is a loop over a map - empty map, zero assertions, "
+                + "green test").isEqualTo(4);
+    }
+
+    private static Path write(String relative, String... lines) throws Exception {
+        Path file = FidelityCorpus.moduleRoot().resolve(relative);
+        java.nio.file.Files.createDirectories(file.getParent());
+        java.nio.file.Files.writeString(file, String.join("\n", lines) + "\n",
+                java.nio.charset.StandardCharsets.UTF_8);
+        return file;
     }
 
     // ------------------------------------------------------------------ per-row recipe verdict

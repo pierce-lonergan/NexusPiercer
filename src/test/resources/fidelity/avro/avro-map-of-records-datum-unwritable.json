@@ -4,12 +4,12 @@
   "title" : "The map-of-records control document, taken through reconstruct() instead of reconstructToMap()",
   "stack" : "AVRO",
   "referenceIssue" : "",
-  "rationale" : "The twin avro-map-of-records-control needs so that its requalification is an assertion rather than an argument by analogy with the array row. A map with record VALUES goes through the same one-level mapToGenericRecord copy, so attrs is set as a Map of LinkedHashMap and GenericData.validate fails on the value type.",
-  "catchesBugClass" : "A fix that repairs arrays and plain nested records but leaves map values untyped - the third container shape, reached by a different branch of genericRecordToMap.",
-  "cannotCatch" : "A map with SCALAR values is untouched by this defect and is not exercised here, so the row cannot separate 'maps are broken' from 'record values are broken'. It says nothing about map keys, which are Utf8 on the way out and String on the way in.",
+  "rationale" : "Byte-identical avsc and input to avro-map-of-records-control, which is published LOSSLESS. The ONLY difference between the two rows is which sibling entry point is called, exactly as in the array pair. It did not start that way: this row shipped with a different schema (a one-field Attr) and a different document (keys a and b), while the control's requalification claimed 'same schema, same input' - so a LOSSLESS row was requalified by the argument-by-analogy its own text said it was not. A map with record VALUES goes through the same one-level mapToGenericRecord copy, so attrs is set as a Map of LinkedHashMap and GenericData.validate fails on the value type.",
+  "catchesBugClass" : "A fix that repairs arrays and plain nested records but leaves map values untyped - the third container shape, reached by a different branch of genericRecordToMap. Because the document now carries the control's hum_pct key, it also catches a repair that types map values correctly but loses the separator escaping on the key while doing it.",
+  "cannotCatch" : "A map with SCALAR values is untouched by this defect and is not exercised here, so the row cannot separate 'maps are broken' from 'record values are broken'. It says nothing about map keys colliding with a sibling record field name, and nothing about Utf8-versus-String key identity on the way out.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "attrs is a LinkedHashMap of LinkedHashMap; validate fails on the value type and the encode throws."
+    "detail" : "attrs{temp} and attrs{hum_pct} are both LinkedHashMaps; validate fails on the value type and the encode throws. avroDoc equals avroBaseline as in the array twin, so the checksHold conjunction is again load-bearing."
   },
   "configDescription" : "assert DATUM",
   "config" : {
@@ -17,7 +17,7 @@
       "assert" : "DATUM",
       "avsc" : {
         "type" : "record",
-        "name" : "Bag",
+        "name" : "Reading",
         "namespace" : "com.example",
         "fields" : [ {
           "name" : "attrs",
@@ -27,8 +27,11 @@
               "type" : "record",
               "name" : "Attr",
               "fields" : [ {
-                "name" : "v",
+                "name" : "unit",
                 "type" : "string"
+              }, {
+                "name" : "value",
+                "type" : "double"
               } ]
             }
           }
@@ -36,21 +39,21 @@
       }
     }
   },
-  "input" : "{\"attrs\":{\"a\":{\"v\":\"x\"},\"b\":{\"v\":\"y\"}}}",
+  "input" : "{\"attrs\":{\"temp\":{\"unit\":\"C\",\"value\":21.5},\"hum_pct\":{\"unit\":\"%\",\"value\":40.5}}}",
   "expected" : {
     "avroAssert" : "DATUM",
     "datumChecks" : {
       "reconstructReturnedARecord" : true,
       "validatesAgainstSchema" : false,
       "nestedRecordsAreRecords" : false,
-      "nonRecordNestedPaths" : "attrs{a}=LinkedHashMap attrs{b}=LinkedHashMap",
+      "nonRecordNestedPaths" : "attrs{temp}=LinkedHashMap attrs{hum_pct}=LinkedHashMap",
       "encodeFailure" : "ClassCastException",
       "binaryEncodes" : false
     },
     "avroDefaultsMatch" : true,
-    "flat" : "{\"attrs_a_v\":\"S:x\",\"attrs_b_v\":\"S:y\"}",
-    "avroBaseline" : "{\"attrs\":{\"a\":{\"v\":\"S:x\"},\"b\":{\"v\":\"S:y\"}}}",
-    "avroDoc" : "{\"attrs\":{\"a\":{\"v\":\"S:x\"},\"b\":{\"v\":\"S:y\"}}}",
+    "flat" : "{\"attrs_hum\\\\_pct_unit\":\"S:%\",\"attrs_hum\\\\_pct_value\":\"D:40.5\",\"attrs_temp_unit\":\"S:C\",\"attrs_temp_value\":\"D:21.5\"}",
+    "avroBaseline" : "{\"attrs\":{\"hum_pct\":{\"unit\":\"S:%\",\"value\":\"D:40.5\"},\"temp\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}}",
+    "avroDoc" : "{\"attrs\":{\"hum_pct\":{\"unit\":\"S:%\",\"value\":\"D:40.5\"},\"temp\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}}",
     "losslessAvro" : false
   },
   "measuredLossless" : false

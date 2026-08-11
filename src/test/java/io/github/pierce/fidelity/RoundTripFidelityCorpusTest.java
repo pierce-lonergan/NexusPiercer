@@ -2,6 +2,7 @@ package io.github.pierce.fidelity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -505,32 +506,47 @@ class RoundTripFidelityCorpusTest {
         }
     }
 
+    /** The five published tallies, recomputed from a fixture list. Order matches TALLY_NAMES. */
+    private static final List<String> TALLY_NAMES = List.of(
+            "nonDefaultConfig", "losslessNotUnderDefaultReconstruction",
+            "losslessNotUnderPublishedRecipe", "publishedRecipeNotApplicable",
+            "holdsUnderPublishedRecipeNo");
+
+    private static int[] tallies(List<JsonNode> entries) {
+        int[] t = new int[TALLY_NAMES.size()];
+        for (JsonNode e : entries) {
+            boolean lossless = "LOSSLESS".equals(e.path("classification").asText());
+            String recipe = e.path("holdsUnderPublishedRecipe").asText("");
+            if (e.path("requiresNonDefaultConfig").asBoolean()) {
+                t[0]++;
+            }
+            if (lossless && FidelityRunner.DEFAULTS_DIVERGE.equals(
+                    e.path("holdsUnderDefaultReconstruction").asText())) {
+                t[1]++;
+            }
+            if (lossless && FidelityRunner.DEFAULTS_DIVERGE.equals(recipe)) {
+                t[2]++;
+            }
+            if (FidelityRunner.DEFAULTS_NA.equals(recipe)) {
+                t[3]++;
+            }
+            if (FidelityRunner.DEFAULTS_DIVERGE.equals(recipe)) {
+                t[4]++;
+            }
+        }
+        return t;
+    }
+
     @Test
     @DisplayName("the configuration tallies the contract publishes are true")
     void configurationTalliesMatchTheDeclaredFixtures() {
         JsonNode counts = manifest().path("counts");
-        int nonDefault = 0;
-        int losslessNotUnderDefaults = 0;
-        int losslessNotUnderRecipe = 0;
-        int recipeNotApplicable = 0;
-        for (JsonNode e : manifestEntries()) {
-            if (e.path("requiresNonDefaultConfig").asBoolean()) {
-                nonDefault++;
-            }
-            if ("LOSSLESS".equals(e.get("classification").asText())
-                    && FidelityRunner.DEFAULTS_DIVERGE.equals(
-                            e.path("holdsUnderDefaultReconstruction").asText())) {
-                losslessNotUnderDefaults++;
-            }
-            String recipe = e.path("holdsUnderPublishedRecipe").asText("");
-            if ("LOSSLESS".equals(e.get("classification").asText())
-                    && FidelityRunner.DEFAULTS_DIVERGE.equals(recipe)) {
-                losslessNotUnderRecipe++;
-            }
-            if (FidelityRunner.DEFAULTS_NA.equals(recipe)) {
-                recipeNotApplicable++;
-            }
-        }
+        int[] t = tallies(manifestEntries());
+        int nonDefault = t[0];
+        int losslessNotUnderDefaults = t[1];
+        int losslessNotUnderRecipe = t[2];
+        int recipeNotApplicable = t[3];
+        int recipeNo = t[4];
         assertThat(counts.path("nonDefaultConfig").asInt(-1))
                 .as("the headline count of rows measured under non-default configuration")
                 .isEqualTo(nonDefault);
@@ -552,6 +568,79 @@ class RoundTripFidelityCorpusTest {
                 .as("the count of rows for which no published recipe exists (the Avro schema-path "
                         + "and enriched-schema-path modes reconstruct no data)")
                 .isEqualTo(recipeNotApplicable);
+        // Added because the number DID drift. The known-lossy warning carried this population as
+        // prose and said 25 while the generated line four sections later said 24 - both on the
+        // published page, neither gated, because every neighbouring number was derived and this
+        // one was typed. The prose no longer states it and this assertion pins it.
+        assertThat(counts.path("holdsUnderPublishedRecipeNo").asInt(-1))
+                .as("the count of rows a consumer following the published recipe verbatim cannot "
+                        + "reproduce at all. This is the headline number of the recipe column and "
+                        + "the one most likely to be restated in prose that nothing checks.")
+                .isEqualTo(recipeNo);
+    }
+
+    /**
+     * The tally gate above, drilled the other two ways.
+     *
+     * <p>Good input passing is what the sibling test measures. On its own that is a comparison
+     * between a number in a file and a number derived from the same file's neighbours, and it would
+     * look identical if the derivation had stopped discriminating. So: a synthetic violation must
+     * move every tally it touches, and an empty corpus must not reproduce the published numbers.
+     * This exists because the population it guards is the one that DID drift - the known-lossy
+     * warning said 25 while the generated line said 24, on the same published page.</p>
+     */
+    @Test
+    @DisplayName("the tally derivation moves when a row changes, and collapses when rows vanish")
+    void theTallyDerivationIsLiveNotConstant() {
+        JsonNode counts = manifest().path("counts");
+        int[] real = tallies(manifestEntries());
+        assertThat(real).as("VERIFY THE COUNT: five tallies are published and five are derived")
+                .hasSize(TALLY_NAMES.size());
+
+        for (int i = 0; i < TALLY_NAMES.size(); i++) {
+            assertThat(counts.path(TALLY_NAMES.get(i)).asInt(-1))
+                    .as("%s must be published and must equal the derivation", TALLY_NAMES.get(i))
+                    .isEqualTo(real[i]);
+        }
+
+        // MISSING/EMPTY INPUT BLOCKS. Every published tally here is non-zero, so a derivation over
+        // zero rows must disagree with all five. If it did not, the tally would be a constant.
+        int[] empty = tallies(List.of());
+        for (int i = 0; i < TALLY_NAMES.size(); i++) {
+            assertThat(real[i]).as("%s is zero, so an empty corpus would reproduce it and the gate "
+                    + "could not tell a vanished corpus from a correct one", TALLY_NAMES.get(i))
+                    .isGreaterThan(0);
+            assertThat(empty[i]).as("%s derived over zero rows must be zero", TALLY_NAMES.get(i))
+                    .isZero();
+        }
+
+        // SYNTHETIC VIOLATION BLOCKS. Flip one row's recipe verdict from NO to YES: the NO
+        // population and nothing else must move, and the published number must stop matching.
+        List<JsonNode> mutated = new ArrayList<>();
+        boolean flipped = false;
+        for (JsonNode e : manifestEntries()) {
+            ObjectNode copy = e.deepCopy();
+            if (!flipped && FidelityRunner.DEFAULTS_DIVERGE.equals(
+                    e.path("holdsUnderPublishedRecipe").asText())) {
+                copy.put("holdsUnderPublishedRecipe", FidelityRunner.DEFAULTS_HOLD);
+                flipped = true;
+            }
+            mutated.add(copy);
+        }
+        assertThat(flipped).as("no row publishes a NO verdict, so the mutation below would be a "
+                + "no-op and this drill would pass without drilling anything").isTrue();
+        int[] after = tallies(mutated);
+        assertThat(after[4]).as("flipping one NO verdict to YES must reduce the NO tally by one; "
+                + "if it does not, the derivation is not reading the field it claims to read")
+                .isEqualTo(real[4] - 1);
+        assertThat(counts.path("holdsUnderPublishedRecipeNo").asInt(-1))
+                .as("and the published number must then disagree with the derivation - which is "
+                        + "the failure a stale manifest edit has to produce")
+                .isNotEqualTo(after[4]);
+        assertThat(after[0]).as("nonDefaultConfig must be unaffected by a recipe-verdict flip")
+                .isEqualTo(real[0]);
+        assertThat(after[3]).as("the NOT_APPLICABLE tally must be unaffected by a NO->YES flip")
+                .isEqualTo(real[3]);
     }
 
     @Test

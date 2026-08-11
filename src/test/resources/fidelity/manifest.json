@@ -129,7 +129,7 @@
       "id": "string-array-lookalikes",
       "kind": "LOSS",
       "headline": "Anything whose serialised text starts with a bracket is turned into an array.",
-      "statement": "The collision class is wider than a string that merely looks like an array. A genuine array, a string containing array text, a byte[], an Object[] and a Set all flatten to the same bracket-leading value, and the last three reach it with no string and no array anywhere in the input. Whichever one you fed in, the parent object is retyped as an array on the way back.",
+      "statement": "The collision class is wider than a string that merely looks like an array, and it is two classes rather than one. THREE members are BYTE-IDENTICAL and two pair invariants assert it: a genuine array, a scalar string containing array text, and a byte[] all flatten to exactly S:[1,2,3] - the last of them with no string and no array anywhere in the input. Object[] and Set belong to the class only in the weaker sense that they too become bracket-leading strings and retype their parent as a list; they carry different element values, so they are pinned by vd-object-array-and-set-become-array-text's own recording and by no byte-equality pair. Whichever one you fed in, the parent object is retyped as an array on the way back. This previously read \"all flatten to the same bracket-leading value\", which a reader of the neighbouring byte-identity invariant would have taken for byte identity of all five.",
       "fixtures": [
         "vd-string-that-looks-like-array",
         "vd-array-lookalike-fabricates-padding",
@@ -331,7 +331,7 @@
       "id": "published-recipes-were-never-executed",
       "kind": "LOSS",
       "headline": "The code on this page was, until now, free text that nothing compiled and nothing ran.",
-      "statement": "Every stack recipe published here is now the body of a compiled method, extracted from source and asserted byte-identical, and each one is executed against a corpus row and compared to that row's recording. That gate found two live faults in what this page previously published: the JSON recipe could not compile at all, because JsonFlattener's constructor is private and every factory returns a different type; and the Avro recipe named a statically cached factory that no measurement in the corpus had ever executed and that returns another schema's columns when a name repeats. A third of the rows also publish holdsUnderPublishedRecipe, and 25 of them say NO.",
+      "statement": "Every stack recipe published here is now the body of a compiled method, extracted from source and asserted byte-identical, and each one is executed against a corpus row and compared to that row's recording. That gate found two live faults in what this page previously published: the JSON recipe could not compile at all, because JsonFlattener's constructor is private and every factory returns a different type; and the Avro recipe named a statically cached factory that no measurement in the corpus had ever executed and that returns another schema's columns when a name repeats. EVERY row publishes holdsUnderPublishedRecipe - not a third of them - and the number that say NO is the derived figure in the summary table and in section 5. It is deliberately not written out here: for as long as it was prose this sentence said 25 against a measured 24, on the same page as the generated line that said 24, and no gate could tell.",
       "fixtures": [
         "avro-schema-cache-serves-a-stale-flattened-schema",
         "recipe-diverges-when-the-flattener-is-tuned"
@@ -339,20 +339,21 @@
     }
   ],
   "counts": {
-    "total": 147,
-    "lossless": 44,
+    "total": 149,
+    "lossless": 45,
     "acceptedLoss": 16,
-    "defect": 87,
-    "nonDefaultConfig": 42,
+    "defect": 88,
+    "nonDefaultConfig": 43,
     "losslessNotUnderDefaultReconstruction": 3,
     "losslessNotUnderPublishedRecipe": 1,
-    "publishedRecipeNotApplicable": 35,
+    "publishedRecipeNotApplicable": 37,
+    "holdsUnderPublishedRecipeNo": 24,
     "families": {
       "avro": {
-        "total": 27,
-        "LOSSLESS": 6,
+        "total": 29,
+        "LOSSLESS": 7,
         "ACCEPTED_LOSS": 2,
-        "DEFECT": 19
+        "DEFECT": 20
       },
       "limits": {
         "total": 20,
@@ -1265,7 +1266,7 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "Control: nullable scalars and the six supported logical types round-trip exactly",
-      "detail": "Each logical type reaches convertLogicalType with a value already in its epoch-integer encoding and takes the identity fast path; the uuid is already canonical. The int/long split matters - do not normalise numeric types in the comparator. The reconstruct() half of this row is MEASURED rather than assumed: avro-logical-type-datum-is-writable-control takes date, timestamp-millis and a nullable string through the GenericRecord entry point and the datum both validates and encodes. This row carries no nested record, which is the condition under which that entry point works.",
+      "detail": "Each logical type reaches convertLogicalType with a value already in its epoch-integer encoding and takes the identity fast path; the uuid is already canonical. The int/long split matters - do not normalise numeric types in the comparator. The reconstruct() half of this row is MEASURED rather than assumed: avro-logical-type-datum-is-writable-control takes THIS ROW'S OWN avsc and datum - all six logical types, every one of them wrapped in a nullable union - through the GenericRecord entry point, and the datum both validates and encodes. This row carries no nested record, which is the condition under which that entry point works. CORRECTION, recorded rather than quietly repaired: the word MEASURED was false when first published. The twin then carried a three-field schema covering two of these six logical types and wrapping none of them in a union - the distinguishing feature of this row - so the conclusion was inferred from a neighbour that did not share the shape. The twin was repointed at this row's own schema and document; the word was not softened.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1391,7 +1392,7 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "Control: map with record values, LOSSLESS as a Map only",
-      "detail": "Both keys escape and decode correctly. The result is a HashMap where the input was a LinkedHashMap, but Avro maps are unordered and key insertion order is genuinely not part of the value here. QUALIFIED on the same terms as the array control: reconstruct() returns a record whose map VALUES are LinkedHashMaps, so validate fails and the datum cannot be written. That is asserted, not assumed by analogy - see avro-map-of-records-datum-unwritable, same schema, same input, different entry point.",
+      "detail": "Both keys escape and decode correctly. The result is a HashMap where the input was a LinkedHashMap, but Avro maps are unordered and key insertion order is genuinely not part of the value here. QUALIFIED on the same terms as the array control: reconstruct() returns a record whose map VALUES are LinkedHashMaps, so validate fails and the datum cannot be written. That is asserted, not assumed by analogy - see avro-map-of-records-datum-unwritable, which uses byte-identical avsc and input and differs only in which sibling entry point is called. CORRECTION, recorded rather than quietly repaired: when this qualification was first published that twin carried a DIFFERENT schema (a one-field Attr) and a DIFFERENT document (keys a and b, neither containing the separator), so the sentence above was false and the requalification was exactly the argument by analogy it declared itself not to be. The twin was repointed at this row's own schema and document; the sentence was not softened.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1979,7 +1980,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "The map-of-records control document, taken through reconstruct() instead of reconstructToMap()",
-      "detail": "The map-of-records control through the sibling entry point: attrs{a} and attrs{b} are both LinkedHashMaps, validate returns false and the encode throws. This is what makes the requalification of avro-map-of-records-control an assertion rather than an argument by analogy with the array row.",
+      "detail": "Byte-identical avsc and input to avro-map-of-records-control, which is published LOSSLESS; the only variable is the entry point. attrs{temp} and attrs{hum_pct} are both LinkedHashMaps - BOTH entries, so a fix that repairs only the first still fails - validate returns false and the encode throws ClassCastException. avroDoc equals avroBaseline, so the checksHold conjunction is what makes the row lossy rather than the rendering. Because the document now carries the control's hum_pct key, the row also covers separator escaping on a map key through this entry point, which the schema it previously carried did not.",
       "configDescription": "assert DATUM",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -2007,7 +2008,21 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "The nullable-scalars-and-logical-types control, measured through reconstruct() as well",
-      "detail": "date, timestamp-millis and a nullable string survive reconstruct(): validate passes and the datum encodes. Added so the third unqualified LOSSLESS Avro row is not left with its reconstruct() half unmeasured while the other two are qualified.",
+      "detail": "Byte-identical avsc and input to avro-nullable-scalars-and-logical-types-control, which is published LOSSLESS; the only variable is the entry point. All six logical types (timestamp-millis, timestamp-micros, date, time-millis, time-micros, uuid) and the nullable-union wrapping survive reconstruct(): validate passes, no nested value is left as a raw map, and the binary encode succeeds. Four of those six and the union wrapping were unmeasured through this entry point until the row was repointed.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-bare-logical-types-are-a-writable-datum",
+      "family": "avro",
+      "file": "avro/avro-bare-logical-types-are-a-writable-datum.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "Bare, non-union logical types through reconstruct(): date and timestamp-millis still encode",
+      "detail": "date and timestamp-millis declared BARE - not wrapped in a nullable union - survive reconstruct(): validate passes and the datum encodes. This is the shape avro-logical-type-datum-is-writable-control used to carry and gave up when it was repointed at its own control's byte-identical schema. It is a row rather than a footnote because union resolution runs BEFORE convertLogicalType, so a bare logical type and a union-wrapped one are different code paths, and deleting the bare one to fix a wording defect would have been a silent coverage loss.",
       "configDescription": "assert DATUM",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -2025,6 +2040,20 @@
       "configDescription": "assert DATUM",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-boundary-separator-datum-does-not-hold-under-defaults",
+      "family": "avro",
+      "file": "avro/avro-boundary-separator-datum-does-not-hold-under-defaults.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The first Avro row measured under a TUNED reconstructor: matched __ separators, and the defaults arm finally diverges",
+      "detail": "Two measurements in one row. (1) The nested-record defect is ORTHOGONAL to the separator: with MapFlattener and AvroReconstructor both switched to the __ boundary separator the keys split correctly and attrs still comes back a LinkedHashMap, so validate fails and the encode throws ClassCastException. (2) avroDefaultsMatch is FALSE - the first time any Avro row has made that comparison do work. Until this row existed no Avro fixture set config.avro.reconstructor, so on all seventeen DATA and DATUM rows the tuned arm and the defaults arm were the identical call and every one published holdsUnderDefaultReconstruction=YES on a comparison that could not fail. The DATA branch disclosed that in a comment; the DATUM branch did not. A consumer who flattens with the boundary separator and reconstructs with a default AvroReconstructor gets a different answer, and that is now measured rather than assumed.",
+      "configDescription": "assert DATUM; MapFlattener.useArrayBoundarySeparator(true); AvroReconstructor.useArrayBoundarySeparator(true)",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NO",
       "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
@@ -2496,7 +2525,7 @@
       "kind": "FLAT_EQUAL",
       "left": "vd-string-that-looks-like-array",
       "right": "vd-real-array-collides-with-array-text",
-      "detail": "A scalar string holding the text of an array and a genuine array flatten to byte-identical output. The collision class is THREE members wide, not two: vd-binary-array-collides-with-array-text reaches the same bytes from a byte[], with no string and no array anywhere in the input, and Object[] and Set reach it too. At most one of the three can ever round-trip without a wire-format change. This equality is the value-domain analogue of the FlattenedPath key-injectivity proof."
+      "detail": "A scalar string holding the text of an array and a genuine array flatten to byte-identical output. THREE members of the class are byte-identical and two pairs assert it: vd-binary-array-collides-with-array-text reaches the same bytes from a byte[], with no string and no array anywhere in the input, and pair-binary-collides-with-array-text holds that equality. Object[] and Set are in the class only in the weaker sense - they become bracket-leading strings and retype their parent as a list, on their own element values rather than these ones - so vd-object-array-and-set-become-array-text is pinned by its own recording and by no byte-equality pair. At most one of the three byte-identical members can ever round-trip without a wire-format change. This equality is the value-domain analogue of the FlattenedPath key-injectivity proof."
     },
     {
       "id": "pair-depth-truncation-aliases-a-real-string",

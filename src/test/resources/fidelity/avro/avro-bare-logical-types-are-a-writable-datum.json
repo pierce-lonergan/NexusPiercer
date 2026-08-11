@@ -1,0 +1,59 @@
+{
+  "id" : "avro-bare-logical-types-are-a-writable-datum",
+  "family" : "avro",
+  "title" : "Bare, non-union logical types through reconstruct(): date and timestamp-millis still encode",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Carries the shape that avro-logical-type-datum-is-writable-control used to have and gave up when it was repointed at its control's own byte-identical schema. Every other logical type in the corpus's DATUM coverage is wrapped in a two-branch nullable union, and union resolution is a different code path from a bare type: resolveUnionBranch picks a branch before convertLogicalType ever runs. Deleting the bare shape to fix a wording defect would have been a silent coverage loss, so it is a row rather than a footnote.",
+  "catchesBugClass" : "A logical-type conversion that only works because a union wrapper normalised the value first, and a writer rejection that only appears on the bare branch. Paired with the union-wrapped control it separates 'logical types work' from 'nullable unions work'.",
+  "cannotCatch" : "Two logical types only - date and timestamp-millis. It says nothing about time-millis, time-micros, timestamp-micros, uuid or decimal, all of which the union-wrapped control covers, and nothing about a logical type inside an array or a map.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "No nested record and no union to resolve, so the one-level copy is sufficient; the datum should validate and encode exactly as it did before the twin was repointed."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "LT",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "d",
+          "type" : {
+            "type" : "int",
+            "logicalType" : "date"
+          }
+        }, {
+          "name" : "ts",
+          "type" : {
+            "type" : "long",
+            "logicalType" : "timestamp-millis"
+          }
+        }, {
+          "name" : "s",
+          "type" : [ "null", "string" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"d\":19000,\"ts\":1700000000000,\"s\":null}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : true,
+      "nestedRecordsAreRecords" : true,
+      "nonRecordNestedPaths" : "",
+      "encodeFailure" : "",
+      "binaryEncodes" : true
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"d\":\"I:19000\",\"s\":null,\"ts\":\"L:1700000000000\"}",
+    "avroBaseline" : "{\"d\":\"I:19000\",\"s\":null,\"ts\":\"L:1700000000000\"}",
+    "avroDoc" : "{\"d\":\"I:19000\",\"s\":null,\"ts\":\"L:1700000000000\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

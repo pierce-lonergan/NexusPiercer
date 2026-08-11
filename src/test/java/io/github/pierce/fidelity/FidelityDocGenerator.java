@@ -16,8 +16,8 @@ import java.util.Map;
 /**
  * Renders {@code docs/ROUND_TRIP_FIDELITY.md} from {@code manifest.json}.
  *
- * <p>The published document is <b>generated, never written</b>. A hand-maintained table of 147
- * rows would go stale the first time a fixture was reclassified, and a consumer would then be
+ * <p>The published document is <b>generated, never written</b>. A hand-maintained table of this
+ * many rows would go stale the first time a fixture was reclassified, and a consumer would then be
  * reading a promise the corpus no longer makes - which is the exact pathology this repository has
  * found a dozen times and would be self-parody to ship inside the fidelity guarantee itself.</p>
  *
@@ -124,6 +124,8 @@ public final class FidelityDocGenerator {
                 + counts.path("losslessNotUnderPublishedRecipe").asInt() + " |");
         line(b, "| rows for which no published recipe exists (schema-only paths) | "
                 + counts.path("publishedRecipeNotApplicable").asInt() + " |");
+        line(b, "| rows the **published recipe** cannot reproduce at all | "
+                + counts.path("holdsUnderPublishedRecipeNo").asInt() + " |");
         blank(b);
         line(b, "**" + counts.path("acceptedLoss").asInt() + " + " + counts.path("defect").asInt()
                 + " = " + (counts.path("acceptedLoss").asInt() + counts.path("defect").asInt())

@@ -369,6 +369,15 @@ final class FidelityRunner {
                 doc = runDatum(avro, schema, flattened, m);
                 // The AVRO disclosure gate must keep working on DATUM rows rather than silently
                 // printing NOT_APPLICABLE, so the defaults arm compares the SAME entry point.
+                //
+                // THIS ARM IS LIVE, and it was not. Review found it recording a comparison that
+                // could not fail: no Avro fixture set avro.reconstructor, so avroReconstructor(avro)
+                // above and the default builder below were the identical call on every DATUM row,
+                // and all six published holdsUnderDefaultReconstruction=YES on a tautology. The
+                // DATA branch had disclosed that in a comment; this branch had not, so its YES read
+                // as a measurement. avro-boundary-separator-datum-does-not-hold-under-defaults now
+                // tunes the reconstructor and records FALSE here - measured, not asserted. Keep at
+                // least one such row: delete it and this line silently reverts to a tautology.
                 m.recorded.put("avroDefaultsMatch", datumDefaultsArm(flattened, schema).equals(doc));
             }
             case "DATA" -> {
@@ -386,12 +395,14 @@ final class FidelityRunner {
                 // all, so they record no key here and the published table prints NOT_APPLICABLE
                 // rather than a verdict nobody measured.
                 //
-                // HONEST LIMIT, stated so nobody reads more into the YES than it carries: no Avro
-                // fixture currently sets avro.reconstructor, so avroReconstructor(avro) above
+                // HONEST LIMIT, stated so nobody reads more into the YES than it carries: no
+                // fixture in DATA mode sets avro.reconstructor, so avroReconstructor(avro) above
                 // builds the same default instance this line does and the comparison cannot
-                // presently fail. It is a tripwire for the first Avro fixture that DOES tune the
-                // reconstructor, not present-tense evidence. The MAP and JSON arms are the ones
-                // carrying real signal today - nine rows diverge there.
+                // presently fail on any of the eleven DATA rows. The sibling DATUM branch is no
+                // longer in that position - avro-boundary-separator-datum-does-not-hold-under-
+                // defaults tunes the reconstructor and records FALSE - which proves the mechanism
+                // works and leaves this arm a tripwire for the first DATA fixture that tunes it,
+                // not present-tense evidence. The MAP and JSON arms carry real signal today.
                 m.recorded.put("avroDefaultsMatch", avroDefaultsArm(flattened, schema).equals(doc));
             }
             default -> throw new IllegalStateException("unknown avro assert mode '" + mode
