@@ -32,24 +32,44 @@ package io.github.pierce.schema;
  * {@link FlattenOptions.Builder#arrayBoundarySeparator(String)} is spelled from characters segment
  * escaping escapes. A boundary marker an ordinary field name can spell is now refused with a
  * diagnostic naming both source paths, rather than emitting the same column name twice.</p>
+ *
+ * <p>The check covers columns supplied through
+ * {@link FlattenOptions.Builder#injectField(int, FlattenedField)} too. An injected name is not
+ * rendered by either policy — the caller typed it — so neither policy's remedy applies to it, and
+ * it gets its own diagnostic; but it is an emitted column, and the guarantee both policies now
+ * make is about the emitted set.</p>
  */
 public enum NameCollisionPolicy {
 
     /**
-     * Refuse the schema, naming both colliding source paths. Default.
+     * Refuse the schema when the naive join is ambiguous, naming both colliding source paths.
+     * Default.
      *
      * <p>Non-colliding names are emitted exactly as a naive join would produce them, so adopting
-     * this policy changes nothing for schemas that were already unambiguous.</p>
+     * this policy changes nothing for schemas that were already unambiguous. Refusal is not what
+     * distinguishes this policy from {@link #ESCAPE} — both refuse rather than emit one name for
+     * two columns, and both refuse a colliding {@code injectField} name. What distinguishes them
+     * is what happens to the names that DO survive: here, nothing at all.</p>
      */
     FAIL,
 
     /**
-     * Escape the separator inside segment names so the rendering stays injective.
+     * Escape the separator inside segment names, so that a collision an ordinary join would create
+     * is resolved by the rendering instead of refused.
      *
-     * <p>INJECTIVE: two distinct source paths never render to the same name, which is what makes
-     * the result safe as a map key or a JSON pointer. Unusable for Avro or SQL column names, where
-     * the escape character is illegal. Choose it when the flattened name is a map key, a JSON
-     * pointer, or any identifier whose alphabet you control.</p>
+     * <p>NO TWO EMITTED COLUMNS SHARE A FLATTENED NAME. That is the enforced property, and it is
+     * about the OUTPUT rather than about the rendering: escaping resolves the ordinary case — a
+     * field literally called {@code user_id} against the nested path {@code user} → {@code id} —
+     * and where the configured
+     * {@link FlattenOptions.Builder#arrayBoundarySeparator(String) arrayBoundarySeparator} makes
+     * that impossible, because the marker is emitted outside the escaped alphabet and an ordinary
+     * field name can therefore spell it, the flatten is REFUSED with a
+     * {@link SchemaFlattenException} naming both source paths. Choosing this policy to avoid
+     * {@link #FAIL}'s refusals narrows them; it does not remove them.</p>
+     *
+     * <p>Unusable for Avro or SQL column names, where the escape character is illegal. Choose it
+     * when the flattened name is a map key, a JSON pointer, or any identifier whose alphabet you
+     * control.</p>
      *
      * <p>NOT DECODABLE, and this is the correction of a claim this javadoc used to make. The
      * previous wording said "lossless and reversible". Reversibility is a property of an

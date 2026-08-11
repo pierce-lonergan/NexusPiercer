@@ -658,6 +658,12 @@ class RoundTripFidelityCorpusTest {
      *
      * <p>Before {@code stream()} honoured injections this assertion failed, because the two calls
      * returned byte-identical lists. That failure WAS the defect, expressed at harness level.</p>
+     *
+     * <p>An injection may now legitimately REFUSE rather than emit — an injected name equal to a
+     * source column's is a collision, and the guard that catches it lives on the output rather
+     * than in the traversal. That is discrimination of the strongest kind and is accepted as such,
+     * but it is also a way for every injecting row to stop exercising the size arm below, so the
+     * count of rows that actually emit is asserted rather than assumed.</p>
      */
     @Test
     @DisplayName("the ENRICHED_STREAM comparator still discriminates: an injection changes stream()")
@@ -675,16 +681,33 @@ class RoundTripFidelityCorpusTest {
                         + "between two identical configurations and would drill nothing")
                 .isNotEmpty();
 
+        int emitting = 0;
+        int refusing = 0;
         for (String id : injecting) {
             JsonNode avro = fixture(id).config().path("avro");
             org.apache.avro.Schema schema =
                     new org.apache.avro.Schema.Parser().parse(avro.path("avsc").toString());
             int injections = avro.path("enriched").path("inject").size();
 
-            List<String> withInjection =
-                    FidelityEnriched.streamNames(FidelityEnriched.buildOptions(id, avro), schema);
+            // The un-injected arm must always succeed: a schema that refuses on its own would make
+            // any comparison below meaningless.
             List<String> withoutInjection = FidelityEnriched.streamNames(
                     io.github.pierce.schema.FlattenOptions.defaults(), schema);
+
+            List<String> withInjection;
+            try {
+                withInjection =
+                        FidelityEnriched.streamNames(FidelityEnriched.buildOptions(id, avro), schema);
+            } catch (io.github.pierce.schema.SchemaFlattenException refused) {
+                refusing++;
+                assertThat(refused.getMessage())
+                        .as("%s: the injection turned %d clean columns into a refusal, which is a "
+                                + "reaction - but a blank diagnostic would leave the caller unable "
+                                + "to tell which two columns collided", id, withoutInjection.size())
+                        .isNotBlank();
+                continue;
+            }
+            emitting++;
 
             assertThat(withInjection)
                     .as("%s: stream() must react to injectField. If these agree, the "
@@ -694,6 +717,16 @@ class RoundTripFidelityCorpusTest {
                     .isNotEqualTo(withoutInjection)
                     .hasSize(withoutInjection.size() + injections);
         }
+
+        assertThat(emitting)
+                .as("every injecting fixture refused, so the size arm above never ran and this "
+                        + "gate silently narrowed to 'an injection throws'")
+                .isGreaterThanOrEqualTo(1);
+        assertThat(refusing)
+                .as("no injecting fixture reaches the output-side collision guard, so nothing in "
+                        + "the corpus sees an injected column being checked at all - which is the "
+                        + "gap that let injectField() bypass NameCollisionPolicy.FAIL")
+                .isGreaterThanOrEqualTo(1);
     }
 
     @Test

@@ -83,7 +83,13 @@ public final class EnrichedSchemaFlattener implements Serializable {
      * Flattens to a list, with any injected fields spliced in at their positions.
      *
      * @throws RecursiveSchemaException     if a named type contains itself
-     * @throws SchemaLimitExceededException if a depth or field-count limit is reached
+     * @throws SchemaLimitExceededException if the depth limit is reached, or if the number of
+     *                                      columns produced — source leaves and injected columns
+     *                                      together — exceeds {@link FlattenOptions#maxFields()}
+     * @throws SchemaFlattenException       if the top-level schema is not a record, or if two
+     *                                      columns would be emitted under one flattened name.
+     *                                      Under BOTH collision policies, and for injected columns
+     *                                      as well as source ones: see {@link NameCollisionPolicy}
      */
     public List<FlattenedField> flatten(Schema schema) {
         List<FlattenedField> out = new ArrayList<>();
@@ -97,11 +103,11 @@ public final class EnrichedSchemaFlattener implements Serializable {
      * <p>For very wide schemas — generated types running to hundreds or thousands of columns —
      * this avoids materialising the result list. Stated exactly, because an earlier version of
      * this sentence promised more than the code delivers: peak memory is proportional to depth,
-     * plus the number of configured injections, plus ONE ENTRY PER EMITTED LEAF held by the
-     * collision guard, which records each rendered name against the source path that produced it
-     * so a duplicate can name both paths. That last term is bounded by
-     * {@link FlattenOptions#maxFields()} and is the price of the guard being able to say which two
-     * columns collided; it applies to {@code flatten} identically.</p>
+     * plus the number of configured injections, plus ONE ENTRY PER EMITTED COLUMN held by the
+     * collision guard, which records each rendered name against the origin that produced it — a
+     * source path, or the {@code injectField} position — so a duplicate can name both. That last
+     * term is bounded by {@link FlattenOptions#maxFields()} and is the price of the guard being
+     * able to say which two columns collided; it applies to {@code flatten} identically.</p>
      *
      * <p>Injected fields ARE applied here, in the same order and at the same final positions
      * {@link #flatten(Schema)} produces, including the rule that an injection positioned past the
@@ -119,36 +125,53 @@ public final class EnrichedSchemaFlattener implements Serializable {
      * <p>Injected fields are handed to the sink as rebuilt instances carrying their final
      * position, exactly as {@code flatten} has always done, so a caller holding the reference it
      * passed to {@code injectField} is not looking at the object the sink receives.</p>
+     *
+     * <p>They are also GUARDED like source columns, which they were not: an injected name is
+     * claimed in the same registry the traversal claims into, and counts against
+     * {@link FlattenOptions#maxFields()}. See {@link Output}.</p>
+     *
+     * @throws RecursiveSchemaException     if a named type contains itself
+     * @throws SchemaLimitExceededException if the depth limit is reached, or if the number of
+     *                                      columns produced — source leaves and injected columns
+     *                                      together — exceeds {@link FlattenOptions#maxFields()}
+     * @throws SchemaFlattenException       if the top-level schema is not a record, or if two
+     *                                      columns would be emitted under one flattened name
      */
     public void stream(Schema schema, Consumer<FlattenedField> sink) {
         Objects.requireNonNull(schema, "schema");
         Objects.requireNonNull(sink, "sink");
 
+        Schema root = resolve(schema);
+        if (root.getType() != Schema.Type.RECORD) {
+            throw new SchemaFlattenException(
+                    "Top-level schema must be a record; got " + root.getType(),
+                    String.valueOf(root.getFullName()), "");
+        }
+
+        // ONE registry per call, shared by the traversal and by the injection merge. They are the
+        // two places a column reaches the caller's sink, and a guard only one of them consults is
+        // not a guard - which is precisely what the collision check and the field-count ceiling
+        // used to be, under both policies and through both entry points.
+        Output out = new Output(root.getFullName(), options);
+
         Map<Integer, FlattenedField> injections = options.injectedFields();
         if (injections.isEmpty()) {
             // Explicit short circuit: with nothing to splice, the caller's own sink reaches the
-            // traversal unwrapped, so the zero-injection path is byte-identical to what it was
-            // before injections were honoured here.
-            walk(schema, sink);
+            // traversal unwrapped, so the zero-injection path allocates no merge and rebuilds no
+            // field. Every column it produces still passes through Output.
+            walk(root, out, sink);
             return;
         }
-        InjectingSink merge = new InjectingSink(sink, injections);
-        walk(schema, merge);
+        InjectingSink merge = new InjectingSink(sink, injections, out);
+        walk(root, out, merge);
         merge.finish();
     }
 
     /** The traversal both entry points share. Nothing above this line inspects a field. */
-    private void walk(Schema schema, Consumer<FlattenedField> sink) {
-        Schema resolved = resolve(schema);
-        if (resolved.getType() != Schema.Type.RECORD) {
-            throw new SchemaFlattenException(
-                    "Top-level schema must be a record; got " + resolved.getType(),
-                    String.valueOf(resolved.getFullName()), "");
-        }
-
-        Walk walk = new Walk(resolved.getFullName(), sink);
-        walk.openTypes.push(resolved.getFullName());
-        walkRecord(resolved, "", List.of(), resolved.getDoc(), Map.of(), false, false, 1, walk);
+    private void walk(Schema root, Output out, Consumer<FlattenedField> sink) {
+        Walk walk = new Walk(out, sink);
+        walk.openTypes.push(root.getFullName());
+        walkRecord(root, "", List.of(), root.getDoc(), Map.of(), false, false, 1, walk);
     }
 
     /**
@@ -166,11 +189,15 @@ public final class EnrichedSchemaFlattener implements Serializable {
         private final Consumer<FlattenedField> downstream;
         /** Navigable rather than TreeMap: {@link #finish()} needs pollFirstEntry, nothing more. */
         private final NavigableMap<Integer, FlattenedField> pending;
+        /** The registry the traversal claims into. Shared, not a second one. */
+        private final Output out;
         private int next = 1;
 
-        InjectingSink(Consumer<FlattenedField> downstream, Map<Integer, FlattenedField> injections) {
+        InjectingSink(Consumer<FlattenedField> downstream, Map<Integer, FlattenedField> injections,
+                      Output out) {
             this.downstream = downstream;
             this.pending = new TreeMap<>(injections);
+            this.out = out;
         }
 
         @Override
@@ -178,9 +205,10 @@ public final class EnrichedSchemaFlattener implements Serializable {
             // A while, not an if: consecutive head injections at 1 and 2 must BOTH precede the
             // first source field, or the second silently slides behind it.
             while (pending.containsKey(next)) {
-                downstream.accept(renumber(pending.remove(next), next, true));
-                next++;
+                deliver(pending.remove(next), next);
             }
+            // Not claimed here: emit() already claimed this column on the way in. Claiming it a
+            // second time would collide with itself.
             downstream.accept(renumber(field, next, false));
             next++;
         }
@@ -188,8 +216,114 @@ public final class EnrichedSchemaFlattener implements Serializable {
         /** Injections positioned beyond the last column: appended in ascending order, no gaps. */
         void finish() {
             while (!pending.isEmpty()) {
-                downstream.accept(renumber(pending.pollFirstEntry().getValue(), next, true));
-                next++;
+                Map.Entry<Integer, FlattenedField> head = pending.pollFirstEntry();
+                deliver(head.getValue(), head.getKey());
+            }
+        }
+
+        /**
+         * Hands one injected column downstream, after claiming its name and its slot.
+         *
+         * <p>Shared by {@link #accept} and {@link #finish} deliberately: the append-past-the-end
+         * branch is the arm a guard bolted onto {@code accept} alone would miss, and an unguarded
+         * arm of a guard is the shape of defect this package is being repaired for.</p>
+         *
+         * @param declaredPosition the position the caller CLAIMED, which is what the diagnostic
+         *                         must name — {@code next} is where the column actually lands, and
+         *                         for an appended injection the two differ
+         */
+        private void deliver(FlattenedField injected, int declaredPosition) {
+            out.claim(injected.flattenedName(), Origin.injected(declaredPosition));
+            downstream.accept(renumber(injected, next, true));
+            next++;
+        }
+    }
+
+    // ------------------------------------------------------------------ output-side guards
+
+    /**
+     * Where a column came from, so a collision diagnostic can name both sides accurately.
+     *
+     * <p>A source path and an {@code injectField} position are not the same kind of thing and a
+     * message that called an injected column a "source path" would send the reader looking through
+     * an {@code .avsc} for a field that is not in it.</p>
+     */
+    private record Origin(String label, boolean injected) {
+
+        static Origin sourcePath(String path) {
+            return new Origin(path, false);
+        }
+
+        static Origin injected(int position) {
+            return new Origin("injectField(" + position + ")", true);
+        }
+
+        /** Reads as a noun phrase, so both forms drop into one sentence. */
+        String describe() {
+            return injected ? "the column injected by " + label : "source path '" + label + "'";
+        }
+    }
+
+    /**
+     * The two guards that belong to the OUTPUT, owned in one place because they apply to every
+     * column the caller receives.
+     *
+     * <p>Both used to live inside {@code emit}, which only the traversal calls, so both were blind
+     * to {@code injectField}. Measured before this repair, on {@code Row{order_id, amount}}:
+     * {@code injectField(1, "order_id")} returned {@code [order_id, order_id, amount]} under
+     * {@link NameCollisionPolicy#FAIL} — whose entire published job is refusing exactly that — and
+     * {@code maxFields(2)} with two injections returned four columns. Neither produced a
+     * diagnostic. Both entry points did it identically, so the agreement between {@code flatten}
+     * and {@code stream} was agreement on the wrong answer.</p>
+     *
+     * <p>Static, and holding {@link FlattenOptions} rather than the flattener: the enclosing class
+     * is {@link Serializable} and this object is reachable from the sink handed to the traversal.</p>
+     */
+    private static final class Output {
+
+        private final String rootName;
+        private final FlattenOptions options;
+        /** Flattened name -> the origin that first claimed it. One entry per emitted column. */
+        private final Map<String, Origin> claimed = new LinkedHashMap<>();
+        /** Columns delivered to the caller: source leaves and injected columns alike. */
+        private int columns;
+
+        Output(String rootName, FlattenOptions options) {
+            this.rootName = rootName;
+            this.options = options;
+        }
+
+        /**
+         * Claims one output column, or refuses it.
+         *
+         * <p>The collision half used to return before it checked anything whenever the policy was
+         * not {@code FAIL}, on the stated grounds that "under {@code ESCAPE} the rendering is
+         * injective by construction". That is a configuration-dependent claim written as an
+         * unconditional one: it holds only while the array-boundary separator is spelled from
+         * characters {@code escapeSegment} escapes, and
+         * {@link FlattenOptions.Builder#arrayBoundarySeparator(String)} is a free-form setter.
+         * It now runs under both policies, and for injected columns as well as source ones, so the
+         * surviving guarantee — no two emitted columns share a name — is verified rather than
+         * believed. Under the defaults and under every configuration in the fidelity corpus it can
+         * never fire; that is precisely the property worth asserting instead of assuming.</p>
+         *
+         * <p>There is no {@code previous.equals(origin)} escape hatch, and its absence is
+         * deliberate. An origin identifies exactly one column — a source path names one route
+         * through one schema, an injection origin carries its declared position, and the position
+         * map cannot hold the same position twice — so a repeated origin could only ever mean a
+         * genuine duplicate arriving twice.</p>
+         */
+        void claim(String flattenedName, Origin origin) {
+            Origin previous = claimed.putIfAbsent(flattenedName, origin);
+            if (previous != null) {
+                throw new SchemaFlattenException(
+                        collisionMessage(options, rootName, previous, origin, flattenedName),
+                        rootName, origin.label());
+            }
+            columns++;
+            if (columns > options.maxFields()) {
+                throw new SchemaLimitExceededException("maxFields", options.maxFields(),
+                        columns, rootName, origin.label());
             }
         }
     }
@@ -198,16 +332,23 @@ public final class EnrichedSchemaFlattener implements Serializable {
 
     /** Mutable state for one flatten call. Local so the flattener stays shareable. */
     private static final class Walk {
-        final String rootName;
+        final Output out;
         final Consumer<FlattenedField> sink;
         final Deque<String> openTypes = new ArrayDeque<>();
-        /** flattened name -> the source path that first produced it, for collision detection. */
-        final Map<String, String> emittedNames = new LinkedHashMap<>();
+        /**
+         * SOURCE leaves emitted so far, which is what {@code position()} reports on the way out.
+         * Deliberately not the output-column count {@link Output} keeps: with injections the two
+         * differ, and the merge renumbers to the final index anyway.
+         */
         int emitted;
 
-        Walk(String rootName, Consumer<FlattenedField> sink) {
-            this.rootName = rootName;
+        Walk(Output out, Consumer<FlattenedField> sink) {
+            this.out = out;
             this.sink = sink;
+        }
+
+        String rootName() {
+            return out.rootName;
         }
     }
 
@@ -217,7 +358,7 @@ public final class EnrichedSchemaFlattener implements Serializable {
 
         if (depth > options.maxDepth()) {
             throw new SchemaLimitExceededException("maxDepth", options.maxDepth(), depth,
-                    walk.rootName, renderPath(path));
+                    walk.rootName(), renderPath(path));
         }
 
         // Gated at the SOURCE, not at the point of use: with inheritance off nothing inherited is
@@ -289,13 +430,8 @@ public final class EnrichedSchemaFlattener implements Serializable {
                       String doc, boolean docInherited, Schema resolved,
                       boolean nullable, boolean withinArray, Map<String, Object> props) {
 
-        checkCollision(walk, flattenedName, path);
-
+        walk.out.claim(flattenedName, Origin.sourcePath(renderPath(path)));
         walk.emitted++;
-        if (walk.emitted > options.maxFields()) {
-            throw new SchemaLimitExceededException("maxFields", options.maxFields(),
-                    walk.emitted, walk.rootName, renderPath(path));
-        }
 
         FlattenedField field = FlattenedField.builder()
                 .flattenedName(flattenedName)
@@ -352,7 +488,7 @@ public final class EnrichedSchemaFlattener implements Serializable {
     private void guardRecursion(Schema named, List<PathSegment> path, Walk walk) {
         String fullName = named.getFullName();
         if (fullName != null && walk.openTypes.contains(fullName)) {
-            throw new RecursiveSchemaException(fullName, walk.rootName, renderPath(path));
+            throw new RecursiveSchemaException(fullName, walk.rootName(), renderPath(path));
         }
     }
 
@@ -388,42 +524,27 @@ public final class EnrichedSchemaFlattener implements Serializable {
     }
 
     /**
-     * Refuses two distinct source paths that render to the same flattened name, under BOTH
-     * policies.
-     *
-     * <p>This used to return before it checked anything whenever the policy was not {@code FAIL},
-     * on the stated grounds that "under {@code ESCAPE} the rendering is injective by construction".
-     * That is a configuration-dependent claim written as an unconditional one. It holds only while
-     * the array-boundary separator is spelled from characters {@code escapeSegment} escapes, and
-     * {@link FlattenOptions.Builder#arrayBoundarySeparator(String)} is a free-form setter: with a
-     * marker of {@code "x"}, a record containing both an array {@code a} of records with a field
-     * {@code b} and a sibling scalar named {@code axb} emitted two leaves called {@code axb} with
-     * no diagnostic at all.</p>
-     *
-     * <p>So the surviving guarantee — injectivity — is now verified rather than assumed. Under
-     * every configuration in the corpus, and under the defaults, this can never fire; that is
-     * precisely the property worth asserting instead of believing.</p>
-     */
-    private void checkCollision(Walk walk, String flattenedName, List<PathSegment> path) {
-        String source = renderPath(path);
-        String previous = walk.emittedNames.putIfAbsent(flattenedName, source);
-        if (previous != null && !previous.equals(source)) {
-            throw new SchemaFlattenException(
-                    collisionMessage(walk.rootName, previous, source, flattenedName),
-                    walk.rootName, source);
-        }
-    }
-
-    /**
-     * The two diagnostics, kept apart on purpose.
+     * The three diagnostics, kept apart on purpose.
      *
      * <p>The {@code FAIL} text is byte-for-byte what it has always been: it is recorded verbatim
-     * by the fidelity corpus, truncated mid-word at 240 characters, so merging the two policies
-     * into one shared template would turn that row red for no behavioural reason. The
-     * {@code ESCAPE} text has to be different anyway — telling a caller who is already using
-     * {@code ESCAPE} to use {@code ESCAPE} is not advice.</p>
+     * by the fidelity corpus, truncated mid-word at 240 characters, so merging the policies into
+     * one shared template would turn that row red for no behavioural reason. The {@code ESCAPE}
+     * text has to be different anyway — telling a caller who is already using {@code ESCAPE} to
+     * use {@code ESCAPE} is not advice. And an injected column gets its own text under both
+     * policies, because neither policy's advice applies: no separator choice and no escaping can
+     * move a name the caller typed.</p>
      */
-    private String collisionMessage(String rootName, String previous, String source, String name) {
+    private static String collisionMessage(FlattenOptions options, String rootName,
+                                           Origin previous, Origin current, String name) {
+        if (previous.injected() || current.injected()) {
+            return String.format(
+                    "Flattened name collision in schema '%s': %s and %s both produce the column "
+                            + "name '%s'. injectField() de-duplicates POSITIONS, not names, and an "
+                            + "injected column is an emitted column - two columns under one name "
+                            + "is not a schema. Rename the injected column, or drop it and let the "
+                            + "source field through.",
+                    rootName, previous.describe(), current.describe(), name);
+        }
         if (options.collisionPolicy() == NameCollisionPolicy.FAIL) {
             return String.format(
                     "Flattened name collision in schema '%s': source paths '%s' and '%s' both "
@@ -431,7 +552,7 @@ public final class EnrichedSchemaFlattener implements Serializable {
                             + "field name contains it. Rename a field, choose a separator absent "
                             + "from your names, or use NameCollisionPolicy.ESCAPE if these names "
                             + "are not destined to become Avro or SQL identifiers.",
-                    rootName, previous, source, name, options.separator());
+                    rootName, previous.label(), current.label(), name, options.separator());
         }
         return String.format(
                 "Flattened name collision in schema '%s' under the ESCAPE policy: source paths "
@@ -439,9 +560,11 @@ public final class EnrichedSchemaFlattener implements Serializable {
                         + "them, because the configured arrayBoundarySeparator '%s' is emitted "
                         + "outside the escaped alphabet and can therefore be spelled by an "
                         + "ordinary field name. Choose an arrayBoundarySeparator built from the "
-                        + "separator character '%s' - '%s' is the default and no field name can "
-                        + "forge it.",
-                rootName, previous, source, name, options.arrayBoundarySeparator(),
+                        + "separator character '%s' - doubling it to '%s' is enough, because "
+                        + "segment escaping escapes that character and no field name can forge an "
+                        + "unescaped run of it.",
+                rootName, previous.label(), current.label(), name,
+                options.arrayBoundarySeparator(),
                 options.separator(), options.separator() + options.separator());
     }
 

@@ -110,6 +110,14 @@ public final class FlattenOptions implements Serializable {
      *       flattener refuses.</li>
      * </ul>
      *
+     * <p>The first two are not renames — a whole subtree collapses to a single leaf, so a column
+     * GAvro produces does not exist here at all. Measured: on a record whose one field is a union
+     * of two records, GAvro yields {@code [payload_k]} and this yields {@code [payload]}; on an
+     * array of arrays of records, GAvro yields {@code [grid_v]} and this yields {@code [grid]}.
+     * Three of the four are pinned by
+     * {@code EnrichedSchemaFlattenerTest.parityDivergesStructurallyWhereNoConfigurationCanReach};
+     * the depth one is not, and is prose.</p>
+     *
      * <p>For a caller who ran GAvro with {@code useArrayBoundarySeparator(true)} — a setting the
      * fidelity corpus classifies as a misnamed control, since it marks no boundaries and only
      * renames the separator globally — the equivalent here is the parity policy with both
@@ -211,7 +219,14 @@ public final class FlattenOptions implements Serializable {
             return this;
         }
 
-        /** Maximum emitted leaves before {@link SchemaLimitExceededException}. Default 100,000. */
+        /**
+         * Maximum COLUMNS before {@link SchemaLimitExceededException}. Default 100,000.
+         *
+         * <p>Columns, not source leaves: anything {@link #injectField(int, FlattenedField)} adds
+         * counts against the same ceiling, because the ceiling exists to bound what the caller
+         * receives. It bounded only the traversal until this was corrected, so
+         * {@code maxFields(2)} with two injections on a two-field record returned four columns.</p>
+         */
         public Builder maxFields(int v) {
             if (v < 1) throw new IllegalArgumentException("maxFields must be >= 1");
             this.maxFields = v;
@@ -242,6 +257,14 @@ public final class FlattenOptions implements Serializable {
          * total field count. A position beyond the final column APPENDS in ascending order rather
          * than leaving gaps or throwing: {@code injectField(99, x)} on a three-column schema
          * yields column 4.</p>
+         *
+         * <p>THIS METHOD DE-DUPLICATES POSITIONS, NOT NAMES, and the two guards that catch the
+         * rest fire at flatten time rather than here, because both need the schema. An injected
+         * {@code flattenedName} equal to another column's — a source column's, or another
+         * injection's — is refused with {@link SchemaFlattenException} under BOTH collision
+         * policies, and injected columns count against {@link #maxFields(int)}. Neither was true
+         * until it was corrected: an injected duplicate was returned silently even under
+         * {@link NameCollisionPolicy#FAIL}, whose whole job is refusing exactly that.</p>
          *
          * @throws IllegalArgumentException if the position is below 1 or already claimed
          */

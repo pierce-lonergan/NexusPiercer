@@ -916,6 +916,58 @@ class EnrichedSchemaFlattenerTest {
                     .as("the recipe is gAvroParity()'s policy with the separators doubled")
                     .isEqualTo(FlattenOptions.gAvroParity().collisionPolicy());
         }
+
+        /**
+         * THE SCOPE OF THE PARITY CLAIM, executed rather than asserted in prose.
+         *
+         * <p>Change detectors, passing before and after: they reproduce current behaviour and are
+         * NOT a claim that it is correct. Their job is to stop the word "parity" widening back into
+         * an unconditional promise. {@code gAvroParity()}'s javadoc scopes parity to record-rooted
+         * schemas that avoid four structural divergences; three of them are measurable in a few
+         * lines and are measured here, and the fourth — GAvro degrading past depth 50 where this
+         * flattener throws at 64 — is not, which is recorded on the factory and in the manifest.</p>
+         *
+         * <p>These are not renames. On the first two shapes an entire subtree collapses to one leaf
+         * and a column that GAvro produces does not exist at all, so no configuration reaches it.</p>
+         */
+        @Test
+        @DisplayName("the parity claim is scoped: three structural divergences no configuration reaches")
+        void parityDivergesStructurallyWhereNoConfigurationCanReach() {
+            Schema multiBranchUnion = new Schema.Parser().parse("""
+                {"type":"record","name":"Envelope","namespace":"gov","fields":[
+                  {"name":"payload","type":[
+                    {"type":"record","name":"Ka","fields":[{"name":"k","type":"string"}]},
+                    {"type":"record","name":"La","fields":[{"name":"l","type":"string"}]}]}]}
+                """);
+            Schema arrayOfArrayOfRecord = new Schema.Parser().parse("""
+                {"type":"record","name":"Board","namespace":"gov","fields":[
+                  {"name":"grid","type":{"type":"array","items":{"type":"array","items":
+                    {"type":"record","name":"Cell","fields":[{"name":"v","type":"string"}]}}}}]}
+                """);
+            Schema nonRecordRoot = new Schema.Parser().parse("{\"type\":\"array\",\"items\":\"string\"}");
+
+            assertThat(sortedGAvro(multiBranchUnion))
+                    .as("GAvro descends into the first non-null branch and names its field")
+                    .containsExactly("payload_k");
+            assertThat(sortedNames(FlattenOptions.gAvroParity(), multiBranchUnion))
+                    .as("this flattener emits ONE leaf for a union it cannot resolve, so the "
+                            + "branch's field is not a column at all - a missing column, not a "
+                            + "renamed one, and no FlattenOptions knob produces it")
+                    .containsExactly("payload");
+
+            assertThat(sortedGAvro(arrayOfArrayOfRecord)).containsExactly("grid_v");
+            assertThat(sortedNames(FlattenOptions.gAvroParity(), arrayOfArrayOfRecord))
+                    .as("the inner array's element record is not descended into")
+                    .containsExactly("grid");
+
+            assertThat(new GAvroSchemaFlattener().flattenSchema(nonRecordRoot).keySet())
+                    .as("GAvro accepts a non-record root and keys it 'value'")
+                    .containsExactly("value");
+            assertThatThrownBy(() ->
+                    new EnrichedSchemaFlattener(FlattenOptions.gAvroParity()).flatten(nonRecordRoot))
+                    .isInstanceOf(SchemaFlattenException.class)
+                    .hasMessageContaining("Top-level schema must be a record");
+        }
     }
 
     /**
@@ -1072,6 +1124,223 @@ class EnrichedSchemaFlattenerTest {
             assertThat(new EnrichedSchemaFlattener(escape).flatten(acctSchema()))
                     .extracting(FlattenedField::flattenedName)
                     .containsExactly("user\\_name", "user_name");
+        }
+
+        /**
+         * The diagnostic must not state something false while correcting something false.
+         *
+         * <p>It recommended doubling the configured separator and then called the result "the
+         * default". {@code "__"} is the default only when the separator is {@code "_"}; with a
+         * separator of {@code "."} the sentence read "'..' is the default", which it is not.</p>
+         */
+        @Test
+        @DisplayName("the ESCAPE diagnostic does not call the doubled separator 'the default'")
+        void escapeDiagnosticDoesNotMisdescribeTheDoubledSeparatorAsTheDefault() {
+            FlattenOptions dotted = FlattenOptions.builder()
+                    .separator(".").arrayBoundarySeparator("x")
+                    .collisionPolicy(NameCollisionPolicy.ESCAPE).build();
+
+            assertThatThrownBy(() -> new EnrichedSchemaFlattener(dotted).flatten(forging("x")))
+                    .isInstanceOf(SchemaFlattenException.class)
+                    .hasMessageContaining("'..'")
+                    .hasMessageNotContaining("'..' is the default");
+        }
+
+        /**
+         * THE ADVICE IS EXECUTED. A remedy a diagnostic recommends and nothing tries is the same
+         * pathology as an option nothing reads. Passes before and after; it exists so that
+         * rewording the advice into something untrue reddens a test rather than a reviewer.
+         */
+        @Test
+        @DisplayName("the remedy the ESCAPE diagnostic recommends actually resolves the collision")
+        void theDoubledSeparatorRemedyActuallyWorks() {
+            for (String separator : new String[] {"_", ".", "x"}) {
+                FlattenOptions repaired = FlattenOptions.builder()
+                        .separator(separator)
+                        .arrayBoundarySeparator(separator + separator)
+                        .collisionPolicy(NameCollisionPolicy.ESCAPE).build();
+
+                assertThat(new EnrichedSchemaFlattener(repaired).flatten(forging("x")).stream()
+                        .map(FlattenedField::flattenedName).toList())
+                        .as("separator '%s' doubled must separate the two paths the marker 'x' "
+                                + "could not", separator)
+                        .doesNotHaveDuplicates()
+                        .hasSize(2);
+            }
+        }
+    }
+
+    /**
+     * The output-side guards, applied to the columns {@code injectField} adds.
+     *
+     * <p>Injected columns reached the caller's sink without passing the collision guard or the
+     * field-count ceiling, under BOTH policies. Under {@code FAIL} — whose entire published job is
+     * refusing two columns of one name — a duplicate column name was returned silently, and
+     * {@code maxFields(2)} returned four columns. Two controls that appear present and do nothing,
+     * on the output half of the same API whose input half they already guard.</p>
+     *
+     * <p>Drilled three ways throughout: a clean configuration passes, a synthetic violation blocks,
+     * and the violation blocks identically through {@code flatten} and {@code stream}.</p>
+     */
+    @Nested
+    @DisplayName("Injected columns are guarded like emitted ones")
+    class InjectedColumns {
+
+        private static Schema twoFields() {
+            return new Schema.Parser().parse("""
+                {"type":"record","name":"Row","namespace":"gov","fields":[
+                  {"name":"order_id","type":"string"},
+                  {"name":"amount","type":"string"}]}
+                """);
+        }
+
+        private static FlattenedField synthetic(String name) {
+            return FlattenedField.builder()
+                    .name(name).flattenedName(name)
+                    .avroType(Schema.Type.STRING)
+                    .schema(Schema.create(Schema.Type.STRING))
+                    .synthetic(true).build();
+        }
+
+        private static List<String> streamed(FlattenOptions options, Schema schema) {
+            List<String> out = new ArrayList<>();
+            new EnrichedSchemaFlattener(options).stream(schema, f -> out.add(f.flattenedName()));
+            return out;
+        }
+
+        // ------------------------------------------------------------ good input passes
+
+        @Test
+        @DisplayName("an injected name that collides with nothing is delivered by both entry points")
+        void aCleanInjectionIsUntouched() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .injectField(1, synthetic("ingest_ts")).build();
+
+            assertThat(new EnrichedSchemaFlattener(options).flatten(twoFields()))
+                    .extracting(FlattenedField::flattenedName)
+                    .containsExactly("ingest_ts", "order_id", "amount");
+            assertThat(streamed(options, twoFields()))
+                    .containsExactly("ingest_ts", "order_id", "amount");
+        }
+
+        @Test
+        @DisplayName("injections that fit under maxFields are not refused")
+        void injectionsUnderTheCeilingArePermitted() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .maxFields(3)
+                    .injectField(1, synthetic("ingest_ts")).build();
+
+            assertThat(new EnrichedSchemaFlattener(options).flatten(twoFields())).hasSize(3);
+            assertThat(streamed(options, twoFields())).hasSize(3);
+        }
+
+        // ------------------------------------------------------------ violations block
+
+        @Test
+        @DisplayName("an injected name equal to a source column is refused under FAIL")
+        void injectedNameEqualToASourceColumnIsRefusedUnderFail() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .collisionPolicy(NameCollisionPolicy.FAIL)
+                    .injectField(1, synthetic("order_id")).build();
+
+            assertThatThrownBy(() -> new EnrichedSchemaFlattener(options).flatten(twoFields()))
+                    .as("FAIL's javadoc promises to refuse the schema, naming both colliding "
+                            + "sources; it returned [order_id, order_id, amount] instead")
+                    .isInstanceOf(SchemaFlattenException.class)
+                    .hasMessageContaining("order_id")
+                    .hasMessageContaining("injected");
+        }
+
+        @Test
+        @DisplayName("an injected name equal to an ESCAPE rendering is refused under ESCAPE")
+        void injectedNameEqualToAnEscapedColumnIsRefusedUnderEscape() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .collisionPolicy(NameCollisionPolicy.ESCAPE)
+                    .injectField(1, synthetic("order\\_id")).build();
+
+            assertThatThrownBy(() -> new EnrichedSchemaFlattener(options).flatten(twoFields()))
+                    .as("ESCAPE's guarantee is about the OUTPUT: no two emitted leaves share a "
+                            + "name. An injected column is an emitted leaf.")
+                    .isInstanceOf(SchemaFlattenException.class)
+                    .hasMessageContaining("injected");
+        }
+
+        @Test
+        @DisplayName("two injections claiming one name are refused, though neither collides with a source")
+        void twoInjectionsWithOneNameAreRefused() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .injectField(1, synthetic("audit_tag"))
+                    .injectField(2, synthetic("audit_tag")).build();
+
+            assertThatThrownBy(() -> new EnrichedSchemaFlattener(options).flatten(twoFields()))
+                    .as("injectField dedupes POSITIONS, never names, so this pair passed "
+                            + "configuration and produced two columns called audit_tag")
+                    .isInstanceOf(SchemaFlattenException.class)
+                    .hasMessageContaining("audit_tag");
+        }
+
+        @Test
+        @DisplayName("an injection appended past the final column is guarded too")
+        void anAppendedInjectionIsGuarded() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .injectField(99, synthetic("amount")).build();
+
+            assertThatThrownBy(() -> new EnrichedSchemaFlattener(options).flatten(twoFields()))
+                    .as("the append-past-the-end branch runs in finish(), after the traversal, and "
+                            + "is the arm most easily left outside a guard added to accept()")
+                    .isInstanceOf(SchemaFlattenException.class)
+                    .hasMessageContaining("amount");
+        }
+
+        @Test
+        @DisplayName("maxFields bounds the columns produced, injections included")
+        void maxFieldsCountsInjectedColumns() {
+            FlattenOptions options = FlattenOptions.builder()
+                    .maxFields(2)
+                    .injectField(1, synthetic("i1"))
+                    .injectField(2, synthetic("i2")).build();
+
+            assertThatThrownBy(() -> new EnrichedSchemaFlattener(options).flatten(twoFields()))
+                    .as("a fail-closed ceiling must bound the thing it names; maxFields(2) "
+                            + "returned four columns [i1, i2, order_id, amount]")
+                    .isInstanceOf(SchemaLimitExceededException.class)
+                    .hasMessageContaining("maxFields");
+        }
+
+        // ------------------------------------------------------------ both entry points agree
+
+        @Test
+        @DisplayName("stream() refuses exactly what flatten() refuses")
+        void bothEntryPointsRefuseIdentically() {
+            List<FlattenOptions> violations = List.of(
+                    FlattenOptions.builder().injectField(1, synthetic("order_id")).build(),
+                    FlattenOptions.builder().injectField(99, synthetic("amount")).build(),
+                    FlattenOptions.builder().injectField(1, synthetic("dup"))
+                            .injectField(2, synthetic("dup")).build(),
+                    FlattenOptions.builder().maxFields(2).injectField(1, synthetic("i1"))
+                            .injectField(2, synthetic("i2")).build());
+
+            for (FlattenOptions options : violations) {
+                String fromFlatten = refusal(() ->
+                        new EnrichedSchemaFlattener(options).flatten(twoFields()));
+                String fromStream = refusal(() -> streamed(options, twoFields()));
+                assertThat(fromStream)
+                        .as("flatten() is the materialising form of stream(); a guard only one of "
+                                + "them consults is the divergence this API already shipped once")
+                        .isEqualTo(fromFlatten)
+                        .startsWith("REFUSED ");
+            }
+        }
+
+        private static String refusal(Runnable call) {
+            try {
+                call.run();
+                return "RETURNED NORMALLY";
+            } catch (SchemaFlattenException e) {
+                // SchemaLimitExceededException extends it, so one catch covers both refusals and
+                // the class name in the returned text still distinguishes them.
+                return "REFUSED " + e.getClass().getSimpleName() + ": " + e.getMessage();
+            }
         }
     }
 

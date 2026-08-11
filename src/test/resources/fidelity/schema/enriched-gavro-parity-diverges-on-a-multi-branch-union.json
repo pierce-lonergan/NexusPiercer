@@ -1,0 +1,59 @@
+{
+  "id" : "enriched-gavro-parity-diverges-on-a-multi-branch-union",
+  "family" : "schema",
+  "title" : "gAvroParity() does not reproduce GAvroSchemaFlattener's names for a union with more than one non-null branch, and no configuration reaches it",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The word 'parity' was published without its scope. FlattenOptions.gAvroParity()'s own javadoc lists four structural divergences 'no configuration can express', but the generated guarantee page said only that the factory 'genuinely reproduces GAvro's names for callers migrating', and the two classification overrides that flipped the parity rows from DEFECT to ACCEPTED_LOSS rested on the difference being 'configure-around-able'. For this shape it is not. GAvroSchemaFlattener descends into the FIRST non-null branch of a multi-branch union and names its field; this flattener resolves only ['null', T] and emits one leaf for anything else, because a union of two records has no column layout without a discriminator. So the divergence is not a rename: GAvro yields [payload_k] and the parity preset yields [payload], and payload_k does not exist here under any FlattenOptions. Prose that a corpus cannot see is the weaker version of the thing this whole package is being repaired for, which is why it is measured here.",
+  "catchesBugClass" : "The parity claim silently widening back to unconditional - either by someone teaching the enriched flattener to descend into the first union branch (copying GAvro's silent dropping of every other branch) without saying so, or by the manifest and the page dropping the scope again. A change in either direction moves this row.",
+  "cannotCatch" : "It measures one of the four divergences. Its twin enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records measures the second; the third - GAvro accepting a non-record root and keying it 'value' where this flattener throws - cannot be built here at all, because the harness parses every fixture's input as a JSON object and a non-record root has none, so it is covered only by EnrichedSchemaFlattenerTest.parityDivergesStructurallyWhereNoConfigurationCanReach. The fourth, GAvro degrading past depth 50 to a string with a log warning where this flattener throws at 64, is measured nowhere and remains prose on the factory's javadoc. It also cannot say which flattener is right: descending into one arbitrary branch and discarding the others is defensible only if a caller knows that is what happened.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "PREDICTED FROM THE ADVERSARIAL REVIEW'S EVIDENCE AND THEN CONFIRMED, rather than predicted blind: the review measured [payload_k] against [payload] and this fixture re-measures it inside the harness. ACCEPTED_LOSS rather than DEFECT because the behaviour is deliberate on this side - emitting one leaf for a union this API cannot resolve beats descending into an arbitrary branch and silently discarding the rest - and because the alternative would be adopting the other flattener's data loss in the name of matching its names. The loss is that a migrating caller loses this column, which is exactly what the scoped claim now has to say."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+      "enriched" : {
+        "preset" : "GAVRO_PARITY"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Envelope",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "payload",
+          "type" : [ {
+            "type" : "record",
+            "name" : "Ka",
+            "fields" : [ {
+              "name" : "k",
+              "type" : "string"
+            } ]
+          }, {
+            "type" : "record",
+            "name" : "La",
+            "fields" : [ {
+              "name" : "l",
+              "type" : "string"
+            } ]
+          } ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"payload\":{\"k\":\"v\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=_;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:payload\"]",
+    "flat" : "{\"payload_k\":\"S:v\"}",
+    "avroBaseline" : "[\"S:payload\"]",
+    "avroDoc" : "[\"S:payload_k\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

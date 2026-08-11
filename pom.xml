@@ -81,16 +81,36 @@
         <url>https://github.com/pierce-lonergan/NexusPiercer/actions</url>
     </ciManagement>
 
-    <!-- Distribution Management (Required for deployment) -->
+    <!--
+      Distribution Management.
+
+      The release/snapshot repositories that used to live here pointed at
+      s01.oss.sonatype.org — legacy OSSRH, which Sonatype has decommissioned. They were removed
+      rather than updated, because publishing does not go through them at all:
+      central-publishing-maven-plugin declares <extensions>true</extensions>, and its
+      DeployLifecycleParticipant CLEARS maven-deploy-plugin's executions from the project model
+      before the deploy phase runs, substituting its own. So maven-deploy-plugin never fires and
+      those URLs were never contacted.
+
+      Mechanism corrected on review: this comment used to say the plugin "sets
+      maven.deploy.skip=true". It does not, and it is measurable that it does not —
+      `./mvnw help:evaluate -Dexpression=maven.deploy.skip` answers "null object or invalid
+      expression". Disassembling DeployLifecycleParticipant in
+      central-publishing-maven-plugin-0.8.0.jar shows maybeSkipMavenDeployPlugin calling
+      getExecutions().clear() and then setUpCentralPublishingExecution. The conclusion was right
+      and the stated reason was not, which is the exact defect class this branch is repairing.
+
+      That is exactly what made them dangerous. They were inert only as a side effect of another
+      plugin's configuration. Anyone removing or skipping central-publishing-maven-plugin would
+      have had deploys silently re-aimed at a dead host — and the id 'ossrh' matches no <server>
+      in settings.xml, so it would have failed with a 401 rather than anything that named the real
+      problem. A dead endpoint held out of the way by an unrelated plugin is not configuration,
+      it is a trap.
+
+      Publishing is configured by central-publishing-maven-plugin (publishingServerId=central).
+      <site> stays: maven-site-plugin genuinely uses it.
+    -->
     <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
-        <repository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
         <site>
             <id>github</id>
             <url>scm:git:ssh://git@github.com:pierce-lonergan/NexusPiercer.git</url>

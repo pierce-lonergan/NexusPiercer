@@ -295,13 +295,16 @@
       "id": "enriched-schema-api",
       "kind": "LOSS",
       "headline": "The enriched schema API names columns your rows do not have, and its defaults are deliberately not the flattener it replaces.",
-      "statement": "Under its default collision policy EnrichedSchemaFlattener emits field names verbatim while MapFlattener escapes them, so the StructType it describes and the rows the library produces disagree on every field containing the separator. Its defaults also differ from GAvroSchemaFlattener's names on two independent axes - escaping, and the array-boundary marker - and that is now a deliberate choice rather than a broken promise: the parity claim has been withdrawn from the defaults, and FlattenOptions.gAvroParity() genuinely reproduces GAvro's names for callers migrating, at the cost of emitting backslashes that are illegal in Avro and SQL identifiers. The ESCAPE policy is INJECTIVE but NOT DECODABLE: the array-boundary marker is emitted outside the escaped alphabet, so splitting a rendered name yields a phantom empty segment at every boundary - use pathSegments() and arrayBoundaries(), never the name. Injectivity is now enforced rather than assumed, and a boundary marker an ordinary field name can spell is refused. THREE WARNINGS THAT USED TO STAND HERE HAVE BEEN REPAIRED and their rows are now LOSSLESS: stream() no longer discards configured column injections that flatten() honours, a producer property whose name collides with an Avro structural attribute at a different position is no longer dropped, and inheritDoc(false) no longer returns inherited documentation.",
+      "statement": "Under its default collision policy EnrichedSchemaFlattener emits field names verbatim while MapFlattener escapes them, so the StructType it describes and the rows the library produces disagree on every field containing the separator. Its defaults also differ from GAvroSchemaFlattener's names on two independent axes - escaping, and the array-boundary marker - and that is now a deliberate choice rather than a broken promise: the parity claim has been withdrawn from the defaults, and FlattenOptions.gAvroParity() reproduces GAvro's names for callers migrating, at the cost of emitting backslashes that are illegal in Avro and SQL identifiers. PARITY IS SCOPED, NOT UNCONDITIONAL, and the page used to say otherwise: it holds for record-rooted schemas that avoid a union with more than one non-null branch, an array of arrays of records, depth past 50, and a non-record root. On the first two a whole subtree collapses to one leaf - GAvro yields payload_k and grid_v where the parity preset yields payload and grid - so the column is missing rather than renamed and no configuration reaches it; both are now measured. The depth divergence is measured nowhere and is prose on the factory's javadoc. The ESCAPE policy is INJECTIVE but NOT DECODABLE: the array-boundary marker is emitted outside the escaped alphabet, so splitting a rendered name yields a phantom empty segment at every boundary - use pathSegments() and arrayBoundaries(), never the name. NO TWO EMITTED COLUMNS SHARE A FLATTENED NAME, under either policy and for injected columns as well as source ones: a boundary marker an ordinary field name can spell is refused, and so is a name supplied through injectField() that another column already holds. THREE WARNINGS THAT USED TO STAND HERE HAVE BEEN REPAIRED and their rows are now LOSSLESS: stream() no longer discards configured column injections that flatten() honours, a producer property whose name collides with an Avro structural attribute at a different position is no longer dropped, and inheritDoc(false) no longer returns inherited documentation. TWO MORE OUTPUT-SIDE GUARDS WERE REPAIRED THAT NO WARNING EVER STOOD FOR, because no fixture could see them: injectField() bypassed the collision guard under both policies, so an injected name equal to a source column's returned two columns of one name even under FAIL, and maxFields bounded only the leaves the traversal visited, so maxFields(2) with two injections returned four columns. The first now has a row of its own; the second is covered by unit test only, because the corpus has no assert mode that can see a field-count ceiling.",
       "fixtures": [
         "enriched-keyset-diverges-from-map-rows",
         "enriched-gavro-parity-claim-fails-on-underscores",
         "enriched-gavro-parity-claim-fails-at-array-boundaries",
+        "enriched-gavro-parity-diverges-on-a-multi-branch-union",
+        "enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records",
         "enriched-escape-name-does-not-decode-across-an-array-boundary",
-        "enriched-escape-forged-array-boundary-is-refused"
+        "enriched-escape-forged-array-boundary-is-refused",
+        "enriched-injected-column-colliding-with-a-source-column-is-refused"
       ]
     },
     {
@@ -337,14 +340,14 @@
     }
   ],
   "counts": {
-    "total": 153,
+    "total": 156,
     "lossless": 51,
-    "acceptedLoss": 20,
+    "acceptedLoss": 23,
     "defect": 82,
-    "nonDefaultConfig": 47,
+    "nonDefaultConfig": 50,
     "losslessNotUnderDefaultReconstruction": 3,
     "losslessNotUnderPublishedRecipe": 1,
-    "publishedRecipeNotApplicable": 41,
+    "publishedRecipeNotApplicable": 44,
     "holdsUnderPublishedRecipeNo": 24,
     "families": {
       "avro": {
@@ -378,9 +381,9 @@
         "DEFECT": 13
       },
       "schema": {
-        "total": 23,
+        "total": 26,
         "LOSSLESS": 14,
-        "ACCEPTED_LOSS": 8,
+        "ACCEPTED_LOSS": 11,
         "DEFECT": 1
       },
       "structural": {
@@ -431,12 +434,12 @@
     {
       "id": "enriched-gavro-parity-claim-fails-on-underscores",
       "classification": "ACCEPTED_LOSS",
-      "reason": "DELIBERATE RECLASSIFICATION, DEFECT -> ACCEPTED_LOSS, with the recording unmoved. The fixture's prediction was correct and is left standing: the enriched defaults do not reproduce GAvroSchemaFlattener's names, and every byte of the measurement is unchanged. What changed is the promise. FlattenOptions' javadoc claimed parity FOR THE DEFAULTS; that claim is withdrawn, because meeting it would mean making ESCAPE the resting state and emitting backslashes into names destined to become Avro and SQL identifiers. A documented, deliberate, configure-around-able difference between two flatteners' conventions is an accepted limit, not a defect - and the way round it, FlattenOptions.gAvroParity(), is now real and is measured by the twin row enriched-gavro-parity-factory-matches-gavro-on-underscored-names on the same schema and datum. Kept as an override rather than by rewriting the prediction, following the precedent of order-line-items-comma-separated: where the measurement has not moved and only the judgement has, the disagreement is the honest record."
+      "reason": "DELIBERATE RECLASSIFICATION, DEFECT -> ACCEPTED_LOSS, with the recording unmoved. The fixture's prediction was correct and is left standing: the enriched defaults do not reproduce GAvroSchemaFlattener's names, and every byte of the measurement is unchanged. What changed is the promise. FlattenOptions' javadoc claimed parity FOR THE DEFAULTS; that claim is withdrawn, because meeting it would mean making ESCAPE the resting state and emitting backslashes into names destined to become Avro and SQL identifiers. A documented, deliberate, configure-around-able difference between two flatteners' conventions is an accepted limit, not a defect - and the way round it, FlattenOptions.gAvroParity(), is now real and is measured by the twin row enriched-gavro-parity-factory-matches-gavro-on-underscored-names on the same schema and datum. Kept as an override rather than by rewriting the prediction, following the precedent of order-line-items-comma-separated: where the measurement has not moved and only the judgement has, the disagreement is the honest record. SCOPE, ADDED ON REVIEW: 'configure-around-able' is true of THIS row's shape and is not true in general, and the page used to publish it without the qualifier. gAvroParity() is exact only for record-rooted schemas that avoid four structural divergences no configuration can express: a union with more than one non-null branch, an array of arrays of records, depth past 50, and a non-record root. The first two are now measured - enriched-gavro-parity-diverges-on-a-multi-branch-union and enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records - and on both of them a whole subtree collapses to one leaf, so the column GAvro produces is not reachable here under any configuration at all."
     },
     {
       "id": "enriched-gavro-parity-claim-fails-at-array-boundaries",
       "classification": "ACCEPTED_LOSS",
-      "reason": "DELIBERATE RECLASSIFICATION, DEFECT -> ACCEPTED_LOSS, with the recording unmoved, for the same reason as its sibling on underscores and on the second axis of the same withdrawn claim. The enriched defaults mark array boundaries with __ where GAvroSchemaFlattener emits a single _, and they do so on purpose: a visible boundary marker is a useful convention that FlattenedField.arrayBoundaries() sits alongside. The prediction was correct about the measurement and is preserved; the label reflects that the difference is now declared rather than accidental, and that enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary measures the supported way round it."
+      "reason": "DELIBERATE RECLASSIFICATION, DEFECT -> ACCEPTED_LOSS, with the recording unmoved, for the same reason as its sibling on underscores and on the second axis of the same withdrawn claim. The enriched defaults mark array boundaries with __ where GAvroSchemaFlattener emits a single _, and they do so on purpose: a visible boundary marker is a useful convention that FlattenedField.arrayBoundaries() sits alongside. The prediction was correct about the measurement and is preserved; the label reflects that the difference is now declared rather than accidental, and that enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary measures the supported way round it. SCOPE, ADDED ON REVIEW: 'configure-around-able' is true of THIS row's shape and is not true in general, and the page used to publish it without the qualifier. gAvroParity() is exact only for record-rooted schemas that avoid four structural divergences no configuration can express: a union with more than one non-null branch, an array of arrays of records, depth past 50, and a non-record root. The first two are now measured - enriched-gavro-parity-diverges-on-a-multi-branch-union and enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records - and on both of them a whole subtree collapses to one leaf, so the column GAvro produces is not reachable here under any configuration at all."
     },
     {
       "id": "enriched-escape-name-does-not-decode-across-an-array-boundary",
@@ -2203,7 +2206,7 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "FlattenOptions.gAvroParity() reproduces GAvroSchemaFlattener's names exactly for underscore-bearing fields",
-      "detail": "The positive half of a pair, and the first row in the corpus that can see a named FlattenOptions FACTORY at all. gAvroParity() used to be an alias for builder().build(), so both rows whose titles named it were measuring the defaults and the factory's claim could not be observed - which is how it rotted. It now sets collisionPolicy=ESCAPE and arrayBoundarySeparator=_, and both arms render [order\\\\_id, ship_city, ship_post\\\\_code]. Same schema and same datum as the DEFECT twin enriched-gavro-parity-claim-fails-on-underscores, so the only variable is the configuration. NAMES ONLY, and the agreed names contain backslashes, which are illegal in Avro and SQL identifiers - that is inherited from GAvro and is exactly why FAIL remains the default.",
+      "detail": "The positive half of a pair, and the first row in the corpus that can see a named FlattenOptions FACTORY at all. gAvroParity() used to be an alias for builder().build(), so both rows whose titles named it were measuring the defaults and the factory's claim could not be observed - which is how it rotted. It now sets collisionPolicy=ESCAPE and arrayBoundarySeparator=_, and both arms render [order\\\\_id, ship_city, ship_post\\\\_code]. Same schema and same datum as the DEFECT twin enriched-gavro-parity-claim-fails-on-underscores, so the only variable is the configuration. NAMES ONLY, and the agreed names contain backslashes, which are illegal in Avro and SQL identifiers - that is inherited from GAvro and is exactly why FAIL remains the default. SCOPE: gAvroParity() is exact only for record-rooted schemas that avoid four structural divergences no configuration can express: a union with more than one non-null branch, an array of arrays of records, depth past 50, and a non-record root. The first two are now measured - enriched-gavro-parity-diverges-on-a-multi-branch-union and enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records - and on both of them a whole subtree collapses to one leaf, so the column GAvro produces is not reachable here under any configuration at all.",
       "configDescription": "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
       "requiresNonDefaultConfig": true,
       "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
@@ -2231,7 +2234,35 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "FlattenOptions.gAvroParity() joins array element fields with a single separator, exactly as GAvroSchemaFlattener does",
-      "detail": "The second axis of parity, on an underscore-free schema so the boundary marker is the only variable, and the positive twin of enriched-gavro-parity-claim-fails-at-array-boundaries. Both arms render [items_sku] where the enriched defaults render items__sku. The recorded enrichedOptions pins the factory's exact knobs, so any future drift in gAvroParity() - including 'simplifying' it back into builder().build() - turns this row red rather than quietly restoring the defect.",
+      "detail": "The second axis of parity, on an underscore-free schema so the boundary marker is the only variable, and the positive twin of enriched-gavro-parity-claim-fails-at-array-boundaries. Both arms render [items_sku] where the enriched defaults render items__sku. The recorded enrichedOptions pins the factory's exact knobs, so any future drift in gAvroParity() - including 'simplifying' it back into builder().build() - turns this row red rather than quietly restoring the defect. SCOPE: gAvroParity() is exact only for record-rooted schemas that avoid four structural divergences no configuration can express: a union with more than one non-null branch, an array of arrays of records, depth past 50, and a non-record root. The first two are now measured - enriched-gavro-parity-diverges-on-a-multi-branch-union and enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records - and on both of them a whole subtree collapses to one leaf, so the column GAvro produces is not reachable here under any configuration at all.",
+      "configDescription": "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-gavro-parity-diverges-on-a-multi-branch-union",
+      "family": "schema",
+      "file": "schema/enriched-gavro-parity-diverges-on-a-multi-branch-union.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "gAvroParity() does not reproduce GAvroSchemaFlattener's names for a union with more than one non-null branch, and no configuration reaches it",
+      "detail": "THE SCOPE OF THE PARITY CLAIM, MEASURED. FlattenOptions.gAvroParity()'s javadoc has always scoped parity to record-rooted schemas avoiding four structural divergences; the published page carried none of that scope, and the two overrides that flipped the parity rows from DEFECT to ACCEPTED_LOSS leaned on the difference being configure-around-able. On this shape it is not. GAvroSchemaFlattener descends into the FIRST non-null branch of a multi-branch union and names its field; this flattener resolves only [null, T] and emits one leaf for anything else, because a union of two records has no column layout without a discriminator. GAvro yields [payload_k], the parity preset yields [payload], and payload_k is unreachable from any FlattenOptions. Filed as an accepted loss rather than a defect because closing it would mean adopting GAvro's silent discarding of every branch but the first.",
+      "configDescription": "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records",
+      "family": "schema",
+      "file": "schema/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "gAvroParity() does not reproduce GAvroSchemaFlattener's names for an array of arrays of records, and no configuration reaches it",
+      "detail": "The second axis of the same scope, and the twin of the union row. GAvroSchemaFlattener digs through the outer array into the inner array's element record; this flattener resolves an array's element type once and emits a single leaf when that element is itself an array. GAvro yields [grid_v], the parity preset yields [grid]. Again a collapse rather than a rename, and again unreachable by configuration. Filed as an accepted loss because closing it would change what withinArray() and arrayBoundaries() mean for every caller of the enriched API, not only for the ones migrating off GAvro.",
       "configDescription": "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
       "requiresNonDefaultConfig": true,
       "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
@@ -2266,6 +2297,20 @@
       "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
+      "id": "enriched-injected-column-colliding-with-a-source-column-is-refused",
+      "family": "schema",
+      "file": "schema/enriched-injected-column-colliding-with-a-source-column-is-refused.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "An injected column whose name is already a source column's is refused, rather than returning two columns under one name",
+      "detail": "PUBLISHED AS AN ENFORCED PROPERTY BEFORE ANYTHING MEASURED IT, AND NOW MEASURED. This page said injectivity was enforced rather than assumed; it was enforced only for the columns the TRAVERSAL produced. checkCollision and the maxFields ceiling both lived inside emit(), which the injection merge never passes through, so injectField() reached the caller's sink unguarded: on gov.Row{order_id, amount} with injectField(1, \"order_id\"), flatten() and stream() both returned [order_id, order_id, amount] under NameCollisionPolicy.FAIL, whose entire published job is refusing exactly that, with no exception and no log line. None of the three existing injection rows could see it because all three inject names disjoint from their source columns. It now throws SchemaFlattenException naming both the source path and the injectField position, in its own text: neither policy's advice - rename a field, change the separator, switch to ESCAPE - can move a name the caller typed. ACCEPTED_LOSS on the same footing as enriched-fail-policy-refuses-a-colliding-schema: the schema half refuses what the row half never faces.",
+      "configDescription": "assert ENRICHED_KEYSET vs MAP_FLATTENER, one injected field named after a source column",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
       "id": "enriched-entrypoints-agree-without-injection",
       "family": "schema",
       "file": "schema/enriched-entrypoints-agree-without-injection.json",
@@ -2273,7 +2318,7 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "Without injections, flatten() and stream() return the same columns in the same order",
-      "detail": "Without injections the two entry points return the same columns in the same order, and the recorded emission order pins the sequence as well as the set. This is what stops the injection row's comparator being one that has only ever produced \"not equal\".",
+      "detail": "Without injections the two entry points return the same columns in the same order, and the recorded emission order pins the sequence as well as the set. WHAT THIS ROW IS FOR HAS CHANGED, and the rationale it used to publish here is withdrawn as stale: it read 'this is what stops the injection row's comparator being one that has only ever produced not equal', which described the risk before flatten() became the materialising form of stream(). After that repair the risk is the mirror image - the ENRICHED_STREAM comparator can no longer report 'not equal' under any configuration in which both entry points return - so the discriminating power lives in the harness gate RoundTripFidelityCorpusTest.enrichedStreamComparatorStillDiscriminates, which compares stream() with and without injections and now counts refusals and emissions separately so neither arm can quietly become the only one. What this row still pins on its own is emission ORDER, and the zero-injection short circuit in stream(), which is a real and separately reachable code path: it hands the caller's sink to the traversal unwrapped and rebuilds no field.",
       "configDescription": "assert ENRICHED_KEYSET vs ENRICHED_STREAM, default FlattenOptions",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
@@ -2385,7 +2430,7 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "FlattenOptions.inheritDoc(false) returns declared-only documentation, attributing nothing to a leaf its producer never documented",
-      "detail": "PUBLISHED AS A DEFECT UNTIL NOW, AND REPAIRED: inheritDoc was declared, defaulted, validated, stored and exposed by a getter, and read nowhere in src/main, so inheritDoc(false) was byte-identical to inheritDoc(true) and a consumer asking for declared-only documentation received inherited documentation with no error and no diagnostic. walkRecord now gates the inherited value at its source: with the flag off, no ancestor text is carried down the walk and every leaf reports exactly the documentation its own producer wrote. All three leaves here report doc=null and inherited=false, matching the declared side exactly. The probe now expects the two settings to produce DIFFERENT output, which is what proves the control is live; it previously expected EQUAL, which is what proved it dead. A leaf's OWN doc still wins - the flag suppresses inheritance, not documentation.",
+      "detail": "PUBLISHED AS A DEFECT UNTIL NOW, AND REPAIRED: inheritDoc was declared, defaulted, validated, stored and exposed by a getter, and read nowhere in src/main, so inheritDoc(false) was byte-identical to inheritDoc(true) and a consumer asking for declared-only documentation received inherited documentation with no error and no diagnostic. walkRecord now gates the inherited value at its source: with the flag off, no ancestor text is carried down the walk and every leaf reports exactly the documentation its own producer wrote. The probe now expects the two settings to produce DIFFERENT output, which is what proves the control is live; it previously expected EQUAL, which is what proved it dead. A LEAF'S OWN DOC STILL WINS - the flag suppresses inheritance, not documentation - AND THIS ROW NOW MEASURES THAT RATHER THAN ASSERTING IT: review found every leaf in the schema undocumented, which made the DECLARED_DOC arm satisfied equally by a correct fix and by one that blanket-nulled every doc, so order_id was given a doc of its own and deliberately re-recorded. It survives the flag while the two customer leaves report null, and an erasing implementation now reddens this row on its own recording.",
       "configDescription": "assert ENRICHED_METADATA vs DECLARED_DOC, inheritDoc=false",
       "requiresNonDefaultConfig": true,
       "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
