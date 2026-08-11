@@ -19,9 +19,12 @@
     "flat" : "{\"applied\\\\_promo\\\\_codes\":null,\"cart\\\\_id\":\"S:CART-000551\",\"customer\\\\_id\":\"S:CUST-77301\",\"line\\\\_items\":null,\"totals\":null,\"updated\\\\_at\":\"S:2026-08-09T14:32:11Z\"}",
     "mapDoc" : "{\"applied_promo_codes\":null,\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":null,\"totals\":null,\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"applied_promo_codes\":[],\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":[],\"totals\":{},\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
+    "flatJson" : "{\"applied\\\\_promo\\\\_codes\":null,\"cart\\\\_id\":\"S:CART-000551\",\"customer\\\\_id\":\"S:CUST-77301\",\"line\\\\_items\":null,\"totals\":null,\"updated\\\\_at\":\"S:2026-08-09T14:32:11Z\"}",
     "jsonDoc" : "{\"applied_promo_codes\":null,\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":null,\"totals\":null,\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -43,6 +43,7 @@
   "input" : "{\"amount\":12.50,\"fee\":0.5}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"amount\":\"D:12.5\",\"fee\":\"D:0.5\"}",
     "avroBaseline" : "{\"amount\":\"D:12.5\",\"fee\":\"D:0.5\"}",
     "avroDoc" : "{\"amount\":\"BYTES:BOI=\",\"fee\":\"BYTES:Mg==\"}",

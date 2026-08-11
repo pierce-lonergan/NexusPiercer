@@ -38,9 +38,12 @@
     "flat" : "{\"p_other\":\"I:1\",\"p_present\":null}",
     "mapDoc" : "{\"p\":{\"other\":\"I:1\"}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : false,
     "jsonBaseline" : "{\"p\":{\"other\":\"I:1\",\"present\":null}}",
+    "flatJson" : "{\"p_other\":\"I:1\",\"p_present\":null}",
     "jsonDoc" : "{\"p\":{\"other\":\"I:1\"}}",
     "losslessJson" : false,
+    "jsonDefaultsMatch" : false,
     "probe" : {
       "kind" : "RECONSTRUCT_CONFIG_COMPARE",
       "expect" : "DIFFERENT",

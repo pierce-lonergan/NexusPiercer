@@ -19,9 +19,12 @@
     "flat" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
     "mapDoc" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "flatJson" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
     "jsonDoc" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

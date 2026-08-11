@@ -19,9 +19,12 @@
     "flat" : "{\"amount\\\\_minor\\\\_units\":\"S:123456789012345678901234567890\",\"booked\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"currency\\\\_code\":\"S:JPY\",\"ledger\\\\_sequence\":\"L:9007199254740993\",\"transaction\\\\_id\":\"S:TXN-2026-0815\"}",
     "mapDoc" : "{\"amount_minor_units\":\"S:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"amount_minor_units\":\"BI:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
+    "flatJson" : "{\"amount\\\\_minor\\\\_units\":\"S:123456789012345678901234567890\",\"booked\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"currency\\\\_code\":\"S:JPY\",\"ledger\\\\_sequence\":\"L:9007199254740993\",\"transaction\\\\_id\":\"S:TXN-2026-0815\"}",
     "jsonDoc" : "{\"amount_minor_units\":\"S:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_tags\":\"S:[\\\"[\\\\\\\"gift\\\\\\\",\\\\\\\"fragile\\\\\\\"]\\\",\\\"[\\\\\\\"backorder\\\\\\\"]\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0006\"}",
     "mapDoc" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":\"S:[\\\"gift\\\",\\\"fragile\\\"]\"},{\"sku\":\"S:SKU-205\",\"tags\":\"S:[\\\"backorder\\\"]\"}],\"order_id\":\"S:ORD-2026-0006\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":[\"S:gift\",\"S:fragile\"]},{\"sku\":\"S:SKU-205\",\"tags\":[\"S:backorder\"]}],\"order_id\":\"S:ORD-2026-0006\"}",
+    "flatJson" : "{\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_tags\":\"S:[\\\"[\\\\\\\"gift\\\\\\\",\\\\\\\"fragile\\\\\\\"]\\\",\\\"[\\\\\\\"backorder\\\\\\\"]\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0006\"}",
     "jsonDoc" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":\"S:[\\\"gift\\\",\\\"fragile\\\"]\"},{\"sku\":\"S:SKU-205\",\"tags\":\"S:[\\\"backorder\\\"]\"}],\"order_id\":\"S:ORD-2026-0006\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"users_age\":\"S:[30,25]\",\"users_name\":\"S:[\\\"Alice\\\",\\\"Bob\\\"]\"}",
     "mapDoc" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
+    "flatJson" : "{\"users_age\":\"S:[30,25]\",\"users_name\":\"S:[\\\"Alice\\\",\\\"Bob\\\"]\"}",
     "jsonDoc" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"data\":\"S:[\\\"text\\\"]\",\"data_name\":\"S:[[\\\"A\\\"]]\"}",
     "mapDoc" : "{\"data\":\"S:[\\\"text\\\"]\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"data\":[[{\"name\":\"S:A\"}],\"S:text\"]}",
+    "flatJson" : "{\"data\":\"S:[\\\"text\\\"]\",\"data_name\":\"S:[[\\\"A\\\"]]\"}",
     "jsonDoc" : "{\"data\":\"S:[\\\"text\\\"]\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

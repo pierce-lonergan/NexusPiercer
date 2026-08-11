@@ -19,9 +19,12 @@
     "flat" : "{\"e_emptyArr\":null,\"e_emptyObj\":null,\"e_explicitNull\":null,\"e_nonEmpty_x\":\"I:1\"}",
     "mapDoc" : "{\"e\":{\"emptyArr\":null,\"emptyObj\":null,\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"e\":{\"emptyArr\":[],\"emptyObj\":{},\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
+    "flatJson" : "{\"e_emptyArr\":null,\"e_emptyObj\":null,\"e_explicitNull\":null,\"e_nonEmpty_x\":\"I:1\"}",
     "jsonDoc" : "{\"e\":{\"emptyArr\":null,\"emptyObj\":null,\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

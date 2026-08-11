@@ -19,9 +19,12 @@
     "flat" : "{\"after_customer\\\\_id\":\"I:77301\",\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:pending\",\"after_total\\\\_amount\":\"D:148.75\",\"before\":null,\"op\":\"S:c\",\"source_connector\":\"S:postgresql\",\"source_db\":\"S:sales\",\"source_lsn\":\"I:24576123\",\"source_table\":\"S:orders\",\"ts\\\\_ms\":\"L:1786321931482\"}",
     "mapDoc" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"D:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"BD:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
+    "flatJson" : "{\"after_customer\\\\_id\":\"I:77301\",\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:pending\",\"after_total\\\\_amount\":\"D:148.75\",\"before\":null,\"op\":\"S:c\",\"source_connector\":\"S:postgresql\",\"source_db\":\"S:sales\",\"source_lsn\":\"I:24576123\",\"source_table\":\"S:orders\",\"ts\\\\_ms\":\"L:1786321931482\"}",
     "jsonDoc" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"BD:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

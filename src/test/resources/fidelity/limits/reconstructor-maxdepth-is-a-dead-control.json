@@ -38,9 +38,12 @@
     "flat" : "{\"d1_d2_d3_d4_d5_d6_d7_leaf\":\"I:1\"}",
     "mapDoc" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+    "flatJson" : "{\"d1_d2_d3_d4_d5_d6_d7_leaf\":\"I:1\"}",
     "jsonDoc" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
     "losslessJson" : true,
+    "jsonDefaultsMatch" : true,
     "probe" : {
       "kind" : "RECONSTRUCT_CONFIG_COMPARE",
       "expect" : "EQUAL",

@@ -19,9 +19,12 @@
     "flat" : "{\"r_tags\":\"S:[\\\"only\\\"]\"}",
     "mapDoc" : "{\"r\":{\"tags\":\"S:[\\\"only\\\"]\"}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"r\":{\"tags\":[\"S:only\"]}}",
+    "flatJson" : "{\"r_tags\":\"S:[\\\"only\\\"]\"}",
     "jsonDoc" : "{\"r\":{\"tags\":\"S:[\\\"only\\\"]\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

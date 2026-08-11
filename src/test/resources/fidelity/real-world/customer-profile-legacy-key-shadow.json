@@ -19,9 +19,12 @@
     "flat" : "{\"customer\\\\_id\":\"S:CUST-90210\",\"notification\\\\_settings_push\":\"B:true\",\"preferences\\\\_theme\":\"S:light\",\"preferences_digest\":\"S:weekly\",\"preferences_theme\":\"S:dark\"}",
     "mapDoc" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
+    "flatJson" : "{\"customer\\\\_id\":\"S:CUST-90210\",\"notification\\\\_settings_push\":\"B:true\",\"preferences\\\\_theme\":\"S:light\",\"preferences_digest\":\"S:weekly\",\"preferences_theme\":\"S:dark\"}",
     "jsonDoc" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

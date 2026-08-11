@@ -23,9 +23,12 @@
     "flat" : "{\"l1_l2_l3\":\"S:{\\\"leaf\\\":7}\"}",
     "mapDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"leaf\":\"I:7\"}}}}",
+    "flatJson" : "{\"l1_l2_l3\":\"S:{\\\"leaf\\\":7}\"}",
     "jsonDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

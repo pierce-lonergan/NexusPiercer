@@ -19,9 +19,12 @@
     "flat" : "{\"cfg_\\\\_\\\\_isArray\\\\_\\\\_\":\"B:true\",\"cfg_name\":\"S:x\"}",
     "mapDoc" : "{\"cfg\":[{\"name\":\"S:x\"}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"cfg\":{\"__isArray__\":\"B:true\",\"name\":\"S:x\"}}",
+    "flatJson" : "{\"cfg_\\\\_\\\\_isArray\\\\_\\\\_\":\"B:true\",\"cfg_name\":\"S:x\"}",
     "jsonDoc" : "{\"cfg\":[{\"name\":\"S:x\"}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

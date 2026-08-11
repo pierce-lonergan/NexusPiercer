@@ -19,9 +19,12 @@
     "flat" : "{\"r_k1\":\"S:[1,null,null]\",\"r_k2\":\"S:[2,null,null]\",\"r_k3\":\"S:[3,null,null]\",\"r_z\":\"S:[0,0,0]\"}",
     "mapDoc" : "{\"r\":[{\"k1\":\"I:1\",\"k2\":\"I:2\",\"k3\":\"I:3\",\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"r\":[{\"k1\":\"I:1\",\"z\":\"I:0\"},{\"k2\":\"I:2\",\"z\":\"I:0\"},{\"k3\":\"I:3\",\"z\":\"I:0\"}]}",
+    "flatJson" : "{\"r_k1\":\"S:[1,null,null]\",\"r_k2\":\"S:[2,null,null]\",\"r_k3\":\"S:[3,null,null]\",\"r_z\":\"S:[0,0,0]\"}",
     "jsonDoc" : "{\"r\":[{\"k1\":\"I:1\",\"k2\":\"I:2\",\"k3\":\"I:3\",\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

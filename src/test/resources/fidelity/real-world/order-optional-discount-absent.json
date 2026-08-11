@@ -19,9 +19,12 @@
     "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[15,null]\",\"line\\\\_items_quantity\":\"S:[1,2]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,7.25]\",\"order\\\\_id\":\"S:ORD-2026-0004\"}",
     "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":\"I:15\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"},{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"D:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":\"I:15\",\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
+    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[15,null]\",\"line\\\\_items_quantity\":\"S:[1,2]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,7.25]\",\"order\\\\_id\":\"S:ORD-2026-0004\"}",
     "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":\"I:15\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

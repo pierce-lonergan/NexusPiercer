@@ -19,9 +19,12 @@
     "flat" : "{\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:shipped\",\"after_tag\\\\_list\":\"S:[\\\"rush\\\",\\\"gift\\\",\\\"insured\\\"]\",\"before_order\\\\_id\":\"I:8814\",\"before_status\":\"S:pending\",\"before_tag\\\\_list\":\"S:[\\\"rush\\\",\\\"gift\\\"]\",\"op\":\"S:u\",\"ts\\\\_ms\":\"L:1786321931482\"}",
     "mapDoc" : "{\"after\":[{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:gift\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:insured\"}],\"before\":[{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:gift\"}],\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"after\":{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":[\"S:rush\",\"S:gift\",\"S:insured\"]},\"before\":{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":[\"S:rush\",\"S:gift\"]},\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
+    "flatJson" : "{\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:shipped\",\"after_tag\\\\_list\":\"S:[\\\"rush\\\",\\\"gift\\\",\\\"insured\\\"]\",\"before_order\\\\_id\":\"I:8814\",\"before_status\":\"S:pending\",\"before_tag\\\\_list\":\"S:[\\\"rush\\\",\\\"gift\\\"]\",\"op\":\"S:u\",\"ts\\\\_ms\":\"L:1786321931482\"}",
     "jsonDoc" : "{\"after\":[{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:gift\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:insured\"}],\"before\":[{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:gift\"}],\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

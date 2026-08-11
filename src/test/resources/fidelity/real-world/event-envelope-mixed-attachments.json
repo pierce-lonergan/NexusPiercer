@@ -19,9 +19,12 @@
     "flat" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[\\\"legacy-inline-note\\\",null]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\"]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\"]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
     "mapDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[\"S:legacy-inline-note\",null],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "flatJson" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[\\\"legacy-inline-note\\\",null]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\"]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\"]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
     "jsonDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[\"S:legacy-inline-note\",null],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

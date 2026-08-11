@@ -20,9 +20,12 @@
     "flat" : "{\"z_negDouble\":\"D:-0.0\",\"z_negInt\":\"I:0\",\"z_posDouble\":\"D:0.0\",\"z_posInt\":\"I:0\"}",
     "mapDoc" : "{\"z\":{\"negDouble\":\"D:-0.0\",\"negInt\":\"I:0\",\"posDouble\":\"D:0.0\",\"posInt\":\"I:0\"}}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"z\":{\"negDouble\":\"BD:0.0\",\"negInt\":\"I:0\",\"posDouble\":\"BD:0.0\",\"posInt\":\"I:0\"}}",
+    "flatJson" : "{\"z_negDouble\":\"D:-0.0\",\"z_negInt\":\"I:0\",\"z_posDouble\":\"D:0.0\",\"z_posInt\":\"I:0\"}",
     "jsonDoc" : "{\"z\":{\"negDouble\":\"BD:0.0\",\"negInt\":\"I:0\",\"posDouble\":\"BD:0.0\",\"posInt\":\"I:0\"}}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

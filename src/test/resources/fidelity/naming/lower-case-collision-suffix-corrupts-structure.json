@@ -23,9 +23,12 @@
     "flat" : "{\"id\":\"I:1\",\"id_2\":\"I:2\"}",
     "mapDoc" : "{\"id\":{\"2\":\"I:2\",\"_value\":\"I:1\"}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "flatJson" : "{\"id\":\"I:1\",\"id_2\":\"I:2\"}",
     "jsonDoc" : "{\"id\":{\"2\":\"I:2\",\"_value\":\"I:1\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

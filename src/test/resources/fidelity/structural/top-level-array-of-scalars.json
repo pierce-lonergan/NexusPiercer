@@ -19,9 +19,12 @@
     "flat" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
     "mapDoc" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"scores\":[\"I:1\",\"I:2\",\"I:3\"],\"tags\":[\"S:red\",\"S:green\",\"S:blue\"]}",
+    "flatJson" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
     "jsonDoc" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

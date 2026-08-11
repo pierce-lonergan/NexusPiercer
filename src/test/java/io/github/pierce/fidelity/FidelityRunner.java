@@ -74,6 +74,11 @@ final class FidelityRunner {
         return m;
     }
 
+    /** Answer to "does the row's recorded behaviour survive the library's default entry point?" */
+    static final String DEFAULTS_HOLD = "YES";
+    static final String DEFAULTS_DIVERGE = "NO";
+    static final String DEFAULTS_NA = "NOT_APPLICABLE";
+
     /** All renderings produced for one fixture, plus the live objects the pair checks need. */
     static final class Measurement {
         final Map<String, Object> recorded = new LinkedHashMap<>();
@@ -93,11 +98,33 @@ final class FidelityRunner {
                 runMapStack(fx, m);
             }
             if (doJson) {
-                runJsonStack(fx, m, !doMap);
+                // The MAP arm owns the "flat" key when both run; the JSON arm gets its own so the
+                // two flattened intermediates are BOTH asserted. See runJsonStack.
+                runJsonStack(fx, m, doMap ? "flatJson" : "flat");
             }
         }
         runProbe(fx, m);
         return m;
+    }
+
+    /**
+     * Folds the per-arm defaults verdicts into the single tri-state a consumer needs.
+     *
+     * <p>{@code NO} on any arm wins: the row is then only true under the configuration the fixture
+     * declares, and the published table has to say so.</p>
+     */
+    static String defaultsVerdict(Measurement m) {
+        boolean any = false;
+        for (String k : new String[] {"mapDefaultsMatch", "jsonDefaultsMatch", "avroDefaultsMatch"}) {
+            Object v = m.recorded.get(k);
+            if (v instanceof Boolean b) {
+                any = true;
+                if (!b) {
+                    return DEFAULTS_DIVERGE;
+                }
+            }
+        }
+        return any ? DEFAULTS_HOLD : DEFAULTS_NA;
     }
 
     // ---------------------------------------------------------------- MAP stack
@@ -113,6 +140,7 @@ final class FidelityRunner {
 
         String flat;
         String doc;
+        String defaults;
         try {
             MapFlattener flattener = flattener(fx.config());
             Map<String, Object> flattened = flattener.flatten(source);
@@ -120,18 +148,43 @@ final class FidelityRunner {
             Map<String, Object> back = reconstructor(fx.config()).reconstruct(flattened);
             m.mapDocObject = back;
             doc = FidelityRender.text(FidelityRender.java(back));
+            // The DEFAULTS ARM. The row above is measured with whatever configuration the fixture
+            // declares; a consumer who has read only the published table will call
+            // JsonReconstructor.quickReconstruct. Where the two disagree the row is true only
+            // under its stated configuration, and the table has to print that.
+            defaults = mapDefaultsArm(flattened);
         } catch (Throwable t) {
             flat = FidelityRender.thrown(t);
             doc = flat;
+            defaults = flat;
         }
         m.recorded.put("flat", flat);
         m.recorded.put("mapDoc", doc);
         m.recorded.put("losslessMap", doc.equals(m.recorded.get("mapBaseline")));
+        m.recorded.put("mapDefaultsMatch", defaults.equals(doc));
+    }
+
+    private static String mapDefaultsArm(Map<String, Object> flattened) {
+        try {
+            return FidelityRender.text(FidelityRender.java(
+                    JsonReconstructor.quickReconstruct(flattened)));
+        } catch (Throwable t) {
+            return FidelityRender.thrown(t);
+        }
     }
 
     // ---------------------------------------------------------------- JSON stack
 
-    private static void runJsonStack(FidelityFixture fx, Measurement m, boolean recordFlat) {
+    /**
+     * @param flatKey where to record the flattened intermediate. When only the JSON stack runs it
+     *                is {@code flat}; when both run the MAP arm already owns that key and this one
+     *                gets {@code flatJson}. Recording it unconditionally is the point:
+     *                {@code JsonFlattener} parses with its own mapper, so its flattened map can
+     *                legitimately differ in value typing from {@code MapFlattener.flatten}, and
+     *                without this key that divergence would only ever surface downstream as a
+     *                changed reconstruction rather than being blamed on the flattening step.
+     */
+    private static void runJsonStack(FidelityFixture fx, Measurement m, String flatKey) {
         JsonNode baseline;
         try {
             baseline = EXACT.readTree(fx.input());
@@ -142,21 +195,32 @@ final class FidelityRunner {
 
         String flat;
         String doc;
+        String defaults;
         try {
             MapFlattener flattener = flattener(fx.config());
             Map<String, Object> flattened = JsonFlattener.with(flattener).from(fx.input()).toMap();
             flat = FidelityRender.text(FidelityRender.java(flattened));
             String backJson = reconstructor(fx.config()).reconstructToJson(flattened);
             doc = FidelityRender.text(FidelityRender.json(EXACT.readTree(backJson)));
+            defaults = jsonDefaultsArm(flattened);
         } catch (Throwable t) {
             flat = FidelityRender.thrown(t);
             doc = flat;
+            defaults = flat;
         }
-        if (recordFlat) {
-            m.recorded.put("flat", flat);
-        }
+        m.recorded.put(flatKey, flat);
         m.recorded.put("jsonDoc", doc);
         m.recorded.put("losslessJson", doc.equals(m.recorded.get("jsonBaseline")));
+        m.recorded.put("jsonDefaultsMatch", defaults.equals(doc));
+    }
+
+    private static String jsonDefaultsArm(Map<String, Object> flattened) {
+        try {
+            return FidelityRender.text(FidelityRender.json(
+                    EXACT.readTree(JsonReconstructor.quickReconstructToJson(flattened))));
+        } catch (Throwable t) {
+            return FidelityRender.thrown(t);
+        }
     }
 
     // ---------------------------------------------------------------- AVRO stack
@@ -241,6 +305,19 @@ final class FidelityRunner {
                 } catch (Throwable t) {
                     doc = FidelityRender.thrown(t);
                 }
+                // Defaults arm for the Avro data path. The schema is data, not configuration, so
+                // supplying it is not a departure from defaults; anything the fixture sets on
+                // AvroReconstructor.Builder is. The SCHEMA and KEYSET modes reconstruct no data at
+                // all, so they record no key here and the published table prints NOT_APPLICABLE
+                // rather than a verdict nobody measured.
+                //
+                // HONEST LIMIT, stated so nobody reads more into the YES than it carries: no Avro
+                // fixture currently sets avro.reconstructor, so avroReconstructor(avro) above
+                // builds the same default instance this line does and the comparison cannot
+                // presently fail. It is a tripwire for the first Avro fixture that DOES tune the
+                // reconstructor, not present-tense evidence. The MAP and JSON arms are the ones
+                // carrying real signal today - nine rows diverge there.
+                m.recorded.put("avroDefaultsMatch", avroDefaultsArm(flattened, schema).equals(doc));
             }
         }
         m.recorded.put("flat", flat);
@@ -267,6 +344,18 @@ final class FidelityRunner {
         }
         m.recorded.put("losslessAvro", lossless);
         AvroSchemaFlattener.clearCache();
+    }
+
+    private static String avroDefaultsArm(Map<String, Object> flattened, Schema schema) {
+        if (flattened == null) {
+            return FidelityRender.thrown(new IllegalStateException("flatten failed"));
+        }
+        try {
+            return FidelityRender.text(FidelityRender.java(
+                    AvroReconstructor.builder().build().reconstructToMap(flattened, schema)));
+        } catch (Throwable t) {
+            return FidelityRender.thrown(t);
+        }
     }
 
     /**

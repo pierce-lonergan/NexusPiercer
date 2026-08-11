@@ -19,9 +19,12 @@
     "flat" : "{\"user\\\\_id\":\"I:1\",\"user_id\":\"I:2\"}",
     "mapDoc" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
+    "flatJson" : "{\"user\\\\_id\":\"I:1\",\"user_id\":\"I:2\"}",
     "jsonDoc" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

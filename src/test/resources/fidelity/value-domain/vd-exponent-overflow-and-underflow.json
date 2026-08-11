@@ -19,9 +19,12 @@
     "flat" : "{\"d_nearMax\":\"D:1.0E308\",\"d_negOver\":\"S:-Infinity\",\"d_over\":\"S:Infinity\",\"d_under\":\"D:0.0\"}",
     "mapDoc" : "{\"d\":{\"nearMax\":\"D:1.0E308\",\"negOver\":\"S:-Infinity\",\"over\":\"S:Infinity\",\"under\":\"D:0.0\"}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"d\":{\"nearMax\":\"BD:1E+308\",\"negOver\":\"BD:-1E+400\",\"over\":\"BD:1E+400\",\"under\":\"BD:1E-400\"}}",
+    "flatJson" : "{\"d_nearMax\":\"D:1.0E308\",\"d_negOver\":\"S:-Infinity\",\"d_over\":\"S:Infinity\",\"d_under\":\"D:0.0\"}",
     "jsonDoc" : "{\"d\":{\"nearMax\":\"BD:1.0E+308\",\"negOver\":\"S:-Infinity\",\"over\":\"S:Infinity\",\"under\":\"BD:0.0\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"grid_rows\":\"S:[[1,2],[],[3]]\"}",
     "mapDoc" : "{\"grid\":[{\"rows\":[\"I:1\",\"I:2\"]},{\"rows\":[]},{\"rows\":[\"I:3\"]}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"grid\":{\"rows\":[[\"I:1\",\"I:2\"],[],[\"I:3\"]]}}",
+    "flatJson" : "{\"grid_rows\":\"S:[[1,2],[],[3]]\"}",
     "jsonDoc" : "{\"grid\":[{\"rows\":[\"I:1\",\"I:2\"]},{\"rows\":[]},{\"rows\":[\"I:3\"]}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -44,6 +44,7 @@
     "flat" : "{\"d_amount\":\"D:37.774\"}",
     "jsonDoc" : "{\"d\":{\"amount\":\"BD:37.774\"}}",
     "losslessJson" : false,
+    "jsonDefaultsMatch" : true,
     "probe" : {
       "kind" : "FLATTEN_CONFIG_COMPARE",
       "expect" : "EQUAL",

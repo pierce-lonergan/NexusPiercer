@@ -65,6 +65,7 @@
   "input" : "{\"createdAt\":1609459200000,\"createdAtMicros\":1609459200000000,\"day\":18628,\"timeOfDay\":3600000,\"timeOfDayMicros\":3600000000,\"traceId\":\"550e8400-e29b-41d4-a716-446655440000\",\"note\":null}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"createdAt\":\"L:1609459200000\",\"createdAtMicros\":\"L:1609459200000000\",\"day\":\"I:18628\",\"note\":null,\"timeOfDay\":\"I:3600000\",\"timeOfDayMicros\":\"L:3600000000\",\"traceId\":\"S:550e8400-e29b-41d4-a716-446655440000\"}",
     "avroBaseline" : "{\"createdAt\":\"L:1609459200000\",\"createdAtMicros\":\"L:1609459200000000\",\"day\":\"I:18628\",\"note\":null,\"timeOfDay\":\"I:3600000\",\"timeOfDayMicros\":\"L:3600000000\",\"traceId\":\"S:550e8400-e29b-41d4-a716-446655440000\"}",
     "avroDoc" : "{\"createdAt\":\"L:1609459200000\",\"createdAtMicros\":\"L:1609459200000000\",\"day\":\"I:18628\",\"note\":null,\"timeOfDay\":\"I:3600000\",\"timeOfDayMicros\":\"L:3600000000\",\"traceId\":\"S:550e8400-e29b-41d4-a716-446655440000\"}",

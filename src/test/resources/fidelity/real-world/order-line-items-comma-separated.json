@@ -26,9 +26,12 @@
     "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_description\":\"S:Bolt, hex, M8,Washer\",\"line\\\\_items_quantity\":\"S:4,8\",\"line\\\\_items_sku\":\"S:SKU-311,SKU-312\",\"order\\\\_id\":\"S:ORD-2026-0008\"}",
     "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:hex\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:M8\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : false,
     "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
+    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_description\":\"S:Bolt, hex, M8,Washer\",\"line\\\\_items_quantity\":\"S:4,8\",\"line\\\\_items_sku\":\"S:SKU-311,SKU-312\",\"order\\\\_id\":\"S:ORD-2026-0008\"}",
     "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:hex\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:M8\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : false
   },
   "measuredLossless" : false
 }

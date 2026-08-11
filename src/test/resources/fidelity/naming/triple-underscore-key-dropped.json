@@ -19,9 +19,12 @@
     "flat" : "{\"\\\\_\\\\_\\\\_\":\"I:1\",\"ok\":\"I:2\"}",
     "mapDoc" : "{\"ok\":\"I:2\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"___\":\"I:1\",\"ok\":\"I:2\"}",
+    "flatJson" : "{\"\\\\_\\\\_\\\\_\":\"I:1\",\"ok\":\"I:2\"}",
     "jsonDoc" : "{\"ok\":\"I:2\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

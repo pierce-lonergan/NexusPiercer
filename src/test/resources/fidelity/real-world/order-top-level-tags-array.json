@@ -19,9 +19,12 @@
     "flat" : "{\"fulfillment\\\\_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse\\\\_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
     "mapDoc" : "{\"fulfillment_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"fulfillment_tags\":[\"S:priority\",\"S:gift_wrap\",\"S:signature_required\"],\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":[\"S:NYC-1\",\"S:LAX-2\"]}",
+    "flatJson" : "{\"fulfillment\\\\_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse\\\\_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
     "jsonDoc" : "{\"fulfillment_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

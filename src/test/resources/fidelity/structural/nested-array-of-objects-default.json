@@ -19,9 +19,12 @@
     "flat" : "{\"order_items_qty\":\"S:[1,2]\",\"order_items_sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
     "mapDoc" : "{\"order\":[{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}},{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "flatJson" : "{\"order_items_qty\":\"S:[1,2]\",\"order_items_sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
     "jsonDoc" : "{\"order\":[{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}},{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"customer\\\\_id\":\"S:CUST-88120\",\"loyalty\\\\_tier\":\"S:gold\",\"preferences_locale\":\"S:en_GB\",\"preferences_notification\\\\_channels\":\"S:[\\\"email\\\",\\\"sms\\\",\\\"push\\\"]\",\"preferences_theme\":\"S:dark\"}",
     "mapDoc" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":[{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:email\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:sms\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:push\",\"theme\":\"S:dark\"}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":{\"locale\":\"S:en_GB\",\"notification_channels\":[\"S:email\",\"S:sms\",\"S:push\"],\"theme\":\"S:dark\"}}",
+    "flatJson" : "{\"customer\\\\_id\":\"S:CUST-88120\",\"loyalty\\\\_tier\":\"S:gold\",\"preferences_locale\":\"S:en_GB\",\"preferences_notification\\\\_channels\":\"S:[\\\"email\\\",\\\"sms\\\",\\\"push\\\"]\",\"preferences_theme\":\"S:dark\"}",
     "jsonDoc" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":[{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:email\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:sms\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:push\",\"theme\":\"S:dark\"}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

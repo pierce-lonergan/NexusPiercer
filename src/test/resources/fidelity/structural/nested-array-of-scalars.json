@@ -19,9 +19,12 @@
     "flat" : "{\"user_tags\":\"S:[\\\"red\\\",\\\"green\\\"]\"}",
     "mapDoc" : "{\"user\":[{\"tags\":\"S:red\"},{\"tags\":\"S:green\"}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"user\":{\"tags\":[\"S:red\",\"S:green\"]}}",
+    "flatJson" : "{\"user_tags\":\"S:[\\\"red\\\",\\\"green\\\"]\"}",
     "jsonDoc" : "{\"user\":[{\"tags\":\"S:red\"},{\"tags\":\"S:green\"}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

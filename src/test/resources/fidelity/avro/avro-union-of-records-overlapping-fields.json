@@ -54,6 +54,7 @@
   "input" : "{\"payment\":{\"id\":\"p-1\",\"routing\":\"021000021\",\"account\":\"12345678\"}}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"payment_account\":\"S:12345678\",\"payment_id\":\"S:p-1\",\"payment_routing\":\"S:021000021\"}",
     "avroBaseline" : "{\"payment\":{\"account\":\"S:12345678\",\"id\":\"S:p-1\",\"routing\":\"S:021000021\"}}",
     "avroDoc" : "{\"payment\":{\"brand\":\"AVRO_NULL_DEFAULT\",\"id\":\"S:p-1\"}}",

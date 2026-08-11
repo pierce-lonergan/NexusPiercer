@@ -18,7 +18,8 @@
     "jsonBaseline" : "{\"d\":{\"beyondDouble\":\"BD:1.00000000000000000000001\",\"highScale\":\"BD:0.1234567890123456789012345\",\"money\":\"BD:19.99\",\"oneFive\":\"BD:1.500\",\"trailingZero\":\"BD:37.7740\"}}",
     "flat" : "{\"d_beyondDouble\":\"D:1.0\",\"d_highScale\":\"D:0.12345678901234568\",\"d_money\":\"D:19.99\",\"d_oneFive\":\"D:1.5\",\"d_trailingZero\":\"D:37.774\"}",
     "jsonDoc" : "{\"d\":{\"beyondDouble\":\"BD:1.0\",\"highScale\":\"BD:0.12345678901234568\",\"money\":\"BD:19.99\",\"oneFive\":\"BD:1.5\",\"trailingZero\":\"BD:37.774\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

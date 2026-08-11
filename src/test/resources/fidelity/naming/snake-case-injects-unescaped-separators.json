@@ -23,9 +23,12 @@
     "flat" : "{\"user_id\":\"I:1\"}",
     "mapDoc" : "{\"user\":{\"id\":\"I:1\"}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"userId\":\"I:1\"}",
+    "flatJson" : "{\"user_id\":\"I:1\"}",
     "jsonDoc" : "{\"user\":{\"id\":\"I:1\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

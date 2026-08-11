@@ -24,9 +24,12 @@
     "flat" : "{\"a_longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"a_shortJson_x\":\"I:1\"}",
     "mapDoc" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":{\"x\":\"I:1\"}}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":\"S:{\\\"x\\\":1}\"}}",
+    "flatJson" : "{\"a_longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"a_shortJson_x\":\"I:1\"}",
     "jsonDoc" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":{\"x\":\"I:1\"}}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"wrap_bTrue\":\"B:true\",\"wrap_nFloat\":\"D:1.0\",\"wrap_nInt\":\"I:1\",\"wrap_sEmpty\":\"S:\",\"wrap_sFalse\":\"S:false\",\"wrap_sFloat\":\"S:1.0\",\"wrap_sInf\":\"S:Infinity\",\"wrap_sInt\":\"S:1\",\"wrap_sNaN\":\"S:NaN\",\"wrap_sNegInf\":\"S:-Infinity\",\"wrap_sNull\":\"S:null\",\"wrap_sTrue\":\"S:true\"}",
     "mapDoc" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"D:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"BD:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "flatJson" : "{\"wrap_bTrue\":\"B:true\",\"wrap_nFloat\":\"D:1.0\",\"wrap_nInt\":\"I:1\",\"wrap_sEmpty\":\"S:\",\"wrap_sFalse\":\"S:false\",\"wrap_sFloat\":\"S:1.0\",\"wrap_sInf\":\"S:Infinity\",\"wrap_sInt\":\"S:1\",\"wrap_sNaN\":\"S:NaN\",\"wrap_sNegInf\":\"S:-Infinity\",\"wrap_sNull\":\"S:null\",\"wrap_sTrue\":\"S:true\"}",
     "jsonDoc" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"BD:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"line\\\\_items_quantity\":\"S:[1,3]\",\"line\\\\_items_ship\\\\_from_country\\\\_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"line\\\\_items_ship\\\\_from_warehouse\\\\_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
     "mapDoc" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:US\",\"warehouse_code\":\"S:NYC-1\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:US\",\"warehouse_code\":\"S:LAX-2\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "flatJson" : "{\"line\\\\_items_quantity\":\"S:[1,3]\",\"line\\\\_items_ship\\\\_from_country\\\\_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"line\\\\_items_ship\\\\_from_warehouse\\\\_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
     "jsonDoc" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

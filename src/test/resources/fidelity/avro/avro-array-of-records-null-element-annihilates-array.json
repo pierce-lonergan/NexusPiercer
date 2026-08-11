@@ -39,6 +39,7 @@
   "input" : "{\"orders\":[{\"id\":1},null]}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"orders\":\"S:[null]\",\"orders_id\":\"S:[1]\"}",
     "avroBaseline" : "{\"orders\":[{\"id\":\"I:1\"},null]}",
     "avroDoc" : "{\"orders\":[null]}",

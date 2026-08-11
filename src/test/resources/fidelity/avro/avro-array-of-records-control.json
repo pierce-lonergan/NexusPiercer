@@ -49,6 +49,7 @@
   "input" : "{\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":{\"city\":\"LA\"}}]}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"orders_id\":\"S:[1,2]\",\"orders_ship_city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}",
     "avroBaseline" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":{\"city\":\"S:LA\"}}]}",
     "avroDoc" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":{\"city\":\"S:LA\"}}]}",

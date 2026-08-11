@@ -19,9 +19,12 @@
     "flat" : "{\"\\\\_\\\\_meta\\\\_\\\\__ingest\\\\_partition\":\"I:7\",\"\\\\_\\\\_meta\\\\_\\\\__schema\\\\_version\":\"I:3\",\"event\\\\_id\":\"S:evt_01J8ZQ4\",\"occurred\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"payload_\\\\_\\\\_type\\\\_\\\\_\":\"S:invoice.paid\",\"payload_amount\\\\_paid\":\"D:249.0\",\"payload_invoice\\\\_id\":\"S:INV-9931\",\"payload_paid\\\\_by\":\"S:CUST-77301\",\"source\\\\_service\":\"S:billing-api\"}",
     "mapDoc" : "{\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"amount_paid\":\"D:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"__meta__\":{\"ingest_partition\":\"I:7\",\"schema_version\":\"I:3\"},\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"__type__\":\"S:invoice.paid\",\"amount_paid\":\"BD:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
+    "flatJson" : "{\"\\\\_\\\\_meta\\\\_\\\\__ingest\\\\_partition\":\"I:7\",\"\\\\_\\\\_meta\\\\_\\\\__schema\\\\_version\":\"I:3\",\"event\\\\_id\":\"S:evt_01J8ZQ4\",\"occurred\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"payload_\\\\_\\\\_type\\\\_\\\\_\":\"S:invoice.paid\",\"payload_amount\\\\_paid\":\"D:249.0\",\"payload_invoice\\\\_id\":\"S:INV-9931\",\"payload_paid\\\\_by\":\"S:CUST-77301\",\"source\\\\_service\":\"S:billing-api\"}",
     "jsonDoc" : "{\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"amount_paid\":\"BD:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -42,6 +42,7 @@
   "input" : "{\"attrs\":{\"temp\":{\"unit\":\"C\",\"value\":21.5},\"hum_pct\":{\"unit\":\"%\",\"value\":40.5}}}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"attrs_hum\\\\_pct_unit\":\"S:%\",\"attrs_hum\\\\_pct_value\":\"D:40.5\",\"attrs_temp_unit\":\"S:C\",\"attrs_temp_value\":\"D:21.5\"}",
     "avroBaseline" : "{\"attrs\":{\"hum_pct\":{\"unit\":\"S:%\",\"value\":\"D:40.5\"},\"temp\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}}",
     "avroDoc" : "{\"attrs\":{\"hum_pct\":{\"unit\":\"S:%\",\"value\":\"D:40.5\"},\"temp\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}}",

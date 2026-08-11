@@ -19,9 +19,12 @@
     "flat" : "{\"cfg_\\\\_\\\\_\\\\_\":\"I:2\",\"cfg_\\\\_\\\\_meta\\\\_\\\\_\":\"I:1\",\"cfg_name\":\"S:x\"}",
     "mapDoc" : "{\"cfg\":{\"name\":\"S:x\"}}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"cfg\":{\"___\":\"I:2\",\"__meta__\":\"I:1\",\"name\":\"S:x\"}}",
+    "flatJson" : "{\"cfg_\\\\_\\\\_\\\\_\":\"I:2\",\"cfg_\\\\_\\\\_meta\\\\_\\\\_\":\"I:1\",\"cfg_name\":\"S:x\"}",
     "jsonDoc" : "{\"cfg\":{\"name\":\"S:x\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

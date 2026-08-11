@@ -32,6 +32,7 @@
   "input" : "{\"v\":42,\"w\":true}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"v\":\"I:42\",\"w\":\"B:true\"}",
     "avroBaseline" : "{\"v\":\"I:42\",\"w\":\"B:true\"}",
     "avroDoc" : "{\"v\":\"S:42\",\"w\":\"S:true\"}",

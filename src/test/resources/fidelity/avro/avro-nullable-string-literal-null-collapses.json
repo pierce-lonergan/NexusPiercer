@@ -35,6 +35,7 @@
   "input" : "{\"status\":\"null\",\"padded\":\" null \",\"safe\":\"nullable\"}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"padded\":\"S: null \",\"safe\":\"S:nullable\",\"status\":\"S:null\"}",
     "avroBaseline" : "{\"padded\":\"S: null \",\"safe\":\"S:nullable\",\"status\":\"S:null\"}",
     "avroDoc" : "{\"padded\":null,\"safe\":\"S:nullable\",\"status\":null}",

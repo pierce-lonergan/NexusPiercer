@@ -18,7 +18,8 @@
     "jsonBaseline" : "{\"n\":{\"exp\":\"BD:1E+2\",\"expPlus\":\"BD:1.0E+2\",\"int\":\"I:100\",\"plain\":\"BD:100.0\"}}",
     "flat" : "{\"n_exp\":\"D:100.0\",\"n_expPlus\":\"D:100.0\",\"n_int\":\"I:100\",\"n_plain\":\"D:100.0\"}",
     "jsonDoc" : "{\"n\":{\"exp\":\"BD:100.0\",\"expPlus\":\"BD:100.0\",\"int\":\"I:100\",\"plain\":\"BD:100.0\"}}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

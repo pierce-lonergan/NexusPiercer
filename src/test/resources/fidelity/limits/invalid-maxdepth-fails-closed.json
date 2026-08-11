@@ -22,7 +22,8 @@
     "mapBaseline" : "{\"a\":\"I:1\"}",
     "flat" : "THROWN: IllegalArgumentException: maxDepth must be >= 1",
     "mapDoc" : "THROWN: IllegalArgumentException: maxDepth must be >= 1",
-    "losslessMap" : false
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

@@ -19,9 +19,12 @@
     "flat" : "{\"s_ctrl\":\"S:a\\u0000b\\u001fcd\",\"s_long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"s_quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"s_unicode\":\"S:héllo 😀 中文\",\"s_ws\":\"S:tab\\there\\nnl\\rcr\"}",
     "mapDoc" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
     "losslessMap" : true,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
+    "flatJson" : "{\"s_ctrl\":\"S:a\\u0000b\\u001fcd\",\"s_long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"s_quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"s_unicode\":\"S:héllo 😀 中文\",\"s_ws\":\"S:tab\\there\\nnl\\rcr\"}",
     "jsonDoc" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
-    "losslessJson" : true
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : true
 }

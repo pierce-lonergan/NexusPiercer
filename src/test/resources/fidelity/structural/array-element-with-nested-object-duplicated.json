@@ -19,9 +19,12 @@
     "flat" : "{\"people_addr_city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}",
     "mapDoc" : "{\"people\":[{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}},{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}}]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"people\":[{\"addr\":{\"city\":\"S:NY\"}},{\"addr\":{\"city\":\"S:LA\"}}]}",
+    "flatJson" : "{\"people_addr_city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}",
     "jsonDoc" : "{\"people\":[{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}},{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}}]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

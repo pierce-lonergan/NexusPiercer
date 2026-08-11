@@ -19,9 +19,12 @@
     "flat" : "{\"mixed\":\"S:[\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2]\"}",
     "mapDoc" : "{\"mixed\":[\"S:x\",\"S:y\"]}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
+    "flatJson" : "{\"mixed\":\"S:[\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2]\"}",
     "jsonDoc" : "{\"mixed\":[\"S:x\",\"S:y\"]}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }

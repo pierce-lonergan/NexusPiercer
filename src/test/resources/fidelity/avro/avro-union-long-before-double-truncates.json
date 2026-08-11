@@ -32,6 +32,7 @@
   "input" : "{\"amount\":3.7,\"count\":5}",
   "expected" : {
     "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
     "flat" : "{\"amount\":\"D:3.7\",\"count\":\"I:5\"}",
     "avroBaseline" : "{\"amount\":\"D:3.7\",\"count\":\"I:5\"}",
     "avroDoc" : "{\"amount\":\"L:3\",\"count\":\"L:5\"}",

@@ -290,6 +290,30 @@ class RoundTripFidelityCorpusTest {
                         + "downstream, so a change here points at MapFlattener specifically. "
                         + "Manifest says: %s", id, entry(id).get("detail").asText())
                 .isEqualTo(recorded);
+
+        // A BOTH fixture runs TWO flatteners. Until this assertion existed the JSON one's output
+        // was computed and thrown away, so 29 of the 32 LOSSLESS rows localised blame for the MAP
+        // stack only and a JsonFlattener-specific divergence could reach the reconstruction step
+        // before anything noticed.
+        if (!"BOTH".equals(fx.stack())) {
+            assertThat(fx.expected().has("flatJson"))
+                    .as("%s declares stack %s, so there is no second flattener to record",
+                            id, fx.stack())
+                    .isFalse();
+            return;
+        }
+        String recordedJson = fx.expected().path("flatJson").asText(null);
+        assertThat(recordedJson)
+                .as("%s declares stack BOTH but records no 'flatJson'. The JSON stack's flattened "
+                        + "intermediate would then be measured and discarded - a control that "
+                        + "appears present and does nothing. Re-record the corpus.", id)
+                .isNotNull();
+        assertThat(m.recorded.get("flatJson"))
+                .as("%s: JsonFlattener's FLATTENED FORM changed while MapFlattener's did not, or "
+                        + "changed differently. The two parse with different mappers, so this "
+                        + "blames the JSON flattening step specifically. Manifest says: %s",
+                        id, entry(id).get("detail").asText())
+                .isEqualTo(recordedJson);
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -302,11 +326,24 @@ class RoundTripFidelityCorpusTest {
         assertThat(recorded.isObject() && recorded.size() > 0)
                 .as("fixture %s has no recorded expectations at all", id).isTrue();
 
+        // The loop below can only compare keys the RECORDING carries, so a key quietly deleted
+        // from a fixture file would stop being asserted while the fixture still looked complete -
+        // the same shape of hole that left the JSON stack's flattened form unchecked. Pinning the
+        // key SET makes a deletion a failure instead of a silent narrowing.
+        Set<String> recordedKeys = new TreeSet<>();
+        recorded.fieldNames().forEachRemaining(recordedKeys::add);
+        assertThat(recordedKeys)
+                .as("%s: the set of recorded renderings must be exactly the set the harness "
+                        + "produces. A missing key is an assertion that quietly stopped running; "
+                        + "an extra key is a recording of something no longer measured. "
+                        + "Re-record the corpus.", id)
+                .isEqualTo(new TreeSet<>(m.recorded.keySet()));
+
         int compared = 0;
         Iterator<String> names = recorded.fieldNames();
         while (names.hasNext()) {
             String key = names.next();
-            if ("flat".equals(key)) {
+            if ("flat".equals(key) || "flatJson".equals(key)) {
                 continue;
             }
             Object measured = m.recorded.get(key);
@@ -365,6 +402,254 @@ class RoundTripFidelityCorpusTest {
                             + "over. Manifest says: %s", id, classification, e.get("detail").asText())
                     .isFalse();
         }
+    }
+
+    // ------------------------------------------------------------------ disclosure gates
+
+    /**
+     * A contract row that is only true under a non-default configuration has to say so <em>in the
+     * contract</em>.
+     *
+     * <p>Adversarial verification drove the brief's Stack A verbatim - {@code MapFlattener.flatten}
+     * then {@code JsonReconstructor.quickReconstruct} - across the LOSSLESS rows and found three
+     * that do not hold that way: {@code nested-array-of-objects-explicit-hints},
+     * {@code boundary-separator-on-round-trip} and
+     * {@code multichar-separator-with-single-separator-char-in-name}. Every one of them states its
+     * precondition in its own fixture file, and none of them stated it in {@code manifest.json},
+     * which is the file the guarantee tells consumers to rely on.</p>
+     *
+     * <p>So the disclosure is now measured rather than written down: the harness reconstructs a
+     * second time through the default entry point and this gate asserts the manifest's published
+     * answer against that measurement. A row cannot claim to survive defaults unless it does.</p>
+     */
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("manifestFixtureIds")
+    @DisplayName("the manifest discloses the configuration each row was measured under")
+    void theConfigurationDisclosureIsPresentAndTrue(String id) {
+        JsonNode e = entry(id);
+        FidelityFixture fx = fixture(id);
+
+        assertThat(e.path("configDescription").asText(""))
+                .as("entry %s must republish the fixture's configDescription. A row whose "
+                        + "configuration is recorded only in the fixture file is a caveat the "
+                        + "consumer reading the contract never sees.", id)
+                .isNotBlank()
+                .isEqualTo(fx.configDescription());
+
+        assertThat(e.has("requiresNonDefaultConfig"))
+                .as("entry %s must publish requiresNonDefaultConfig", id).isTrue();
+        assertThat(e.path("requiresNonDefaultConfig").asBoolean())
+                .as("entry %s: requiresNonDefaultConfig must equal whether the fixture actually "
+                        + "tunes MapFlattener, JsonReconstructor, AvroReconstructor or "
+                        + "AvroSchemaFlattener. Declared config: %s", id, fx.config())
+                .isEqualTo(declaresTuning(fx));
+
+        String declared = e.path("holdsUnderDefaultReconstruction").asText("");
+        assertThat(declared)
+                .as("entry %s must publish holdsUnderDefaultReconstruction", id)
+                .isIn(FidelityRunner.DEFAULTS_HOLD, FidelityRunner.DEFAULTS_DIVERGE,
+                        FidelityRunner.DEFAULTS_NA);
+        assertThat(declared)
+                .as("%s: the manifest publishes holdsUnderDefaultReconstruction=%s, but "
+                        + "re-running this fixture's flattened output through the library's "
+                        + "DEFAULT entry point (JsonReconstructor.quickReconstruct / "
+                        + "quickReconstructToJson / AvroReconstructor.builder().build()) "
+                        + "measured the opposite. Either the row now behaves differently under "
+                        + "defaults, or the disclosure is wrong. Manifest says: %s",
+                        id, declared, e.get("detail").asText())
+                .isEqualTo(FidelityRunner.defaultsVerdict(measure(id)));
+    }
+
+    /** True when the fixture turns any knob the library would otherwise leave at its default. */
+    private static boolean declaresTuning(FidelityFixture fx) {
+        JsonNode c = fx.config();
+        if (c == null || !c.isObject()) {
+            return false;
+        }
+        // The Avro WRITER'S SCHEMA is data, not configuration - an Avro fixture cannot exist
+        // without one, so counting it would make every Avro row read as "non-default" and the
+        // flag would stop discriminating.
+        return tuned(c.path("mapFlattener"))
+                || tuned(c.path("reconstructor"))
+                || tuned(c.path("avro").path("reconstructor"))
+                || tuned(c.path("avro").path("schemaFlattener"));
+    }
+
+    private static boolean tuned(JsonNode node) {
+        return node != null && node.isObject() && node.size() > 0;
+    }
+
+    @Test
+    @DisplayName("every classification override names a real disagreement, and every disagreement has one")
+    void classificationOverridesAreLiveAndComplete() {
+        JsonNode overrides = manifest().get("classificationOverrides");
+        assertThat(overrides).as("the manifest must carry a classificationOverrides array").isNotNull();
+        assertThat(overrides.isArray()).as("classificationOverrides must be an array").isTrue();
+
+        Set<String> declared = new TreeSet<>();
+        for (JsonNode o : overrides) {
+            String id = o.path("id").asText();
+            assertThat(id).as("every override needs an id").isNotBlank();
+            assertThat(declared.add(id)).as("duplicate override for %s", id).isTrue();
+            assertThat(o.path("reason").asText()).as("override %s must state WHY", id).isNotBlank();
+            JsonNode e = entry(id);
+            assertThat(o.path("classification").asText())
+                    .as("override %s records a classification that is no longer what the manifest "
+                            + "publishes for that fixture", id)
+                    .isEqualTo(e.get("classification").asText());
+            assertThat(fixture(id).predicted().path("classification").asText())
+                    .as("override %s says measurement corrected the prediction, but the fixture "
+                            + "now predicts exactly what the manifest publishes. The override is "
+                            + "stale and is documenting a disagreement that no longer exists.", id)
+                    .isNotEqualTo(e.get("classification").asText());
+        }
+
+        Set<String> disagreements = new TreeSet<>();
+        for (JsonNode e : manifestEntries()) {
+            String id = e.get("id").asText();
+            String predicted = fixture(id).predicted().path("classification").asText("");
+            assertThat(predicted)
+                    .as("%s must record the designer's predicted classification, so that "
+                            + "prediction and measurement can be compared at all", id)
+                    .isNotBlank();
+            if (!predicted.equals(e.get("classification").asText())) {
+                disagreements.add(id);
+            }
+        }
+
+        assertThat(declared)
+                .as("classificationOverrides must be exactly the set of fixtures whose PREDICTED "
+                        + "classification differs from the PUBLISHED one. An unexplained "
+                        + "disagreement is a silent reclassification; an override with no "
+                        + "disagreement behind it is decoration.")
+                .isEqualTo(disagreements);
+    }
+
+    @Test
+    @DisplayName("the per-family counts match the declared fixtures")
+    void perFamilyCountsMatchTheDeclaredFixtures() {
+        JsonNode families = manifest().path("counts").path("families");
+        assertThat(families.isObject() && families.size() > 0)
+                .as("the manifest publishes a per-family breakdown; an empty one would let the "
+                        + "corpus lose a whole family without the totals noticing")
+                .isTrue();
+
+        Map<String, int[]> tally = new java.util.TreeMap<>();
+        for (JsonNode e : manifestEntries()) {
+            int[] t = tally.computeIfAbsent(e.get("family").asText(), k -> new int[4]);
+            t[0]++;
+            switch (e.get("classification").asText()) {
+                case "LOSSLESS" -> t[1]++;
+                case "ACCEPTED_LOSS" -> t[2]++;
+                default -> t[3]++;
+            }
+        }
+
+        Set<String> published = new TreeSet<>();
+        families.fieldNames().forEachRemaining(published::add);
+        assertThat(published)
+                .as("the families the manifest publishes counts for must be exactly the families "
+                        + "its fixtures belong to")
+                .isEqualTo(new TreeSet<>(tally.keySet()));
+
+        for (Map.Entry<String, int[]> en : tally.entrySet()) {
+            JsonNode f = families.get(en.getKey());
+            int[] t = en.getValue();
+            assertThat(f.path("total").asInt(-1)).as("%s total", en.getKey()).isEqualTo(t[0]);
+            assertThat(f.path("LOSSLESS").asInt(-1)).as("%s LOSSLESS", en.getKey()).isEqualTo(t[1]);
+            assertThat(f.path("ACCEPTED_LOSS").asInt(-1)).as("%s ACCEPTED_LOSS", en.getKey()).isEqualTo(t[2]);
+            assertThat(f.path("DEFECT").asInt(-1)).as("%s DEFECT", en.getKey()).isEqualTo(t[3]);
+        }
+    }
+
+    @Test
+    @DisplayName("the configuration tallies the contract publishes are true")
+    void configurationTalliesMatchTheDeclaredFixtures() {
+        JsonNode counts = manifest().path("counts");
+        int nonDefault = 0;
+        int losslessNotUnderDefaults = 0;
+        for (JsonNode e : manifestEntries()) {
+            if (e.path("requiresNonDefaultConfig").asBoolean()) {
+                nonDefault++;
+            }
+            if ("LOSSLESS".equals(e.get("classification").asText())
+                    && FidelityRunner.DEFAULTS_DIVERGE.equals(
+                            e.path("holdsUnderDefaultReconstruction").asText())) {
+                losslessNotUnderDefaults++;
+            }
+        }
+        assertThat(counts.path("nonDefaultConfig").asInt(-1))
+                .as("the headline count of rows measured under non-default configuration")
+                .isEqualTo(nonDefault);
+        assertThat(counts.path("losslessNotUnderDefaultReconstruction").asInt(-1))
+                .as("the headline count of LOSSLESS rows that do NOT hold through the default "
+                        + "reconstruction entry point. This is the number a consumer who reads "
+                        + "only the summary most needs.")
+                .isEqualTo(losslessNotUnderDefaults);
+    }
+
+    @Test
+    @DisplayName("the known-lossy headline is backed by fixtures that actually demonstrate the loss")
+    void theKnownLossyHeadlineIsBackedByFixtures() {
+        JsonNode known = manifest().get("knownLossy");
+        assertThat(known != null && known.isArray() && !known.isEmpty())
+                .as("the manifest must carry the up-front known-lossy list that the published "
+                        + "document leads with. An empty list publishes a document implying "
+                        + "nothing is lost, which is false 76 times over.")
+                .isTrue();
+
+        Set<String> citedFamilies = new TreeSet<>();
+        Set<String> ids = new TreeSet<>();
+        for (JsonNode k : known) {
+            String kid = k.path("id").asText();
+            assertThat(kid).as("every known-lossy item needs an id").isNotBlank();
+            assertThat(ids.add(kid)).as("duplicate known-lossy item %s", kid).isTrue();
+            assertThat(k.path("headline").asText()).as("%s needs a headline", kid).isNotBlank();
+            assertThat(k.path("statement").asText()).as("%s needs a plain statement", kid).isNotBlank();
+            String kind = k.path("kind").asText("LOSS");
+            assertThat(kind).as("%s kind", kid).isIn("LOSS", "INERT_CONTROL");
+
+            JsonNode cites = k.path("fixtures");
+            assertThat(cites.isArray() && !cites.isEmpty())
+                    .as("known-lossy item '%s' cites no fixture, so nothing in the corpus "
+                            + "enforces it and it can outlive the behaviour it describes", kid)
+                    .isTrue();
+            for (JsonNode f : cites) {
+                String fid = f.asText();
+                JsonNode e = entry(fid);
+                citedFamilies.add(e.get("family").asText());
+                if ("INERT_CONTROL".equals(kind)) {
+                    assertThat(fixture(fid).probe())
+                            .as("known-lossy item '%s' is an INERT_CONTROL warning citing %s, so "
+                                    + "that fixture must carry the probe that PROVES the control "
+                                    + "is inert", kid, fid)
+                            .isNotNull();
+                    assertThat(fixture(fid).probe().path("expect").asText())
+                            .as("%s cites %s as an inert control, but that fixture's probe expects "
+                                    + "the two configurations to DIFFER - which would mean the "
+                                    + "control works", kid, fid)
+                            .isEqualTo("EQUAL");
+                } else {
+                    assertThat(e.get("classification").asText())
+                            .as("known-lossy item '%s' cites %s, which the manifest publishes as "
+                                    + "LOSSLESS. A headline warning backed by a fixture that "
+                                    + "loses nothing is a false warning.", kid, fid)
+                            .isIn("ACCEPTED_LOSS", "DEFECT");
+                }
+            }
+        }
+
+        Set<String> lossyFamilies = new TreeSet<>();
+        for (JsonNode e : manifestEntries()) {
+            if (!"LOSSLESS".equals(e.get("classification").asText())) {
+                lossyFamilies.add(e.get("family").asText());
+            }
+        }
+        assertThat(citedFamilies)
+                .as("every family that contains a known loss must be represented in the up-front "
+                        + "warning list. A family whose losses are only discoverable by reading "
+                        + "108 table rows has not been disclosed.")
+                .containsAll(lossyFamilies);
     }
 
     private static List<String> expectedFlags(String stack) {

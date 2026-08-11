@@ -19,9 +19,12 @@
     "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_quantity\":\"S:[1]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99]\",\"order\\\\_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
     "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":{\"quantity\":\"S:[1]\",\"sku\":\"S:[\\\"SKU-100\\\"]\",\"unit_price\":\"S:[19.99]\"},\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
     "losslessMap" : false,
+    "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"}],\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_quantity\":\"S:[1]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99]\",\"order\\\\_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
     "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":{\"quantity\":\"S:[1]\",\"sku\":\"S:[\\\"SKU-100\\\"]\",\"unit_price\":\"S:[19.99]\"},\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
-    "losslessJson" : false
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
   },
   "measuredLossless" : false
 }
