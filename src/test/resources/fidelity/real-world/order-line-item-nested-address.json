@@ -1,0 +1,30 @@
+{
+  "id" : "order-line-item-nested-address",
+  "family" : "real-world",
+  "title" : "E-commerce order whose line items each carry a nested ship_from block",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Object nested inside an array element is ordinary in order and invoice data and hits a distinct path: reconstructArray treats a Map-valued field as a single element, so the nested block is emitted once and the shortfall is filled by the repeat-last-value rule. Catches value duplication across array elements, the most dangerous silent failure mode because output remains well-formed and plausible.",
+  "catchesBugClass" : "Repeat-last-value fabrication filling short field vectors; array holders reached through reconstructArray losing their marker and never being expanded.",
+  "cannotCatch" : "It cannot separate the two faults - fixing the marker re-check alone still leaves the duplication. It also says nothing about depth beyond one nested level inside an element.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Warehouse identity is destroyed for both items: the nested block is duplicated across elements and its leaves stay raw text."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order_id\":\"ORD-2026-0003\",\"status\":\"packed\",\"line_items\":[{\"sku\":\"SKU-100\",\"quantity\":1,\"ship_from\":{\"warehouse_code\":\"NYC-1\",\"country_code\":\"US\"}},{\"sku\":\"SKU-205\",\"quantity\":3,\"ship_from\":{\"warehouse_code\":\"LAX-2\",\"country_code\":\"US\"}}]}",
+  "expected" : {
+    "mapBaseline" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:US\",\"warehouse_code\":\"S:NYC-1\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:US\",\"warehouse_code\":\"S:LAX-2\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "flat" : "{\"line\\\\_items_quantity\":\"S:[1,3]\",\"line\\\\_items_ship\\\\_from_country\\\\_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"line\\\\_items_ship\\\\_from_warehouse\\\\_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "mapDoc" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:US\",\"warehouse_code\":\"S:NYC-1\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:US\",\"warehouse_code\":\"S:LAX-2\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "flatJson" : "{\"line\\\\_items_quantity\":\"S:[1,3]\",\"line\\\\_items_ship\\\\_from_country\\\\_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"line\\\\_items_ship\\\\_from_warehouse\\\\_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "jsonDoc" : "{\"line_items\":[{\"quantity\":\"I:1\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-100\"},{\"quantity\":\"I:3\",\"ship_from\":{\"country_code\":\"S:[\\\"US\\\",\\\"US\\\"]\",\"warehouse_code\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"},\"sku\":\"S:SKU-205\"}],\"order_id\":\"S:ORD-2026-0003\",\"status\":\"S:packed\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

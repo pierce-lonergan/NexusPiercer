@@ -1,0 +1,39 @@
+{
+  "id" : "top-level-double-sanitization-asymmetry",
+  "family" : "naming",
+  "title" : "The same field name gets two different column names depending on its nesting depth",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "flatten() builds a defensive copy with sanitizeKey applied, then hands that copy to flattenObject, which calls sanitizeKey AGAIN on every entry. Depth-0 keys are sanitized twice and deeper keys once. String.replace(\"__\",\"_\") is not idempotent on odd runs, so an identical source name at two depths produces two different names. No single-nesting-level test can see this.",
+  "catchesBugClass" : "Redundant application of a non-idempotent transform, producing depth-dependent output. Distinct from the collapse itself: fixing the collapse hides it, removing the duplicate call fixes it without touching the collapse.",
+  "cannotCatch" : "It cannot detect the redundant call in the default configuration, where sanitizeKey is effectively identity for non-empty keys. The bug is latent there and any future non-idempotent sanitizer will reintroduce it with no coverage.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two occurrences of one source name land under two different names, and neither is the original."
+  },
+  "configDescription" : "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : true,
+      "maxDepth" : 50,
+      "maxArraySize" : 1000
+    },
+    "reconstructor" : {
+      "separator" : "__"
+    }
+  },
+  "input" : "{\"a___b\":1,\"n\":{\"a___b\":2}}",
+  "expected" : {
+    "mapBaseline" : "{\"a___b\":\"I:1\",\"n\":{\"a___b\":\"I:2\"}}",
+    "flat" : "{\"a\\\\_b\":\"I:1\",\"n__a\\\\_\\\\_b\":\"I:2\"}",
+    "mapDoc" : "{\"a_b\":\"I:1\",\"n\":{\"a__b\":\"I:2\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : false,
+    "jsonBaseline" : "{\"a___b\":\"I:1\",\"n\":{\"a___b\":\"I:2\"}}",
+    "flatJson" : "{\"a\\\\_b\":\"I:1\",\"n__a\\\\_\\\\_b\":\"I:2\"}",
+    "jsonDoc" : "{\"a_b\":\"I:1\",\"n\":{\"a__b\":\"I:2\"}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : false
+  },
+  "measuredLossless" : false
+}

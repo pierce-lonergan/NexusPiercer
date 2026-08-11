@@ -1,0 +1,64 @@
+{
+  "id" : "avro-union-of-records-overlapping-fields",
+  "family" : "avro",
+  "title" : "Union of records: the first branch sharing any field name wins and the rest of the data is dropped",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The reconstructor selects a RECORD branch if ANY of the node children match ANY field name of that branch, then commits to it. When two branches share a field the earlier branch always wins, and the losing branch exclusive fields are dropped without error. Giving the wrong branch a nullable field with a default guarantees it builds successfully, so the rescue path never fires.",
+  "catchesBugClass" : "Union branch resolution by first-partial-match with no completeness check. Correct behaviour would score branches by how many children they consume and how many they orphan.",
+  "cannotCatch" : "Cannot catch the disjoint-field-names case, which works correctly today and should be added as its own control. It also cannot catch a union of two records with IDENTICAL field sets, which is information-theoretically unresolvable from the flattened form.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The wrong branch is selected and two children go unconsumed. Total silence: no exception, and a structurally valid record of the wrong type."
+  },
+  "measurementNote" : "CONFIRMED, PLUS A NEW FINDING THE PREDICTION MISSED. The wrong branch is selected exactly as traced and routing/account are dropped. But the losing branch's defaulted field does not come back as a Java null: it comes back as org.apache.avro.JsonProperties.NULL_VALUE, a singleton OBJECT. Any consumer testing `value == null` on a defaulted nullable field sees a non-null object of an Avro-internal type. The corpus renders it as AVRO_NULL_DEFAULT so the distinction is visible and so the fixture does not depend on an identity hash code. Filed as a new defect for triage: useSchemaDefaults should materialise Avro's null default as a real null.",
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "payment",
+          "type" : [ "null", {
+            "type" : "record",
+            "name" : "Card",
+            "fields" : [ {
+              "name" : "id",
+              "type" : "string"
+            }, {
+              "name" : "brand",
+              "type" : [ "null", "string" ],
+              "default" : null
+            } ]
+          }, {
+            "type" : "record",
+            "name" : "Bank",
+            "fields" : [ {
+              "name" : "id",
+              "type" : "string"
+            }, {
+              "name" : "routing",
+              "type" : "string"
+            }, {
+              "name" : "account",
+              "type" : "string"
+            } ]
+          } ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"payment\":{\"id\":\"p-1\",\"routing\":\"021000021\",\"account\":\"12345678\"}}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"payment_account\":\"S:12345678\",\"payment_id\":\"S:p-1\",\"payment_routing\":\"S:021000021\"}",
+    "avroBaseline" : "{\"payment\":{\"account\":\"S:12345678\",\"id\":\"S:p-1\",\"routing\":\"S:021000021\"}}",
+    "avroDoc" : "{\"payment\":{\"brand\":\"AVRO_NULL_DEFAULT\",\"id\":\"S:p-1\"}}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

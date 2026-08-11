@@ -1,0 +1,37 @@
+{
+  "id" : "vd-comma-format-scalar-with-comma",
+  "family" : "value-domain",
+  "title" : "Under COMMA_SEPARATED, a comma inside an ordinary scalar string invents an array out of nothing",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The Javadoc warns about delimiter collisions, but only for values inside arrays. The real behaviour is worse: no array need be involved at all. A plain scalar string \"Smith, John\" triggers looksLikeSerializedArray purely because it contains a comma, the parent becomes an array, and the sibling scalar is duplicated by last-value padding.",
+  "catchesBugClass" : "Reconstructor-side heuristics firing on data the flattener never encoded. Also catches the documentation gap: readers will take the existing warning to mean array elements only.",
+  "cannotCatch" : "Does not test PIPE_SEPARATED, which takes the identical code path with a different character. It also cannot catch the mirror hazard of a genuine COMMA_SEPARATED array whose elements themselves contain commas.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flattening does not touch either value; the damage is entirely on the reconstruct side, where the comma splits the name into two array elements and the sibling is padded by repetition."
+  },
+  "configDescription" : "arrayFormat COMMA_SEPARATED on both sides",
+  "config" : {
+    "mapFlattener" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    },
+    "reconstructor" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    }
+  },
+  "input" : "{\"a\":{\"b\":\"Smith, John\",\"c\":\"plain\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":\"S:Smith, John\",\"c\":\"S:plain\"}}",
+    "flat" : "{\"a_b\":\"S:Smith, John\",\"a_c\":\"S:plain\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"S:Smith\",\"c\":\"S:plain\"},{\"b\":\"S:John\",\"c\":\"S:plain\"}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : false,
+    "jsonBaseline" : "{\"a\":{\"b\":\"S:Smith, John\",\"c\":\"S:plain\"}}",
+    "flatJson" : "{\"a_b\":\"S:Smith, John\",\"a_c\":\"S:plain\"}",
+    "jsonDoc" : "{\"a\":[{\"b\":\"S:Smith\",\"c\":\"S:plain\"},{\"b\":\"S:John\",\"c\":\"S:plain\"}]}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : false
+  },
+  "measuredLossless" : false
+}

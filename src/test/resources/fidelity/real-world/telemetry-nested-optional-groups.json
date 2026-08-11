@@ -1,0 +1,30 @@
+{
+  "id" : "telemetry-nested-optional-groups",
+  "family" : "real-world",
+  "title" : "Telemetry record with four-level optional groups, null sensor readings and a sparse label map",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The deep-nesting happy path, and the only fixture that asserts explicit nulls survive at depth. Deliberately array-free so a failure here means the object path itself broke, not array inference bleeding in - which makes it the control against customer-preferences-object-with-array, whose only difference is one array-valued key.",
+  "catchesBugClass" : "Depth handling and prefix accumulation at four levels; null preservation at depth; false-positive array inference on scalar-only subtrees; and the intermediate-path accumulator that re-escapes segments while rebuilding paths.",
+  "cannotCatch" : "It never reaches the empty-container collapse - adding an empty group at depth breaks the round trip, and that depth variant is genuinely untested. It also stops well short of maxDepth.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Every prefix sees only scalars and nulls so none is misread as an array; preserveNulls defaults true so both nulls come back explicit."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"device_id\":\"sensor-4417\",\"recorded_at\":\"2026-08-09T14:32:11.482Z\",\"firmware_version\":\"2.14.0-rc3\",\"uplink_rssi_dbm\":-97,\"readings\":{\"environment\":{\"temperature_c\":21.5,\"relative_humidity_pct\":null,\"pressure_hpa\":1013.25},\"power\":{\"battery_pct\":88,\"charging\":false,\"solar\":{\"panel_voltage_v\":17.2,\"fault_code\":null}}},\"labels\":{\"site\":\"us-east-1a\",\"rack\":\"R12\",\"owner_team\":\"iot_platform\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"device_id\":\"S:sensor-4417\",\"firmware_version\":\"S:2.14.0-rc3\",\"labels\":{\"owner_team\":\"S:iot_platform\",\"rack\":\"S:R12\",\"site\":\"S:us-east-1a\"},\"readings\":{\"environment\":{\"pressure_hpa\":\"D:1013.25\",\"relative_humidity_pct\":null,\"temperature_c\":\"D:21.5\"},\"power\":{\"battery_pct\":\"I:88\",\"charging\":\"B:false\",\"solar\":{\"fault_code\":null,\"panel_voltage_v\":\"D:17.2\"}}},\"recorded_at\":\"S:2026-08-09T14:32:11.482Z\",\"uplink_rssi_dbm\":\"I:-97\"}",
+    "flat" : "{\"device\\\\_id\":\"S:sensor-4417\",\"firmware\\\\_version\":\"S:2.14.0-rc3\",\"labels_owner\\\\_team\":\"S:iot_platform\",\"labels_rack\":\"S:R12\",\"labels_site\":\"S:us-east-1a\",\"readings_environment_pressure\\\\_hpa\":\"D:1013.25\",\"readings_environment_relative\\\\_humidity\\\\_pct\":null,\"readings_environment_temperature\\\\_c\":\"D:21.5\",\"readings_power_battery\\\\_pct\":\"I:88\",\"readings_power_charging\":\"B:false\",\"readings_power_solar_fault\\\\_code\":null,\"readings_power_solar_panel\\\\_voltage\\\\_v\":\"D:17.2\",\"recorded\\\\_at\":\"S:2026-08-09T14:32:11.482Z\",\"uplink\\\\_rssi\\\\_dbm\":\"I:-97\"}",
+    "mapDoc" : "{\"device_id\":\"S:sensor-4417\",\"firmware_version\":\"S:2.14.0-rc3\",\"labels\":{\"owner_team\":\"S:iot_platform\",\"rack\":\"S:R12\",\"site\":\"S:us-east-1a\"},\"readings\":{\"environment\":{\"pressure_hpa\":\"D:1013.25\",\"relative_humidity_pct\":null,\"temperature_c\":\"D:21.5\"},\"power\":{\"battery_pct\":\"I:88\",\"charging\":\"B:false\",\"solar\":{\"fault_code\":null,\"panel_voltage_v\":\"D:17.2\"}}},\"recorded_at\":\"S:2026-08-09T14:32:11.482Z\",\"uplink_rssi_dbm\":\"I:-97\"}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"device_id\":\"S:sensor-4417\",\"firmware_version\":\"S:2.14.0-rc3\",\"labels\":{\"owner_team\":\"S:iot_platform\",\"rack\":\"S:R12\",\"site\":\"S:us-east-1a\"},\"readings\":{\"environment\":{\"pressure_hpa\":\"BD:1013.25\",\"relative_humidity_pct\":null,\"temperature_c\":\"BD:21.5\"},\"power\":{\"battery_pct\":\"I:88\",\"charging\":\"B:false\",\"solar\":{\"fault_code\":null,\"panel_voltage_v\":\"BD:17.2\"}}},\"recorded_at\":\"S:2026-08-09T14:32:11.482Z\",\"uplink_rssi_dbm\":\"I:-97\"}",
+    "flatJson" : "{\"device\\\\_id\":\"S:sensor-4417\",\"firmware\\\\_version\":\"S:2.14.0-rc3\",\"labels_owner\\\\_team\":\"S:iot_platform\",\"labels_rack\":\"S:R12\",\"labels_site\":\"S:us-east-1a\",\"readings_environment_pressure\\\\_hpa\":\"D:1013.25\",\"readings_environment_relative\\\\_humidity\\\\_pct\":null,\"readings_environment_temperature\\\\_c\":\"D:21.5\",\"readings_power_battery\\\\_pct\":\"I:88\",\"readings_power_charging\":\"B:false\",\"readings_power_solar_fault\\\\_code\":null,\"readings_power_solar_panel\\\\_voltage\\\\_v\":\"D:17.2\",\"recorded\\\\_at\":\"S:2026-08-09T14:32:11.482Z\",\"uplink\\\\_rssi\\\\_dbm\":\"I:-97\"}",
+    "jsonDoc" : "{\"device_id\":\"S:sensor-4417\",\"firmware_version\":\"S:2.14.0-rc3\",\"labels\":{\"owner_team\":\"S:iot_platform\",\"rack\":\"S:R12\",\"site\":\"S:us-east-1a\"},\"readings\":{\"environment\":{\"pressure_hpa\":\"BD:1013.25\",\"relative_humidity_pct\":null,\"temperature_c\":\"BD:21.5\"},\"power\":{\"battery_pct\":\"I:88\",\"charging\":\"B:false\",\"solar\":{\"fault_code\":null,\"panel_voltage_v\":\"BD:17.2\"}}},\"recorded_at\":\"S:2026-08-09T14:32:11.482Z\",\"uplink_rssi_dbm\":\"I:-97\"}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

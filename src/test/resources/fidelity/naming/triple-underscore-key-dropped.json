@@ -1,0 +1,30 @@
+{
+  "id" : "triple-underscore-key-dropped",
+  "family" : "naming",
+  "title" : "A field named ___ is silently deleted by the reconstructor (NP-022)",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-022",
+  "rationale" : "processArrays skips any key where startsWith(\"__\") and endsWith(\"__\"). For \"___\" characters 0-1 and 1-2 are each \"__\", so both halves are true and the entry is dropped. The encoding side is blameless. The sibling \"ok\" is present so the fixture distinguishes \"one field lost\" from \"reconstruction returned nothing\".",
+  "catchesBugClass" : "Reserved-namespace collision: internal bookkeeping expressed as magic strings inside the user key namespace. Pins the defect so a fix is verifiable and the loss cannot silently change shape.",
+  "cannotCatch" : "It cannot prove the sentinel scheme is safe once ___ specifically is handled - a fix that special-cases the exact string would turn this green while __, __meta__ and __isArray__ stay broken. It also cannot catch the same collision on the Avro stack.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The ___ entry is dropped entirely: a document with one fewer field, no exception, no warning, no null placeholder."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"___\":1,\"ok\":2}",
+  "expected" : {
+    "mapBaseline" : "{\"___\":\"I:1\",\"ok\":\"I:2\"}",
+    "flat" : "{\"\\\\_\\\\_\\\\_\":\"I:1\",\"ok\":\"I:2\"}",
+    "mapDoc" : "{\"ok\":\"I:2\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"___\":\"I:1\",\"ok\":\"I:2\"}",
+    "flatJson" : "{\"\\\\_\\\\_\\\\_\":\"I:1\",\"ok\":\"I:2\"}",
+    "jsonDoc" : "{\"ok\":\"I:2\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

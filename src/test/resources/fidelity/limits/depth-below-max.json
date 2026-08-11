@@ -1,0 +1,34 @@
+{
+  "id" : "depth-below-max",
+  "family" : "limits",
+  "title" : "Nesting one level below maxDepth expands fully",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The below-the-cliff control leg. Without it, a regression that truncates one level too eagerly would be invisible, because every other depth fixture already expects loss.",
+  "catchesBugClass" : "Off-by-one in the maxDepth comparison, and any change that makes the depth check fire before the level is actually consumed. Also catches accidental array inference on ordinary short strings.",
+  "cannotCatch" : "Nothing about the cliff itself - it is two levels clear. It also cannot catch depth accounting for lists, nor the interaction of depth with empty containers.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Two map levels, deepest flattenObject runs at depth 1, no truncation; neither value triggers array inference."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(3)",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 3
+    }
+  },
+  "input" : "{\"outer\":{\"leaf\":7,\"other\":\"text\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"outer\":{\"leaf\":\"I:7\",\"other\":\"S:text\"}}",
+    "flat" : "{\"outer_leaf\":\"I:7\",\"outer_other\":\"S:text\"}",
+    "mapDoc" : "{\"outer\":{\"leaf\":\"I:7\",\"other\":\"S:text\"}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"outer\":{\"leaf\":\"I:7\",\"other\":\"S:text\"}}",
+    "flatJson" : "{\"outer_leaf\":\"I:7\",\"outer_other\":\"S:text\"}",
+    "jsonDoc" : "{\"outer\":{\"leaf\":\"I:7\",\"other\":\"S:text\"}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

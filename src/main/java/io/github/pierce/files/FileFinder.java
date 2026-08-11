@@ -393,6 +393,82 @@ public class FileFinder {
     }
 
     /**
+     * Enforces the safety options that {@link Config} declares.
+     *
+     * <p>{@code validatePaths}, {@code allowedExtensions} and {@code maxFileSize} were settable
+     * and <b>never read anywhere in the class</b>. A security option that is configurable and
+     * inert is worse than one that does not exist: a caller reads the builder, believes traversal
+     * is blocked, and passes operator-supplied names straight through. The default search paths
+     * include {@code ..}, {@code ../..} and {@code ../../..}, so {@code ../../../etc/passwd} was
+     * an arbitrary-file read.</p>
+     *
+     * <p>Enforced here because {@code getInputStream} is the single choke point every public
+     * accessor funnels through — validating at each entry point instead would leave whichever one
+     * gets added next unguarded.</p>
+     *
+     * @throws SecurityException if the name escapes its base, or carries a disallowed extension
+     * @throws IOException       if the resolved file exceeds {@code maxFileSize}
+     */
+    private void enforceSafetyOptions(String fileName) throws IOException {
+        // Null byte first: it corrupts every check that follows, so testing it after traversal
+        // would let a crafted name be reported as the wrong problem.
+        if (fileName.indexOf((char) 0) >= 0) {
+            throw new SecurityException("Null byte in file name: '" + fileName + "'");
+        }
+
+        if (config.validatePaths) {
+            // Reject traversal on the raw name: normalising first would erase the evidence, and
+            // "../etc/passwd" is a rejection whether or not it happens to resolve today.
+            String normalised = fileName.replace('\\', '/');
+            if (normalised.contains("../") || normalised.startsWith("..")
+                    || normalised.contains("/..")) {
+                throw new SecurityException(
+                        "Path traversal rejected: '" + fileName + "'. FileFinder searches parent "
+                                + "directories by default, so a relative escape would read files "
+                                + "outside the intended tree. Pass an absolute path, or disable "
+                                + "validatePaths if the input is trusted.");
+            }
+        }
+
+        if (!config.allowedExtensions.isEmpty()) {
+            String lower = fileName.toLowerCase(java.util.Locale.ROOT);
+            int dot = lower.lastIndexOf('.');
+            String ext = dot < 0 ? "" : lower.substring(dot);
+            // An extensionless name is allowed: directory-ish and well-known config names are
+            // legitimate, and rejecting them would break callers for no security gain.
+            if (!ext.isEmpty() && !config.allowedExtensions.contains(ext)) {
+                // IOException, not SecurityException. FileFinderException extends
+                // FileNotFoundException, so callers — and the existing test asserting that
+                // ".exe files should be blocked by default" — already catch IOException here.
+                // That test previously passed only because the file did not exist; the check it
+                // named was inert. Keeping the thrown type in the IOException family makes the
+                // check real without breaking the contract it was always supposed to express.
+                // Traversal and null bytes remain SecurityException: those are attack
+                // signatures, not I/O policy.
+                throw new IOException(
+                        "Extension '" + ext + "' is not in the allowed set "
+                                + config.allowedExtensions + " for '" + fileName + "'");
+            }
+        }
+
+        if (config.maxFileSize > 0) {
+            try {
+                java.nio.file.Path p = java.nio.file.Paths.get(fileName);
+                if (java.nio.file.Files.isRegularFile(p)) {
+                    long size = java.nio.file.Files.size(p);
+                    if (size > config.maxFileSize) {
+                        throw new IOException(String.format(
+                                "File '%s' is %d bytes, exceeding maxFileSize %d",
+                                fileName, size, config.maxFileSize));
+                    }
+                }
+            } catch (java.nio.file.InvalidPathException notALocalPath) {
+                // Classpath and HDFS names are not local paths; size is checked on open instead.
+            }
+        }
+    }
+
+    /**
      * Check if file exists
      */
     public static boolean fileExists(String fileName) {
@@ -499,6 +575,8 @@ public class FileFinder {
         if (fileName.trim().isEmpty()) {
             throw new IOException("File name cannot be null or empty");
         }
+
+        enforceSafetyOptions(fileName);
 
         try {
             FileHandle handle = fileCache.get(fileName);

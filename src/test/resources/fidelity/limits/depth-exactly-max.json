@@ -1,0 +1,34 @@
+{
+  "id" : "depth-exactly-max",
+  "family" : "limits",
+  "title" : "Nesting at exactly maxDepth expands fully",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The cliff edge from below. maxDepth is documented nowhere as inclusive or exclusive; this pins that maxDepth==M expands, so the setting means \"number of map levels fully expanded\". If that meaning shifts by one, every user data silently changes shape at the boundary.",
+  "catchesBugClass" : "Inclusive/exclusive drift in the maxDepth bound - the single most likely silent regression, because it changes output shape only for documents sitting exactly at the configured limit.",
+  "cannotCatch" : "It cannot tell you whether maxDepth SHOULD be inclusive; it only pins that it currently is. It also says nothing about what happens past the cliff.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Three map levels, deepest flattenObject runs at depth 2, the check does not fire, and the exact three-level structure rebuilds."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(3)",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 3
+    }
+  },
+  "input" : "{\"l1\":{\"l2\":{\"leaf\":7,\"tag\":\"x\"}}}",
+  "expected" : {
+    "mapBaseline" : "{\"l1\":{\"l2\":{\"leaf\":\"I:7\",\"tag\":\"S:x\"}}}",
+    "flat" : "{\"l1_l2_leaf\":\"I:7\",\"l1_l2_tag\":\"S:x\"}",
+    "mapDoc" : "{\"l1\":{\"l2\":{\"leaf\":\"I:7\",\"tag\":\"S:x\"}}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"l1\":{\"l2\":{\"leaf\":\"I:7\",\"tag\":\"S:x\"}}}",
+    "flatJson" : "{\"l1_l2_leaf\":\"I:7\",\"l1_l2_tag\":\"S:x\"}",
+    "jsonDoc" : "{\"l1\":{\"l2\":{\"leaf\":\"I:7\",\"tag\":\"S:x\"}}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

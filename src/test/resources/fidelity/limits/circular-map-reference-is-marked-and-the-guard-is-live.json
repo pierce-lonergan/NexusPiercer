@@ -1,0 +1,63 @@
+{
+  "id" : "circular-map-reference-is-marked-and-the-guard-is-live",
+  "family" : "limits",
+  "title" : "detectCircularReferences is real: a self-referential Map is cut with an explicit marker instead of running away",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "MapFlattener.Builder defaults detectCircularReferences to TRUE, so the runner honours it on every fixture - it was never an unset knob, it was an UNWITNESSED one, because a JSON text document cannot contain a cycle. That makes it exactly the kind of control this repository keeps finding: present, wired, and never proven. javaInput's ref anchor is the only way to build the input. Deleting the runner knob would have destroyed the ability to prove the library's guard works at all. Classified ACCEPTED_LOSS on the same footing as depth-one-over-max: a cyclic graph has no tree encoding, and the library emits an explicit marker rather than hanging or throwing. The caveat published with it is that the marker is a bare unescaped string a user could legitimately have authored, so this truncation is aliasable in the same way maxDepth truncation is.",
+  "catchesBugClass" : "Proves the guard is LIVE. If detectCircularReferences ever becomes a no-op the probe flips to EQUAL and goes red; if the marker text or the cut depth changes, the recording goes red. Also pins the defensive-copy quirk, which is the difference between cutting at the first level and the second.",
+  "cannotCatch" : "Only a self-reference at depth 1. Says nothing about a longer cycle (a -> b -> a), where visit-stack backtracking is what has to be correct, nor about a shared non-cyclic reference (a DAG), which the javadoc claims works correctly and which remains unfixtured. The detector keys on System.identityHashCode in a Set<Integer>, so it would false-positive on a hash collision between two distinct maps - unobservable with two objects and untestable here. It cannot tell whether ACCEPTED_LOSS is the right call versus throwing.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The flattened map carries an explicit circular-reference marker; the probe's two arms differ, proving the guard is live."
+  },
+  "configDescription" : "mapFlattener.maxDepth=3",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 3
+    }
+  },
+  "probe" : {
+    "kind" : "FLATTEN_CONFIG_COMPARE",
+    "expect" : "DIFFERENT",
+    "configA" : {
+      "mapFlattener" : {
+        "maxDepth" : 3,
+        "detectCircularReferences" : true
+      }
+    },
+    "configB" : {
+      "mapFlattener" : {
+        "maxDepth" : 3,
+        "detectCircularReferences" : false
+      }
+    },
+    "note" : "The guard must change the output for a self-referential Map; if it stops doing so it has become a no-op."
+  },
+  "javaInput" : {
+    "kind" : "map",
+    "id" : "root",
+    "entries" : [ {
+      "key" : "a",
+      "value" : {
+        "kind" : "ref",
+        "ref" : "root"
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"a\":\"CYCLE:^1\"}",
+    "flat" : "{\"a_a\":\"S:[CIRCULAR_REFERENCE]\"}",
+    "mapDoc" : "{\"a\":{\"a\":\"S:[CIRCULAR_REFERENCE]\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "probe" : {
+      "kind" : "FLATTEN_CONFIG_COMPARE",
+      "expect" : "DIFFERENT",
+      "a" : "{\"a_a\":\"S:[CIRCULAR_REFERENCE]\"}",
+      "b" : "{\"a_a_a\":\"S:{a=(this Map)}\"}",
+      "equal" : false
+    }
+  },
+  "measuredLossless" : false
+}

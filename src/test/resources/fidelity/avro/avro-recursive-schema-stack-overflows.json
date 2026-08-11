@@ -1,0 +1,46 @@
+{
+  "id" : "avro-recursive-schema-stack-overflows",
+  "family" : "avro",
+  "title" : "A self-referential record kills the task with StackOverflowError, not an exception",
+  "stack" : "AVRO",
+  "referenceIssue" : "NP-002/NP-003",
+  "rationale" : "Five SCHEMA fixtures existed in the Avro family and not one was recursive, while category trees, org charts and threaded comments are ordinary shapes. AvroSchemaFlattener.collectRecordDefinitions recurses through getNonNullType(field.schema()) with no open-type set and no visited set, so Category -> child -> Category never terminates. It blows the stack in the FIRST pass, before processFieldRecursively is ever reached. StackOverflowError is an Error: it is not caught by ordinary row-level error handling and it kills the Spark task, not the record.",
+  "catchesBugClass" : "An unbounded schema walk with no cycle guard, and the wider class of 'fails as an Error rather than an Exception'. It pins WHICH throwable comes out, so a change from StackOverflowError to OutOfMemoryError is a failure rather than a shrug, and the day someone adds a depth cap or a visited set the recording goes stale and the manifest has to be rewritten deliberately.",
+  "cannotCatch" : "Only direct self-reference through a nullable union at depth one. It cannot catch a mutual cycle (A -> B -> A), a cycle reached only through an array element, or a cycle that is legal because the recursive branch is never populated in the data. It also says nothing about the DATA path: MapFlattener handles this datum fine and the fixture does not claim otherwise.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "flattenedSchema and avroDoc both render as THROWN: StackOverflowError with an empty message, and schemaChecks records threw=true, which drives losslessAvro=false."
+  },
+  "configDescription" : "assert SCHEMA",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Category",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "name",
+          "type" : "string"
+        }, {
+          "name" : "child",
+          "type" : [ "null", "Category" ],
+          "default" : null
+        } ]
+      }
+    }
+  },
+  "input" : "{\"name\":\"root\",\"child\":{\"name\":\"leaf\",\"child\":null}}",
+  "expected" : {
+    "avroAssert" : "SCHEMA",
+    "flattenedSchema" : "THROWN: StackOverflowError: ",
+    "schemaChecks" : {
+      "threw" : true
+    },
+    "flat" : "{\"child_child\":null,\"child_name\":\"S:leaf\",\"name\":\"S:root\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"Category\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"child\",\"type\":[\"null\",\"Category\"],\"default\":null}]}",
+    "avroDoc" : "THROWN: StackOverflowError: ",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

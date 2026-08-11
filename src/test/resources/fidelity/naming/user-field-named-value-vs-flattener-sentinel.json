@@ -1,0 +1,30 @@
+{
+  "id" : "user-field-named-value-vs-flattener-sentinel",
+  "family" : "naming",
+  "title" : "A genuine field named _value stays distinct from the flattener _value sentinel",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "MapFlattener uses the bare string \"_value\" as a sentinel in five places. Escaping is what currently keeps a real field of that name safe, and that safety is accidental and one cleanup away from breaking. The nested doubling also probes the reconstructor own _value wrapper.",
+  "catchesBugClass" : "Sentinel/user-namespace collision on the flattener side, mirroring NP-022 on the reconstructor side. Pins that the protection is escaping, so a refactor which moves the sentinel comparison to unescaped names fails loudly.",
+  "cannotCatch" : "It contains no arrays, so it never reaches the three sites where \"_value\" is inserted RAW into the same map that receives escaped field names. A _value collision inside a nested array of maps is precisely what this cannot see.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "No sentinel comparison matches, because every user-supplied segment carries its escape."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a\":{\"_value\":1},\"b\":{\"_value\":{\"_value\":2}}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"_value\":\"I:1\"},\"b\":{\"_value\":{\"_value\":\"I:2\"}}}",
+    "flat" : "{\"a_\\\\_value\":\"I:1\",\"b_\\\\_value_\\\\_value\":\"I:2\"}",
+    "mapDoc" : "{\"a\":{\"_value\":\"I:1\"},\"b\":{\"_value\":{\"_value\":\"I:2\"}}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"a\":{\"_value\":\"I:1\"},\"b\":{\"_value\":{\"_value\":\"I:2\"}}}",
+    "flatJson" : "{\"a_\\\\_value\":\"I:1\",\"b_\\\\_value_\\\\_value\":\"I:2\"}",
+    "jsonDoc" : "{\"a\":{\"_value\":\"I:1\"},\"b\":{\"_value\":{\"_value\":\"I:2\"}}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

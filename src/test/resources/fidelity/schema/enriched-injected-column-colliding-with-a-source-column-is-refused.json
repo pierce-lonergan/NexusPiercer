@@ -1,0 +1,53 @@
+{
+  "id" : "enriched-injected-column-colliding-with-a-source-column-is-refused",
+  "family" : "schema",
+  "title" : "An injected column whose name is already a source column's is refused, rather than returning two columns under one name",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The published page asserts that injectivity is enforced rather than assumed. It was enforced only for the columns the TRAVERSAL produced: checkCollision and the maxFields ceiling both lived inside emit(), which the injection merge never passes through, so injectField() went straight to the caller's sink unguarded. Measured before the repair on this exact schema and configuration, flatten() and stream() both returned [order_id, order_id, amount] - two columns of one name, under NameCollisionPolicy.FAIL, whose entire published job is refusing exactly that, with no exception and no log line. Not one of the corpus's three injection rows could see it, because all three inject names disjoint from their source columns; this row is the one that varies that. It also pins the diagnostic, which has to be its own text: neither policy's advice - rename a field, change the separator, switch to ESCAPE - can move a name the caller typed.",
+  "catchesBugClass" : "The output-side guards going back to being traversal-side guards. Any refactor that reintroduces a second registry, or that guards InjectingSink.accept while leaving finish() - the append-past-the-end arm - unguarded, turns this row green again in the wrong direction: it would stop throwing and start returning a duplicate keyset. It also catches the diagnostic being merged back into the FAIL template, which would tell a caller to rename a source field they did not write.",
+  "cannotCatch" : "It cannot see the injection-against-injection case (two injectField calls claiming one name at two positions, which configuration accepts because it de-duplicates positions and not names), nor the append-past-the-end arm, nor the maxFields half of the same repair: those are covered by EnrichedSchemaFlattenerTest$InjectedColumns.twoInjectionsWithOneNameAreRefused, .anAppendedInjectionIsGuarded and .maxFieldsCountsInjectedColumns. Like every THROWN row it depends on FidelityRender's 240-character truncation, so a cosmetic reword reddens it for no behavioural reason. And it cannot decide whether refusing is better than renaming for a caller who genuinely wants to shadow a source column - it only records that shadowing silently is not on the menu.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The enriched arm throws SchemaFlattenException naming both the source path and the injectField position; the MapFlattener arm keys the same document into rows and loses nothing, because a row map has no injected columns to collide with. Accepted on the same footing as enriched-fail-policy-refuses-a-colliding-schema and enriched-escape-forged-array-boundary-is-refused: the schema half refuses what the row half never faces, and the only alternative is one column name for two columns."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs MAP_FLATTENER, one injected field named after a source column",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "MAP_FLATTENER",
+      "enriched" : {
+        "inject" : [ {
+          "position" : 1,
+          "flattenedName" : "order_id",
+          "name" : "order_id",
+          "avroType" : "STRING"
+        } ]
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Row",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "amount",
+          "type" : "string"
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"amount\":\"9.99\"}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "MAP_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[1]",
+    "enrichedNames" : "THROWN: SchemaFlattenException: Flattened name collision in schema 'gov.Row': source path 'order_id' and the column injected by injectField(1) both produce the column name 'order_id'. injectField() de-duplicates POSITIONS, not names, and an injected column is an emitted c",
+    "flat" : "{\"amount\":\"S:9.99\",\"order\\\\_id\":\"S:o-1\"}",
+    "avroBaseline" : "THROWN: SchemaFlattenException: Flattened name collision in schema 'gov.Row': source path 'order_id' and the column injected by injectField(1) both produce the column name 'order_id'. injectField() de-duplicates POSITIONS, not names, and an injected column is an emitted c",
+    "avroDoc" : "[\"S:amount\",\"S:order\\\\_id\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

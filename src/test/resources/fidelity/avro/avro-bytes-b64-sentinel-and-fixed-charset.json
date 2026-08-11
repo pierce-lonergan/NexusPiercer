@@ -1,0 +1,47 @@
+{
+  "id" : "avro-bytes-b64-sentinel-and-fixed-charset",
+  "family" : "avro",
+  "title" : "A bytes payload literally starting with a Base64 marker is decoded; a fixed value with a high byte fails on platform charset",
+  "stack" : "AVRO",
+  "referenceIssue" : "NP-022",
+  "rationale" : "Two independent byte-handling defects in one datum. The BYTES case tests an in-band prefix marker MapFlattener writes for real ByteBuffers, with no escaping, so a payload whose own content begins with those characters is misinterpreted. The FIXED case falls through five decode strategies and lands on String.getBytes() with the platform default charset.",
+  "catchesBugClass" : "Unescaped in-band sentinels in a value channel - same shape as NP-022 - and charset-dependent byte reconstruction; any String.getBytes() without an explicit Charset in a fidelity path.",
+  "cannotCatch" : "Neither half fires on the Avro GenericRecord path, so this proves nothing about the binary path. It also cannot catch the silent misinterpretation of a value that Base64-decodes to exactly the fixed size.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The literal ASCII payload is replaced by decoded bytes with no diagnostic, and the fixed value throws a size mismatch on a UTF-8-default JVM while the same fixture would PASS on an ISO-8859-1-default JVM. A fixture whose outcome depends on file.encoding is exactly what a corpus must pin."
+  },
+  "measurementNote" : "PARTIAL CORRECTION. The fixed/charset half reproduces exactly: reconstruction throws \"Fixed size mismatch at sig: expected 4, got 5\" because the high byte encodes to two bytes under the JVM default charset (UTF-8 on JDK 18+). The B64 half is NOT observable in this datum: reconstructRecord processes fields in schema order and aborts on sig, so payload is never converted and the sentinel misinterpretation cannot be seen in the output. The fixture pins one of the two defects it was designed to pin; the B64 sentinel needs its own datum with no fixed field beside it.",
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Blob",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "payload",
+          "type" : "bytes"
+        }, {
+          "name" : "sig",
+          "type" : {
+            "type" : "fixed",
+            "name" : "Sig4",
+            "size" : 4
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"payload\":\"B64:AAAA\",\"sig\":\"\\u00ff\\u0001\\u0002\\u0003\"}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"payload\":\"S:B64:AAAA\",\"sig\":\"S:ÿ\\u0001\\u0002\\u0003\"}",
+    "avroBaseline" : "{\"payload\":\"S:B64:AAAA\",\"sig\":\"S:ÿ\\u0001\\u0002\\u0003\"}",
+    "avroDoc" : "THROWN: IllegalArgumentException: Fixed size mismatch at sig: expected 4, got 5 (value was: ÿ\u0001\u0002\u0003...)",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

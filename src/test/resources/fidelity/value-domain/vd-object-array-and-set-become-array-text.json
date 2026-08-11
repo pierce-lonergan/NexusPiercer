@@ -1,0 +1,58 @@
+{
+  "id" : "vd-object-array-and-set-become-array-text",
+  "family" : "value-domain",
+  "title" : "Object[] and a LinkedHashSet are serialized as array text and promote their parent to an array",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "The two remaining container types Spark and ordinary Java code hand to flatten() that no fixture reached: Object[] (flattenValue's isArray branch) and Set (its explicit Set branch, which converts to ArrayList and thereby erases set-ness). Both land in the same array-inference blast radius as the byte[] row, and the Set case additionally shows the reconstructor rebuilding a List where a Set was authored.",
+  "catchesBugClass" : "The isArray and Set branches of flattenValue, which no other fixture executes, plus the cross-field zipping that turns N independent columns into N synthetic records once any one of them looks like an array.",
+  "cannotCatch" : "KNOWN BLIND SPOT, stated rather than fixed: FidelityRender renders any Collection as a positional list, so a Set that reconstructed as a List with the same element order would measure LOSSLESS. Set-ness is therefore NOT under test here - only the value-level damage is. Teaching the renderer to distinguish SET from LIST would be zero-diff against the rest of the corpus but adds machinery for one row, so it is deliberately deferred. Also cannot cover HashSet, whose iteration order is unspecified and which must never enter this corpus.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both values serialise to bracket-leading text and both parse to two elements, so the parent prefix is promoted and two independent fields are zipped into two synthetic records."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "a",
+      "value" : {
+        "kind" : "map",
+        "entries" : [ {
+          "key" : "objarr",
+          "value" : {
+            "kind" : "objectArray",
+            "items" : [ {
+              "kind" : "int",
+              "value" : 1
+            }, {
+              "kind" : "int",
+              "value" : 2
+            } ]
+          }
+        }, {
+          "key" : "set",
+          "value" : {
+            "kind" : "set",
+            "items" : [ {
+              "kind" : "string",
+              "value" : "p"
+            }, {
+              "kind" : "string",
+              "value" : "q"
+            } ]
+          }
+        } ]
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"objarr\":[\"I:1\",\"I:2\"],\"set\":[\"S:p\",\"S:q\"]}}",
+    "flat" : "{\"a_objarr\":\"S:[1,2]\",\"a_set\":\"S:[\\\"p\\\",\\\"q\\\"]\"}",
+    "mapDoc" : "{\"a\":[{\"objarr\":\"I:1\",\"set\":\"S:p\"},{\"objarr\":\"I:2\",\"set\":\"S:q\"}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

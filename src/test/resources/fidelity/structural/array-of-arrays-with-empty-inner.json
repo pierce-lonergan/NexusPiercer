@@ -1,0 +1,30 @@
+{
+  "id" : "array-of-arrays-with-empty-inner",
+  "family" : "structural",
+  "title" : "Array of arrays, including an empty inner array, at depth",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Covers arrays-of-arrays and the empty-array-at-depth case in one document and separates the two sides of the library cleanly: the flatten side is faithful (extractFieldsPreservingStructure records the empty inner list positionally) while the reconstruct side throws the structure away.",
+  "catchesBugClass" : "Loss of one level of array nesting, and regression of the empty-inner-list bugfix in extractFieldsPreservingStructure. Because flatten is correct here, asserting the intermediate localises the defect to JsonReconstructor.",
+  "cannotCatch" : "It cannot exercise deeper recursion in extractFieldsPreservingStructure - only two levels of array here - so a bug that appears at [[[1]]] is out of scope. It also cannot distinguish an empty inner array from a one-element array of null once reconstruction is involved.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flattening is correct via the _value sentinel. On reconstruct, prefix grid is flagged and the outer object is turned into an array of objects, transposing one nesting level away."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"grid\":{\"rows\":[[1,2],[],[3]]}}",
+  "expected" : {
+    "mapBaseline" : "{\"grid\":{\"rows\":[[\"I:1\",\"I:2\"],[],[\"I:3\"]]}}",
+    "flat" : "{\"grid_rows\":\"S:[[1,2],[],[3]]\"}",
+    "mapDoc" : "{\"grid\":[{\"rows\":[\"I:1\",\"I:2\"]},{\"rows\":[]},{\"rows\":[\"I:3\"]}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"grid\":{\"rows\":[[\"I:1\",\"I:2\"],[],[\"I:3\"]]}}",
+    "flatJson" : "{\"grid_rows\":\"S:[[1,2],[],[3]]\"}",
+    "jsonDoc" : "{\"grid\":[{\"rows\":[\"I:1\",\"I:2\"]},{\"rows\":[]},{\"rows\":[\"I:3\"]}]}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

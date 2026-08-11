@@ -1,0 +1,30 @@
+{
+  "id" : "punctuation-and-control-chars-in-names",
+  "family" : "naming",
+  "title" : "Dots, brackets, quotes, spaces and a newline in field names pass through untouched",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Every one of these characters is structural in some competing flatten syntax. NexusPiercer treats only the separator and the backslash as special, so all five must survive. On the JSON stack this additionally proves Jackson re-escapes the quote and the newline correctly on the way out.",
+  "catchesBugClass" : "A regression that adds dot-path or bracket-index syntax to the key encoding without extending the escape set. Also catches a key sanitizer being switched on by default rather than opt-in.",
+  "cannotCatch" : "It cannot catch anything about the escape algorithm itself, since no character here triggers escaping. Critically it also cannot catch the real-world failure: these names round-trip perfectly and then fail at the sink.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "All five are single unescaped segments and reconstruct verbatim, including the embedded double-quote and the literal newline."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a.b\":1,\"c[0]\":2,\"d\\\"e\":3,\"f\\ng\":4,\"h i\":5}",
+  "expected" : {
+    "mapBaseline" : "{\"a.b\":\"I:1\",\"c[0]\":\"I:2\",\"d\\\"e\":\"I:3\",\"f\\ng\":\"I:4\",\"h i\":\"I:5\"}",
+    "flat" : "{\"a.b\":\"I:1\",\"c[0]\":\"I:2\",\"d\\\"e\":\"I:3\",\"f\\ng\":\"I:4\",\"h i\":\"I:5\"}",
+    "mapDoc" : "{\"a.b\":\"I:1\",\"c[0]\":\"I:2\",\"d\\\"e\":\"I:3\",\"f\\ng\":\"I:4\",\"h i\":\"I:5\"}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"a.b\":\"I:1\",\"c[0]\":\"I:2\",\"d\\\"e\":\"I:3\",\"f\\ng\":\"I:4\",\"h i\":\"I:5\"}",
+    "flatJson" : "{\"a.b\":\"I:1\",\"c[0]\":\"I:2\",\"d\\\"e\":\"I:3\",\"f\\ng\":\"I:4\",\"h i\":\"I:5\"}",
+    "jsonDoc" : "{\"a.b\":\"I:1\",\"c[0]\":\"I:2\",\"d\\\"e\":\"I:3\",\"f\\ng\":\"I:4\",\"h i\":\"I:5\"}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

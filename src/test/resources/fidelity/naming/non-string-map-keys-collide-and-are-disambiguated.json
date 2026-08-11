@@ -1,0 +1,46 @@
+{
+  "id" : "non-string-map-keys-collide-and-are-disambiguated",
+  "family" : "naming",
+  "title" : "An Integer key 1 and a String key \"1\" both stringify to \"1\"; the second is renamed to a field name nobody wrote",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "sanitizeKey calls key.toString() with no record of the original key type, then generateUniqueKey manufactures a suffix on collision. This is completely unreachable from JSON text - every JSON object key is a String and a duplicate would have collapsed during parsing. The disambiguator is one of the corpus's named pathologies (lower-case-collision-suffix-corrupts-structure, empty-string-key-renamed-into-collision) and this is its untested trigger. Spark hands Map keys of any type for MapType(IntegerType, ...). The fixture also required teaching FidelityRender to render a non-String key as its typed token: the previous String.valueOf() rendering merged the two keys in the BASELINE, so the row would have failed for the right reason while the thing it was compared against was itself silently wrong.",
+  "catchesBugClass" : "Key-domain type erasure plus silent renaming. Catches any change to sanitizeKey or generateUniqueKey, and catches the double-sanitization path - flatten() sanitizes into a safe copy and flattenObject sanitizes again with a fresh used-key set - changing which of the two keys wins the un-suffixed name.",
+  "cannotCatch" : "Only the two-way collision at the document root. Says nothing about non-String keys nested below the root, about keys whose toString is non-deterministic, or about null keys, which take a separate branch. It cannot detect an ordering change driven by identity hash codes, because LinkedHashMap fixes the insertion order that decides which key gets suffixed.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both the key TYPE and the key IDENTITY are gone, and a field name that was never authored appears in the output with no marker."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : {
+        "kind" : "int",
+        "value" : 1
+      },
+      "value" : {
+        "kind" : "string",
+        "value" : "one"
+      }
+    }, {
+      "key" : {
+        "kind" : "string",
+        "value" : "1"
+      },
+      "value" : {
+        "kind" : "string",
+        "value" : "textOne"
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"1\":\"S:textOne\",\"I:1\":\"S:one\"}",
+    "flat" : "{\"1\":\"S:one\",\"1\\\\_2\":\"S:textOne\"}",
+    "mapDoc" : "{\"1\":\"S:one\",\"1_2\":\"S:textOne\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

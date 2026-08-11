@@ -1,0 +1,67 @@
+{
+  "id" : "avro-array-of-records-datum-unwritable",
+  "family" : "avro",
+  "title" : "The array-of-records control document, taken through reconstruct() instead of reconstructToMap()",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Byte-identical avsc and input to avro-array-of-records-control, which is published LOSSLESS. The ONLY difference between the two rows is which sibling entry point is called. That makes the split visible as a single-variable experiment rather than as two unrelated observations, and it is the row a consumer who read the control and then wrote an Avro file needs to see.",
+  "catchesBugClass" : "The executor-side failure specifically: two elements, both wrong, so a fix that repairs only element 0 - the last-element-repeat family this corpus already documents - still fails. Paired with the minimal reproducer it also catches a 'fix' that special-cases arrays and leaves plain nested records broken.",
+  "cannotCatch" : "An empty array and a null element are not exercised; avro-array-of-records-null-element-annihilates-array already shows those go wrong upstream of reconstruct(), so this row cannot tell you whether reconstruct() adds a second failure on top. It also cannot catch arrays of arrays or arrays of unions.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "orders is set as an ArrayList<LinkedHashMap>; validate fails on the element type and the binary encode throws. avroDoc equals avroBaseline as in the minimal reproducer, so the conjunction is again load-bearing."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "orders",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Order",
+              "fields" : [ {
+                "name" : "id",
+                "type" : "int"
+              }, {
+                "name" : "ship",
+                "type" : {
+                  "type" : "record",
+                  "name" : "Ship",
+                  "fields" : [ {
+                    "name" : "city",
+                    "type" : "string"
+                  } ]
+                }
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":{\"city\":\"LA\"}}]}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : false,
+      "nestedRecordsAreRecords" : false,
+      "nonRecordNestedPaths" : "orders[0]=LinkedHashMap orders[1]=LinkedHashMap",
+      "encodeFailure" : "ClassCastException",
+      "binaryEncodes" : false
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"orders_id\":\"S:[1,2]\",\"orders_ship_city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}",
+    "avroBaseline" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":{\"city\":\"S:LA\"}}]}",
+    "avroDoc" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":{\"city\":\"S:LA\"}}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

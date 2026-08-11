@@ -1,0 +1,30 @@
+{
+  "id" : "vd-array-lookalike-fabricates-padding",
+  "family" : "value-domain",
+  "title" : "The same misdetection then FABRICATES values that were never in the input",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Once one value promotes the parent to an array, every sibling is dragged in, and reconstructArray pads short fields by REPEATING their last element. A field that occurred once in the input appears three times in the output. That is not lossy - it is invention, with no marker, and a downstream consumer cannot tell the duplicates from real repetition.",
+  "catchesBugClass" : "Value fabrication during reconstruction. Padding-by-repetition is far more dangerous than the null-padding on the flatten side, because repeated real values look legitimate while padded nulls look like gaps.",
+  "cannotCatch" : "Cannot distinguish fabricated repetition from genuine repetition by inspecting the output alone. It also cannot tell whether the last-value padding is ever CORRECT.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Only c triggers detection but arrayPaths is keyed on the shared prefix, so b is pulled in and its single 7 is replicated into three records."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a\":{\"b\":\"[7]\",\"c\":\"[1,2,3]\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":\"S:[7]\",\"c\":\"S:[1,2,3]\"}}",
+    "flat" : "{\"a_b\":\"S:[7]\",\"a_c\":\"S:[1,2,3]\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"I:7\",\"c\":\"I:1\"},{\"b\":\"I:7\",\"c\":\"I:2\"},{\"b\":\"I:7\",\"c\":\"I:3\"}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"a\":{\"b\":\"S:[7]\",\"c\":\"S:[1,2,3]\"}}",
+    "flatJson" : "{\"a_b\":\"S:[7]\",\"a_c\":\"S:[1,2,3]\"}",
+    "jsonDoc" : "{\"a\":[{\"b\":\"I:7\",\"c\":\"I:1\"},{\"b\":\"I:7\",\"c\":\"I:2\"},{\"b\":\"I:7\",\"c\":\"I:3\"}]}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

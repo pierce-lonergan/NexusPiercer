@@ -1,0 +1,52 @@
+{
+  "id" : "avro-map-of-records-control",
+  "family" : "avro",
+  "title" : "Control: a map with record values, including a key that contains the separator",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The good-input drill for the map path, built so it can fail: the key hum_pct contains the default separator, so it exercises escapeSegment on a MAP KEY in the data path and decodeSegments on the way back. If escaping regresses, the key splits into two path levels and the reconstructed map gains spurious nesting.",
+  "catchesBugClass" : "Regression in map-key escaping or in map reconstruction. Specifically catches a map key being split on an embedded separator, and the MAP branch being misrouted to reconstructRecord.",
+  "cannotCatch" : "An empty map is not exercised and behaves completely differently depending on nullability - the same source value gets two answers. It also cannot catch a map key colliding with a sibling record field name, or a logical type on the map value type.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both keys escape and decode correctly. The result is a HashMap where the input was a LinkedHashMap, but Avro maps are unordered and key insertion order is genuinely not part of the value here."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Reading",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "attrs",
+          "type" : {
+            "type" : "map",
+            "values" : {
+              "type" : "record",
+              "name" : "Attr",
+              "fields" : [ {
+                "name" : "unit",
+                "type" : "string"
+              }, {
+                "name" : "value",
+                "type" : "double"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"attrs\":{\"temp\":{\"unit\":\"C\",\"value\":21.5},\"hum_pct\":{\"unit\":\"%\",\"value\":40.5}}}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"attrs_hum\\\\_pct_unit\":\"S:%\",\"attrs_hum\\\\_pct_value\":\"D:40.5\",\"attrs_temp_unit\":\"S:C\",\"attrs_temp_value\":\"D:21.5\"}",
+    "avroBaseline" : "{\"attrs\":{\"hum_pct\":{\"unit\":\"S:%\",\"value\":\"D:40.5\"},\"temp\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}}",
+    "avroDoc" : "{\"attrs\":{\"hum_pct\":{\"unit\":\"S:%\",\"value\":\"D:40.5\"},\"temp\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

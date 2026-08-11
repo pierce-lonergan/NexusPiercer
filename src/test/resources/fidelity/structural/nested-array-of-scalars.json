@@ -1,0 +1,30 @@
+{
+  "id" : "nested-array-of-scalars",
+  "family" : "structural",
+  "title" : "Array of scalars one level down turns its parent object into an array",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Pairs with the root-level fixture to show the heuristic is not merely absent but actively wrong once a prefix exists. The array-ness migrates up one level: the parent object becomes the array and the array becomes a scalar.",
+  "catchesBugClass" : "The fundamental ambiguity the flattened key format cannot express: a_b = \"[x,y]\" means either \"a is an array of objects with field b\" or \"a is an object with an array-valued field b\", and nothing in the wire format distinguishes them.",
+  "cannotCatch" : "It cannot be fixed by tuning the heuristic - this fixture and the array-of-objects fixture produce indistinguishable flattened output shapes, so any change that fixes this one breaks that one. It documents a wire-format gap, not a code bug.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Prefix user sees a size-2 serialized array and is flagged as the array path, so the object becomes a 2-element array and the array becomes a scalar at every position."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"user\":{\"tags\":[\"red\",\"green\"]}}",
+  "expected" : {
+    "mapBaseline" : "{\"user\":{\"tags\":[\"S:red\",\"S:green\"]}}",
+    "flat" : "{\"user_tags\":\"S:[\\\"red\\\",\\\"green\\\"]\"}",
+    "mapDoc" : "{\"user\":[{\"tags\":\"S:red\"},{\"tags\":\"S:green\"}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"user\":{\"tags\":[\"S:red\",\"S:green\"]}}",
+    "flatJson" : "{\"user_tags\":\"S:[\\\"red\\\",\\\"green\\\"]\"}",
+    "jsonDoc" : "{\"user\":[{\"tags\":\"S:red\"},{\"tags\":\"S:green\"}]}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

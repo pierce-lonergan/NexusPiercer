@@ -1,0 +1,56 @@
+{
+  "id" : "vd-bigdecimal-java-native-scale-loss-and-the-live-flag",
+  "family" : "value-domain",
+  "title" : "A real BigDecimal loses its declared scale by default - and preserveBigDecimalPrecision, inert on the JSON stack, is LIVE here",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "The good-input arm for the whole javaInput mechanism, and the mirror image of vd-preserve-bigdecimal-flag-inert. That fixture proves the flag CANNOT fire on the JSON stack and carries the evidence for the MAP side inside a probe field. This promotes that evidence to a first-class row measured through the same code path as every other fixture, and it cross-validates the new mechanism: if javaInput were quietly constructing a Double instead of a BigDecimal, this is the row that says so.",
+  "catchesBugClass" : "Proves the flag is not dead everywhere, which is what makes the JSON-stack inertness a specific defect rather than a general 'this option does nothing'. If someone deletes preserveBigDecimalPrecision as unused, this probe flips to EQUAL and goes red. It is also the tripwire for a javaInput builder that silently coerces BigDecimal to Double.",
+  "cannotCatch" : "Does not prove the flag is correct - only that it changes the output. The preserved form is a String, not a BigDecimal, so the round trip is still lossy WITH the flag on and this fixture does not measure that arm. It does not cover the flag interacting with array serialization, where normalizePrimitive is called per element.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The declared scale is destroyed under defaults even when the caller hands in an exact BigDecimal. The probe's two arms differ, so the control is live on this stack. requiresNonDefaultConfig is FALSE, because the row itself is measured at defaults and only the probe tunes the flag."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "probe" : {
+    "kind" : "FLATTEN_CONFIG_COMPARE",
+    "expect" : "DIFFERENT",
+    "configA" : {
+      "mapFlattener" : {
+        "preserveBigDecimalPrecision" : true
+      }
+    },
+    "configB" : {
+      "mapFlattener" : {
+        "preserveBigDecimalPrecision" : false
+      }
+    },
+    "note" : "preserveBigDecimalPrecision is inert on the JSON stack and must be live here; if it stops changing the output the flag is dead everywhere."
+  },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "amount",
+      "value" : {
+        "kind" : "bigdecimal",
+        "value" : "37.7740"
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"amount\":\"BD:37.7740\"}",
+    "flat" : "{\"amount\":\"D:37.774\"}",
+    "mapDoc" : "{\"amount\":\"D:37.774\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "probe" : {
+      "kind" : "FLATTEN_CONFIG_COMPARE",
+      "expect" : "DIFFERENT",
+      "a" : "{\"amount\":\"S:37.7740\"}",
+      "b" : "{\"amount\":\"D:37.774\"}",
+      "equal" : false
+    }
+  },
+  "measuredLossless" : false
+}

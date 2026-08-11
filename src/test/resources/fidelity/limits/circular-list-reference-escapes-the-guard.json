@@ -1,0 +1,66 @@
+{
+  "id" : "circular-list-reference-escapes-the-guard",
+  "family" : "limits",
+  "title" : "The same guard does nothing for a self-referential List, and the error path claims otherwise",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "The inert half of the same control, and the reason the circular-reference gap needs two fixtures rather than one. enterObject and exitObject are called only from flattenObject; flattenList, extractFieldsPreservingStructure and extractFieldsFromList never consult the context, so a List that contains itself is bounded only by maxDepth. Turning the flag on and off changes nothing - precisely the EQUAL-probe shape the manifest's INERT_CONTROL item is built to publish. Filed DEFECT rather than ACCEPTED_LOSS because there is no marker at all: the output is nested brackets around a JDK toString artefact, which is data-shaped and silently wrong, and because the sibling Map case shows the library CAN do better.",
+  "catchesBugClass" : "A guard whose coverage does not match its name - the pathology this repository has found a dozen times. The moment someone extends the visit-stack calls to the list paths, this probe flips to DIFFERENT and the build goes red, forcing the contract update. It also pins the depth at which the bail-out fires, so a change to extractFieldsFromList's depth accounting is visible.",
+  "cannotCatch" : "Cannot distinguish 'the guard was never intended to cover lists' from 'it was and the call is missing' - it only shows the observable behaviour. It cannot see the misleading exception message on the neighbouring path: if the input were shaped so that MapFlattener's StackOverflowError catch fired, the wrapper says 'Circular reference detected' even though detection did nothing, and FidelityRender.thrown unwraps to the ROOT cause and would discard that message.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The probe's two arms agree: the guard is inert for lists. The flattened value is nested brackets around a JDK toString artefact rather than a marker."
+  },
+  "configDescription" : "mapFlattener.maxDepth=3",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 3
+    }
+  },
+  "probe" : {
+    "kind" : "FLATTEN_CONFIG_COMPARE",
+    "expect" : "EQUAL",
+    "configA" : {
+      "mapFlattener" : {
+        "maxDepth" : 3,
+        "detectCircularReferences" : true
+      }
+    },
+    "configB" : {
+      "mapFlattener" : {
+        "maxDepth" : 3,
+        "detectCircularReferences" : false
+      }
+    },
+    "note" : "These two must stay identical only for as long as the guard ignores lists; the day it covers them this flips."
+  },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "a",
+      "value" : {
+        "kind" : "list",
+        "id" : "L",
+        "items" : [ {
+          "kind" : "ref",
+          "ref" : "L"
+        } ]
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"a\":[\"CYCLE:^1\"]}",
+    "flat" : "{\"a\":\"S:[[[[\\\"[(this Collection)]\\\"]]]]\"}",
+    "mapDoc" : "{\"a\":\"S:[[[[\\\"[(this Collection)]\\\"]]]]\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "probe" : {
+      "kind" : "FLATTEN_CONFIG_COMPARE",
+      "expect" : "EQUAL",
+      "a" : "{\"a\":\"S:[[[[\\\"[(this Collection)]\\\"]]]]\"}",
+      "b" : "{\"a\":\"S:[[[[\\\"[(this Collection)]\\\"]]]]\"}",
+      "equal" : true
+    }
+  },
+  "measuredLossless" : false
+}

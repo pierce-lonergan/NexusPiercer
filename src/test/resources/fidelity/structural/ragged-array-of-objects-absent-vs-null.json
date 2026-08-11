@@ -1,0 +1,30 @@
+{
+  "id" : "ragged-array-of-objects-absent-vs-null",
+  "family" : "structural",
+  "title" : "Array of objects with a missing field - absent becomes present-null",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "ValueDomainContractTest pins \"an absent key is distinct from a present null\" as PRESERVED. That guarantee holds only at the top level. Inside an array of objects MapFlattener pads short columns with nulls to keep them rectangular, and reconstruction cannot tell a padded null from a written null.",
+  "catchesBugClass" : "The rectangularisation tax: the columnar flattened form cannot represent a ragged array, and the padding is unmarked. Catches any regression in the padding loop and any future claim that absent/null is preserved everywhere.",
+  "cannotCatch" : "It cannot catch the symmetric case - an element that explicitly writes b:null - because that produces byte-identical flattened output. It also cannot detect raggedness when every element is missing the same field, since the column then never appears at all.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The second element gains a key it never had. Array length, ordering and all present values are correct, so only a key-set comparison catches it."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"rows\":[{\"a\":1,\"b\":2},{\"a\":3}]}",
+  "expected" : {
+    "mapBaseline" : "{\"rows\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\"}]}",
+    "flat" : "{\"rows_a\":\"S:[1,3]\",\"rows_b\":\"S:[2,null]\"}",
+    "mapDoc" : "{\"rows\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":null}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"rows\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\"}]}",
+    "flatJson" : "{\"rows_a\":\"S:[1,3]\",\"rows_b\":\"S:[2,null]\"}",
+    "jsonDoc" : "{\"rows\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":null}]}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

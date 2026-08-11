@@ -1,0 +1,52 @@
+{
+  "id" : "avro-flattened-name-collision-guard-fires",
+  "family" : "avro",
+  "title" : "Collision guard rejects a document the data path round-trips losslessly",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "processFieldRecursively detects that two distinct source paths collapse to one flattened name and throws. An earlier version of this guard read the origin back out of the very map it had just overwritten and therefore compared each duplicate against itself, never firing - the archetypal disabled control. This drill keeps the guard honest and documents that the data path accepts the same document.",
+  "catchesBugClass" : "Regression to a self-comparing collision guard. Verify the exception is thrown AND that its message names both distinct source paths.",
+  "cannotCatch" : "Only covers collisions produced by the path-join. It cannot catch collisions produced by generated suffixes, which never enter the hierarchy map and bypass this guard entirely, nor a collision between two branches of a multi-branch union.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Refusing is defensible: with a non-escapable separator the flattening is genuinely non-injective and silently overwriting one field would be worse. What is not defensible is the asymmetry - the data half round-trips this exact datum with perfect fidelity, so the library has no single answer to \"is this document representable\"."
+  },
+  "configDescription" : "assert SCHEMA (expected to throw)",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Collide",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "user_id",
+          "type" : "string"
+        }, {
+          "name" : "user",
+          "type" : {
+            "type" : "record",
+            "name" : "User",
+            "fields" : [ {
+              "name" : "id",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"user_id\":\"flat\",\"user\":{\"id\":\"nested\"}}",
+  "expected" : {
+    "avroAssert" : "SCHEMA",
+    "flattenedSchema" : "THROWN: IllegalStateException: Flattened name collision: source paths 'user_id' and 'user.id' both flatten to column 'user_id'. Joining path segments with '_' is not reversible when a field name contains '_', so one field would silently overwrite the other. Rename one of",
+    "schemaChecks" : {
+      "threw" : true
+    },
+    "flat" : "{\"user\\\\_id\":\"S:flat\",\"user_id\":\"S:nested\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"Collide\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"user_id\",\"type\":\"string\"},{\"name\":\"user\",\"type\":{\"type\":\"record\",\"name\":\"User\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"}]}}]}",
+    "avroDoc" : "THROWN: IllegalStateException: Flattened name collision: source paths 'user_id' and 'user.id' both flatten to column 'user_id'. Joining path segments with '_' is not reversible when a field name contains '_', so one field would silently overwrite the other. Rename one of",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

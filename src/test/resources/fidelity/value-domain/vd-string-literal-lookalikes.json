@@ -1,0 +1,30 @@
+{
+  "id" : "vd-string-literal-lookalikes",
+  "family" : "value-domain",
+  "title" : "Strings that impersonate JSON literals stay strings, and stay distinct from the literals",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The default reconstruction path must never type-infer. This is the good-input arm of the family and the discrimination test for the scalar domain: the same document carries the string \"true\" beside the boolean true and the string \"1\" beside the number 1. It also pins the string arm of the known NaN/Infinity collapse: when that DEFECT is fixed by tagging non-finite doubles, the genuine string \"NaN\" must NOT acquire the tag.",
+  "catchesBugClass" : "Silent type inference on the default reconstruction path; a non-finite-value fix that over-reaches and captures genuine text; any change that collapses empty string into null at the scalar level.",
+  "cannotCatch" : "Says nothing about the delimiter formats, where these exact strings ARE coerced by parseAtomicValue. It also cannot catch loss that only appears at array arity >= 2, and with a class-blind oracle it would pass even if 1 silently widened to 1.0.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Every value is a String, Boolean or Number that normalizePrimitive returns unchanged. No value promotes the wrap prefix to an array path."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"wrap\":{\"sNull\":\"null\",\"sTrue\":\"true\",\"sFalse\":\"false\",\"sInt\":\"1\",\"sFloat\":\"1.0\",\"sNaN\":\"NaN\",\"sInf\":\"Infinity\",\"sNegInf\":\"-Infinity\",\"sEmpty\":\"\",\"bTrue\":true,\"nInt\":1,\"nFloat\":1.0}}",
+  "expected" : {
+    "mapBaseline" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"D:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "flat" : "{\"wrap_bTrue\":\"B:true\",\"wrap_nFloat\":\"D:1.0\",\"wrap_nInt\":\"I:1\",\"wrap_sEmpty\":\"S:\",\"wrap_sFalse\":\"S:false\",\"wrap_sFloat\":\"S:1.0\",\"wrap_sInf\":\"S:Infinity\",\"wrap_sInt\":\"S:1\",\"wrap_sNaN\":\"S:NaN\",\"wrap_sNegInf\":\"S:-Infinity\",\"wrap_sNull\":\"S:null\",\"wrap_sTrue\":\"S:true\"}",
+    "mapDoc" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"D:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"BD:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "flatJson" : "{\"wrap_bTrue\":\"B:true\",\"wrap_nFloat\":\"D:1.0\",\"wrap_nInt\":\"I:1\",\"wrap_sEmpty\":\"S:\",\"wrap_sFalse\":\"S:false\",\"wrap_sFloat\":\"S:1.0\",\"wrap_sInf\":\"S:Infinity\",\"wrap_sInt\":\"S:1\",\"wrap_sNaN\":\"S:NaN\",\"wrap_sNegInf\":\"S:-Infinity\",\"wrap_sNull\":\"S:null\",\"wrap_sTrue\":\"S:true\"}",
+    "jsonDoc" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"BD:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

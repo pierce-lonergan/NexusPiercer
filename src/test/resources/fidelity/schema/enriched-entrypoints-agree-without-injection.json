@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-entrypoints-agree-without-injection",
+  "family" : "schema",
+  "title" : "Without injections, flatten() and stream() return the same columns in the same order",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The control that makes the ENRICHED_STREAM comparator able to PASS. Without it the comparator has exactly one fixture, that fixture is a DEFECT, and a comparator that has only ever produced 'not equal' is indistinguishable from a comparator that always produces 'not equal'. This is the good-input leg of the three-way drill. It duplicates the unit test streamMatchesList's claim on purpose, at the corpus level.",
+  "catchesBugClass" : "A traversal divergence between the two entry points introduced by a future refactor - flatten() gaining a sort, or stream() gaining a filter.",
+  "cannotCatch" : "Nothing about ordering under injection, and nothing about memory behaviour, which is stream()'s actual reason to exist. It is a small schema, so it cannot exercise the wide-schema path the streaming API targets.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both entry points emit the same three names, and the recorded emission order pins the sequence too."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs ENRICHED_STREAM, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "ENRICHED_STREAM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "ENRICHED_STREAM",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

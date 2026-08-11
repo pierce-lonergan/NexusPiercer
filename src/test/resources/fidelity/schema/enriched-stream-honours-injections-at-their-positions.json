@@ -1,0 +1,63 @@
+{
+  "id" : "enriched-stream-honours-injections-at-their-positions",
+  "family" : "schema",
+  "title" : "stream() emits the columns injectField() configured, at the same positions flatten() gives them",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "This row published a DEFECT until stream() became the single code path. flatten() called applyInjections and stream() did not, so a caller who configured injectField and then streamed got no synthetic columns and no signal; the javadoc conceded the caller would have no way to tell, which by this repository's own doctrine describes a control that appears present and does nothing. The javadoc's justification - that splicing by position requires holding the full sequence - was false: the merge is monotone over the OUTPUT index and never needs the source length, so it costs one integer plus the injection map the configuration already holds. flatten() is now literally the materialising form of stream(), so the two cannot diverge by construction rather than by anyone remembering to keep them aligned.",
+  "catchesBugClass" : "An entry point that silently discards configuration another entry point honours, and any re-splitting of the two paths. Because the recorded emission order is unsorted it also catches a merge that emitted the right SET at the wrong indices - the failure a name-only comparison cannot see, and the reason the old unit test streamMatchesList stayed green throughout.",
+  "cannotCatch" : "It cannot observe the memory behaviour, which is the whole point of stream() existing; the unit test streamDoesNotBufferTheFieldListWhenInjecting interleaves interceptor and sink callbacks to catch the lazy repair that buffers internally, and no fixture can. It cannot reach the append-past-the-last-column branch either - enriched-stream-injection-past-the-final-column is the sibling that does. And note what it can no longer do: with the two entry points now in agreement by construction, the ENRICHED_STREAM comparator has no configuration under which it can report 'not equal', so its discriminating power is held by the harness gate RoundTripFidelityCorpusTest.enrichedStreamComparatorStillDiscriminates rather than by this row.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both entry points emit the injected column first and the three source columns after it, with identical positions. RE-AUTHORED against repaired behaviour rather than overridden: the measurement moved, so the prediction was rewritten alongside the prose and the id."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs ENRICHED_STREAM, one injected field",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "ENRICHED_STREAM",
+      "enriched" : {
+        "inject" : [ {
+          "position" : 1,
+          "name" : "event_identifier",
+          "flattenedName" : "event_identifier",
+          "avroType" : "STRING"
+        } ]
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "ENRICHED_STREAM",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[1]",
+    "enrichedNames" : "[\"S:event_identifier\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:event_identifier\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:event_identifier\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

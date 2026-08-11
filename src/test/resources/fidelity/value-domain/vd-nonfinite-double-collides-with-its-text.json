@@ -1,0 +1,106 @@
+{
+  "id" : "vd-nonfinite-double-collides-with-its-text",
+  "family" : "value-domain",
+  "title" : "Double.NaN and the string \"NaN\" flatten to byte-identical output; one round-trips and one does not",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "CORRECTS AN EARLIER CLAIM: the corpus is not free of non-finite Doubles. vd-exponent-overflow-and-underflow parses 1e400 with USE_BIG_DECIMAL_FOR_FLOATS=false, so its MAP arm already records a genuine Double.POSITIVE_INFINITY going through normalizePrimitive's isInfinite branch. Only the NaN half was unreachable - JSON has no literal and the lenient mapper does not enable ALLOW_NON_NUMERIC_NUMBERS - and only the COLLISION was unasserted. This row is the Java-typed twin of the published-LOSSLESS vd-string-literal-lookalikes: same twelve fields, same key layout, with three of them as real Doubles instead of Strings.",
+  "catchesBugClass" : "The third instance of the non-injectivity the corpus already formalises twice as a FLAT_EQUAL pair invariant, and the only one that was documented but unasserted. The day someone fixes the NaN defect by tagging non-finite doubles, the pair breaks AND vd-string-literal-lookalikes' claim that the genuine string NaN must NOT acquire the tag becomes enforceable in both directions rather than only one.",
+  "cannotCatch" : "Does not cover Float.NaN or Float infinities, a separate branch of normalizePrimitive two lines below the Double one and still unfixtured. Does not cover -0.0, which vd-signed-zero owns. Cannot show which of the two colliding inputs is more common. And it blames flatten() only by construction, not by measurement, because both sides of the pair share one flattened map.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The flattened map is byte-identical to vd-string-literal-lookalikes'; the baseline differs in exactly three entries. Three authored Doubles and three authored Strings are the same six characters afterwards."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "wrap",
+      "value" : {
+        "kind" : "map",
+        "entries" : [ {
+          "key" : "sNull",
+          "value" : {
+            "kind" : "string",
+            "value" : "null"
+          }
+        }, {
+          "key" : "sTrue",
+          "value" : {
+            "kind" : "string",
+            "value" : "true"
+          }
+        }, {
+          "key" : "sFalse",
+          "value" : {
+            "kind" : "string",
+            "value" : "false"
+          }
+        }, {
+          "key" : "sInt",
+          "value" : {
+            "kind" : "string",
+            "value" : "1"
+          }
+        }, {
+          "key" : "sFloat",
+          "value" : {
+            "kind" : "string",
+            "value" : "1.0"
+          }
+        }, {
+          "key" : "sNaN",
+          "value" : {
+            "kind" : "double",
+            "value" : "NaN"
+          }
+        }, {
+          "key" : "sInf",
+          "value" : {
+            "kind" : "double",
+            "value" : "Infinity"
+          }
+        }, {
+          "key" : "sNegInf",
+          "value" : {
+            "kind" : "double",
+            "value" : "-Infinity"
+          }
+        }, {
+          "key" : "sEmpty",
+          "value" : {
+            "kind" : "string",
+            "value" : ""
+          }
+        }, {
+          "key" : "bTrue",
+          "value" : {
+            "kind" : "bool",
+            "value" : true
+          }
+        }, {
+          "key" : "nInt",
+          "value" : {
+            "kind" : "int",
+            "value" : 1
+          }
+        }, {
+          "key" : "nFloat",
+          "value" : {
+            "kind" : "double",
+            "value" : 1.0
+          }
+        } ]
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"D:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"D:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"D:NaN\",\"sNegInf\":\"D:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "flat" : "{\"wrap_bTrue\":\"B:true\",\"wrap_nFloat\":\"D:1.0\",\"wrap_nInt\":\"I:1\",\"wrap_sEmpty\":\"S:\",\"wrap_sFalse\":\"S:false\",\"wrap_sFloat\":\"S:1.0\",\"wrap_sInf\":\"S:Infinity\",\"wrap_sInt\":\"S:1\",\"wrap_sNaN\":\"S:NaN\",\"wrap_sNegInf\":\"S:-Infinity\",\"wrap_sNull\":\"S:null\",\"wrap_sTrue\":\"S:true\"}",
+    "mapDoc" : "{\"wrap\":{\"bTrue\":\"B:true\",\"nFloat\":\"D:1.0\",\"nInt\":\"I:1\",\"sEmpty\":\"S:\",\"sFalse\":\"S:false\",\"sFloat\":\"S:1.0\",\"sInf\":\"S:Infinity\",\"sInt\":\"S:1\",\"sNaN\":\"S:NaN\",\"sNegInf\":\"S:-Infinity\",\"sNull\":\"S:null\",\"sTrue\":\"S:true\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

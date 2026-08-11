@@ -1,0 +1,30 @@
+{
+  "id" : "event-envelope-sentinel-metadata-keys",
+  "family" : "real-world",
+  "title" : "Event envelope with a __meta__ header and a __type__ payload discriminator",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-022",
+  "rationale" : "NP-022 in the form it actually reaches a consumer. A polymorphic payload silently loses the discriminator that tells the consumer which variant it is holding, and an entire metadata subtree disappears. Double-underscore metadata keys are standard in CDC and serialization envelopes, so this is not a contrived name.",
+  "catchesBugClass" : "Namespace collision between internal control data and user field names; silent field deletion with no error, warning, or count change reported anywhere.",
+  "cannotCatch" : "Only covers the both-ends form. The single-ended forms real pipelines emit more often pass through fine today, so this will not notice if the guard is later loosened to a startsWith check. It also does not cover the _value sentinel.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flattening is faithful; the loss is entirely in the reconstructor internal-marker guard. Correct fix is to stop putting markers in the user namespace, not to tighten the name pattern."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"event_id\":\"evt_01J8ZQ4\",\"occurred_at\":\"2026-08-09T14:32:11Z\",\"source_service\":\"billing-api\",\"__meta__\":{\"ingest_partition\":7,\"schema_version\":3},\"payload\":{\"__type__\":\"invoice.paid\",\"invoice_id\":\"INV-9931\",\"amount_paid\":249.0,\"paid_by\":\"CUST-77301\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"__meta__\":{\"ingest_partition\":\"I:7\",\"schema_version\":\"I:3\"},\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"__type__\":\"S:invoice.paid\",\"amount_paid\":\"D:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
+    "flat" : "{\"\\\\_\\\\_meta\\\\_\\\\__ingest\\\\_partition\":\"I:7\",\"\\\\_\\\\_meta\\\\_\\\\__schema\\\\_version\":\"I:3\",\"event\\\\_id\":\"S:evt_01J8ZQ4\",\"occurred\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"payload_\\\\_\\\\_type\\\\_\\\\_\":\"S:invoice.paid\",\"payload_amount\\\\_paid\":\"D:249.0\",\"payload_invoice\\\\_id\":\"S:INV-9931\",\"payload_paid\\\\_by\":\"S:CUST-77301\",\"source\\\\_service\":\"S:billing-api\"}",
+    "mapDoc" : "{\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"amount_paid\":\"D:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"__meta__\":{\"ingest_partition\":\"I:7\",\"schema_version\":\"I:3\"},\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"__type__\":\"S:invoice.paid\",\"amount_paid\":\"BD:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
+    "flatJson" : "{\"\\\\_\\\\_meta\\\\_\\\\__ingest\\\\_partition\":\"I:7\",\"\\\\_\\\\_meta\\\\_\\\\__schema\\\\_version\":\"I:3\",\"event\\\\_id\":\"S:evt_01J8ZQ4\",\"occurred\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"payload_\\\\_\\\\_type\\\\_\\\\_\":\"S:invoice.paid\",\"payload_amount\\\\_paid\":\"D:249.0\",\"payload_invoice\\\\_id\":\"S:INV-9931\",\"payload_paid\\\\_by\":\"S:CUST-77301\",\"source\\\\_service\":\"S:billing-api\"}",
+    "jsonDoc" : "{\"event_id\":\"S:evt_01J8ZQ4\",\"occurred_at\":\"S:2026-08-09T14:32:11Z\",\"payload\":{\"amount_paid\":\"BD:249.0\",\"invoice_id\":\"S:INV-9931\",\"paid_by\":\"S:CUST-77301\"},\"source_service\":\"S:billing-api\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,34 @@
+{
+  "id" : "array-size-one-over-max",
+  "family" : "limits",
+  "title" : "An array one element past maxArraySize loses the extra element silently",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Truncation here is by design, but the mechanism deserves pinning: elements beyond the limit are dropped with no exception, no marker, and - unlike maxMapSize, which logs at WARN - only a log.debug. The bound is correct; the silence is what a reader needs to see stated.",
+  "catchesBugClass" : "A change in truncation policy at the array bound, and any regression where truncation additionally corrupts the surviving elements or the inferred type.",
+  "cannotCatch" : "It cannot detect that truncation OCCURRED from the output alone. It also cannot catch the far more serious lower-bound behaviour, because truncating to 2 keeps the value above the size>1 detection gate.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Discarding elements past a configured array bound is precisely what the bound is for, and critically the TYPE survives - the field is still a list of the right element shape."
+  },
+  "configDescription" : "MapFlattener.builder().maxArraySize(2)",
+  "config" : {
+    "mapFlattener" : {
+      "maxArraySize" : 2
+    }
+  },
+  "input" : "{\"r\":[{\"a\":1,\"b\":10},{\"a\":2,\"b\":20},{\"a\":3,\"b\":30}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "flat" : "{\"r_a\":\"S:[1,2]\",\"r_b\":\"S:[10,20]\"}",
+    "mapDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "flatJson" : "{\"r_a\":\"S:[1,2]\",\"r_b\":\"S:[10,20]\"}",
+    "jsonDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"}]}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

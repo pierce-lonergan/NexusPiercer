@@ -1,0 +1,30 @@
+{
+  "id" : "unicode-names-must-not-normalize",
+  "family" : "naming",
+  "title" : "NFC and NFD forms, RTL text, and an astral emoji stay four distinct keys",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "escape()/needsEscaping use indexOf and charAt and the fast path returns the original instance when no separator or backslash is present. Two keys that render identically on screen must remain two fields, and the emoji must survive as a surrogate pair. Any future normalize/ASCII-fold/codePoint rewrite breaks this immediately.",
+  "catchesBugClass" : "Silent Unicode normalization or folding introduced anywhere in the key path, and surrogate-pair splitting if the char-indexed escape loop is rewritten.",
+  "cannotCatch" : "It exercises none of the escape machinery. It also cannot catch downstream damage: Spark, Parquet and Athena may treat NFC and NFD as the same or invalid, so LOSSLESS here does not mean usable in production.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "No name contains a separator or backslash so escapeSegment returns the identical instance; all four keys and values round-trip exactly and the NFC and NFD spellings stay separate map entries."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"caf\\u00e9\":1,\"cafe\\u0301\":2,\"\\ud83d\\udd11\":3,\"\\u05e2\\u05d1\\u05e8\\u05d9\\u05ea\":4}",
+  "expected" : {
+    "mapBaseline" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "flat" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "mapDoc" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "flatJson" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "jsonDoc" : "{\"café\":\"I:2\",\"café\":\"I:1\",\"עברית\":\"I:4\",\"🔑\":\"I:3\"}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

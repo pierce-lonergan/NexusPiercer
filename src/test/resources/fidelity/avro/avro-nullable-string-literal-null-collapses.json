@@ -1,0 +1,45 @@
+{
+  "id" : "avro-nullable-string-literal-null-collapses",
+  "family" : "avro",
+  "title" : "A nullable string whose value is the text \"null\" reconstructs as null",
+  "stack" : "AVRO",
+  "referenceIssue" : "NP-022",
+  "rationale" : "reconstructUnionValue decides the null branch with an in-band sentinel test against the string content of a legitimate value, after trim(). Any nullable string field whose payload is the four characters n-u-l-l is destroyed, and so is one with surrounding whitespace. Same class as NP-022: a sentinel with no escape hatch.",
+  "catchesBugClass" : "In-band sentinel collision on the null discriminator. Also catches a regression that widens the test to startsWith or case-insensitive matching.",
+  "cannotCatch" : "Confined to the two-branch nullable path. The 3+-branch path uses the identical test with a different symptom. It also cannot catch the analogous collapse for an enum whose symbol set legitimately contains \"null\".",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "status and padded both reconstruct as null; safe survives, which is what lets the fixture distinguish \"the sentinel fires too eagerly\" from \"all strings are broken\". No configuration disables this."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Sentinel",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "status",
+          "type" : [ "null", "string" ]
+        }, {
+          "name" : "padded",
+          "type" : [ "null", "string" ]
+        }, {
+          "name" : "safe",
+          "type" : [ "null", "string" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"status\":\"null\",\"padded\":\" null \",\"safe\":\"nullable\"}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"padded\":\"S: null \",\"safe\":\"S:nullable\",\"status\":\"S:null\"}",
+    "avroBaseline" : "{\"padded\":\"S: null \",\"safe\":\"S:nullable\",\"status\":\"S:null\"}",
+    "avroDoc" : "{\"padded\":null,\"safe\":\"S:nullable\",\"status\":null}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

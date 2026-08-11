@@ -1,0 +1,35 @@
+{
+  "id" : "nested-array-of-objects-explicit-hints",
+  "family" : "structural",
+  "title" : "Same nested shape, rescued by explicit arrayPaths with inference off",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The third arm of the gate on the same document as nested-array-of-objects-default: prove the reconstructor CAN represent this shape, so the defect is provably in the auto-detection heuristic and not an inherent limit of the flattened form. Without this fixture the previous one is unactionable.",
+  "catchesBugClass" : "That the arrayPaths hint and the inferArraysFromValues switch are live controls, not decoration. If either is refactored into a no-op this fixture flips from pass to fail while its DEFECT twin keeps failing - the signature the repo keeps missing.",
+  "cannotCatch" : "It cannot claim the library is usable this way in practice: the config requires the caller to already know the document array paths, which defeats the schema-less premise. It also does not generalise - arrayPaths matches whole encoded prefixes exactly.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "With inference disabled only the configured path order_items enters analysis.arrayPaths; order stays an object path and the array rebuilds exactly."
+  },
+  "configDescription" : "JsonReconstructor.builder().inferArraysFromValues(false).arrayPaths(\"order_items\")",
+  "config" : {
+    "reconstructor" : {
+      "inferArraysFromValues" : false,
+      "arrayPaths" : [ "order_items" ]
+    }
+  },
+  "input" : "{\"order\":{\"items\":[{\"sku\":\"A\",\"qty\":1},{\"sku\":\"B\",\"qty\":2}]}}",
+  "expected" : {
+    "mapBaseline" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "flat" : "{\"order_items_qty\":\"S:[1,2]\",\"order_items_sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
+    "mapDoc" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : false,
+    "jsonBaseline" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "flatJson" : "{\"order_items_qty\":\"S:[1,2]\",\"order_items_sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
+    "jsonDoc" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : false
+  },
+  "measuredLossless" : true
+}

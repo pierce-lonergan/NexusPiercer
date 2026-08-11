@@ -8,6 +8,12 @@ target/
 # into the permanent history of a published repository.
 lib/
 
+### Agent-harness scratch ###
+# .claude/worktrees holds full working copies of this repository, target/ trees included.
+# Same hazard as lib/ above: one careless `git add -A` writes a nested duplicate of the
+# whole project into permanent history. Nothing in the build reads it.
+.claude/
+
 ### Benchmark output ###
 benchmarks/results/*.json
 !benchmarks/results/baseline.json

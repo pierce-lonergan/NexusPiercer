@@ -1,0 +1,59 @@
+{
+  "id" : "avro-array-of-records-control",
+  "family" : "avro",
+  "title" : "Control: array of records with a required nested record in each element",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The good-input drill for the array-of-records machinery and the baseline the two array DEFECT fixtures are measured against. Two elements rather than one, so per-index alignment is actually tested - a single-element array would pass even if indexing were entirely broken.",
+  "catchesBugClass" : "Regression in column-wise array transposition and per-index realignment. Because the two elements differ in every field, any index confusion or last-element-repeat yields a visibly wrong result.",
+  "cannotCatch" : "Everything here is present and non-null, which is exactly the condition under which this code works. It cannot catch the two null-driven failures, nor the last-element-repeat in nested record reconstruction.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "There is no bare array key, so the array node is not a leaf and the column-wise path is taken; elements come back in order."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "orders",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Order",
+              "fields" : [ {
+                "name" : "id",
+                "type" : "int"
+              }, {
+                "name" : "ship",
+                "type" : {
+                  "type" : "record",
+                  "name" : "Ship",
+                  "fields" : [ {
+                    "name" : "city",
+                    "type" : "string"
+                  } ]
+                }
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":{\"city\":\"LA\"}}]}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"orders_id\":\"S:[1,2]\",\"orders_ship_city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}",
+    "avroBaseline" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":{\"city\":\"S:LA\"}}]}",
+    "avroDoc" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":{\"city\":\"S:LA\"}}]}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

@@ -1,0 +1,71 @@
+{
+  "id" : "vd-java-native-temporal-and-identity",
+  "family" : "value-domain",
+  "title" : "Instant, UUID and an enum arrive as Strings; Character, Short and Float survive - and nothing marks the difference",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "Stack A's signature is flatten(Map<String,Object>) and Spark hands it Row -> Map with Java types, but every MAP arm in this corpus was fed a Jackson-parsed JSON value domain, so normalizePrimitive's Temporal, Enum and unknown-type branches had never been reached by a fixture. This row drives the entry point the library actually has. It deliberately mixes types that are erased (Instant, UUID, DayOfWeek) with types that survive (Character, Short, Float), so the recording pins each field individually even though the row's verdict is one bit.",
+  "catchesBugClass" : "Silent type erasure on the MAP stack's real input domain. Catches any change to normalizePrimitive's Temporal, Enum, Optional and unknown-type branches, and catches a 'fix' that starts stringifying Character, Short or Float as collateral damage - those three are pinned as survivors in the same recording.",
+  "cannotCatch" : "Proves nothing about java.time types that are NOT Temporal: Duration, Period and ZoneId all fall to the unknown-type toString branch and are untested here. It says nothing about whether stringification is REVERSIBLE for any of these - it only shows the library provides no inverse. It also cannot see that MapFlattener's explicit java.sql.Timestamp branch is unreachable dead code, because the java.util.Date branch three lines above catches it first.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The digits survive but the type does not, exactly as vd-integer-past-long already publishes as DEFECT: nothing downstream can tell an erased UUID from a user string that happens to look like one."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "v",
+      "value" : {
+        "kind" : "map",
+        "entries" : [ {
+          "key" : "instant",
+          "value" : {
+            "kind" : "instant",
+            "value" : "1970-01-01T00:00:00Z"
+          }
+        }, {
+          "key" : "uuid",
+          "value" : {
+            "kind" : "uuid",
+            "value" : "00000000-0000-0000-0000-000000000001"
+          }
+        }, {
+          "key" : "day",
+          "value" : {
+            "kind" : "enum",
+            "type" : "java.time.DayOfWeek",
+            "value" : "MONDAY"
+          }
+        }, {
+          "key" : "chr",
+          "value" : {
+            "kind" : "char",
+            "value" : "x"
+          }
+        }, {
+          "key" : "shrt",
+          "value" : {
+            "kind" : "short",
+            "value" : 7
+          }
+        }, {
+          "key" : "flt",
+          "value" : {
+            "kind" : "float",
+            "value" : 1.5
+          }
+        } ]
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"v\":{\"chr\":\"Character:x\",\"day\":\"DayOfWeek:MONDAY\",\"flt\":\"F:1.5\",\"instant\":\"Instant:1970-01-01T00:00:00Z\",\"shrt\":\"SH:7\",\"uuid\":\"UUID:00000000-0000-0000-0000-000000000001\"}}",
+    "flat" : "{\"v_chr\":\"Character:x\",\"v_day\":\"S:MONDAY\",\"v_flt\":\"F:1.5\",\"v_instant\":\"S:1970-01-01T00:00:00Z\",\"v_shrt\":\"SH:7\",\"v_uuid\":\"S:00000000-0000-0000-0000-000000000001\"}",
+    "mapDoc" : "{\"v\":{\"chr\":\"Character:x\",\"day\":\"S:MONDAY\",\"flt\":\"F:1.5\",\"instant\":\"S:1970-01-01T00:00:00Z\",\"shrt\":\"SH:7\",\"uuid\":\"S:00000000-0000-0000-0000-000000000001\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,30 @@
+{
+  "id" : "customer-profile-addresses-and-preferences",
+  "family" : "real-world",
+  "title" : "Customer profile with two addresses, a preferences map and non-ASCII names",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The second documentation-grade happy path and the only fixture covering UTF-8, apostrophes, and a numeric-looking string that must stay a string. Combines a uniform object array with a scalar-only nested map so array and object inference must both be right in the same document.",
+  "catchesBugClass" : "Charset and escaping regressions; numeric coercion of numeric-looking strings inside arrays; object-versus-array misclassification when both appear as siblings; boolean fidelity through the array-free path.",
+  "cannotCatch" : "It says nothing about what happens when preferences gains an array-valued key - that is one character apart in risk. It also cannot catch element misalignment, since both addresses declare an identical field set.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "addresses is detected as an array; preferences holds only scalars and booleans so it stays an object. The postal code survives as a String because serializeArray writes it with JSON quotes."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"customer_id\":\"CUST-77301\",\"full_name\":\"Jos\\u00e9 \\u00c1lvarez-Ng\",\"email\":\"jose@example.com\",\"loyalty_points\":12500,\"preferences\":{\"theme\":\"dark\",\"locale\":\"fr_CA\",\"email_opt_in\":true,\"sms_opt_in\":false},\"addresses\":[{\"address_type\":\"billing\",\"line_1\":\"12 Rue de l'\\u00c9glise\",\"city\":\"Montr\\u00e9al\",\"postal_code\":\"H2X 1Y4\",\"country_code\":\"CA\"},{\"address_type\":\"shipping\",\"line_1\":\"500 Market St\",\"city\":\"San Francisco\",\"postal_code\":\"94105\",\"country_code\":\"US\"}]}",
+  "expected" : {
+    "mapBaseline" : "{\"addresses\":[{\"address_type\":\"S:billing\",\"city\":\"S:Montréal\",\"country_code\":\"S:CA\",\"line_1\":\"S:12 Rue de l'Église\",\"postal_code\":\"S:H2X 1Y4\"},{\"address_type\":\"S:shipping\",\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"}],\"customer_id\":\"S:CUST-77301\",\"email\":\"S:jose@example.com\",\"full_name\":\"S:José Álvarez-Ng\",\"loyalty_points\":\"I:12500\",\"preferences\":{\"email_opt_in\":\"B:true\",\"locale\":\"S:fr_CA\",\"sms_opt_in\":\"B:false\",\"theme\":\"S:dark\"}}",
+    "flat" : "{\"addresses_address\\\\_type\":\"S:[\\\"billing\\\",\\\"shipping\\\"]\",\"addresses_city\":\"S:[\\\"Montréal\\\",\\\"San Francisco\\\"]\",\"addresses_country\\\\_code\":\"S:[\\\"CA\\\",\\\"US\\\"]\",\"addresses_line\\\\_1\":\"S:[\\\"12 Rue de l'Église\\\",\\\"500 Market St\\\"]\",\"addresses_postal\\\\_code\":\"S:[\\\"H2X 1Y4\\\",\\\"94105\\\"]\",\"customer\\\\_id\":\"S:CUST-77301\",\"email\":\"S:jose@example.com\",\"full\\\\_name\":\"S:José Álvarez-Ng\",\"loyalty\\\\_points\":\"I:12500\",\"preferences_email\\\\_opt\\\\_in\":\"B:true\",\"preferences_locale\":\"S:fr_CA\",\"preferences_sms\\\\_opt\\\\_in\":\"B:false\",\"preferences_theme\":\"S:dark\"}",
+    "mapDoc" : "{\"addresses\":[{\"address_type\":\"S:billing\",\"city\":\"S:Montréal\",\"country_code\":\"S:CA\",\"line_1\":\"S:12 Rue de l'Église\",\"postal_code\":\"S:H2X 1Y4\"},{\"address_type\":\"S:shipping\",\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"}],\"customer_id\":\"S:CUST-77301\",\"email\":\"S:jose@example.com\",\"full_name\":\"S:José Álvarez-Ng\",\"loyalty_points\":\"I:12500\",\"preferences\":{\"email_opt_in\":\"B:true\",\"locale\":\"S:fr_CA\",\"sms_opt_in\":\"B:false\",\"theme\":\"S:dark\"}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"addresses\":[{\"address_type\":\"S:billing\",\"city\":\"S:Montréal\",\"country_code\":\"S:CA\",\"line_1\":\"S:12 Rue de l'Église\",\"postal_code\":\"S:H2X 1Y4\"},{\"address_type\":\"S:shipping\",\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"}],\"customer_id\":\"S:CUST-77301\",\"email\":\"S:jose@example.com\",\"full_name\":\"S:José Álvarez-Ng\",\"loyalty_points\":\"I:12500\",\"preferences\":{\"email_opt_in\":\"B:true\",\"locale\":\"S:fr_CA\",\"sms_opt_in\":\"B:false\",\"theme\":\"S:dark\"}}",
+    "flatJson" : "{\"addresses_address\\\\_type\":\"S:[\\\"billing\\\",\\\"shipping\\\"]\",\"addresses_city\":\"S:[\\\"Montréal\\\",\\\"San Francisco\\\"]\",\"addresses_country\\\\_code\":\"S:[\\\"CA\\\",\\\"US\\\"]\",\"addresses_line\\\\_1\":\"S:[\\\"12 Rue de l'Église\\\",\\\"500 Market St\\\"]\",\"addresses_postal\\\\_code\":\"S:[\\\"H2X 1Y4\\\",\\\"94105\\\"]\",\"customer\\\\_id\":\"S:CUST-77301\",\"email\":\"S:jose@example.com\",\"full\\\\_name\":\"S:José Álvarez-Ng\",\"loyalty\\\\_points\":\"I:12500\",\"preferences_email\\\\_opt\\\\_in\":\"B:true\",\"preferences_locale\":\"S:fr_CA\",\"preferences_sms\\\\_opt\\\\_in\":\"B:false\",\"preferences_theme\":\"S:dark\"}",
+    "jsonDoc" : "{\"addresses\":[{\"address_type\":\"S:billing\",\"city\":\"S:Montréal\",\"country_code\":\"S:CA\",\"line_1\":\"S:12 Rue de l'Église\",\"postal_code\":\"S:H2X 1Y4\"},{\"address_type\":\"S:shipping\",\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"}],\"customer_id\":\"S:CUST-77301\",\"email\":\"S:jose@example.com\",\"full_name\":\"S:José Álvarez-Ng\",\"loyalty_points\":\"I:12500\",\"preferences\":{\"email_opt_in\":\"B:true\",\"locale\":\"S:fr_CA\",\"sms_opt_in\":\"B:false\",\"theme\":\"S:dark\"}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

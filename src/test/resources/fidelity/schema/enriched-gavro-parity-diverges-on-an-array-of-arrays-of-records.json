@@ -1,0 +1,58 @@
+{
+  "id" : "enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records",
+  "family" : "schema",
+  "title" : "gAvroParity() does not reproduce GAvroSchemaFlattener's names for an array of arrays of records, and no configuration reaches it",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The second of the four structural divergences the parity factory's javadoc scopes itself by, and the second one the published page did not carry. GAvroSchemaFlattener digs through the outer array into the inner array's element record and names its fields; this flattener resolves an array's element type once and emits a single leaf when that element is itself an array. So GAvro yields [grid_v] and the parity preset yields [grid]: an entire subtree collapses to one column, and grid_v is unreachable from any FlattenOptions. Paired with enriched-gavro-parity-diverges-on-a-multi-branch-union so that the two axes the review measured are both pinned rather than both described.",
+  "catchesBugClass" : "Somebody teaching the enriched traversal to recurse through nested arrays to close a parity gap - which would also change the meaning of withinArray() and arrayBoundaries() for every existing consumer of the enriched API - and doing it without moving the published scope. Also the reverse: the scope being dropped from the manifest while the behaviour stays.",
+  "cannotCatch" : "Nothing about whether ONE leaf for an array of arrays is the right answer. It is not obviously right: a caller who wants the inner record's fields as columns has no way to ask for them, and this row records that as a limit rather than defending it. It also says nothing about the data half - the input flattens through MapFlattener into indexed row keys, which is a different question from what the schema half names.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "PREDICTED FROM THE ADVERSARIAL REVIEW'S EVIDENCE AND THEN CONFIRMED: the review measured [grid_v] against [grid]. ACCEPTED_LOSS on the same footing as its union twin - the difference is documented, bounded and deliberate, and the migrating caller's remedy is to know the column is not there rather than to configure it back. Filed as a loss and not as a defect because closing it would change the enriched API's array semantics for every caller, not just for the ones migrating."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+      "enriched" : {
+        "preset" : "GAVRO_PARITY"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Board",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "grid",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "array",
+              "items" : {
+                "type" : "record",
+                "name" : "Cell",
+                "fields" : [ {
+                  "name" : "v",
+                  "type" : "string"
+                } ]
+              }
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"grid\":[[{\"v\":\"1\"}]]}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=_;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:grid\"]",
+    "flat" : "{\"grid_v\":\"S:[[\\\"1\\\"]]\"}",
+    "avroBaseline" : "[\"S:grid\"]",
+    "avroDoc" : "[\"S:grid_v\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

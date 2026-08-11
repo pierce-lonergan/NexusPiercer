@@ -1,0 +1,35 @@
+{
+  "id" : "vd-nested-json-string-length-gate",
+  "family" : "value-domain",
+  "title" : "With parseNestedJsonStrings on, an identical value keeps or loses its type depending on its LENGTH",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "parseNestedJsonStrings(true) deliberately converts JSON-bearing strings into structure - that is the opt-in. The bug is that maxJsonStringLength gates it, so two strings of the same kind differing only in size come out as different TYPES. A performance guard has been given semantic authority.",
+  "catchesBugClass" : "Fidelity that depends on payload size rather than payload type. Also catches any change to the gate boundary condition that would move which values are affected.",
+  "cannotCatch" : "Uses an artificially low limit, so it proves nothing about behaviour at the shipped default of 1,000,000. It also does not cover a string that is valid JSON only after the unescapeJson fallback pass.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "shortJson is expanded into structure; longJson is kept verbatim. Neither field round-trips to its input, and they fail in opposite directions from the same authored type."
+  },
+  "configDescription" : "MapFlattener.builder().parseNestedJsonStrings(true).maxJsonStringLength(20)",
+  "config" : {
+    "mapFlattener" : {
+      "parseNestedJsonStrings" : true,
+      "maxJsonStringLength" : 20
+    }
+  },
+  "input" : "{\"a\":{\"shortJson\":\"{\\\"x\\\":1}\",\"longJson\":\"{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":\"S:{\\\"x\\\":1}\"}}",
+    "flat" : "{\"a_longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"a_shortJson_x\":\"I:1\"}",
+    "mapDoc" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":{\"x\":\"I:1\"}}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":\"S:{\\\"x\\\":1}\"}}",
+    "flatJson" : "{\"a_longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"a_shortJson_x\":\"I:1\"}",
+    "jsonDoc" : "{\"a\":{\"longJson\":\"S:{\\\"x\\\":1,\\\"padpadpadpadpad\\\":2}\",\"shortJson\":{\"x\":\"I:1\"}}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

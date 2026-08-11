@@ -1,0 +1,30 @@
+{
+  "id" : "order-single-line-item",
+  "family" : "real-world",
+  "title" : "E-commerce order with exactly one line item",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Identical in shape to the passing fixture, differing only in element count. Array inference requires a parsed size strictly greater than 1, so a one-item order - the modal case in most order systems - takes a completely different and wrong path. The highest-frequency real-world defect in the family.",
+  "catchesBugClass" : "Cardinality-dependent structural inference: the same schema round-trips differently depending on how many rows the array happens to hold. Also catches the absence of any schema or arity sidecar in the wire format.",
+  "cannotCatch" : "It does not distinguish the two independent faults it triggers - the size>1 gate and the dead raw-vs-encoded lookup. If someone fixes only the gate, this goes green while the lookup stays dead.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The array becomes an object AND its leaves become JSON text: both the container type and the leaf types are wrong."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order_id\":\"ORD-2026-0002\",\"status\":\"confirmed\",\"currency_code\":\"USD\",\"line_items\":[{\"sku\":\"SKU-100\",\"quantity\":1,\"unit_price\":19.99}]}",
+  "expected" : {
+    "mapBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"}],\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_quantity\":\"S:[1]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99]\",\"order\\\\_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":{\"quantity\":\"S:[1]\",\"sku\":\"S:[\\\"SKU-100\\\"]\",\"unit_price\":\"S:[19.99]\"},\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"}],\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_quantity\":\"S:[1]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99]\",\"order\\\\_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":{\"quantity\":\"S:[1]\",\"sku\":\"S:[\\\"SKU-100\\\"]\",\"unit_price\":\"S:[19.99]\"},\"order_id\":\"S:ORD-2026-0002\",\"status\":\"S:confirmed\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

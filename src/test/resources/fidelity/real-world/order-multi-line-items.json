@@ -1,0 +1,30 @@
+{
+  "id" : "order-multi-line-items",
+  "family" : "real-world",
+  "title" : "E-commerce order with two line items, nested shipping address and an explicit null discount",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The canonical happy path: an array of uniform flat objects plus a scalar-only nested object, with snake_case names that all contain the separator. Regression sentinel for FlattenedPath escaping (NP-021), for array-of-object field grouping and regrouping, and for explicit nulls surviving inside an array.",
+  "catchesBugClass" : "Loss of key-encoding injectivity; array-of-objects transposition errors; nulls being dropped from array elements; numeric-type drift on round-trip.",
+  "cannotCatch" : "Everything that only appears at element count 1, at heterogeneous element shapes, or at any nesting inside an array element. It also cannot catch the escaped-vs-raw path mismatch, because the __isArray__ marker carries this document instead.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "line_items is detected as an array; shipping_address has no array-valued leaf so it stays an object. Both discount_pct slots are physically present in both elements so the padding path is never entered."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order_id\":\"ORD-2026-0001\",\"placed_at\":\"2026-08-09T14:32:11Z\",\"status\":\"confirmed\",\"currency_code\":\"USD\",\"shipping_address\":{\"line_1\":\"500 Market St\",\"city\":\"San Francisco\",\"postal_code\":\"94105\",\"country_code\":\"US\"},\"line_items\":[{\"sku\":\"SKU-100\",\"quantity\":2,\"unit_price\":19.99,\"discount_pct\":null},{\"sku\":\"SKU-205\",\"quantity\":1,\"unit_price\":5.5,\"discount_pct\":10}]}",
+  "expected" : {
+    "mapBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"},{\"discount_pct\":\"I:10\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-205\",\"unit_price\":\"D:5.5\"}],\"order_id\":\"S:ORD-2026-0001\",\"placed_at\":\"S:2026-08-09T14:32:11Z\",\"shipping_address\":{\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"},\"status\":\"S:confirmed\"}",
+    "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[null,10]\",\"line\\\\_items_quantity\":\"S:[2,1]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,5.5]\",\"order\\\\_id\":\"S:ORD-2026-0001\",\"placed\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"shipping\\\\_address_city\":\"S:San Francisco\",\"shipping\\\\_address_country\\\\_code\":\"S:US\",\"shipping\\\\_address_line\\\\_1\":\"S:500 Market St\",\"shipping\\\\_address_postal\\\\_code\":\"S:94105\",\"status\":\"S:confirmed\"}",
+    "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"},{\"discount_pct\":\"I:10\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-205\",\"unit_price\":\"D:5.5\"}],\"order_id\":\"S:ORD-2026-0001\",\"placed_at\":\"S:2026-08-09T14:32:11Z\",\"shipping_address\":{\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"},\"status\":\"S:confirmed\"}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":\"I:10\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:5.5\"}],\"order_id\":\"S:ORD-2026-0001\",\"placed_at\":\"S:2026-08-09T14:32:11Z\",\"shipping_address\":{\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"},\"status\":\"S:confirmed\"}",
+    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[null,10]\",\"line\\\\_items_quantity\":\"S:[2,1]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,5.5]\",\"order\\\\_id\":\"S:ORD-2026-0001\",\"placed\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"shipping\\\\_address_city\":\"S:San Francisco\",\"shipping\\\\_address_country\\\\_code\":\"S:US\",\"shipping\\\\_address_line\\\\_1\":\"S:500 Market St\",\"shipping\\\\_address_postal\\\\_code\":\"S:94105\",\"status\":\"S:confirmed\"}",
+    "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":\"I:10\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:5.5\"}],\"order_id\":\"S:ORD-2026-0001\",\"placed_at\":\"S:2026-08-09T14:32:11Z\",\"shipping_address\":{\"city\":\"S:San Francisco\",\"country_code\":\"S:US\",\"line_1\":\"S:500 Market St\",\"postal_code\":\"S:94105\"},\"status\":\"S:confirmed\"}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

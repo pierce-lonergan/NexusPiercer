@@ -1,0 +1,25 @@
+{
+  "id" : "vd-number-text-normalization",
+  "family" : "value-domain",
+  "title" : "Exponent notation is not preserved, and that is fine - this fixture calibrates the oracle",
+  "stack" : "JSON",
+  "referenceIssue" : "",
+  "rationale" : "Two jobs. It states honestly that JSON number TEXT is not round-tripped, and it calibrates the oracle for the whole corpus: a harness must fail exactly this and also fail vd-decimal-scale-and-precision, while passing the lossless fixtures. It also carries 1e2 beside the integer 100, pinning the 1-vs-1.0 type distinction at the JSON level.",
+  "catchesBugClass" : "An oracle miscalibrated in either direction, which would invalidate every other fixture verdict. Also catches an integer silently widening to a double.",
+  "cannotCatch" : "Says nothing about whether any VALUE is preserved - three of its four fields are the same number. It earns its place only as a paired constraint with vd-decimal-scale-and-precision.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The three fractional spellings converge on one canonical form; the integer stays an integer. Nothing about the VALUE is lost."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"n\":{\"exp\":1e2,\"expPlus\":1.0E+2,\"plain\":100.0,\"int\":100}}",
+  "expected" : {
+    "jsonBaseline" : "{\"n\":{\"exp\":\"BD:1E+2\",\"expPlus\":\"BD:1.0E+2\",\"int\":\"I:100\",\"plain\":\"BD:100.0\"}}",
+    "flat" : "{\"n_exp\":\"D:100.0\",\"n_expPlus\":\"D:100.0\",\"n_int\":\"I:100\",\"n_plain\":\"D:100.0\"}",
+    "jsonDoc" : "{\"n\":{\"exp\":\"BD:100.0\",\"expPlus\":\"BD:100.0\",\"int\":\"I:100\",\"plain\":\"BD:100.0\"}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

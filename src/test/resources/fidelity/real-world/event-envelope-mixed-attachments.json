@@ -1,0 +1,30 @@
+{
+  "id" : "event-envelope-mixed-attachments",
+  "family" : "real-world",
+  "title" : "Event envelope whose attachments array mixes objects with a legacy inline string",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Polymorphic arrays appear wherever a schema has evolved. The flattener emits the object fields under prefixed keys and the scalar under the bare key; the reconstructor writes the bare key last and overwrites the array holder the object fields had already populated. The two objects are not corrupted, they are gone.",
+  "catchesBugClass" : "Collision between a bare leaf key and a structural prefix of the same name - the flattener mixed-array encoding is not injective against its own object encoding. Also catches setNestedValue unconditional leaf put.",
+  "cannotCatch" : "It cannot detect the map-ordering dependence: reorder the input so the scalar comes first and the failure changes shape - still wrong, differently wrong, and untested. It also does not cover the _value sentinel path for nested mixed arrays.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two of three attachments are silently deleted. No error, no warning, and the field count at root is unchanged, so nothing downstream can detect the deletion."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"event_id\":\"evt_9931\",\"event_type\":\"ticket.updated\",\"actor_id\":\"USR-42\",\"attachments\":[{\"kind\":\"image\",\"url\":\"https://cdn.example.com/a.png\"},{\"kind\":\"pdf\",\"url\":\"https://cdn.example.com/b.pdf\"},\"legacy-inline-note\"]}",
+  "expected" : {
+    "mapBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "flat" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[\\\"legacy-inline-note\\\",null]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\"]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\"]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
+    "mapDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[\"S:legacy-inline-note\",null],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "flatJson" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[\\\"legacy-inline-note\\\",null]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\"]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\"]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
+    "jsonDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[\"S:legacy-inline-note\",null],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

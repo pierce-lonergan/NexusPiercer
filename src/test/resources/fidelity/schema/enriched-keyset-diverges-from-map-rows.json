@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-keyset-diverges-from-map-rows",
+  "family" : "schema",
+  "title" : "The enriched flattener's column names and MapFlattener's row keys disagree on every field containing an underscore",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "EnrichedSchemaFlattener under the default FAIL policy emits names verbatim - join() only escapes when collisionPolicy is ESCAPE - while MapFlattener routes every raw field name through FlattenedPath.escapeSegment before joining. Snake_case is the dominant Avro convention, so this is the common case, and the new API shipped with nothing asserting that the StructType it describes and the rows the library produces use the same names. This is the same defect the corpus already pins for the legacy path, reproduced by the replacement.",
+  "catchesBugClass" : "Cross-component key-encoding divergence between a schema producer and a row producer. Also catches any change that adds escaping to one side only, and any change to the default collisionPolicy - flipping the default to ESCAPE would make this row agree and correctly turn the build red.",
+  "cannotCatch" : "It says nothing about which encoding is correct. It cannot see arrays at all, because MapFlattener emits index-bearing keys for arrays and the comparison is only meaningful on array-free schemas. It cannot detect a divergence in TYPES, only in names.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The enriched arm names ship_post_code where the row keys carry an escaped underscore in the leaf segment, so two of three columns are named something no row contains."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs MAP_FLATTENER, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "MAP_FLATTENER",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "MAP_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

@@ -25,7 +25,98 @@
 
 ## High Priority
 
-*None yet*
+### [BL-010] JsonFlattener is dead public surface
+
+**Found by:** the P2.2 published-recipe gate (`PublishedSnippetsCompileTest`), while making
+`manifest.stacks[*].code` compile.
+
+`JsonFlattener` is a 2000-line public class that no caller outside `io.github.pierce` can hold a
+reference to. Its only constructor is private; `create()`, both `with(...)` overloads and
+`Builder.build()` all return `FluentOperation`; no public member anywhere in the file returns
+`JsonFlattener`. Its public instance methods `flattenToMap`, `flattenToJson` and
+`flattenMapToJson` are therefore unreachable from outside the package.
+
+The manifest's published Stack B recipe declared a `JsonFlattener` variable and so could never have
+compiled in a consumer's project. That snippet has been corrected to the fluent form, which reaches
+the same code because `FluentOperation.from(String)` delegates to `flattenToMap` — note that
+`from(Map)` and `from(JsonNode)` do **not**, so "FluentOperation always routes through
+flattenToMap" is false and must not be written down.
+
+Additional evidence: the class has **zero** tests anywhere in the repository. A full grep of
+`src/test` finds exactly one reference to it, in `FidelityRunner`.
+
+**Not fixed here, deliberately.** Making the constructor or a factory return `JsonFlattener` is a
+public-API change that needs a review and a migration path, and doing it in the same pass would
+silently invalidate the corrected Stack B snippet the moment it landed. Cross-reference
+[BL-008], whose description ("a fluent wrapper around MapFlattener") is now known to be incomplete:
+it is a wrapper nobody can name.
+
+**Re-verified 2026-08-11** during the corpus gap-closing pass, against
+`src/main/java/io/github/pierce/JsonFlattener.java` as it stands: the constructor at line 221 is
+`private`; `create()` (179), both `with(...)` overloads (192, 206) and `Builder.build()` (378) all
+return `FluentOperation`; no public member returns `JsonFlattener`. The instance methods
+`flattenToMap` (255), `flattenToJson` (276) and `flattenMapToJson` (289) remain unreachable from
+outside the package. Still not fixed here — same reason. This entry is the one the Phase 5
+facade-reduction task must inherit.
+
+---
+
+### [BL-011] Two independently-set array-format knobs that must agree, with no cross-check
+
+**Found by:** the P2.2 gap-closing pass, while looking for an `AvroReconstructor` setting that would
+make the corpus's Avro defaults arm falsifiable (it had been comparing a value with itself).
+
+`MapFlattener.ArraySerializationFormat` and `AvroReconstructor.ArraySerializationFormat` are separate
+enums on separate builders, both defaulting to `JSON`. Nothing validates that a reconstructor's
+format matches the flattener that produced the data, and the failure when they disagree is a
+`NumberFormatException` from the value coercion, not a diagnostic naming either setting.
+
+**Measured**, directly against `target/classes` with a hand-built flattened map and schema
+`record Batch { array<int> ids; string label }`:
+
+| flattened `ids` leaf | `JSON` | `COMMA_SEPARATED` | `PIPE_SEPARATED` | `BRACKET_LIST` |
+| --- | --- | --- | --- | --- |
+| `[1,2,3]` | `[1, 2, 3]` | `[1, 2, 3]` | `[1, 2, 3]` | `[1, 2, 3]` |
+| `1,2,3` | throws | `[1, 2, 3]` | throws | throws |
+| `1\|2\|3` | throws | throws | `[1, 2, 3]` | throws |
+
+So the setting is **live, but a no-op on anything `MapFlattener` emits at its own default**: the
+reconstructor attempts a JSON parse first and succeeds, and only consults `arrayFormat` when that
+parse fails. A caller who sets it on one side only gets either silence (if the producer stayed at
+JSON) or an exception naming a number (if it did not).
+
+**Not a corpus row yet, and it could be.** The pair is expressible today as
+`config.mapFlattener.arrayFormat` beside `config.avro.reconstructor.arrayFormat` on one Avro
+fixture; the gap-closing pass added
+`avro-boundary-separator-datum-does-not-hold-under-defaults` for the separator knob instead and
+recorded this one rather than expanding scope further. Whoever picks it up should add both the
+matched and the mismatched fixture — the mismatched one is the consumer-facing defect.
+
+**Related:** this is the same shape as the `useArrayBoundarySeparator` /
+`JsonReconstructor.separator` pair the fidelity manifest already documents under `misnamed-controls`
+— two halves of one wire format, configured independently. A facade that owns both halves is the
+structural fix, which is why this belongs to Phase 5 rather than to a local patch.
+
+---
+
+### [BL-012] Four `AvroReconstructor` knobs with no observed effect — UNPROVEN, needs a targeted probe
+
+**Found by:** the same pass. Recorded because it is a lead, **not** because it is established.
+
+Probing `reconstructToMap` across five documents (array of int, array of string, nested record,
+empty flattened map against a schema with a required field, and a schema with a field default),
+these four builder settings produced **byte-identical output at both values** every time:
+`strictValidation`, `allowMissingFields`, `useSchemaDefaults`, `enableVerification`. Two others did
+change behaviour and are therefore live: `useArrayBoundarySeparator` (separator rename, now a corpus
+row) and `maxDepth` (throws `IllegalStateException` past the bound).
+
+**This is not yet a finding of inertness.** Five documents is a small probe set and each of those
+four knobs plausibly guards a branch none of them reached — `allowMissingFields`, for instance, may
+only matter for a partially-populated flattened map rather than an empty one. The repository's rule
+is that an inert control is proven by a probe that measures two settings producing identical output
+on a document chosen to reach the branch, and no such document was constructed here. Anyone acting
+on this entry must build that document first and let it decide; do not cite this table as evidence
+that the knobs are dead.
 
 ---
 

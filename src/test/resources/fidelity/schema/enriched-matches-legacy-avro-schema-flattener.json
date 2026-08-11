@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-matches-legacy-avro-schema-flattener",
+  "family" : "schema",
+  "title" : "The enriched API reproduces AvroSchemaFlattener's column names exactly, including the wrong ones",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "A migration guarantee consumers need, filed with its teeth showing. Agreement here is LOSSLESS in the mechanical sense and is bad news in the substantive sense: the new API inherits the legacy defect rather than fixing it. AvroSchemaFlattener.processFieldRecursively joins with a bare underscore and never escapes, which is exactly what EnrichedSchemaFlattener.join does under FAIL. Cross-reference avro-underscore-field-name-column-divergence, which records the same wrong answer for the legacy path.",
+  "catchesBugClass" : "Unilateral repair. The day someone fixes escaping in one flattener and not the other, this row goes red and names the drift - more useful than either flattener's own tests, since both would still pass in isolation.",
+  "cannotCatch" : "It is array-free, so it says nothing about the array-boundary divergence between the two: the legacy flattener joins array element fields with a single separator and the enriched one with the array-boundary marker. It cannot distinguish 'both correct' from 'both identically wrong'; only the MAP_FLATTENER row supplies that judgement.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both emit the same three unescaped names."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs LEGACY_AVRO_SCHEMA_FLATTENER, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "LEGACY_AVRO_SCHEMA_FLATTENER",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "LEGACY_AVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

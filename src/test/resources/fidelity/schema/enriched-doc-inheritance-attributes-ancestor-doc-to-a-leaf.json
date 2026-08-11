@@ -1,0 +1,57 @@
+{
+  "id" : "enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf",
+  "family" : "schema",
+  "title" : "A leaf that declared no documentation is reported as documented, with the enclosing record's text",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The baseline against which the dead-control fixture is read. Inheritance is a deliberate feature and isDocInherited is the honest flag, but the fact remains that a consumer receives, for a column, documentation the producer never wrote about that column. In a governance pipeline that text propagates into a data dictionary. Accepted because inheritance is intentional, bounded to the nearest ancestor, and flagged - and because the consumer can recover the truth from isDocInherited.",
+  "catchesBugClass" : "Inheritance reaching past the nearest ancestor, or the docInherited flag not being set on an inherited doc, which would make the loss unrecoverable rather than merely present.",
+  "cannotCatch" : "It cannot show whether any consumer actually reads isDocInherited. It says nothing about property inheritance, which uses a different mechanism with different shadowing rules. It also cannot show the remedy, which now exists: inheritDoc(false) returns declared-only documentation and is measured by enriched-inheritdoc-false-reports-declared-only-docs. An accepted loss with an opt-out reads differently from one without, and until that control was wired up there was no opt-out.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Every declared doc is null; every reported doc is an ancestor's text with inherited=true."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs DECLARED_DOC, default FlattenOptions (inheritDoc defaults true)",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "DECLARED_DOC",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "doc" : "An order record",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "customer",
+          "type" : {
+            "type" : "record",
+            "name" : "Customer",
+            "fields" : [ {
+              "name" : "full_name",
+              "type" : "string"
+            }, {
+              "name" : "email_address",
+              "type" : "string"
+            } ]
+          },
+          "doc" : "The buyer"
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"customer\":{\"full_name\":\"A B\",\"email_address\":\"a@b.c\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "DECLARED_DOC",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"customer.email_address\":\"S:[]\",\"customer.full_name\":\"S:[]\",\"order_id\":\"S:[]\"}",
+    "flat" : "{\"customer_email\\\\_address\":\"S:a@b.c\",\"customer_full\\\\_name\":\"S:A B\",\"order\\\\_id\":\"S:o-1\"}",
+    "avroBaseline" : "{\"customer.email_address\":\"S:doc=null;inherited=false\",\"customer.full_name\":\"S:doc=null;inherited=false\",\"order_id\":\"S:doc=null;inherited=false\"}",
+    "avroDoc" : "{\"customer.email_address\":\"S:doc=The buyer;inherited=true\",\"customer.full_name\":\"S:doc=The buyer;inherited=true\",\"order_id\":\"S:doc=An order record;inherited=true\"}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

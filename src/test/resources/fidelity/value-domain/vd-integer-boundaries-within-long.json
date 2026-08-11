@@ -1,0 +1,30 @@
+{
+  "id" : "vd-integer-boundaries-within-long",
+  "family" : "value-domain",
+  "title" : "Every integer boundary up to Long.MAX_VALUE survives with its exact type",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "ValueDomainContractTest asserts one long past 2^53 at the Map level only and explicitly defers the JSON-parsing path. This is that path. It walks the full ladder through the JSON stack, where Jackson untyped deserializer picks Integer, Long or BigInteger by magnitude - a silent contract nothing in the library asserts.",
+  "catchesBugClass" : "Any widening of an integral value to double anywhere in the pipeline - the classic 2^53 corruption that produces a plausible, wrong, off-by-one number. Also catches a change of numeric runtime class if the oracle is class-strict.",
+  "cannotCatch" : "Stops one value short of the real cliff. It also never reaches JsonReconstructor.parseAtomicValue, which re-narrows any long in int range back to int; that path only runs under the delimiter formats.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Jackson yields Integer for the small values and Long for the rest; normalizePrimitive returns any Number untouched, so 9007199254740993 comes back exactly."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"n\":{\"zero\":0,\"neg\":-1,\"i32max\":2147483647,\"i32maxPlus1\":2147483648,\"p53minus1\":9007199254740991,\"p53\":9007199254740992,\"p53plus1\":9007199254740993,\"i64max\":9223372036854775807,\"i64min\":-9223372036854775808}}",
+  "expected" : {
+    "mapBaseline" : "{\"n\":{\"i32max\":\"I:2147483647\",\"i32maxPlus1\":\"L:2147483648\",\"i64max\":\"L:9223372036854775807\",\"i64min\":\"L:-9223372036854775808\",\"neg\":\"I:-1\",\"p53\":\"L:9007199254740992\",\"p53minus1\":\"L:9007199254740991\",\"p53plus1\":\"L:9007199254740993\",\"zero\":\"I:0\"}}",
+    "flat" : "{\"n_i32max\":\"I:2147483647\",\"n_i32maxPlus1\":\"L:2147483648\",\"n_i64max\":\"L:9223372036854775807\",\"n_i64min\":\"L:-9223372036854775808\",\"n_neg\":\"I:-1\",\"n_p53\":\"L:9007199254740992\",\"n_p53minus1\":\"L:9007199254740991\",\"n_p53plus1\":\"L:9007199254740993\",\"n_zero\":\"I:0\"}",
+    "mapDoc" : "{\"n\":{\"i32max\":\"I:2147483647\",\"i32maxPlus1\":\"L:2147483648\",\"i64max\":\"L:9223372036854775807\",\"i64min\":\"L:-9223372036854775808\",\"neg\":\"I:-1\",\"p53\":\"L:9007199254740992\",\"p53minus1\":\"L:9007199254740991\",\"p53plus1\":\"L:9007199254740993\",\"zero\":\"I:0\"}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"n\":{\"i32max\":\"I:2147483647\",\"i32maxPlus1\":\"L:2147483648\",\"i64max\":\"L:9223372036854775807\",\"i64min\":\"L:-9223372036854775808\",\"neg\":\"I:-1\",\"p53\":\"L:9007199254740992\",\"p53minus1\":\"L:9007199254740991\",\"p53plus1\":\"L:9007199254740993\",\"zero\":\"I:0\"}}",
+    "flatJson" : "{\"n_i32max\":\"I:2147483647\",\"n_i32maxPlus1\":\"L:2147483648\",\"n_i64max\":\"L:9223372036854775807\",\"n_i64min\":\"L:-9223372036854775808\",\"n_neg\":\"I:-1\",\"n_p53\":\"L:9007199254740992\",\"n_p53minus1\":\"L:9007199254740991\",\"n_p53plus1\":\"L:9007199254740993\",\"n_zero\":\"I:0\"}",
+    "jsonDoc" : "{\"n\":{\"i32max\":\"I:2147483647\",\"i32maxPlus1\":\"L:2147483648\",\"i64max\":\"L:9223372036854775807\",\"i64min\":\"L:-9223372036854775808\",\"neg\":\"I:-1\",\"p53\":\"L:9007199254740992\",\"p53minus1\":\"L:9007199254740991\",\"p53plus1\":\"L:9007199254740993\",\"zero\":\"I:0\"}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

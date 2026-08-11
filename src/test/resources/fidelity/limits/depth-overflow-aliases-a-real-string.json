@@ -1,0 +1,34 @@
+{
+  "id" : "depth-overflow-aliases-a-real-string",
+  "family" : "limits",
+  "title" : "A genuine JSON-text string at maxDepth is byte-identical to a truncated subtree past maxDepth",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "This turns the previous fixture ACCEPTED verdict into a measurable defect. Two structurally different documents produce the SAME flattened map, so the flattened form is non-injective at the depth cliff. Bounding depth is defensible; making the bound output collide with legitimate user data is not.",
+  "catchesBugClass" : "Non-injectivity introduced by a resource bound: the class of bug where a limit output is indistinguishable from ordinary data. Also guards the fix - the moment a truncation marker is added, the collision assertion flips.",
+  "cannotCatch" : "Only detectable as a PAIR. A per-fixture round-trip assertion passes here, so a harness that checks fixtures in isolation reports nothing wrong. It also cannot catch the symmetric collision for arrays.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "This document alone round-trips exactly. The defect is that its flattened form is byte-identical to depth-one-over-max, and the paired assertion is what records it."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(3); flat map must equal depth-one-over-max",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 3
+    }
+  },
+  "input" : "{\"l1\":{\"l2\":{\"l3\":\"{\\\"leaf\\\":7}\"}}}",
+  "expected" : {
+    "mapBaseline" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
+    "flat" : "{\"l1_l2_l3\":\"S:{\\\"leaf\\\":7}\"}",
+    "mapDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
+    "flatJson" : "{\"l1_l2_l3\":\"S:{\\\"leaf\\\":7}\"}",
+    "jsonDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

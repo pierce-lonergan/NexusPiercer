@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-gavro-parity-claim-fails-on-underscores",
+  "family" : "schema",
+  "title" : "The enriched DEFAULTS deliberately do not reproduce GAvroSchemaFlattener's names for a field containing an underscore; gAvroParity() does",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "FlattenOptions' javadoc used to state that its DEFAULTS reproduce GAvroSchemaFlattener's conventions so a caller migrating starts at parity. That was false and this row measured it false: GAvroSchemaFlattener.buildPath calls FlattenedPath.escapeSegment on every segment, and the enriched defaults under the FAIL policy escape nothing. The claim has been withdrawn from the defaults rather than the defaults changed to meet it, because ESCAPE emits backslashes that are illegal in Avro and SQL identifiers and this flattener's output is destined for column names. The recorded divergence below is therefore now a DELIBERATE difference between two conventions, and FlattenOptions.gAvroParity() is the supported way round it - measured by the twin row enriched-gavro-parity-factory-matches-gavro-on-underscored-names, on this exact schema and datum, so the only variable between the pair is the configuration.",
+  "catchesBugClass" : "Either flattener changing its default escaping. It also catches the tempting repair that was rejected - making the enriched DEFAULTS escape, so that gAvroParity() would be honest for free - which would flip this row green and correctly force a rewrite of the argument for why FAIL is the default.",
+  "cannotCatch" : "It cannot say which convention is right, only that they differ and that the difference is now declared. It measures names only, not the DataType mapping GAvro also produces, which parity does not reproduce either. And it cannot see the four structural divergences no option can close - multi-branch unions, array-of-array-of-record, depth-limit semantics and non-record roots - which are stated in gAvroParity()'s javadoc and are unmeasured prose.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The enriched arm emits unescaped names; the GAvro arm escapes every segment, so the two disagree on both underscore-bearing columns. PREDICTION LEFT AS DEFECT ON PURPOSE: the measurement has not moved a byte, only the judgement of it has, so this is a deliberate reclassification and is recorded as a classificationOverride rather than by quietly rewriting what the designer predicted."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

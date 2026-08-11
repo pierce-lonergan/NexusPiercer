@@ -1,0 +1,30 @@
+{
+  "id" : "double-underscore-namespace-swallowed",
+  "family" : "naming",
+  "title" : "The whole __*__ namespace is dropped, not just ___ - including entire subtrees",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-022",
+  "rationale" : "SECURITY.md scopes NP-022 to a field literally named ___. The predicate is a namespace filter, so __, __meta__, __id__ and every other __x__ name is dropped too, and when the name belongs to an OBJECT the entire subtree goes with it. _x_ is the control: it fails startsWith(\"__\") and must survive.",
+  "catchesBugClass" : "Under-scoped defect documentation. Pins the true blast radius and pins that a correct fix must restore the whole namespace rather than one string. The _x_ control blocks an over-broad \"reject any key containing __\" fix.",
+  "cannotCatch" : "It cannot catch a __x__ name appearing as a field INSIDE an array element, where reconstructArray strips markers by explicit remove() and does not apply the startsWith/endsWith filter.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two of three top-level fields are gone, one of them a whole subtree; the _x_ control survives."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"__meta__\":{\"v\":1},\"__\":2,\"_x_\":3}",
+  "expected" : {
+    "mapBaseline" : "{\"__\":\"I:2\",\"__meta__\":{\"v\":\"I:1\"},\"_x_\":\"I:3\"}",
+    "flat" : "{\"\\\\_\\\\_\":\"I:2\",\"\\\\_\\\\_meta\\\\_\\\\__v\":\"I:1\",\"\\\\_x\\\\_\":\"I:3\"}",
+    "mapDoc" : "{\"_x_\":\"I:3\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"__\":\"I:2\",\"__meta__\":{\"v\":\"I:1\"},\"_x_\":\"I:3\"}",
+    "flatJson" : "{\"\\\\_\\\\_\":\"I:2\",\"\\\\_\\\\_meta\\\\_\\\\__v\":\"I:1\",\"\\\\_x\\\\_\":\"I:3\"}",
+    "jsonDoc" : "{\"_x_\":\"I:3\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

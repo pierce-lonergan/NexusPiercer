@@ -1,0 +1,29 @@
+{
+  "id" : "invalid-maxdepth-fails-closed",
+  "family" : "limits",
+  "title" : "maxDepth(0) is rejected at configuration time, before any document is seen",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "The synthetic-violation leg: a bound must reject nonsense, not clamp it. This also documents an unreachable fallback (the private constructor still contains a clamp the builder makes unreachable) and a compatibility break the code comments do not acknowledge.",
+  "catchesBugClass" : "A validation gate silently disappearing - the failure where a bound accepts garbage and clamps, converting a loud configuration error into quiet wrong behaviour on every subsequent document.",
+  "cannotCatch" : "It cannot catch anything about enforcement, only about acceptance. JsonReconstructor.maxDepth(0) throws from the same validation and is nonetheless completely inert at runtime - which is exactly how a dead control passes for a live one.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Throws IllegalArgumentException during configuration - the input document is never parsed or flattened. Failing closed is right: a depth budget of zero has no coherent meaning and both alternatives (clamping, honouring) are worse."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(0) - expected to throw at build time",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 0
+    }
+  },
+  "input" : "{\"a\":1}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":\"I:1\"}",
+    "flat" : "THROWN: IllegalArgumentException: maxDepth must be >= 1",
+    "mapDoc" : "THROWN: IllegalArgumentException: maxDepth must be >= 1",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

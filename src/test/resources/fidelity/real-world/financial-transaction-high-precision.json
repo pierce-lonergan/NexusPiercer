@@ -1,0 +1,25 @@
+{
+  "id" : "financial-transaction-high-precision",
+  "family" : "real-world",
+  "title" : "Financial transaction with a sub-cent amount, an 18-digit FX rate and money-as-text alongside",
+  "stack" : "JSON",
+  "referenceIssue" : "",
+  "rationale" : "Money precision is the reason a fidelity corpus exists. Deliberately structural-clean - every nested block holds scalars only - so the ONLY thing it can report is numeric fidelity. It also carries amount_text, the recommended string-money encoding, so the fixture documents the mitigation in the same breath as the defect.",
+  "catchesBugClass" : "Silent narrowing of arbitrary-precision decimals to IEEE double across the JSON boundary; and, second-order, a comparator too weak to see it.",
+  "cannotCatch" : "It cannot catch the trailing-zero form of the loss as a semantic difference; amount_text is here to give the fixture something concrete to hold instead. It also cannot exercise preserveBigDecimalPrecision, unreachable through JsonFlattener.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "amount.value and fx_rate lose precision at PARSE time; amount_text survives exactly. Marked JSON-only because on the MAP stack the source Map already holds the rounded Double and the fixture would report LOSSLESS while silently destroying money."
+  },
+  "configDescription" : "defaults; comparison uses exact-decimal parsing",
+  "config" : { },
+  "input" : "{\"transaction_id\":\"TXN-2026-0814\",\"posted_at\":\"2026-08-09T14:32:11.482913Z\",\"currency_code\":\"USD\",\"amount_text\":\"1250.00\",\"amount\":{\"value\":9007199254740993.75,\"scale\":2},\"fx_rate\":0.877123456789012345,\"counterparty\":{\"name\":\"Northwind Ltd\",\"account_ref\":\"GB29NWBK60161331926819\"}}",
+  "expected" : {
+    "jsonBaseline" : "{\"amount\":{\"scale\":\"I:2\",\"value\":\"BD:9007199254740993.75\"},\"amount_text\":\"S:1250.00\",\"counterparty\":{\"account_ref\":\"S:GB29NWBK60161331926819\",\"name\":\"S:Northwind Ltd\"},\"currency_code\":\"S:USD\",\"fx_rate\":\"BD:0.877123456789012345\",\"posted_at\":\"S:2026-08-09T14:32:11.482913Z\",\"transaction_id\":\"S:TXN-2026-0814\"}",
+    "flat" : "{\"amount\\\\_text\":\"S:1250.00\",\"amount_scale\":\"I:2\",\"amount_value\":\"D:9.007199254740994E15\",\"counterparty_account\\\\_ref\":\"S:GB29NWBK60161331926819\",\"counterparty_name\":\"S:Northwind Ltd\",\"currency\\\\_code\":\"S:USD\",\"fx\\\\_rate\":\"D:0.8771234567890124\",\"posted\\\\_at\":\"S:2026-08-09T14:32:11.482913Z\",\"transaction\\\\_id\":\"S:TXN-2026-0814\"}",
+    "jsonDoc" : "{\"amount\":{\"scale\":\"I:2\",\"value\":\"BD:9007199254740994\"},\"amount_text\":\"S:1250.00\",\"counterparty\":{\"account_ref\":\"S:GB29NWBK60161331926819\",\"name\":\"S:Northwind Ltd\"},\"currency_code\":\"S:USD\",\"fx_rate\":\"BD:0.8771234567890124\",\"posted_at\":\"S:2026-08-09T14:32:11.482913Z\",\"transaction_id\":\"S:TXN-2026-0814\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,60 @@
+{
+  "id" : "avro-array-statistics-suffix-silent-overwrite",
+  "family" : "avro",
+  "title" : "Array-statistics columns silently swallow a real field of the same name",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "With includeArrayStatistics on, an array field generates synthetic count/type/length columns through addField, which registers nothing in the hierarchy map. A genuine sibling field of the same name is processed afterwards, passes the collision guard, and is then dropped by addField duplicate check with only a TRACE log.",
+  "catchesBugClass" : "Generated-name collisions that route around a collision guard because the generator writes to a different registry than the guard reads. The same shape as the collision-guard fixture seen from the other side.",
+  "cannotCatch" : "Only fires with includeArrayStatistics enabled, which is not the default. It also cannot detect the reverse declaration order, where the statistics column would be the one silently dropped.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The declared field is dropped and the surviving column is the synthetic statistics one. Assert on the doc string, not merely on the presence of the name, or the fixture cannot tell the two columns apart."
+  },
+  "configDescription" : "includeArrayStatistics=true; assert SCHEMA",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA",
+      "schemaFlattener" : {
+        "includeArrayStatistics" : true,
+        "includeNonTerminalArrays" : true
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Tagged",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "tags",
+          "type" : {
+            "type" : "array",
+            "items" : "string"
+          }
+        }, {
+          "name" : "tags_count",
+          "type" : "long"
+        } ]
+      }
+    }
+  },
+  "input" : "{\"tags\":[\"a\",\"b\"],\"tags_count\":2}",
+  "expected" : {
+    "avroAssert" : "SCHEMA",
+    "flattenedSchema" : "{\"tags\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"tags_avg_length\":\"S:type=[\\\"null\\\",\\\"double\\\"];logical=none;doc=Average length of string representations of array elements;hasDefault=false\",\"tags_count\":\"S:type=[\\\"null\\\",\\\"long\\\"];logical=none;doc=Count of array elements;hasDefault=false\",\"tags_distinct_count\":\"S:type=[\\\"null\\\",\\\"long\\\"];logical=none;doc=Count of distinct array elements;hasDefault=false\",\"tags_max_length\":\"S:type=[\\\"null\\\",\\\"long\\\"];logical=none;doc=Maximum length of string representations of array elements;hasDefault=false\",\"tags_min_length\":\"S:type=[\\\"null\\\",\\\"long\\\"];logical=none;doc=Minimum length of string representations of array elements;hasDefault=false\",\"tags_type\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=Type classification of array elements;hasDefault=false\"}",
+    "schemaChecks" : {
+      "inverseReproducesOriginal" : true,
+      "originalLogicalTypes" : "",
+      "flattenedLogicalTypes" : "",
+      "logicalTypesPreserved" : true,
+      "originalNamedTypes" : "",
+      "flattenedNamedTypes" : "",
+      "namedTypesPreserved" : true,
+      "declaredColumnsNotShadowed" : false,
+      "shadowedColumns" : "tags_count=>'Count of array elements'"
+    },
+    "flat" : "{\"tags\":\"S:[\\\"a\\\",\\\"b\\\"]\",\"tags\\\\_count\":\"I:2\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"Tagged\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"tags\",\"type\":{\"type\":\"array\",\"items\":\"string\"}},{\"name\":\"tags_count\",\"type\":\"long\"}]}",
+    "avroDoc" : "{\"type\":\"record\",\"name\":\"Tagged\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"tags\",\"type\":{\"type\":\"array\",\"items\":\"string\"}},{\"name\":\"tags_count\",\"type\":\"long\"}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

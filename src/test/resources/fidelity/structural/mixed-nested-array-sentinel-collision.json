@@ -1,0 +1,30 @@
+{
+  "id" : "mixed-nested-array-sentinel-collision",
+  "family" : "structural",
+  "title" : "Nested array mixed with a scalar - the documented output does not exist",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "This exact document appears in the MapFlattener class javadoc, which claims the output is {data_name, data_value}. Both halves of that claim are false: the sentinel maps to the base key \"data\", not \"data_value\", and the null padding described does not exist on this path. A fixture whose value is that it contradicts the shipped documentation.",
+  "catchesBugClass" : "Two classes at once: documentation that describes a padding control that was never implemented, and the leaf-versus-branch key collision in setNestedValue where a one-segment key silently clobbers a subtree built from a longer key sharing its name.",
+  "cannotCatch" : "It cannot catch the reverse collision order (subtree written after the leaf), which takes the _value-wrapper branch and fails differently. It also cannot tell whether the javadoc or the code is the intended behaviour; a human must classify that, and the fix must not be to edit the javadoc to match the code.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Actual flatten output uses the base key \"data\" rather than the documented data_value, and there is no positional null padding, so index alignment is already destroyed before reconstruction."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"data\":[[{\"name\":\"A\"}],\"text\"]}",
+  "expected" : {
+    "mapBaseline" : "{\"data\":[[{\"name\":\"S:A\"}],\"S:text\"]}",
+    "flat" : "{\"data\":\"S:[\\\"text\\\"]\",\"data_name\":\"S:[[\\\"A\\\"]]\"}",
+    "mapDoc" : "{\"data\":\"S:[\\\"text\\\"]\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"data\":[[{\"name\":\"S:A\"}],\"S:text\"]}",
+    "flatJson" : "{\"data\":\"S:[\\\"text\\\"]\",\"data_name\":\"S:[[\\\"A\\\"]]\"}",
+    "jsonDoc" : "{\"data\":\"S:[\\\"text\\\"]\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,30 @@
+{
+  "id" : "underscore-boundary-around-the-np022-trap",
+  "family" : "naming",
+  "title" : "Underscore names either side of the NP-022 trap all survive - pinning exactly where it starts",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-022",
+  "rationale" : "The NP-022 predicate is startsWith(\"__\") && endsWith(\"__\"). These four names each satisfy at most one half and must all survive. Without this boundary fixture an over-broad fix would satisfy the NP-022 fixtures while quietly breaking legitimate names. This is the good-input arm of the NP-022 drill.",
+  "catchesBugClass" : "Over-broad remediation of NP-022, and any regression in escaping a segment that is entirely separator characters.",
+  "cannotCatch" : "It cannot distinguish a correct fix from a fix that merely narrows the predicate. Only paired with the two NP-022 DEFECT fixtures does it constrain the fix from both sides.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "All four decode to their exact source names; __x fails endsWith, x__ fails startsWith, and _ fails both, so processArrays keeps all of them."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"_\":1,\"a\":{\"_\":2},\"__x\":3,\"x__\":4}",
+  "expected" : {
+    "mapBaseline" : "{\"_\":\"I:1\",\"__x\":\"I:3\",\"a\":{\"_\":\"I:2\"},\"x__\":\"I:4\"}",
+    "flat" : "{\"\\\\_\":\"I:1\",\"\\\\_\\\\_x\":\"I:3\",\"a_\\\\_\":\"I:2\",\"x\\\\_\\\\_\":\"I:4\"}",
+    "mapDoc" : "{\"_\":\"I:1\",\"__x\":\"I:3\",\"a\":{\"_\":\"I:2\"},\"x__\":\"I:4\"}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"_\":\"I:1\",\"__x\":\"I:3\",\"a\":{\"_\":\"I:2\"},\"x__\":\"I:4\"}",
+    "flatJson" : "{\"\\\\_\":\"I:1\",\"\\\\_\\\\_x\":\"I:3\",\"a_\\\\_\":\"I:2\",\"x\\\\_\\\\_\":\"I:4\"}",
+    "jsonDoc" : "{\"_\":\"I:1\",\"__x\":\"I:3\",\"a\":{\"_\":\"I:2\"},\"x__\":\"I:4\"}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

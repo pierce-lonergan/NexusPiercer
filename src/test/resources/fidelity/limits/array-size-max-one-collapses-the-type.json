@@ -1,0 +1,34 @@
+{
+  "id" : "array-size-max-one-collapses-the-type",
+  "family" : "limits",
+  "title" : "maxArraySize=1 does not shorten the array, it turns it into an object",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The degenerate lower bound, which the Builder explicitly permits. Truncating to one element pushes the serialized value below the size>1 detection gate, so the array is no longer recognised as an array. The bound leaks out of the size domain and into the type domain.",
+  "catchesBugClass" : "The size>1 heuristic - a detection rule correct for the common case and wrong at the boundary. Also catches any resource bound that leaks into type inference.",
+  "cannotCatch" : "It cannot isolate WHICH of the two mechanisms to blame: truncation is correct and detection is wrong, but the fixture fails as a unit.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "An array of three objects comes back as an object with string fields: element type, container type and value type all wrong. Set maxArraySize to 2 and the same document returns a proper array - two configurations of one bound, two different reconstructed schemas."
+  },
+  "configDescription" : "MapFlattener.builder().maxArraySize(1)",
+  "config" : {
+    "mapFlattener" : {
+      "maxArraySize" : 1
+    }
+  },
+  "input" : "{\"r\":[{\"a\":1,\"b\":10},{\"a\":2,\"b\":20},{\"a\":3,\"b\":30}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "flat" : "{\"r_a\":\"S:[1]\",\"r_b\":\"S:[10]\"}",
+    "mapDoc" : "{\"r\":{\"a\":\"S:[1]\",\"b\":\"S:[10]\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "flatJson" : "{\"r_a\":\"S:[1]\",\"r_b\":\"S:[10]\"}",
+    "jsonDoc" : "{\"r\":{\"a\":\"S:[1]\",\"b\":\"S:[10]\"}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

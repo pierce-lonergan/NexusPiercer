@@ -1,0 +1,39 @@
+{
+  "id" : "boundary-separator-on-round-trip",
+  "family" : "structural",
+  "title" : "useArrayBoundarySeparator ON: index-like keys and an array of objects",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The required flag-ON arm, and the vehicle for a correction: the flag does NOT mark array boundaries. getSeparator() returns \"__\" and both array branches compute the identical expression. The flag is a global separator rename with no array-boundary semantics - the repo signature pathology in the exact control the brief asked to exercise. Index-like map keys guard against a future reconstructor reading them as array indices.",
+  "catchesBugClass" : "Round-trip correctness under the alternate separator, including that FlattenedPath escapes the separator FIRST character so multi-character separators do not mis-split, and that numeric map keys stay object keys.",
+  "cannotCatch" : "It cannot catch the thing the flag NAME promises, because that behaviour does not exist to break. It also silently depends on the caller reconfiguring the reconstructor separator; nothing in the flattened output declares which separator produced it.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Semantically identical to the flag-OFF run - only the character count of the keys differs."
+  },
+  "configDescription" : "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : true,
+      "maxDepth" : 50,
+      "maxArraySize" : 1000
+    },
+    "reconstructor" : {
+      "separator" : "__"
+    }
+  },
+  "input" : "{\"metrics\":{\"0\":10,\"1\":20},\"users\":[{\"name\":\"A\"},{\"name\":\"B\"}]}",
+  "expected" : {
+    "mapBaseline" : "{\"metrics\":{\"0\":\"I:10\",\"1\":\"I:20\"},\"users\":[{\"name\":\"S:A\"},{\"name\":\"S:B\"}]}",
+    "flat" : "{\"metrics__0\":\"I:10\",\"metrics__1\":\"I:20\",\"users__name\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
+    "mapDoc" : "{\"metrics\":{\"0\":\"I:10\",\"1\":\"I:20\"},\"users\":[{\"name\":\"S:A\"},{\"name\":\"S:B\"}]}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : false,
+    "jsonBaseline" : "{\"metrics\":{\"0\":\"I:10\",\"1\":\"I:20\"},\"users\":[{\"name\":\"S:A\"},{\"name\":\"S:B\"}]}",
+    "flatJson" : "{\"metrics__0\":\"I:10\",\"metrics__1\":\"I:20\",\"users__name\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
+    "jsonDoc" : "{\"metrics\":{\"0\":\"I:10\",\"1\":\"I:20\"},\"users\":[{\"name\":\"S:A\"},{\"name\":\"S:B\"}]}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : false
+  },
+  "measuredLossless" : true
+}

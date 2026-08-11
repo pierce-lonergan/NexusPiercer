@@ -1,0 +1,30 @@
+{
+  "id" : "array-of-objects-two-elements-top-level",
+  "family" : "structural",
+  "title" : "Top-level array of two homogeneous objects",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The single array shape the reconstructor was actually built for, and the only one that round-trips. It anchors every array DEFECT: without it a reviewer could conclude arrays are simply unsupported rather than that array support is present and mis-fires on every shape except this one.",
+  "catchesBugClass" : "Column-to-row transposition errors: mis-zipping fields, dropping the second element, losing the numeric type of 30/25, or reordering fields inside the element.",
+  "cannotCatch" : "The size-1 ambiguity (parsed.size() > 1 is the detection threshold and 2 clears it), the ragged/absent-field problem, and any nesting problem.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Flattens to users_name = \"[\\\"Alice\\\",\\\"Bob\\\"]\" and users_age = \"[30,25]\". Prefix users sees two serialized values of parsed size 2, is flagged as an array, and reconstructArray zips the columns back into two elements."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"users\":[{\"name\":\"Alice\",\"age\":30},{\"name\":\"Bob\",\"age\":25}]}",
+  "expected" : {
+    "mapBaseline" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
+    "flat" : "{\"users_age\":\"S:[30,25]\",\"users_name\":\"S:[\\\"Alice\\\",\\\"Bob\\\"]\"}",
+    "mapDoc" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
+    "flatJson" : "{\"users_age\":\"S:[30,25]\",\"users_name\":\"S:[\\\"Alice\\\",\\\"Bob\\\"]\"}",
+    "jsonDoc" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"},{\"age\":\"I:25\",\"name\":\"S:Bob\"}]}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

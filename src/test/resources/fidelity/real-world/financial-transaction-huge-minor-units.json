@@ -1,0 +1,30 @@
+{
+  "id" : "financial-transaction-huge-minor-units",
+  "family" : "real-world",
+  "title" : "Financial transaction with an amount in minor units beyond long range, next to a 2^53+1 sequence",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-015",
+  "rationale" : "Pins the NP-015 fix in a realistic setting and asks the follow-up question that fix left open. The value survives exactly, but as text rather than a number, so the round trip is still not clean. The 2^53+1 ledger_sequence sits alongside as the control that must stay a number.",
+  "catchesBugClass" : "Integer overflow producing a wrong value rather than a reported loss - this goes red the moment anyone reintroduces longValue(). ledger_sequence separately catches any regression that routes integral values through double.",
+  "cannotCatch" : "It cannot catch the negative counterpart, nor a huge integer INSIDE an array element where quoting interacts with parseArrayValue type inference.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Exact-but-retyped beats silently-wrong: the alternative it replaced truncated the low 64 bits and produced a plausible NEGATIVE number nothing downstream could detect. Still open and worth separate triage: the flattener could keep the BigInteger, or the reconstructor could re-widen."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"transaction_id\":\"TXN-2026-0815\",\"currency_code\":\"JPY\",\"amount_minor_units\":123456789012345678901234567890,\"booked_at\":\"2026-08-09T14:32:11Z\",\"ledger_sequence\":9007199254740993}",
+  "expected" : {
+    "mapBaseline" : "{\"amount_minor_units\":\"BI:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
+    "flat" : "{\"amount\\\\_minor\\\\_units\":\"S:123456789012345678901234567890\",\"booked\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"currency\\\\_code\":\"S:JPY\",\"ledger\\\\_sequence\":\"L:9007199254740993\",\"transaction\\\\_id\":\"S:TXN-2026-0815\"}",
+    "mapDoc" : "{\"amount_minor_units\":\"S:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"amount_minor_units\":\"BI:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
+    "flatJson" : "{\"amount\\\\_minor\\\\_units\":\"S:123456789012345678901234567890\",\"booked\\\\_at\":\"S:2026-08-09T14:32:11Z\",\"currency\\\\_code\":\"S:JPY\",\"ledger\\\\_sequence\":\"L:9007199254740993\",\"transaction\\\\_id\":\"S:TXN-2026-0815\"}",
+    "jsonDoc" : "{\"amount_minor_units\":\"S:123456789012345678901234567890\",\"booked_at\":\"S:2026-08-09T14:32:11Z\",\"currency_code\":\"S:JPY\",\"ledger_sequence\":\"L:9007199254740993\",\"transaction_id\":\"S:TXN-2026-0815\"}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary",
+  "family" : "schema",
+  "title" : "FlattenOptions.gAvroParity() joins array element fields with a single separator, exactly as GAvroSchemaFlattener does",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The second axis of parity, isolated on an underscore-free schema so the boundary marker is the only variable, and the positive twin of enriched-gavro-parity-claim-fails-at-array-boundaries. The correction that made this row possible is worth stating: GAvroSchemaFlattener has no array-boundary marker at all. Its useArrayBoundarySeparator flag globally renames the ONE separator from _ to __, so its default emits a single _ at an array boundary and its non-default emits __ everywhere. The enriched model - a separator plus a distinct boundary marker - corresponds to NEITHER GAvro configuration, which is why parity has to set the boundary separator equal to the separator rather than to either GAvro value.",
+  "catchesBugClass" : "gAvroParity() acquiring a boundary marker, or GAvro's default changing. Together with its twin it also catches the whole repair being reverted: if the factory collapsed back into the defaults, this row would go red and the twin would stay green, which is the asymmetry that tells a reader which of the two configurations moved.",
+  "cannotCatch" : "It cannot reach the doubled-separator recipe gAvroParity()'s javadoc publishes for callers who ran GAvro with useArrayBoundarySeparator(true); the unit test theDocumentedDoubledSeparatorRecipeMatchesGAvroWithUseArrayBoundarySeparator executes that, because minting a second factory for a mode the manifest classifies as a misnamed control would advertise it. It also cannot see an array of arrays of records, where the two flatteners genuinely diverge and no option closes the gap.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both arms render [items_sku]. The enriched defaults render items__sku on this same schema, which is what the DEFECT twin records."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+      "enriched" : {
+        "preset" : "GAVRO_PARITY"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Item",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"items\":[{\"sku\":\"A1\"}]}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=_;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:items_sku\"]",
+    "flat" : "{\"items_sku\":\"S:[\\\"A1\\\"]\"}",
+    "avroBaseline" : "[\"S:items_sku\"]",
+    "avroDoc" : "[\"S:items_sku\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

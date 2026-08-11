@@ -1,0 +1,55 @@
+{
+  "id" : "avro-reconstruct-original-schema-ignores-argument",
+  "family" : "avro",
+  "title" : "reconstructOriginalSchema never reads its flattenedSchema parameter",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The method does not reference its argument anywhere in its body. It looks up the root record definition captured during flatten and replays stored schema text. It is a memoised copy of the input presented as an inverse operation - the repo signature pathology stated in one line of code.",
+  "catchesBugClass" : "Inverse operations that do not consult the forward operation output - reconstruction-by-memoisation. Any existing test that calls reconstructOriginalSchema and asserts equality with the source is a test that asserts a field was copied.",
+  "cannotCatch" : "It cannot show what a correct inverse would produce, because no code path in the repo derives structure from the flattened schema. It also cannot catch the silent drop inside reconstructRecord for a field whose naive lookup misses.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Handed an unrelated, field-less record as the flattened schema, the method still returns the original schema. The argument is inert."
+  },
+  "configDescription" : "assert SCHEMA_ARG_IGNORED - feeds an unrelated schema and shows the original comes back anyway",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA_ARG_IGNORED",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Thing",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        }, {
+          "name" : "nested",
+          "type" : {
+            "type" : "record",
+            "name" : "Nested",
+            "fields" : [ {
+              "name" : "n",
+              "type" : "int"
+            } ]
+          }
+        } ]
+      },
+      "avsc2" : {
+        "type" : "record",
+        "name" : "Unrelated",
+        "namespace" : "com.other",
+        "fields" : [ ]
+      }
+    }
+  },
+  "input" : "{\"id\":\"x-1\",\"nested\":{\"n\":7}}",
+  "expected" : {
+    "avroAssert" : "SCHEMA_ARG_IGNORED",
+    "flattenedSchema" : "{\"id\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"nested_n\":\"S:type=[\\\"null\\\",\\\"int\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "flat" : "{\"id\":\"S:x-1\",\"nested_n\":\"I:7\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"Unrelated\",\"namespace\":\"com.other\",\"fields\":[]}",
+    "avroDoc" : "{\"type\":\"record\",\"name\":\"Thing\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"nested\",\"type\":{\"type\":\"record\",\"name\":\"Nested\",\"fields\":[{\"name\":\"n\",\"type\":\"int\"}]}}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

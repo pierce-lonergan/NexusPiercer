@@ -1,0 +1,30 @@
+{
+  "id" : "single-element-array-at-the-arity-lower-bound",
+  "family" : "limits",
+  "title" : "A one-element array round-trips to a string even with limits wide open",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Isolates the size>1 detection gate from maxArraySize entirely. The previous fixture confounds truncation with detection; this removes truncation and leaves only the gate, proving the lower arity bound is broken independently of any configured limit.",
+  "catchesBugClass" : "Arity-boundary handling in array inference, independent of configured limits. A direct regression guard on the size>1 gate: the moment it is replaced with a structural signal, this fixture flips to LOSSLESS.",
+  "cannotCatch" : "It cannot catch the empty-array boundary, which fails earlier and differently. It also cannot catch top-level arrays, which are not detected at any arity.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flattening is exactly right; reconstruction fails on arity alone. At arity 1 the array degrades to a string while at arity 2 the PARENT is wrongly promoted, so no single-sided fix resolves both."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"r\":{\"tags\":[\"only\"]}}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":{\"tags\":[\"S:only\"]}}",
+    "flat" : "{\"r_tags\":\"S:[\\\"only\\\"]\"}",
+    "mapDoc" : "{\"r\":{\"tags\":\"S:[\\\"only\\\"]\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"r\":{\"tags\":[\"S:only\"]}}",
+    "flatJson" : "{\"r_tags\":\"S:[\\\"only\\\"]\"}",
+    "jsonDoc" : "{\"r\":{\"tags\":\"S:[\\\"only\\\"]\"}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

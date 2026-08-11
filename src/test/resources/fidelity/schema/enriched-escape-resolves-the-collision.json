@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-escape-resolves-the-collision",
+  "family" : "schema",
+  "title" : "On the genuinely ambiguous schema, ESCAPE produces two distinct names that match the two row keys",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Same schema as the refusal fixture, opposite policy. This is the strongest statement the pair can make: on a schema that is truly non-injective under a naive join, ESCAPE recovers agreement with the rows rather than merely avoiding an accident. The escape-agrees fixture on the Order schema shows agreement where there was no real collision; this one shows it where there was.",
+  "catchesBugClass" : "Loss of injectivity in either encoder. If either side ever collapses the two paths to one key the set sizes differ and the row goes red, which is precisely the ambiguity regression FlattenedPath was written to prevent.",
+  "cannotCatch" : "Two keys agreeing does not prove the reconstructor can tell them apart downstream; nothing here reconstructs. It also cannot detect that the escaped names are unusable as Avro or Spark column names - that constraint is stated in NameCollisionPolicy's javadoc and is not measurable from a key set.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both sides produce the same two escaped names."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs MAP_FLATTENER, collisionPolicy ESCAPE",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "MAP_FLATTENER",
+      "enriched" : {
+        "collisionPolicy" : "ESCAPE"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Acct",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "user_name",
+          "type" : "string"
+        }, {
+          "name" : "user",
+          "type" : {
+            "type" : "record",
+            "name" : "User",
+            "fields" : [ {
+              "name" : "name",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"user_name\":\"a\",\"user\":{\"name\":\"b\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "MAP_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:user\\\\_name\",\"S:user_name\"]",
+    "flat" : "{\"user\\\\_name\":\"S:a\",\"user_name\":\"S:b\"}",
+    "avroBaseline" : "[\"S:user\\\\_name\",\"S:user_name\"]",
+    "avroDoc" : "[\"S:user\\\\_name\",\"S:user_name\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

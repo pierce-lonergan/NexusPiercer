@@ -1,0 +1,30 @@
+{
+  "id" : "cdc-create-before-null",
+  "family" : "real-world",
+  "title" : "CDC insert event with a null before-image and a populated after-image",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The before/after envelope with one side null is the single most common shape in change-data capture, and the realistic test that a top-level explicit null survives beside sibling nested objects. Also carries an epoch-millis long that must not be narrowed.",
+  "catchesBugClass" : "A top-level explicit null being dropped rather than preserved; epoch-millis longs narrowing to double or int; two sibling nested objects merging or cross-contaminating during prefix grouping.",
+  "cannotCatch" : "It says nothing about the delete case (before populated, after null) - symmetric in principle, but nothing guarantees symmetry. It also cannot catch the empty-object variant, which makes an insert indistinguishable from a delete.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "before reconstructs as an explicit null; source and after are scalar-only so both stay objects; the epoch-millis long is never routed through double."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"op\":\"c\",\"ts_ms\":1786321931482,\"source\":{\"connector\":\"postgresql\",\"db\":\"sales\",\"table\":\"orders\",\"lsn\":24576123},\"before\":null,\"after\":{\"order_id\":8814,\"customer_id\":77301,\"status\":\"pending\",\"total_amount\":148.75}}",
+  "expected" : {
+    "mapBaseline" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"D:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
+    "flat" : "{\"after_customer\\\\_id\":\"I:77301\",\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:pending\",\"after_total\\\\_amount\":\"D:148.75\",\"before\":null,\"op\":\"S:c\",\"source_connector\":\"S:postgresql\",\"source_db\":\"S:sales\",\"source_lsn\":\"I:24576123\",\"source_table\":\"S:orders\",\"ts\\\\_ms\":\"L:1786321931482\"}",
+    "mapDoc" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"D:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"BD:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
+    "flatJson" : "{\"after_customer\\\\_id\":\"I:77301\",\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:pending\",\"after_total\\\\_amount\":\"D:148.75\",\"before\":null,\"op\":\"S:c\",\"source_connector\":\"S:postgresql\",\"source_db\":\"S:sales\",\"source_lsn\":\"I:24576123\",\"source_table\":\"S:orders\",\"ts\\\\_ms\":\"L:1786321931482\"}",
+    "jsonDoc" : "{\"after\":{\"customer_id\":\"I:77301\",\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"total_amount\":\"BD:148.75\"},\"before\":null,\"op\":\"S:c\",\"source\":{\"connector\":\"S:postgresql\",\"db\":\"S:sales\",\"lsn\":\"I:24576123\",\"table\":\"S:orders\"},\"ts_ms\":\"L:1786321931482\"}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

@@ -1,0 +1,39 @@
+{
+  "id" : "multichar-separator-with-single-separator-char-in-name",
+  "family" : "naming",
+  "title" : "Separator __ with names containing a single _ - the property-test case from the javadoc",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "FlattenedPath javadoc records a caught bug: with separator \"__\", segments [\"_\",\"\"] encoded to \"___\" and decoded as [\"\",\"_\"]. The fix was to escape the separator FIRST character rather than the complete separator. This fixture reaches that code from real JSON.",
+  "catchesBugClass" : "The multi-character-separator off-by-one: a trailing separator-prefix inside one segment combining with the following separator to match one character early. Nothing else in the corpus reaches it.",
+  "cannotCatch" : "It cannot catch the empty-segment half of the javadoc example, because sanitizeKey rewrites an empty JSON key before it reaches the encoder. It also says nothing about separators longer than two characters.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both keys decode to their exact segments. Neither name contains \"__\" so sanitizeKey collapse is a no-op here, which isolates the escaping from that control."
+  },
+  "configDescription" : "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\") - quickReconstruct hard-codes \"_\" and would fail for the wrong reason",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : true,
+      "maxDepth" : 50,
+      "maxArraySize" : 1000
+    },
+    "reconstructor" : {
+      "separator" : "__"
+    }
+  },
+  "input" : "{\"_\":{\"x\":1},\"a_b\":{\"c\":2}}",
+  "expected" : {
+    "mapBaseline" : "{\"_\":{\"x\":\"I:1\"},\"a_b\":{\"c\":\"I:2\"}}",
+    "flat" : "{\"\\\\___x\":\"I:1\",\"a\\\\_b__c\":\"I:2\"}",
+    "mapDoc" : "{\"_\":{\"x\":\"I:1\"},\"a_b\":{\"c\":\"I:2\"}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : false,
+    "jsonBaseline" : "{\"_\":{\"x\":\"I:1\"},\"a_b\":{\"c\":\"I:2\"}}",
+    "flatJson" : "{\"\\\\___x\":\"I:1\",\"a\\\\_b__c\":\"I:2\"}",
+    "jsonDoc" : "{\"_\":{\"x\":\"I:1\"},\"a_b\":{\"c\":\"I:2\"}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : false
+  },
+  "measuredLossless" : true
+}

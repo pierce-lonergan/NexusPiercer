@@ -1,0 +1,41 @@
+{
+  "id" : "avro-underscore-field-name-column-divergence",
+  "family" : "avro",
+  "title" : "Flattened schema and flattened rows disagree on column names for any field containing an underscore",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The two halves of the library use different key encodings. AvroSchemaFlattener joins path segments with a bare separator and explicitly cannot escape (Avro/Spark names forbid backslash); MapFlattener routes every raw field name through FlattenedPath.escapeSegment. Underscore-separated field names are the dominant Avro convention, so this is the common case, and nothing in the repo asserts that the two key sets agree.",
+  "catchesBugClass" : "Cross-component key-encoding divergence: two producers of the same flat namespace that disagree on escaping. Also catches any change that adds escaping to one side without the other.",
+  "cannotCatch" : "It says nothing about whether either encoding is individually correct. It also cannot be fixed merely by making AvroSchemaFlattener escape, because Avro forbids backslash in field names outright.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The schema names a column no row contains. The DATA assertion passes in isolation, so a corpus that only checks DATA reports this document as fully lossless."
+  },
+  "configDescription" : "assert KEYSET",
+  "config" : {
+    "avro" : {
+      "assert" : "KEYSET",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Account",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "user_id",
+          "type" : "string"
+        }, {
+          "name" : "balance",
+          "type" : "double"
+        } ]
+      }
+    }
+  },
+  "input" : "{\"user_id\":\"u-1\",\"balance\":10.5}",
+  "expected" : {
+    "avroAssert" : "KEYSET",
+    "flat" : "{\"balance\":\"D:10.5\",\"user\\\\_id\":\"S:u-1\"}",
+    "avroBaseline" : "[\"S:balance\",\"S:user_id\"]",
+    "avroDoc" : "[\"S:balance\",\"S:user\\\\_id\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

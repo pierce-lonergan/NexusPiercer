@@ -1,0 +1,63 @@
+{
+  "id" : "avro-boundary-separator-datum-does-not-hold-under-defaults",
+  "family" : "avro",
+  "title" : "The first Avro row measured under a TUNED reconstructor: matched __ separators, and the defaults arm finally diverges",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The avroDefaultsMatch key was unfalsifiable. Both Avro branches compare avroReconstructor(fixture-config) against a default-built AvroReconstructor, and no Avro fixture in the corpus set config.avro.reconstructor - so on every DATA and DATUM row the two arms were the identical call and each one published holdsUnderDefaultReconstruction=YES on a comparison that could not fail. The DATA branch said so in a comment; the DATUM branch, added later, did not, and its six rows read as though a measurement had happened. This row turns the arm into a tripwire that fires. MEASURED FIRST, then written: useArrayBoundarySeparator was chosen because a direct probe of every AvroReconstructor knob showed it is one of only two that change reconstructToMap output at all on a nested record - arrayFormat, strictValidation, allowMissingFields and useSchemaDefaults all produced byte-identical output on five different documents.",
+  "catchesBugClass" : "A defaults arm that has silently degenerated into comparing a value with itself - the repository's signature pathology, a control that appears present and does nothing, this time inside the disclosure column rather than the library. It also pins that the separator configuration is ORTHOGONAL to the nested-record defect: matching the reconstructor's separator to the flattener's repairs the key splitting and still does not make the datum writable.",
+  "cannotCatch" : "One knob at one value. strictValidation, allowMissingFields and useSchemaDefaults reach the Avro defaults arm through the same code and remain unexercised, so this row proves the arm CAN fire, not that every knob reaches it. It says nothing about AvroReconstructor.arrayFormat, which is a second independently-set knob that must agree with MapFlattener.arrayFormat and is not checked against it: MEASURED, on a flattened leaf of [1,2,3] all four reconstructor formats give byte-identical output because the JSON parse is tried first and succeeds, while on a leaf of 1,2,3 only COMMA_SEPARATED succeeds and the other three throw NumberFormatException. That pair IS expressible as a fixture - config.mapFlattener.arrayFormat beside config.avro.reconstructor.arrayFormat - and no row does it yet.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two independent expectations. (a) The DATUM defect is unchanged by the separator: attrs comes back a LinkedHashMap, validate fails, the encode throws - so DEFECT. (b) avroDefaultsMatch must be FALSE, because the default reconstructor splits on _ and these keys are joined with __, so it cannot find attrs at all. If (b) comes back true the arm is still dead and this fixture has failed at its only job."
+  },
+  "configDescription" : "assert DATUM; MapFlattener.useArrayBoundarySeparator(true); AvroReconstructor.useArrayBoundarySeparator(true)",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : true
+    },
+    "avro" : {
+      "assert" : "DATUM",
+      "reconstructor" : {
+        "useArrayBoundarySeparator" : true
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Sensor",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "attrs",
+          "type" : {
+            "type" : "record",
+            "name" : "Attr",
+            "fields" : [ {
+              "name" : "unit",
+              "type" : "string"
+            }, {
+              "name" : "value",
+              "type" : "double"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"attrs\":{\"unit\":\"C\",\"value\":21.5}}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : false,
+      "nestedRecordsAreRecords" : false,
+      "nonRecordNestedPaths" : "attrs=LinkedHashMap",
+      "encodeFailure" : "ClassCastException",
+      "binaryEncodes" : false
+    },
+    "avroDefaultsMatch" : false,
+    "flat" : "{\"attrs__unit\":\"S:C\",\"attrs__value\":\"D:21.5\"}",
+    "avroBaseline" : "{\"attrs\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}",
+    "avroDoc" : "{\"attrs\":{\"unit\":\"S:C\",\"value\":\"D:21.5\"}}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

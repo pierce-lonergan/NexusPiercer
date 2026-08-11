@@ -1,0 +1,65 @@
+{
+  "id" : "avro-enum-accepted-fixed-decimal-erased",
+  "family" : "avro",
+  "title" : "Enum to bare STRING is defensible; fixed-backed decimal to bare BYTES is not",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Both are handled by dedicated cases that discard everything but the base type. The two erasures are not equivalent in severity: a string column carrying an enum symbol remains fully interpretable; a bytes column carrying a decimal with no precision or scale is not, and unlike the array case this one fires at the top level.",
+  "catchesBugClass" : "Named-type erasure in the flattened schema, and the FIXED case dropping logicalType outside arrays. On the DATA side it catches an EnumSymbol returned as an ordinal or symbol validation being skipped.",
+  "cannotCatch" : "It cannot catch an enum whose symbols the datum violates; a separate synthetic-violation fixture is needed to confirm reconstructEnum throws under strictValidation rather than substituting the first symbol. It also cannot make the loss of enum ordinal ORDERING observable.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The enum half is ACCEPTED - SQL and Spark columns have no enum type and the symbol text is the only faithful projection. The fixed-decimal half is a DEFECT and is filed here only because a single classification is required; it should be split if the cap allows."
+  },
+  "configDescription" : "assert SCHEMA",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Listing",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "status",
+          "type" : {
+            "type" : "enum",
+            "name" : "Status",
+            "symbols" : [ "ACTIVE", "SUSPENDED", "CLOSED" ],
+            "default" : "ACTIVE"
+          }
+        }, {
+          "name" : "price",
+          "type" : {
+            "type" : "fixed",
+            "name" : "Money8",
+            "size" : 8,
+            "logicalType" : "decimal",
+            "precision" : 18,
+            "scale" : 4
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"status\":\"SUSPENDED\",\"price\":1234.5678}",
+  "expected" : {
+    "avroAssert" : "SCHEMA",
+    "flattenedSchema" : "{\"price\":\"S:type=[\\\"null\\\",\\\"bytes\\\"];logical=none;doc=null;hasDefault=false\",\"status\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "schemaChecks" : {
+      "inverseReproducesOriginal" : true,
+      "originalLogicalTypes" : "decimal",
+      "flattenedLogicalTypes" : "",
+      "logicalTypesPreserved" : false,
+      "originalNamedTypes" : "ENUM:Status,FIXED:Money8",
+      "flattenedNamedTypes" : "",
+      "namedTypesPreserved" : false,
+      "declaredColumnsNotShadowed" : true,
+      "shadowedColumns" : ""
+    },
+    "flat" : "{\"price\":\"D:1234.5678\",\"status\":\"S:SUSPENDED\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"Listing\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"status\",\"type\":{\"type\":\"enum\",\"name\":\"Status\",\"symbols\":[\"ACTIVE\",\"SUSPENDED\",\"CLOSED\"],\"default\":\"ACTIVE\"}},{\"name\":\"price\",\"type\":{\"type\":\"fixed\",\"name\":\"Money8\",\"size\":8,\"logicalType\":\"decimal\",\"precision\":18,\"scale\":4}}]}",
+    "avroDoc" : "{\"type\":\"record\",\"name\":\"Listing\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"status\",\"type\":{\"type\":\"enum\",\"name\":\"Status\",\"symbols\":[\"ACTIVE\",\"SUSPENDED\",\"CLOSED\"],\"default\":\"ACTIVE\"}},{\"name\":\"price\",\"type\":{\"type\":\"fixed\",\"name\":\"Money8\",\"size\":8,\"logicalType\":\"decimal\",\"precision\":18,\"scale\":4}}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

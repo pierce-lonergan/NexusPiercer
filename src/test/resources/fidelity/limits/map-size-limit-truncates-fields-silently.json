@@ -1,0 +1,29 @@
+{
+  "id" : "map-size-limit-truncates-fields-silently",
+  "family" : "limits",
+  "title" : "A record wider than maxMapSize loses its trailing fields",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "maxMapSize is the third configured bound and the only one governing record width, yet it is unreachable through the legacy three-argument constructor and untested. It is applied twice to the same map, so the interaction of the two deserves pinning.",
+  "catchesBugClass" : "Which fields survive width truncation and whether the double application ever double-counts; also catches maxMapSize being ignored entirely, which would be invisible at the default of 10000.",
+  "cannotCatch" : "Only the over-the-limit leg is present - below and exactly-at are missing, so an off-by-one at this bound would NOT be caught. It also cannot catch per-level application, since the input is flat.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Capping record width is the stated purpose of maxMapSize, iteration order is deterministic so the truncation is reproducible, and nothing about the surviving data type or position changes. One inconsistency worth recording: this bound announces itself at WARN while the array bound announces itself only at DEBUG."
+  },
+  "configDescription" : "MapFlattener.builder().maxMapSize(8)",
+  "config" : {
+    "mapFlattener" : {
+      "maxMapSize" : 8
+    }
+  },
+  "input" : "{\"f1\":1,\"f2\":2,\"f3\":3,\"f4\":4,\"f5\":5,\"f6\":6,\"f7\":7,\"f8\":8,\"f9\":9,\"f10\":10}",
+  "expected" : {
+    "mapBaseline" : "{\"f1\":\"I:1\",\"f10\":\"I:10\",\"f2\":\"I:2\",\"f3\":\"I:3\",\"f4\":\"I:4\",\"f5\":\"I:5\",\"f6\":\"I:6\",\"f7\":\"I:7\",\"f8\":\"I:8\",\"f9\":\"I:9\"}",
+    "flat" : "{\"f1\":\"I:1\",\"f2\":\"I:2\",\"f3\":\"I:3\",\"f4\":\"I:4\",\"f5\":\"I:5\",\"f6\":\"I:6\",\"f7\":\"I:7\",\"f8\":\"I:8\"}",
+    "mapDoc" : "{\"f1\":\"I:1\",\"f2\":\"I:2\",\"f3\":\"I:3\",\"f4\":\"I:4\",\"f5\":\"I:5\",\"f6\":\"I:6\",\"f7\":\"I:7\",\"f8\":\"I:8\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

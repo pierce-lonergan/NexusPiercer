@@ -1,0 +1,34 @@
+{
+  "id" : "snake-case-injects-unescaped-separators",
+  "family" : "naming",
+  "title" : "SNAKE_CASE turns a flat scalar field into a nested object",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "transformKeys runs applyNamingStrategy over the ALREADY-ENCODED flat key. SNAKE_CASE inserts bare separator characters into a string whose separators are structural. The decoder cannot distinguish them, so the injected underscore becomes a nesting level that did not exist in the source.",
+  "catchesBugClass" : "Post-encode key rewriting that is not encoding-aware. The fix is either to apply naming strategies to segments before encoding or to re-escape after transforming; this fixture fails until one of those happens and passes for either.",
+  "cannotCatch" : "It cannot catch the reverse damage from the SNAKE_CASE underscore-run collapse, because this document has no runs. A source name with adjacent capitals or containing __ would exercise that and could destroy structure a different way.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "A scalar at depth 1 is reconstructed as an object at depth 2. Case-folding is a requested transform and would be ACCEPTED_LOSS on its own; inventing structure is not."
+  },
+  "configDescription" : "MapFlattener.builder().namingStrategy(SNAKE_CASE); reconstructor default",
+  "config" : {
+    "mapFlattener" : {
+      "namingStrategy" : "SNAKE_CASE"
+    }
+  },
+  "input" : "{\"userId\":1}",
+  "expected" : {
+    "mapBaseline" : "{\"userId\":\"I:1\"}",
+    "flat" : "{\"user_id\":\"I:1\"}",
+    "mapDoc" : "{\"user\":{\"id\":\"I:1\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"userId\":\"I:1\"}",
+    "flatJson" : "{\"user_id\":\"I:1\"}",
+    "jsonDoc" : "{\"user\":{\"id\":\"I:1\"}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}
