@@ -69,7 +69,16 @@ public final class FlattenedField implements Serializable {
         return new Builder();
     }
 
-    /** The flattened column name, separator-escaped and safe to round-trip. */
+    /**
+     * The rendered column name.
+     *
+     * <p>Escaped only under {@link NameCollisionPolicy#ESCAPE}; under the default {@code FAIL} it
+     * is emitted verbatim. Under NEITHER policy is it a parseable structure — across an array
+     * boundary the marker is emitted outside the escaped alphabet, so splitting the name yields a
+     * phantom empty segment. Use {@link #pathSegments()} for ancestry and
+     * {@link #arrayBoundaries()} for repetition. (This used to read "separator-escaped and safe to
+     * round-trip", which was false on both halves.)</p>
+     */
     public String flattenedName() {
         return flattenedName;
     }
@@ -100,8 +109,13 @@ public final class FlattenedField implements Serializable {
     }
 
     /**
-     * Documentation for this leaf, inherited from the nearest ancestor record when the leaf
-     * declares none. Check {@link #isDocInherited()} to tell the two apart.
+     * Documentation for this leaf.
+     *
+     * <p>When the leaf declares none this is the nearest ancestor record's — but only if
+     * {@link FlattenOptions.Builder#inheritDoc(boolean)} is left at its default {@code true}.
+     * Inheritance is a control, not an invariant; with it switched off this is empty unless the
+     * leaf declared documentation itself. Check {@link #isDocInherited()} to tell the two
+     * apart.</p>
      */
     public Optional<String> doc() {
         return Optional.ofNullable(doc);
@@ -167,10 +181,18 @@ public final class FlattenedField implements Serializable {
     /**
      * Custom properties carried from the source schema, plus anything an interceptor added.
      *
-     * <p>Every non-reserved property on the field is preserved, and properties on the enclosing
-     * record are inherited when the field does not shadow them. Avro accepts arbitrary JSON
-     * properties and readers routinely drop them; anything a producer bothered to declare is
-     * meaningful to somebody, so nothing is filtered by name.</p>
+     * <p>Every custom property on the field is preserved, and properties on the enclosing record
+     * are inherited when the field does not shadow them. Avro accepts arbitrary JSON properties
+     * and readers routinely drop them; anything a producer bothered to declare is meaningful to
+     * somebody, so nothing is filtered by name. The structural/custom split is Avro's parser's,
+     * performed per position, which is why a name-keyed filter here was removed.</p>
+     *
+     * <p>This is a MERGED view, so the presence of a key is not a statement about this leaf's
+     * structure. A record-level {@code logicalType}, {@code default} or {@code order} annotation
+     * reaches every leaf beneath it; the leaf's own structural facts come from {@link #avroType()},
+     * {@link #schema()}, {@link #doc()} and {@link #isNullable()}. In particular
+     * {@code properties().get("logicalType")} is a producer annotation, never the Avro logical
+     * type, which lives on {@link #schema()}.</p>
      *
      * <p>Mutable by design so a {@link LeafInterceptor} can annotate in-pass.</p>
      */

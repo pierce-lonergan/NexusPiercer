@@ -14,10 +14,18 @@ import java.util.Map;
  *
  * <h2>Defaults</h2>
  *
- * <p>Defaults reproduce the widely-used {@code GAvroSchemaFlattener} conventions — {@code "_"}
- * path join, {@code "__"} at array boundaries, nullable unions unwrapped, documentation inherited
- * from the nearest ancestor record — so a caller migrating from that flattener starts at parity
- * and changes only what they mean to change.</p>
+ * <p>The defaults are this library's own recommended conventions, chosen on their own merits and
+ * not copied from another flattener: {@code "_"} path join, {@code "__"} marking an array
+ * boundary, nullable unions unwrapped, documentation inherited from the nearest ancestor record,
+ * and {@link NameCollisionPolicy#FAIL} — because this flattener's output becomes Avro and SQL
+ * column names, where the escape character is illegal, so refusing an ambiguous schema beats
+ * renaming an unambiguous one.</p>
+ *
+ * <p>They are deliberately NOT {@code GAvroSchemaFlattener}'s conventions. That flattener escapes
+ * every segment and has no array-boundary marker at all, so its names differ from these on both
+ * axes. An earlier version of this javadoc claimed parity for the defaults; it was measured and
+ * it was false. {@link #gAvroParity()} is the migration path, and it says exactly what it
+ * covers.</p>
  *
  * <p>Limits default to {@code maxDepth = 64} and {@code maxFields = 100_000}. Both are generous
  * for real schemas and finite for hostile ones. Fail-closed is deliberate: a caller flattening
@@ -58,9 +66,67 @@ public final class FlattenOptions implements Serializable {
         return new Builder();
     }
 
-    /** Conventions matching {@code GAvroSchemaFlattener}, which is also the default. */
-    public static FlattenOptions gAvroParity() {
+    /**
+     * This library's own recommended conventions. Identical to {@code builder().build()} and to
+     * what {@code new EnrichedSchemaFlattener()} uses.
+     *
+     * <p>Separate from {@link #gAvroParity()} by name on purpose. The two were one object, and
+     * collapsing "the conventions this library recommends" into "the conventions the flattener you
+     * are migrating from produced" is the mechanism by which the parity claim rotted unnoticed:
+     * nothing could observe the difference because there was none.</p>
+     */
+    public static FlattenOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Column names byte-identical to {@code new GAvroSchemaFlattener().flattenSchema(schema)}.
+     *
+     * <p>Two knobs, both measured against that flattener rather than assumed.
+     * {@code GAvroSchemaFlattener.buildPath} calls {@code FlattenedPath.escapeSegment} on EVERY
+     * segment, so parity needs {@link NameCollisionPolicy#ESCAPE}; and GAvro has no array-boundary
+     * marker at all — its {@code useArrayBoundarySeparator} globally renames the one separator —
+     * so parity needs the boundary separator equal to the separator.</p>
+     *
+     * <p><b>What this covers, and what it does not.</b>
+     * NAMES ONLY, and INCLUDING GAvro's backslash escapes. {@code order_id} renders as
+     * {@code order\_id}, which is not a legal Avro or SQL identifier — that is inherited from
+     * GAvro, which already does it. Use this to keep an existing table's column names while
+     * migrating; do not use it for names that are about to become identifiers. It says nothing
+     * about GAvro's {@code DataType} mapping, which this API does not reproduce.</p>
+     *
+     * <p>Four structural divergences no configuration can express, so parity is exact only for
+     * record-rooted schemas that avoid them:</p>
+     * <ul>
+     *   <li>a union with more than one non-null branch: GAvro descends into the first non-null
+     *       branch, this flattener emits one leaf for the union;</li>
+     *   <li>an array of arrays of records: GAvro digs into the inner record's fields, this
+     *       flattener emits one leaf;</li>
+     *   <li>depth: GAvro stops at 50 and DEGRADES the column to a string with a log warning, this
+     *       flattener stops at 64 and throws {@link SchemaLimitExceededException}. {@code maxDepth}
+     *       is deliberately left at 64 — matching the number while the behaviour still differed
+     *       would be a more convincing lie than the one being repaired;</li>
+     *   <li>a non-record root: GAvro accepts anything and keys it {@code value}/{@code root}, this
+     *       flattener refuses.</li>
+     * </ul>
+     *
+     * <p>For a caller who ran GAvro with {@code useArrayBoundarySeparator(true)} — a setting the
+     * fidelity corpus classifies as a misnamed control, since it marks no boundaries and only
+     * renames the separator globally — the equivalent here is the parity policy with both
+     * separators doubled:</p>
+     * <pre>{@code
+     * FlattenOptions.builder()
+     *         .separator("__").arrayBoundarySeparator("__")
+     *         .collisionPolicy(NameCollisionPolicy.ESCAPE)
+     *         .build();
+     * }</pre>
+     */
+    public static FlattenOptions gAvroParity() {
+        return builder()
+                .separator("_")
+                .arrayBoundarySeparator("_")
+                .collisionPolicy(NameCollisionPolicy.ESCAPE)
+                .build();
     }
 
     public String separator() { return separator; }
@@ -108,7 +174,15 @@ public final class FlattenOptions implements Serializable {
             return this;
         }
 
-        /** Whether a leaf with no doc inherits the nearest ancestor record's. Default true. */
+        /**
+         * Whether a leaf with no doc inherits the nearest ancestor record's. Default true.
+         *
+         * <p>When false, a leaf reports only the documentation it declares itself,
+         * {@link FlattenedField#isDocInherited()} is always false, and no ancestor text is
+         * propagated. A leaf's OWN doc is unaffected either way: this turns inheritance off, not
+         * documentation off. That is the setting to use where the inherited text would otherwise
+         * propagate into a data dictionary as if the producer had written it about that column.</p>
+         */
         public Builder inheritDoc(boolean v) { this.inheritDoc = v; return this; }
 
         /**
@@ -162,6 +236,12 @@ public final class FlattenOptions implements Serializable {
          * <p>For operator and event-framework columns that must appear at a fixed index. Source
          * fields are never reordered: injections are spliced in around them, so a schema change
          * upstream cannot silently shuffle a column an external contract depends on.</p>
+         *
+         * <p>Honoured identically by {@code EnrichedSchemaFlattener.flatten} and
+         * {@code .stream} — the streaming path needs only the current output index, never the
+         * total field count. A position beyond the final column APPENDS in ascending order rather
+         * than leaving gaps or throwing: {@code injectField(99, x)} on a three-column schema
+         * yields column 4.</p>
          *
          * @throws IllegalArgumentException if the position is below 1 or already claimed
          */

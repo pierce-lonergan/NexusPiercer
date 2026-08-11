@@ -4,8 +4,8 @@
   "title" : "inheritRecordProperties(false) drops the record-level property from every leaf",
   "stack" : "AVRO",
   "referenceIssue" : "",
-  "rationale" : "The live-control twin to the dead inheritDoc control. inheritRecordProperties IS read by walkRecord, so turning it off must change the output. Filed as its own row so that the pair - one of these two adjacent booleans works and the other does not - is visible in the published table rather than buried in a probe note. The loss is exactly what the caller asked for, is bounded to record-level properties, and is disclosed by requiresNonDefaultConfig.",
-  "catchesBugClass" : "inheritRecordProperties becoming inert - the same death its neighbour inheritDoc already died. The probe fires on that directly; the verdict fires on it too, since the emitted set would stop shrinking.",
+  "rationale" : "inheritRecordProperties(false) removes the record-level property from every leaf, so it is absent from the emitted set while still present in the declared one. Exactly what the caller asked for, bounded to record-level properties, and disclosed by requiresNonDefaultConfig. Its probe measures the two settings producing DIFFERENT output. That used to make it the LIVE twin of a DEAD inheritDoc control sitting one line away in the same options class; inheritDoc is now live too, and the two rows are a matched pair of live property-inheritance and doc-inheritance controls - which is the arrangement that makes either one going quiet visible.",
+  "catchesBugClass" : "The control going inert, which is the failure its neighbour inheritDoc actually suffered until it was wired up. The probe expecting DIFFERENT is what detects it: a no-op setting renders the two arms identically and turns this row red.",
   "cannotCatch" : "It cannot show whether inheritance is the right default. It cannot distinguish 'property never harvested' from 'property harvested and then not inherited' - for that you need this row read together with the properties-survive row.",
   "predicted" : {
     "classification" : "ACCEPTED_LOSS",

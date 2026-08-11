@@ -1,15 +1,15 @@
 {
   "id" : "enriched-reserved-prop-name-collision-drops-a-producer-property",
   "family" : "schema",
-  "title" : "A producer property named \"size\" is silently discarded, contradicting the javadoc immediately above the code that discards it",
+  "title" : "A producer property named \"size\" survives the flatten, because the structural-versus-custom split is Avro's to make and a name list cannot make it",
   "stack" : "AVRO",
   "referenceIssue" : "",
-  "rationale" : "EnrichedSchemaFlattener.customProps filters against a private RESERVED_PROPS set containing size, items, values, symbols, logicalType, namespace and others. Avro's own getObjectProps already excludes Avro's reserved names, so a field-level property literally named size is legitimate user metadata that Avro hands over and this library then drops. The javadoc four lines above says nothing is filtered by name, on the stated grounds that a library which only preserved properties it recognised would silently drop the one the caller cared about. The code filters by name and silently drops it.",
-  "catchesBugClass" : "A filter-by-name list that contradicts its own documentation, and any future growth of the reserved list that widens the silent drop. Also catches the opposite repair - narrowing the list to Avro's own reserved names - which would flip this row.",
-  "cannotCatch" : "It cannot tell whether the filter is wrong or the javadoc is wrong; that is a design decision. It cannot enumerate which of the reserved names are actually reachable as user properties after Avro's own filtering, so it pins one instance of the class rather than the class.",
+  "rationale" : "This row published a DEFECT until the private RESERVED_PROPS blocklist was deleted. Avro's parser has already performed the structural/custom split, and it performs it CONTEXTUALLY: structural keys are consumed into typed accessors and only the remainder reaches getObjectProps, against a different reserved set per position - FIELD_RESERVED [default, aliases, name, doc, type, order] on a field, SCHEMA_RESERVED [aliases, size, values, name, namespace, doc, fields, type, items, symbols] on a schema, and logicalType in neither. So size is structural on a fixed schema and ordinary producer metadata on a record field, and a filter holding only the String cannot tell those apart. Every entry in the blocklist was therefore either unreachable or a silent drop of something a producer wrote: six of thirteen were unreachable at the field call site and seven destroyed data. The library now delegates and filters nothing, which is what the javadoc four lines above the filter had always promised.",
+  "catchesBugClass" : "ANY reintroduction of name-keyed property filtering. This is the only fixture in the corpus whose schema carries a property whose name collides with an Avro structural attribute at a different position, so it is the corpus's sole guard on that class - including the plausible 'narrow the list to Avro's own reserved names' repair, which would be provably dead code and would leave this row green while the dead code accumulated. It also catches the opposite over-correction, a reader that reached past getObjectProps into the raw JSON, because the declared side is harvested from getObjectProps too and a fixed schema's size would then appear on one side only.",
+  "cannotCatch" : "It carries one reserved name at one position, so it pins an instance rather than the class; the unit tests everyFieldLevelNameAvroHandsOverIsPreserved and recordLevelDefaultOrderAndLogicalTypeReachTheLeaf enumerate the other nine reachable names. It also cannot see the semantic hazard the repair introduces: a record-level logicalType annotation now reaches every leaf beneath it through inheritance, and a consumer reading properties().get(\"logicalType\") must not mistake it for the leaf's Avro logical type, which lives on schema(). That is mitigated by documentation, not by measurement.",
   "predicted" : {
-    "classification" : "DEFECT",
-    "detail" : "The declared set carries size=XL; the emitted set does not. UNVERIFIED BY EXECUTION at design time: that Avro 1.12 accepts size as a field-level property rather than rejecting or relocating it is read from Avro's reserved-name handling, so this is the input most likely to need adjusting."
+    "classification" : "LOSSLESS",
+    "detail" : "The declared set and the emitted set are both 'size=XL x-chase-dataelem=DE-9001'. RE-AUTHORED against repaired behaviour rather than overridden: the measurement moved, so the prediction was rewritten with the prose. The original DEFECT prediction was correct against the code as it stood, and that history is recorded in the manifest detail."
   },
   "configDescription" : "assert ENRICHED_METADATA vs PROPERTY_SET, default FlattenOptions",
   "config" : {
@@ -34,11 +34,11 @@
     "avroAssert" : "ENRICHED_METADATA",
     "enrichedCompare" : "PROPERTY_SET",
     "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
-    "propertyPlacement" : "{\"garment\":\"S:[x-chase-dataelem]\"}",
+    "propertyPlacement" : "{\"garment\":\"S:[size, x-chase-dataelem]\"}",
     "flat" : "{\"garment\":\"S:shirt\"}",
     "avroBaseline" : "size=XL x-chase-dataelem=DE-9001",
-    "avroDoc" : "x-chase-dataelem=DE-9001",
-    "losslessAvro" : false
+    "avroDoc" : "size=XL x-chase-dataelem=DE-9001",
+    "losslessAvro" : true
   },
-  "measuredLossless" : false
+  "measuredLossless" : true
 }

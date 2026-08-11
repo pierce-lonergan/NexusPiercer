@@ -1,15 +1,15 @@
 {
   "id" : "enriched-gavro-parity-claim-fails-on-underscores",
   "family" : "schema",
-  "title" : "FlattenOptions.gAvroParity() does not reproduce GAvroSchemaFlattener's names for any field containing an underscore",
+  "title" : "The enriched DEFAULTS deliberately do not reproduce GAvroSchemaFlattener's names for a field containing an underscore; gAvroParity() does",
   "stack" : "AVRO",
   "referenceIssue" : "",
-  "rationale" : "FlattenOptions' javadoc states that its defaults reproduce the widely-used GAvroSchemaFlattener conventions so a caller migrating from that flattener starts at parity and changes only what they mean to change. That is false. GAvroSchemaFlattener.buildPath calls FlattenedPath.escapeSegment on every segment; the enriched defaults under the FAIL policy escape nothing. A published parity claim that does not hold is exactly what this corpus is for, and no test in the repository compared the two.",
-  "catchesBugClass" : "A factory method whose NAME is a claim the code does not keep. Also catches either flattener changing its default separator behaviour, and any future decision to make the enriched defaults actually escape, which would flip this row and correctly force a manifest rewrite.",
-  "cannotCatch" : "It cannot say which of the two is right, and it cannot tell a reader whether the parity claim was aspirational or a regression, because there is no history in the corpus. It measures names only, not the type mapping GAvro also produces.",
+  "rationale" : "FlattenOptions' javadoc used to state that its DEFAULTS reproduce GAvroSchemaFlattener's conventions so a caller migrating starts at parity. That was false and this row measured it false: GAvroSchemaFlattener.buildPath calls FlattenedPath.escapeSegment on every segment, and the enriched defaults under the FAIL policy escape nothing. The claim has been withdrawn from the defaults rather than the defaults changed to meet it, because ESCAPE emits backslashes that are illegal in Avro and SQL identifiers and this flattener's output is destined for column names. The recorded divergence below is therefore now a DELIBERATE difference between two conventions, and FlattenOptions.gAvroParity() is the supported way round it - measured by the twin row enriched-gavro-parity-factory-matches-gavro-on-underscored-names, on this exact schema and datum, so the only variable between the pair is the configuration.",
+  "catchesBugClass" : "Either flattener changing its default escaping. It also catches the tempting repair that was rejected - making the enriched DEFAULTS escape, so that gAvroParity() would be honest for free - which would flip this row green and correctly force a rewrite of the argument for why FAIL is the default.",
+  "cannotCatch" : "It cannot say which convention is right, only that they differ and that the difference is now declared. It measures names only, not the DataType mapping GAvro also produces, which parity does not reproduce either. And it cannot see the four structural divergences no option can close - multi-branch unions, array-of-array-of-record, depth-limit semantics and non-record roots - which are stated in gAvroParity()'s javadoc and are unmeasured prose.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "The enriched arm emits unescaped names; the GAvro arm escapes every segment, so the two disagree on both underscore-bearing columns."
+    "detail" : "The enriched arm emits unescaped names; the GAvro arm escapes every segment, so the two disagree on both underscore-bearing columns. PREDICTION LEFT AS DEFECT ON PURPOSE: the measurement has not moved a byte, only the judgement of it has, so this is a deliberate reclassification and is recorded as a classificationOverride rather than by quietly rewriting what the designer predicted."
   },
   "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, default FlattenOptions",
   "config" : {

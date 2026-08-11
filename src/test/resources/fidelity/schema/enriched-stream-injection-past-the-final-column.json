@@ -1,0 +1,63 @@
+{
+  "id" : "enriched-stream-injection-past-the-final-column",
+  "family" : "schema",
+  "title" : "An injection positioned past the last column is appended in ascending order by both entry points, not dropped and not left at its declared index",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The branch enriched-stream-honours-injections-at-their-positions names in its own cannotCatch: 'injections at positions beyond the source length, where applyInjections has a separate append-in-ascending-order branch that no fixture reaches'. Making stream() honour injections reimplements exactly that branch as the merge's end-of-input drain, so the corpus should stop leaving it unreached. Position 99 against a three-column schema lands at column 4 on both entry points. The rule is surprising enough to be worth publishing - a caller could reasonably expect 99 to mean index 99, or to be rejected - and until now it existed only as a comment inside a private method.",
+  "catchesBugClass" : "The drain branch diverging between the two entry points, and the two plausible wrong implementations of it: one that drops the injection because the source is exhausted, and one that stamps the declared key rather than the next output slot, leaving a column at position 99 with a 95-column gap in front of it.",
+  "cannotCatch" : "It cannot see relative ORDER among several past-the-end injections - one is enough to reach the branch but not enough to show that the drain is ascending; the unit test consecutiveHeadInjectionsKeepTheirRelativeOrder covers ordering at the head, and the drain's ascending order rests on TreeMap.pollFirstEntry rather than on a fixture. It also cannot see that maxFields still counts source leaves only, so injections can push the output past a limit that names itself as a bound on the output.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both entry points emit the three source columns and then audit_tag as column 4."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs ENRICHED_STREAM, one injected field at position 99",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "ENRICHED_STREAM",
+      "enriched" : {
+        "inject" : [ {
+          "position" : 99,
+          "name" : "audit_tag",
+          "flattenedName" : "audit_tag",
+          "avroType" : "STRING"
+        } ]
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "ENRICHED_STREAM",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[99]",
+    "enrichedNames" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\",\"S:audit_tag\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:audit_tag\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:audit_tag\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

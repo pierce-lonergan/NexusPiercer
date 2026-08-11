@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * The drift guard on {@code docs/ROUND_TRIP_FIDELITY.md}.
  *
  * <p>That document is the artifact a consumer reads before depending on this library, and it
- * restates 147 rows of a contract that lives somewhere else. A hand-maintained copy of a contract
+ * restates every row of a contract that lives somewhere else. A hand-maintained copy of a contract
  * is a copy that goes stale, and a stale fidelity guarantee is worse than none: it is a promise
  * the corpus has stopped making. So the document is generated from {@code manifest.json} and this
  * class asserts that the committed bytes are exactly what the generator produces from the manifest

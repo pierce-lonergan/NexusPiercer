@@ -10,9 +10,9 @@ package io.github.pierce.schema;
  * both render to {@code user_id}. There are exactly two honest responses, and which is correct
  * depends entirely on where the name is going.</p>
  *
- * <p>{@link #ESCAPE} is right when the name is a map key or an internal identifier: it is
- * lossless and round-trips. It is <b>wrong</b> for anything destined to become an Avro field or a
- * warehouse column, because the escape character is not legal there —
+ * <p>{@link #ESCAPE} is right when the name is a map key or an internal identifier: no two
+ * distinct source paths ever render alike. It is <b>wrong</b> for anything destined to become an
+ * Avro field or a warehouse column, because the escape character is not legal there —
  * {@code new Schema.Field("user\\_id", ...)} throws {@code SchemaParseException: Illegal character},
  * verified against avro 1.12.0, and Athena and Glue are no more permissive. Escaping such a name
  * produces a schema that cannot be constructed.</p>
@@ -25,6 +25,13 @@ package io.github.pierce.schema;
  * <p>Separator-doubling is deliberately not offered. It looks like a third option and is not
  * injective: {@code user___id} is ambiguous between {@code ["user_", "id"]} and
  * {@code ["user", "_id"]}, so it trades a detectable failure for a silent one.</p>
+ *
+ * <p>Injectivity is <b>checked, not assumed</b>, under both policies. It used to be asserted in a
+ * comment and skipped in code: the guard returned early under {@code ESCAPE} because "the
+ * rendering is injective by construction", which is true only while
+ * {@link FlattenOptions.Builder#arrayBoundarySeparator(String)} is spelled from characters segment
+ * escaping escapes. A boundary marker an ordinary field name can spell is now refused with a
+ * diagnostic naming both source paths, rather than emitting the same column name twice.</p>
  */
 public enum NameCollisionPolicy {
 
@@ -39,8 +46,23 @@ public enum NameCollisionPolicy {
     /**
      * Escape the separator inside segment names so the rendering stays injective.
      *
-     * <p>Lossless and reversible, and unusable for Avro or SQL column names. Choose it when the
-     * flattened name is a map key, a JSON pointer, or any identifier you control the alphabet of.</p>
+     * <p>INJECTIVE: two distinct source paths never render to the same name, which is what makes
+     * the result safe as a map key or a JSON pointer. Unusable for Avro or SQL column names, where
+     * the escape character is illegal. Choose it when the flattened name is a map key, a JSON
+     * pointer, or any identifier whose alphabet you control.</p>
+     *
+     * <p>NOT DECODABLE, and this is the correction of a claim this javadoc used to make. The
+     * previous wording said "lossless and reversible". Reversibility is a property of an
+     * encode/decode PAIR and this package ships only the encode half; worse, the array-boundary
+     * separator is emitted OUTSIDE the escaped alphabet — {@code escapeSegment} is called with the
+     * plain separator only — so splitting a rendered name on the separator interposes a phantom
+     * empty segment at every array boundary: {@code items__sku} splits to
+     * {@code [items, "", sku]}, not {@code [items, sku]}.</p>
+     *
+     * <p>Do not parse the name. {@link FlattenedField#pathSegments()} carries the ancestry and
+     * {@link FlattenedField#arrayBoundaries()} carries the repetition, and both carry strictly
+     * more than any decoder could recover — a decoder cannot see
+     * {@link PathSegment#recordName()} and cannot tell a map leaf from a scalar one.</p>
      */
     ESCAPE
 }

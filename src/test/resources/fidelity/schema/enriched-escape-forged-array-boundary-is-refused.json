@@ -1,0 +1,59 @@
+{
+  "id" : "enriched-escape-forged-array-boundary-is-refused",
+  "family" : "schema",
+  "title" : "Under ESCAPE, a boundary marker an ordinary field name can spell is refused rather than emitting the same column name twice",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "checkCollision used to return before it checked anything whenever the policy was not FAIL, on the stated grounds that 'under ESCAPE the rendering is injective by construction'. That is a configuration-dependent claim written as an unconditional one: it holds only while arrayBoundarySeparator is spelled from characters segment escaping escapes, and that setter is free-form. This schema forges the marker. Record Cart has an array a of records with one field b, so a__b would normally be the rendering; with the marker set to x, a[]->b renders axb and the sibling scalar literally named axb renders axb too, and both names are legal Avro inside one record. Before the repair the flattener returned two FlattenedFields both reporting flattenedName axb, with no diagnostic - a control that appears present and does nothing, for exactly the configurations where it is needed. No fixture anywhere varied arrayBoundarySeparator under ESCAPE, which is the blind spot that let it through.",
+  "catchesBugClass" : "The ESCAPE collision guard going inert again, and any repair that narrows it back to FAIL. It also catches the diagnostic degrading: the recorded throw carries the message text, which must name the arrayBoundarySeparator as the cause and must NOT recommend NameCollisionPolicy.ESCAPE to a caller already using it - reusing the FAIL text would do exactly that, and is the most likely lazy version of this fix.",
+  "cannotCatch" : "It cannot show that the guard stays quiet where it should; enriched-escape-resolves-the-collision and enriched-escape-policy-agrees-with-map-rows are the rows that prove ESCAPE still does its job under the default marker, and the unit test escapeNeverReturnsTwoLeavesWithTheSameName sweeps six markers. Like every THROWN fixture it depends on FidelityRender's 240-character truncation and on the message text, so a cosmetic reword turns it red for no behavioural reason. And it cannot decide whether refusing or renaming is the better answer for a caller who genuinely wants that marker.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The enriched arm throws SchemaFlattenException naming both source paths; the MapFlattener arm produces two distinct row keys and loses nothing. Accepted on the same footing as enriched-fail-policy-refuses-a-colliding-schema: escaping genuinely cannot separate these two paths under this marker, so the honest alternative is emitting one name for two columns, which is a silently dropped field for exactly the map-keyed consumer ESCAPE exists to serve."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs MAP_FLATTENER, collisionPolicy ESCAPE, arrayBoundarySeparator x",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "MAP_FLATTENER",
+      "enriched" : {
+        "collisionPolicy" : "ESCAPE",
+        "arrayBoundarySeparator" : "x"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "a",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Item",
+              "fields" : [ {
+                "name" : "b",
+                "type" : "string"
+              } ]
+            }
+          }
+        }, {
+          "name" : "axb",
+          "type" : "string"
+        } ]
+      }
+    }
+  },
+  "input" : "{\"a\":[{\"b\":\"1\"}],\"axb\":\"2\"}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "MAP_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=x;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "THROWN: SchemaFlattenException: Flattened name collision in schema 'gov.Cart' under the ESCAPE policy: source paths 'a.b' and 'axb' both render to 'axb'. Segment escaping cannot separate them, because the configured arrayBoundarySeparator 'x' is emitted outside the escape",
+    "flat" : "{\"a_b\":\"S:[\\\"1\\\"]\",\"axb\":\"S:2\"}",
+    "avroBaseline" : "THROWN: SchemaFlattenException: Flattened name collision in schema 'gov.Cart' under the ESCAPE policy: source paths 'a.b' and 'axb' both render to 'axb'. Segment escaping cannot separate them, because the configured arrayBoundarySeparator 'x' is emitted outside the escape",
+    "avroDoc" : "[\"S:a_b\",\"S:axb\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

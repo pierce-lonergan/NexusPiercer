@@ -1,15 +1,15 @@
 {
   "id" : "enriched-gavro-parity-claim-fails-at-array-boundaries",
   "family" : "schema",
-  "title" : "The enriched defaults mark array boundaries with a doubled separator where GAvroSchemaFlattener's defaults use a single one",
+  "title" : "The enriched DEFAULTS deliberately mark array boundaries with a doubled separator where GAvroSchemaFlattener uses a single one; gAvroParity() matches GAvro",
   "stack" : "AVRO",
   "referenceIssue" : "",
-  "rationale" : "The second, independent half of the false parity claim, isolated so it cannot be confused with the escaping half. GAvroSchemaFlattener's config defaults useArrayBoundarySeparator to false, which uses the plain separator for ALL joins including array element fields; FlattenOptions defaults arrayBoundarySeparator to a doubled separator unconditionally. Every name below an array differs. Deliberately underscore-free so the ONLY variable is the boundary marker.",
-  "catchesBugClass" : "Divergent boundary-marker conventions between two flatteners that claim a common one. Also catches a change to either default - making the enriched parity factory set a single-character boundary separator is the obvious repair and would flip this row.",
-  "cannotCatch" : "It cannot show the downstream consequence, that a Spark job migrating flatteners silently produces an all-null column under the new name. It says nothing about which convention consumers actually depend on, which is the question that decides the repair.",
+  "rationale" : "The second, independent half of the withdrawn parity claim, isolated on an underscore-free schema so the boundary marker is the only variable. GAvroSchemaFlattener has no array-boundary marker at all: its useArrayBoundarySeparator flag globally renames the one separator, so its default joins array element fields with a single _. FlattenOptions defaults to a doubled marker because a visible array boundary is a useful convention and FlattenedField.arrayBoundaries() exists alongside it. The defaults are therefore deliberately not GAvro's, and FlattenOptions.gAvroParity() is the migration path - measured by the twin row enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary on this exact schema and datum.",
+  "catchesBugClass" : "Divergent boundary-marker conventions between two flatteners, and a change to either default. Paired with its twin it also catches the repair being undone: if gAvroParity() were 'simplified' back into the defaults, the twin would go red while this row stayed green, which is exactly the asymmetry that makes the pair readable.",
+  "cannotCatch" : "It cannot show the downstream consequence, that a Spark job migrating flatteners silently produces an all-null column under the new name. It says nothing about which convention consumers actually depend on, which is the question the parity factory exists to let each caller answer for themselves.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "The enriched arm emits items__sku; the GAvro arm emits items_sku."
+    "detail" : "The enriched arm emits items__sku; the GAvro arm emits items_sku. PREDICTION LEFT AS DEFECT ON PURPOSE: the measurement has not moved a byte, only the judgement of it has, so this is a deliberate reclassification recorded as a classificationOverride."
   },
   "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, default FlattenOptions",
   "config" : {

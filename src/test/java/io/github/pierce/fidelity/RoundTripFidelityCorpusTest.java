@@ -29,8 +29,11 @@ import static org.assertj.core.api.Assertions.fail;
  * <h2>What this test is for</h2>
  *
  * <p>{@code src/test/resources/fidelity/manifest.json} is a contract published to consumers: for
- * each of 147 documents it states exactly what survives a flatten/reconstruct round trip and what
- * does not. This class is the mechanism that stops the repository changing any of it quietly.</p>
+ * every document in the corpus it states exactly what survives a flatten/reconstruct round trip
+ * and what does not. This class is the mechanism that stops the repository changing any of it
+ * quietly. The corpus size is deliberately not written out here - it is derived and asserted in
+ * {@link #discoveredFixtureCountEqualsManifestCount()}, and a number typed into prose is exactly
+ * the drift the tally gates below were added to catch.</p>
  *
  * <p>Each fixture is checked three ways, and the three are separate test methods so the executed
  * count is visible rather than inferred:</p>
@@ -643,14 +646,68 @@ class RoundTripFidelityCorpusTest {
                 .isEqualTo(real[3]);
     }
 
+    /**
+     * The {@code ENRICHED_STREAM} comparator, drilled so it cannot become a gate that only passes.
+     *
+     * <p>Both rows that use it now agree, because {@code flatten()} and {@code stream()} agree -
+     * that agreement is the repaired behaviour. But a comparator whose two rows can only ever
+     * report "equal" proves nothing about the comparator, and no fixture can restore the missing
+     * arm: after the repair there is no schema and no configuration under which the two entry
+     * points disagree. So the discrimination is asserted here instead. Configuring an injection
+     * must genuinely change what {@code stream()} produces.</p>
+     *
+     * <p>Before {@code stream()} honoured injections this assertion failed, because the two calls
+     * returned byte-identical lists. That failure WAS the defect, expressed at harness level.</p>
+     */
+    @Test
+    @DisplayName("the ENRICHED_STREAM comparator still discriminates: an injection changes stream()")
+    void enrichedStreamComparatorStillDiscriminates() {
+        List<String> injecting = new ArrayList<>();
+        for (JsonNode e : manifestEntries()) {
+            String id = e.get("id").asText();
+            JsonNode inject = fixture(id).config().path("avro").path("enriched").path("inject");
+            if (inject.isArray() && !inject.isEmpty()) {
+                injecting.add(id);
+            }
+        }
+        assertThat(injecting)
+                .as("no fixture configures avro.enriched.inject, so the comparison below would be "
+                        + "between two identical configurations and would drill nothing")
+                .isNotEmpty();
+
+        for (String id : injecting) {
+            JsonNode avro = fixture(id).config().path("avro");
+            org.apache.avro.Schema schema =
+                    new org.apache.avro.Schema.Parser().parse(avro.path("avsc").toString());
+            int injections = avro.path("enriched").path("inject").size();
+
+            List<String> withInjection =
+                    FidelityEnriched.streamNames(FidelityEnriched.buildOptions(id, avro), schema);
+            List<String> withoutInjection = FidelityEnriched.streamNames(
+                    io.github.pierce.schema.FlattenOptions.defaults(), schema);
+
+            assertThat(withInjection)
+                    .as("%s: stream() must react to injectField. If these agree, the "
+                            + "ENRICHED_STREAM rows pass for a reason unrelated to what they "
+                            + "claim to measure, and the comparator can never report unequal "
+                            + "again.", id)
+                    .isNotEqualTo(withoutInjection)
+                    .hasSize(withoutInjection.size() + injections);
+        }
+    }
+
     @Test
     @DisplayName("the known-lossy headline is backed by fixtures that actually demonstrate the loss")
     void theKnownLossyHeadlineIsBackedByFixtures() {
         JsonNode known = manifest().get("knownLossy");
+        long lossyRows = manifestEntries().stream()
+                .filter(e -> !"LOSSLESS".equals(e.get("classification").asText())).count();
         assertThat(known != null && known.isArray() && !known.isEmpty())
                 .as("the manifest must carry the up-front known-lossy list that the published "
                         + "document leads with. An empty list publishes a document implying "
-                        + "nothing is lost, which is false 103 times over.")
+                        + "nothing is lost, which is false %d times over. (Derived, not typed: "
+                        + "this sentence said 103 while the corpus held 104, which is the drift "
+                        + "the tally gates exist to catch.)", lossyRows)
                 .isTrue();
 
         Set<String> citedFamilies = new TreeSet<>();
@@ -703,7 +760,7 @@ class RoundTripFidelityCorpusTest {
         assertThat(citedFamilies)
                 .as("every family that contains a known loss must be represented in the up-front "
                         + "warning list. A family whose losses are only discoverable by reading "
-                        + "147 table rows has not been disclosed.")
+                        + "every row of the published table has not been disclosed.")
                 .containsAll(lossyFamilies);
     }
 

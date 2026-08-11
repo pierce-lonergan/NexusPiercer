@@ -1,0 +1,58 @@
+{
+  "id" : "enriched-gavro-parity-factory-matches-gavro-on-underscored-names",
+  "family" : "schema",
+  "title" : "FlattenOptions.gAvroParity() reproduces GAvroSchemaFlattener's names exactly for underscore-bearing fields",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The positive half of a pair. gAvroParity() used to be an alias for builder().build() - a factory whose NAME made a claim the code did not keep, and which the corpus could not even observe, because FidelityEnriched.buildOptions constructed options knob by knob and never called a factory. Both DEFECT rows whose titles said gAvroParity were in fact measuring the defaults. This row measures THE FACTORY, through the preset hatch, on the same schema and the same datum as its DEFECT twin enriched-gavro-parity-claim-fails-on-underscores, so the only variable across the pair is the configuration. That is what lets the pair say the two things that matter together: the defaults differ from GAvro on purpose, and the factory does not differ at all.",
+  "catchesBugClass" : "gAvroParity() drifting away from GAvroSchemaFlattener - in EITHER direction, since both arms are measured here. It is also the tripwire on the specific regression that created the defect: anyone who 'simplifies' the factory back into builder().build() turns this row red immediately, because the recorded enrichedOptions pins the factory's exact knobs (collisionPolicy=ESCAPE, arrayBoundarySeparator=_) and the recorded names would revert to the unescaped defaults.",
+  "cannotCatch" : "Names only. It says nothing about GAvro's DataType mapping, which parity does not claim to reproduce, and nothing about the four structural divergences no option can express - multi-branch unions, array-of-array-of-record, GAvro's degrade-to-STRING depth limit against this flattener's typed throw, and non-record roots. Those are stated in gAvroParity()'s javadoc and remain unmeasured prose. It also cannot warn that the agreed names contain backslashes and are therefore illegal as Avro or SQL identifiers; that is inherited from GAvro and is why FAIL remains the default.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both arms render [order\\_id, ship_city, ship_post\\_code]. Note ship_city is unescaped on both sides: the escaping is per SEGMENT, so a structural separator between two segments is not escaped and only a separator INSIDE a name is."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, preset GAVRO_PARITY",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+      "enriched" : {
+        "preset" : "GAVRO_PARITY"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=_;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "avroDoc" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

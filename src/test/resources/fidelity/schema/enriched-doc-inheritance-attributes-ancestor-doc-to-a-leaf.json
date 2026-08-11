@@ -6,7 +6,7 @@
   "referenceIssue" : "",
   "rationale" : "The baseline against which the dead-control fixture is read. Inheritance is a deliberate feature and isDocInherited is the honest flag, but the fact remains that a consumer receives, for a column, documentation the producer never wrote about that column. In a governance pipeline that text propagates into a data dictionary. Accepted because inheritance is intentional, bounded to the nearest ancestor, and flagged - and because the consumer can recover the truth from isDocInherited.",
   "catchesBugClass" : "Inheritance reaching past the nearest ancestor, or the docInherited flag not being set on an inherited doc, which would make the loss unrecoverable rather than merely present.",
-  "cannotCatch" : "It cannot show whether any consumer actually reads isDocInherited. It says nothing about property inheritance, which uses a different mechanism with different shadowing rules.",
+  "cannotCatch" : "It cannot show whether any consumer actually reads isDocInherited. It says nothing about property inheritance, which uses a different mechanism with different shadowing rules. It also cannot show the remedy, which now exists: inheritDoc(false) returns declared-only documentation and is measured by enriched-inheritdoc-false-reports-declared-only-docs. An accepted loss with an opt-out reads differently from one without, and until that control was wired up there was no opt-out.",
   "predicted" : {
     "classification" : "ACCEPTED_LOSS",
     "detail" : "Every declared doc is null; every reported doc is an ancestor's text with inherited=true."

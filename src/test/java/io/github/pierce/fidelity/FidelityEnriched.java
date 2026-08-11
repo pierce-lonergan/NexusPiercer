@@ -30,12 +30,31 @@ final class FidelityEnriched {
 
     // ------------------------------------------------------------------ options
 
-    /** Reads {@code avro.enriched}. Absent means default {@link FlattenOptions}. */
-    static FlattenOptions buildOptions(JsonNode avro) {
+    /**
+     * Reads {@code avro.enriched}. Absent means default {@link FlattenOptions}.
+     *
+     * <p>Two ways to configure a row, and they are mutually exclusive. {@code "preset": "NAME"}
+     * calls the named {@link FlattenOptions} FACTORY, so a fixture can pin the factory's own
+     * knobs; anything else is spelled out knob by knob. Before the preset hatch existed, two rows
+     * carried {@code gAvroParity} in their titles while measuring
+     * {@code FlattenOptions.builder().build()} - the factory whose name makes the claim was
+     * unobservable from the corpus, which is how its claim rotted.</p>
+     *
+     * <p>An unknown preset THROWS rather than falling through to the defaults, and a preset
+     * combined with explicit knobs is refused rather than merged. Both for the same reason: a
+     * fixture that declares one configuration and silently measures another still passes, and the
+     * runner already carries a {@code default ->} guard for exactly that failure on the
+     * comparator selector.</p>
+     */
+    static FlattenOptions buildOptions(String fixtureId, JsonNode avro) {
+        java.util.Objects.requireNonNull(fixtureId, "fixtureId");
         JsonNode e = avro == null ? null : avro.path("enriched");
         FlattenOptions.Builder b = FlattenOptions.builder();
         if (e == null || !e.isObject() || e.size() == 0) {
             return b.build();
+        }
+        if (e.has("preset")) {
+            return preset(fixtureId, e);
         }
         if (e.has("separator")) {
             b.separator(e.get("separator").asText());
@@ -71,6 +90,28 @@ final class FidelityEnriched {
                     .build());
         }
         return b.build();
+    }
+
+    /** Resolves {@code enriched.preset} to a named {@link FlattenOptions} factory. */
+    private static FlattenOptions preset(String fixtureId, JsonNode enriched) {
+        if (enriched.size() > 1) {
+            java.util.Set<String> extra = new TreeSet<>();
+            enriched.fieldNames().forEachRemaining(extra::add);
+            extra.remove("preset");
+            throw new IllegalStateException("fixture " + fixtureId + " declares a 'preset' "
+                    + "alongside explicit knobs " + extra + ". A preset a neighbouring key can "
+                    + "partially override is a preset whose recorded name no longer describes "
+                    + "what was measured - choose one or the other.");
+        }
+        String name = enriched.path("preset").asText("").trim();
+        return switch (name) {
+            case "DEFAULTS" -> FlattenOptions.defaults();
+            case "GAVRO_PARITY" -> FlattenOptions.gAvroParity();
+            default -> throw new IllegalStateException("fixture " + fixtureId
+                    + " declares unknown avro.enriched.preset '" + name + "'. Known presets: "
+                    + "DEFAULTS, GAVRO_PARITY. Falling through to the defaults on a typo would let "
+                    + "this fixture measure a configuration it does not declare.");
+        };
     }
 
     /** Human-readable, recorded so the exact options are pinned byte-for-byte. */
@@ -112,9 +153,10 @@ final class FidelityEnriched {
      * Every custom property the producer declared anywhere in the schema, as a sorted distinct set
      * of {@code key=value} pairs.
      *
-     * <p>Harvested from Avro's own {@code getObjectProps}, deliberately NOT mirroring the library's
-     * private reserved-name filter. Mirroring it would make the filter's silent drop invisible,
-     * which is the whole point of the reserved-name fixture.</p>
+     * <p>Harvested from Avro's own {@code getObjectProps}, deliberately NOT mirroring any
+     * reserved-name filter the library might grow. That independence is what made the private
+     * blocklist's silent drop measurable in the first place, and it is what would make a
+     * reintroduced one measurable again.</p>
      */
     static String declaredPropertySet(Schema schema) {
         java.util.Set<String> out = new TreeSet<>();
@@ -225,7 +267,15 @@ final class FidelityEnriched {
         return FidelityRender.text(new LinkedHashMap<String, Object>(out));
     }
 
-    /** What decoding the flattened NAME back through {@link FlattenedPath} actually recovers. */
+    /**
+     * What decoding the flattened NAME back through {@link FlattenedPath} actually recovers.
+     *
+     * <p>DO NOT "FIX" THIS to be array-aware. It passes {@code options.separator()} and ignores
+     * {@code arrayBoundarySeparator()} on purpose: that IS the divergence the contract discloses,
+     * and teaching it the boundary marker would flip the disclosure row to LOSSLESS and delete the
+     * warning rather than earn it. The rendered name is not a decodable structure - see
+     * {@link io.github.pierce.schema.NameCollisionPolicy#ESCAPE}.</p>
+     */
     static String decodedPaths(List<FlattenedField> fields, FlattenOptions options) {
         Map<String, Object> out = new TreeMap<>();
         for (FlattenedField f : fields) {

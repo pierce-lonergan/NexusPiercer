@@ -1,0 +1,82 @@
+{
+  "id" : "enriched-inheritdoc-false-reports-declared-only-docs",
+  "family" : "schema",
+  "title" : "FlattenOptions.inheritDoc(false) returns declared-only documentation, attributing nothing to a leaf its producer never documented",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "This row published a DEFECT until inheritDoc was wired up. It was the repository's signature pathology in the newest code on the branch: the option was declared, defaulted, validated, stored, exposed by a getter and read NOWHERE in src/main, so walkRecord computed the inherited doc unconditionally and inheritDoc(false) was byte-identical to inheritDoc(true). That identity WAS the finding. walkRecord now gates the inherited value at its source, so with the flag off nothing inherited is carried down the walk at all and every leaf reports exactly the documentation its producer wrote about it - which on this schema is none. The emitted docs therefore equal the declared docs, and the probe's two arms now differ, which is what proves the control is live.",
+  "catchesBugClass" : "The control going dead again - a builder method that validates, stores, is exposed by a getter and is never read. The probe expecting DIFFERENT is the tripwire: deleting the conditional in walkRecord turns this row red twice over, once on the verdict and once on the probe. It also catches the over-reach in the other direction, a repair that blanket-nulls documentation rather than only suppressing inheritance, because enriched-leaf-doc-is-reported-as-its-own would then go red while this row stayed green.",
+  "cannotCatch" : "It cannot show the governance consequence the option exists to avert - ancestor text propagating into a data dictionary as though the producer had written it about that column. That is what enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf records, and this row is its named remedy. It also cannot see a leaf that declares its OWN doc, because no field in this schema does; the unit test aLeafsOwnDocSurvivesWithInheritanceOff covers that, and it is the guard that stops the flag being wired to erase documentation outright.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The consumer asks for declared-only documentation and receives exactly that: all three leaves report doc=null and inherited=false, matching the declared side exactly. RE-AUTHORED against repaired behaviour rather than overridden - the measurement moved, so this fixture's prediction was rewritten alongside its prose and its id. The history lives in the manifest detail, where a consumer reads it, not in a prediction that would then contradict the title above it."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs DECLARED_DOC, inheritDoc=false",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "DECLARED_DOC",
+      "enriched" : {
+        "inheritDoc" : false
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "doc" : "An order record",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "customer",
+          "type" : {
+            "type" : "record",
+            "name" : "Customer",
+            "fields" : [ {
+              "name" : "full_name",
+              "type" : "string"
+            }, {
+              "name" : "email_address",
+              "type" : "string"
+            } ]
+          },
+          "doc" : "The buyer"
+        } ]
+      }
+    }
+  },
+  "probe" : {
+    "kind" : "ENRICHED_CONFIG_COMPARE",
+    "expect" : "DIFFERENT",
+    "configA" : {
+      "enriched" : {
+        "inheritDoc" : true
+      }
+    },
+    "configB" : {
+      "enriched" : {
+        "inheritDoc" : false
+      }
+    },
+    "note" : "These two must render DIFFERENTLY for as long as the control is live; the day someone stops reading options.inheritDoc() this flips back to EQUAL and says so."
+  },
+  "input" : "{\"order_id\":\"o-1\",\"customer\":{\"full_name\":\"A B\",\"email_address\":\"a@b.c\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "DECLARED_DOC",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=false;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"customer.email_address\":\"S:[]\",\"customer.full_name\":\"S:[]\",\"order_id\":\"S:[]\"}",
+    "flat" : "{\"customer_email\\\\_address\":\"S:a@b.c\",\"customer_full\\\\_name\":\"S:A B\",\"order\\\\_id\":\"S:o-1\"}",
+    "avroBaseline" : "{\"customer.email_address\":\"S:doc=null;inherited=false\",\"customer.full_name\":\"S:doc=null;inherited=false\",\"order_id\":\"S:doc=null;inherited=false\"}",
+    "avroDoc" : "{\"customer.email_address\":\"S:doc=null;inherited=false\",\"customer.full_name\":\"S:doc=null;inherited=false\",\"order_id\":\"S:doc=null;inherited=false\"}",
+    "losslessAvro" : true,
+    "probe" : {
+      "kind" : "ENRICHED_CONFIG_COMPARE",
+      "expect" : "DIFFERENT",
+      "a" : "{\"customer_email_address\":\"S:doc=The buyer;docInherited=true;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=3\",\"customer_full_name\":\"S:doc=The buyer;docInherited=true;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=2\",\"order_id\":\"S:doc=An order record;docInherited=true;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=1\"}",
+      "b" : "{\"customer_email_address\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=3\",\"customer_full_name\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=2\",\"order_id\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=1\"}",
+      "equal" : false
+    }
+  },
+  "measuredLossless" : true
+}

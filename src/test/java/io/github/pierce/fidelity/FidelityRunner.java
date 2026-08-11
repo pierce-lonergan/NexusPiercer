@@ -653,7 +653,7 @@ final class FidelityRunner {
     private static String[] runEnrichedKeyset(FidelityFixture fx, JsonNode avro, Schema schema,
                                               AvroSchemaFlattener legacy,
                                               Map<String, Object> flattened, Measurement m) {
-        FlattenOptions options = FidelityEnriched.buildOptions(avro);
+        FlattenOptions options = FidelityEnriched.buildOptions(fx.id(), avro);
         String comparator = avro.path("enrichedCompare").asText("");
         m.recorded.put("enrichedCompare", comparator);
         m.recorded.put("enrichedOptions", FidelityEnriched.renderOptions(options));
@@ -697,7 +697,7 @@ final class FidelityRunner {
     /** Compares what the enriched flattener REPORTS about a leaf against what the schema DECLARES. */
     private static String[] runEnrichedMetadata(FidelityFixture fx, JsonNode avro, Schema schema,
                                                 Measurement m) {
-        FlattenOptions options = FidelityEnriched.buildOptions(avro);
+        FlattenOptions options = FidelityEnriched.buildOptions(fx.id(), avro);
         String comparator = avro.path("enrichedCompare").asText("");
         m.recorded.put("enrichedCompare", comparator);
         m.recorded.put("enrichedOptions", FidelityEnriched.renderOptions(options));
@@ -896,8 +896,8 @@ final class FidelityRunner {
             result.put("equal", a.equals(b));
         } else if ("ENRICHED_CONFIG_COMPARE".equals(kind)) {
             Schema schema = new Schema.Parser().parse(fx.config().path("avro").path("avsc").toString());
-            String a = enrichedArm(probe.path("configA"), schema);
-            String b = enrichedArm(probe.path("configB"), schema);
+            String a = enrichedArm(fx.id(), probe.path("configA"), schema);
+            String b = enrichedArm(fx.id(), probe.path("configB"), schema);
             result.put("a", a);
             result.put("b", b);
             result.put("equal", a.equals(b));
@@ -935,9 +935,9 @@ final class FidelityRunner {
      * control alike, which is the exact "appears present and does nothing" failure this corpus has
      * already hit four times inside its own harness.
      */
-    private static String enrichedArm(JsonNode config, Schema schema) {
+    private static String enrichedArm(String fixtureId, JsonNode config, Schema schema) {
         try {
-            FlattenOptions options = FidelityEnriched.buildOptions(
+            FlattenOptions options = FidelityEnriched.buildOptions(fixtureId,
                     config.isObject() ? config : LENIENT.createObjectNode());
             return FidelityEnriched.renderLeaves(FidelityEnriched.flatten(options, schema));
         } catch (Throwable t) {

@@ -1,12 +1,12 @@
 {
   "id" : "enriched-escape-name-decodes-back-to-its-path",
   "family" : "schema",
-  "title" : "Under ESCAPE and with no array crossed, the flattened name decodes back to exactly the source path",
+  "title" : "Under ESCAPE, per-segment escaping of the separator's first character survives a decode when no array boundary is crossed",
   "stack" : "AVRO",
   "referenceIssue" : "",
-  "rationale" : "NameCollisionPolicy.ESCAPE's javadoc claims it is lossless and round-trips. That is an encode/decode claim, the most literal round-trip statement anywhere in the enriched API, and it belongs in a round-trip corpus. This fixture pins the case where the claim holds, and is the passing leg of the DECODED_PATH comparator.",
+  "rationale" : "What this row really guards is the per-SEGMENT escaping rule, which its own catchesBugClass has always named: FlattenedPath escapes the separator's FIRST character rather than the complete separator string, a distinction a property test caught once already. With no array crossed there is only one joiner and it is the one segments were escaped against, so decoding each flattened name recovers exactly the source path. Its rationale used to open by citing NameCollisionPolicy.ESCAPE's 'lossless and round-trips' javadoc as the most literal round-trip claim in the enriched API; that claim has been withdrawn, so the row is restated around the property it actually pins. The decodability here is a CONSEQUENCE of no array being crossed and is explicitly not a guarantee - its sibling enriched-escape-name-does-not-decode-across-an-array-boundary is the same configuration one array deep.",
   "catchesBugClass" : "A regression that makes the escaped rendering non-decodable - escaping the full separator string instead of its first character, for instance, the exact bug FlattenedPath.appendEscaped's comment records having been caught by a property test.",
-  "cannotCatch" : "Array boundaries, deliberately - see the sibling DEFECT. It cannot check the FAIL policy, where the names are known not to decode; that divergence is already carried by the keyset fixtures and a third row would be redundant.",
+  "cannotCatch" : "It cannot see the array-boundary case at all, which is the case where the decode breaks; that is the sibling row's job, and reading this one alone would leave a consumer believing the rendered name is a parseable structure. It also cannot recover what a decoder never could: PathSegment.recordName, and the difference between a map leaf and a scalar leaf.",
   "predicted" : {
     "classification" : "LOSSLESS",
     "detail" : "decodeSegments of each flattened name equals that leaf's path segment names."
