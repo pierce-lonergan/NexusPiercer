@@ -8,8 +8,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * The drift guard on {@code docs/ROUND_TRIP_FIDELITY.md}.
  *
  * <p>That document is the artifact a consumer reads before depending on this library, and it
- * restates 108 rows of a contract that lives somewhere else. A hand-maintained copy of a contract
+ * restates 147 rows of a contract that lives somewhere else. A hand-maintained copy of a contract
  * is a copy that goes stale, and a stale fidelity guarantee is worse than none: it is a promise
  * the corpus has stopped making. So the document is generated from {@code manifest.json} and this
  * class asserts that the committed bytes are exactly what the generator produces from the manifest
@@ -44,24 +42,12 @@ class RoundTripFidelityDocTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
-     * Locates the module root from the test classpath rather than trusting the working directory,
-     * so the guard behaves the same under surefire, an IDE and a bare JVM.
+     * Delegated to {@link FidelityCorpus} rather than duplicated. A second definition of "where is
+     * the repository" is a second thing that can drift, and the published-snippet gate reads a
+     * source file relative to the same root.
      */
     private static Path moduleRoot() {
-        URL url = RoundTripFidelityDocTest.class.getResource("/fidelity/manifest.json");
-        assertThat(url).as("the corpus manifest is not on the test classpath, so the document "
-                + "guard cannot run at all - that is a failure, not an empty pass").isNotNull();
-        Path p;
-        try {
-            p = Path.of(url.toURI());
-        } catch (URISyntaxException e) {
-            throw new AssertionError("manifest URL is not a file path: " + url, e);
-        }
-        while (p != null && !Files.isRegularFile(p.resolve("pom.xml"))) {
-            p = p.getParent();
-        }
-        assertThat(p).as("could not find the module root (no pom.xml above " + url + ")").isNotNull();
-        return p;
+        return FidelityCorpus.moduleRoot();
     }
 
     private static Path docFile() {

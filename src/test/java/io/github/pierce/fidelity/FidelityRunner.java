@@ -8,11 +8,21 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.pierce.AvroReconstructor;
 import io.github.pierce.AvroSchemaFlattener;
+import io.github.pierce.GAvroSchemaFlattener;
 import io.github.pierce.JsonFlattener;
 import io.github.pierce.JsonReconstructor;
 import io.github.pierce.MapFlattener;
+import io.github.pierce.schema.FlattenOptions;
+import io.github.pierce.schema.FlattenedField;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.EncoderFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -87,24 +97,50 @@ final class FidelityRunner {
     }
 
     static Measurement run(FidelityFixture fx) {
-        Measurement m = new Measurement();
-        String stack = fx.stack();
-        if ("AVRO".equals(stack)) {
-            runAvro(fx, m);
-        } else {
-            boolean doMap = "BOTH".equals(stack) || "MAP".equals(stack);
-            boolean doJson = "BOTH".equals(stack) || "JSON".equals(stack);
-            if (doMap) {
-                runMapStack(fx, m);
-            }
-            if (doJson) {
-                // The MAP arm owns the "flat" key when both run; the JSON arm gets its own so the
-                // two flattened intermediates are BOTH asserted. See runJsonStack.
-                runJsonStack(fx, m, doMap ? "flatJson" : "flat");
-            }
+        if (fx.javaInput() != null && !"MAP".equals(fx.stack())) {
+            // The JSON, BOTH and AVRO arms all need parseable source TEXT. Falling through with a
+            // null input would NPE somewhere downstream, or worse, be "helpfully" defaulted.
+            throw new IllegalStateException("fixture " + fx.id() + " declares javaInput but stack "
+                    + fx.stack() + "; a typed source document is only expressible on the MAP stack");
         }
-        runProbe(fx, m);
-        return m;
+        try (FidelityJavaInput.Env env = FidelityJavaInput.environment(fx.javaInput())) {
+            assert env != null;
+            Measurement m = new Measurement();
+            String stack = fx.stack();
+            if ("AVRO".equals(stack)) {
+                runAvro(fx, m);
+            } else {
+                boolean doMap = "BOTH".equals(stack) || "MAP".equals(stack);
+                boolean doJson = "BOTH".equals(stack) || "JSON".equals(stack);
+                if (doMap) {
+                    runMapStack(fx, m);
+                }
+                if (doJson) {
+                    // The MAP arm owns the "flat" key when both run; the JSON arm gets its own so
+                    // the two flattened intermediates are BOTH asserted. See runJsonStack.
+                    runJsonStack(fx, m, doMap ? "flatJson" : "flat");
+                }
+            }
+            runProbe(fx, m);
+            return m;
+        }
+    }
+
+    /**
+     * The fixture's source document, built once so the MAP arm and the probe arms see the SAME
+     * object graph. Identity matters: {@code detectCircularReferences} keys on object identity, so
+     * a probe that re-parsed its own copy would be measuring a different graph.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> source(FidelityFixture fx) {
+        if (fx.javaInput() != null) {
+            return (Map<String, Object>) FidelityJavaInput.build(fx.javaInput(), fx.id());
+        }
+        try {
+            return LENIENT.readValue(fx.input(), MAP_TYPE);
+        } catch (Exception e) {
+            throw new IllegalStateException("fixture " + fx.id() + " input is not parseable JSON", e);
+        }
     }
 
     /**
@@ -130,12 +166,7 @@ final class FidelityRunner {
     // ---------------------------------------------------------------- MAP stack
 
     private static void runMapStack(FidelityFixture fx, Measurement m) {
-        Map<String, Object> source;
-        try {
-            source = LENIENT.readValue(fx.input(), MAP_TYPE);
-        } catch (Exception e) {
-            throw new IllegalStateException("fixture " + fx.id() + " input is not parseable JSON", e);
-        }
+        Map<String, Object> source = source(fx);
         m.recorded.put("mapBaseline", FidelityRender.text(FidelityRender.java(source)));
 
         String flat;
@@ -237,10 +268,22 @@ final class FidelityRunner {
             throw new IllegalStateException("fixture " + fx.id() + " input is not parseable JSON", e);
         }
 
-        // The cache is static and keyed on full name + flags; a hit skips flattenSchema entirely
-        // and leaves the instance without record definitions, so reconstructOriginalSchema would
-        // then throw. Clearing between fixtures is what keeps this corpus order-independent.
+        // ORDER-INDEPENDENCE BRACKET, and the one place it is deliberately absent.
+        //
+        // AvroSchemaFlattener.schemaCache is `private static final` and keyed on full name plus
+        // two flags, with no schema CONTENT in the key; GAvroSchemaFlattener holds a static
+        // ThreadLocal parse cache. Clearing both at each end of runAvro is what keeps a fixture's
+        // result the same whether it runs first or last.
+        //
+        // What that bracket therefore means, stated because it is the audit finding and not the
+        // fix: every SCHEMA, SCHEMA_ARG_IGNORED, KEYSET and ENRICHED_* row is measured through
+        // getFlattenedSchemaNoCache, so NONE of them says anything about the cached entry point
+        // getFlattenedSchema(Schema) that the published stack recipe used to name. Exactly one
+        // fixture - assert SCHEMA_CACHED - calls the cached factory TWICE inside this bracket, and
+        // the absence of a clear between those two calls IS that fixture. Adding a clearCache
+        // there to "make it cleaner" deletes the measurement while leaving the row green.
         AvroSchemaFlattener.clearCache();
+        GAvroSchemaFlattener.clearCaches();
 
         Schema schema = new Schema.Parser().parse(avro.path("avsc").toString());
         AvroSchemaFlattener schemaFlattener = schemaFlattener(avro);
@@ -258,7 +301,17 @@ final class FidelityRunner {
         String doc;
         switch (mode) {
             case "KEYSET" -> {
-                baseline = renderNames(schemaFieldNames(schemaFlattener, schema));
+                // AvroSchemaFlattener.processFieldRecursively throws on a flattened-name
+                // collision. Until this catch existed that throw escaped run() and blew up the
+                // parameterized test as an ERROR instead of being recorded as a comparable
+                // outcome - the SCHEMA and DATA arms both caught, KEYSET did not.
+                String keysetBaseline;
+                try {
+                    keysetBaseline = renderNames(schemaFieldNames(schemaFlattener, schema));
+                } catch (Throwable t) {
+                    keysetBaseline = FidelityRender.thrown(t);
+                }
+                baseline = keysetBaseline;
                 doc = flattened == null
                         ? FidelityRender.thrown(new IllegalStateException("flatten failed"))
                         : renderNames(new ArrayList<>(flattened.keySet()));
@@ -296,7 +349,29 @@ final class FidelityRunner {
                 }
                 m.recorded.put("flattenedSchema", flattenedSchemaRendering);
             }
-            default -> {
+            case "SCHEMA_CACHED" -> {
+                String[] pair = runSchemaCached(fx, avro, schema, schemaFlattener, m);
+                baseline = pair[0];
+                doc = pair[1];
+            }
+            case "ENRICHED_KEYSET" -> {
+                String[] pair = runEnrichedKeyset(fx, avro, schema, schemaFlattener, flattened, m);
+                baseline = pair[0];
+                doc = pair[1];
+            }
+            case "ENRICHED_METADATA" -> {
+                String[] pair = runEnrichedMetadata(fx, avro, schema, m);
+                baseline = pair[0];
+                doc = pair[1];
+            }
+            case "DATUM" -> {
+                baseline = FidelityRender.text(FidelityRender.java(datum));
+                doc = runDatum(avro, schema, flattened, m);
+                // The AVRO disclosure gate must keep working on DATUM rows rather than silently
+                // printing NOT_APPLICABLE, so the defaults arm compares the SAME entry point.
+                m.recorded.put("avroDefaultsMatch", datumDefaultsArm(flattened, schema).equals(doc));
+            }
+            case "DATA" -> {
                 baseline = FidelityRender.text(FidelityRender.java(datum));
                 try {
                     Map<String, Object> back = avroReconstructor(avro).reconstructToMap(flattened, schema);
@@ -319,31 +394,329 @@ final class FidelityRunner {
                 // carrying real signal today - nine rows diverge there.
                 m.recorded.put("avroDefaultsMatch", avroDefaultsArm(flattened, schema).equals(doc));
             }
+            default -> throw new IllegalStateException("unknown avro assert mode '" + mode
+                    + "' on fixture " + fx.id() + ". A typo used to fall through to DATA, so the "
+                    + "fixture measured something else entirely and still passed against its own "
+                    + "recording.");
         }
         m.recorded.put("flat", flat);
         m.recorded.put("avroBaseline", baseline);
         m.recorded.put("avroDoc", doc);
-        boolean lossless = doc.equals(baseline);
-        if ("SCHEMA".equals(mode)) {
-            // The inverse alone is NOT a verdict on the SCHEMA stack: reconstructOriginalSchema
-            // replays stored definitions from the forward pass, so it reproduces the original even
-            // when the flattened schema has thrown information away. Three fixtures measured
-            // LOSSLESS on the first recording run for exactly that reason. The verdict is
-            // therefore the conjunction of the inverse and three checks on the flattened schema
-            // itself.
-            @SuppressWarnings("unchecked")
-            Map<String, Object> checks = (Map<String, Object>) m.recorded.get("schemaChecks");
+        boolean lossless = doc.equals(baseline) && checksHold(m);
+        m.recorded.put("losslessAvro", lossless);
+        AvroSchemaFlattener.clearCache();
+        GAvroSchemaFlattener.clearCaches();
+    }
+
+    /**
+     * Folds every check map the mode may have recorded into the verdict.
+     *
+     * <p>The inverse alone is NOT a verdict on the SCHEMA stack: {@code reconstructOriginalSchema}
+     * replays definitions captured during the forward pass, so it reproduces the original even
+     * when the flattened schema has thrown the information away - three fixtures measured LOSSLESS
+     * on the first recording run for exactly that reason. DATUM needs the same treatment for a
+     * sharper reason: {@link FidelityRender} renders a {@code GenericRecord} and a
+     * {@code LinkedHashMap} to byte-identical canonical text, so {@code doc.equals(baseline)} is
+     * TRUE for a datum whose nested record is a raw map. A DATUM mode without this conjunction
+     * would score its own defect fixtures LOSSLESS and be inert.
+     *
+     * <p>{@code enrichedChecks} is deliberately NOT in this loop and its absence is a decision,
+     * not an omission: those entries are STRINGS precisely so that a boolean like
+     * "the enriched arm threw" cannot make a correct parity control read as lossy. The strings are
+     * still asserted byte-exactly by {@code reconstructionMatchesTheRecording}.</p>
+     */
+    private static boolean checksHold(Measurement m) {
+        for (String key : new String[] {"schemaChecks", "datumChecks", "cacheChecks"}) {
+            Object node = m.recorded.get(key);
+            if (!(node instanceof Map<?, ?> checks)) {
+                continue;
+            }
             for (Object v : checks.values()) {
                 if (v instanceof Boolean b && !b) {
-                    lossless = false;
+                    return false;
                 }
             }
             if (Boolean.TRUE.equals(checks.get("threw"))) {
-                lossless = false;
+                return false;
             }
         }
-        m.recorded.put("losslessAvro", lossless);
-        AvroSchemaFlattener.clearCache();
+        return true;
+    }
+
+    // ---------------------------------------------------------------- AVRO: DATUM
+
+    /**
+     * The other Avro reconstruction entry point: {@code reconstruct(Map,Schema)}, which returns a
+     * {@code GenericRecord} rather than a {@code Map}.
+     *
+     * <p>It is {@code reconstructToMap} followed by {@code mapToGenericRecord}, and that second
+     * step is ONE LEVEL DEEP: it iterates the root schema's fields and calls
+     * {@code builder.set(name, value)} with whatever the map held. {@code GenericRecordBuilder}
+     * validates nullability and nothing else, so a {@code LinkedHashMap} lands in a record-typed
+     * field and {@code build()} succeeds. The object looks right in a debugger and cannot be
+     * written.</p>
+     */
+    private static String runDatum(JsonNode avro, Schema schema, Map<String, Object> flattened,
+                                   Measurement m) {
+        Map<String, Object> checks = new LinkedHashMap<>();
+        String doc;
+        try {
+            GenericRecord rec = avroReconstructor(avro).reconstruct(flattened, schema);
+            doc = FidelityRender.text(FidelityRender.java(rec));
+            checks.put("reconstructReturnedARecord", true);
+            checks.put("validatesAgainstSchema", GenericData.get().validate(schema, rec));
+            String offenders = nonRecordNestedPaths(schema, rec, "");
+            checks.put("nestedRecordsAreRecords", offenders.isEmpty());
+            checks.put("nonRecordNestedPaths", offenders);
+            checks.put("binaryEncodes", binaryEncodes(schema, rec, checks));
+        } catch (Throwable t) {
+            doc = FidelityRender.thrown(t);
+            // Orientation matters: every boolean in a check map must read true == correct, because
+            // the fold above turns any false into "not lossless". A key named "reconstructThrew"
+            // would invert that and the row would go green on the failure.
+            checks.put("reconstructReturnedARecord", false);
+            checks.put("validatesAgainstSchema", false);
+            checks.put("nestedRecordsAreRecords", false);
+            checks.put("nonRecordNestedPaths", "");
+            checks.put("binaryEncodes", false);
+            checks.put("encodeFailure", "");
+        }
+        checks.putIfAbsent("encodeFailure", "");
+        m.recorded.put("datumChecks", checks);
+        return doc;
+    }
+
+    private static String datumDefaultsArm(Map<String, Object> flattened, Schema schema) {
+        if (flattened == null) {
+            return FidelityRender.thrown(new IllegalStateException("flatten failed"));
+        }
+        try {
+            return FidelityRender.text(FidelityRender.java(
+                    AvroReconstructor.builder().build().reconstruct(flattened, schema)));
+        } catch (Throwable t) {
+            return FidelityRender.thrown(t);
+        }
+    }
+
+    /**
+     * Can the datum actually be written?
+     *
+     * <p>Only the SHALLOWEST throwable's simple name is recorded, never
+     * {@link FidelityRender#thrown}. {@code thrown()} walks to the ROOT cause, and under Avro 1.12
+     * the writer wraps the cast in {@code TracingClassCastException} whose cause is a raw
+     * {@code ClassCastException} whose message embeds module and classloader names. That text can
+     * differ under a surefire isolated classloader, which would make the recording
+     * machine-dependent - and a fixture that fails on someone else's laptop for no reason is a
+     * fixture somebody weakens.</p>
+     */
+    private static boolean binaryEncodes(Schema s, GenericRecord r, Map<String, Object> checks) {
+        try {
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(sink, null);
+            new GenericDatumWriter<GenericRecord>(s).write(r, encoder);
+            encoder.flush();
+            checks.put("encodeFailure", "");
+            return true;
+        } catch (Throwable t) {
+            checks.put("encodeFailure", t.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    /**
+     * Every place the schema says RECORD and the value is not one, rendered in the same
+     * {@code path=SimpleClassName } convention {@code shadowedColumns} already uses.
+     */
+    private static String nonRecordNestedPaths(Schema s, Object value, String path) {
+        StringBuilder out = new StringBuilder();
+        walkForNonRecords(s, value, path, out);
+        return out.toString().trim();
+    }
+
+    private static void walkForNonRecords(Schema s, Object value, String path, StringBuilder out) {
+        if (s == null || value == null) {
+            return;
+        }
+        switch (s.getType()) {
+            case RECORD -> {
+                if (!(value instanceof IndexedRecord rec)) {
+                    out.append(path.isEmpty() ? "<root>" : path)
+                            .append('=').append(value.getClass().getSimpleName()).append(' ');
+                    return;
+                }
+                for (Schema.Field f : s.getFields()) {
+                    String child = path.isEmpty() ? f.name() : path + "." + f.name();
+                    walkForNonRecords(f.schema(), rec.get(f.pos()), child, out);
+                }
+            }
+            case ARRAY -> {
+                if (value instanceof List<?> list) {
+                    for (int i = 0; i < list.size(); i++) {
+                        walkForNonRecords(s.getElementType(), list.get(i), path + "[" + i + "]", out);
+                    }
+                }
+            }
+            case MAP -> {
+                if (value instanceof Map<?, ?> map) {
+                    for (Map.Entry<?, ?> e : map.entrySet()) {
+                        walkForNonRecords(s.getValueType(), e.getValue(),
+                                path + "{" + e.getKey() + "}", out);
+                    }
+                }
+            }
+            case UNION -> {
+                for (Schema b : s.getTypes()) {
+                    if (b.getType() == Schema.Type.RECORD || b.getType() == Schema.Type.ARRAY
+                            || b.getType() == Schema.Type.MAP) {
+                        walkForNonRecords(b, value, path, out);
+                    }
+                }
+            }
+            default -> { }
+        }
+    }
+
+    // ---------------------------------------------------------------- AVRO: SCHEMA_CACHED
+
+    /**
+     * The CACHED factory, {@code getFlattenedSchema(Schema)} - the only entry point the published
+     * stack recipe used to name and the only one no fixture had ever executed.
+     */
+    private static String[] runSchemaCached(FidelityFixture fx, JsonNode avro, Schema schema,
+                                            AvroSchemaFlattener schemaFlattener, Measurement m) {
+        Schema v2 = new Schema.Parser().parse(avro.path("avsc2").toString());
+        boolean requireSameName = avro.path("requireSameFullName").asBoolean(true);
+        if (requireSameName && !v2.getFullName().equals(schema.getFullName())) {
+            throw new IllegalStateException("fixture " + fx.id() + " asserts SCHEMA_CACHED but its "
+                    + "two schemas have different full names, so the cache key differs and the "
+                    + "fixture measures nothing. Set avro.requireSameFullName=false only if that "
+                    + "is deliberately the control.");
+        }
+
+        Map<String, Object> checks = new LinkedHashMap<>();
+        // Recorded as a STRING on purpose: it is an exemption to make visible, not a correctness
+        // boolean, and folding it would make the control row read as lossy.
+        checks.put("sameFullNameRequired", String.valueOf(requireSameName));
+
+        // NO clearCache between these two calls. That absence is the fixture.
+        Schema f1 = schemaFlattener.getFlattenedSchema(schema);
+        Schema f2 = schemaFlattener.getFlattenedSchema(v2);
+
+        String baseline = describe(new AvroSchemaFlattener(
+                avro.path("schemaFlattener").path("includeArrayStatistics").asBoolean(false),
+                avro.path("schemaFlattener").path("includeNonTerminalArrays").asBoolean(true))
+                .getFlattenedSchemaNoCache(v2));
+        String doc = describe(f2);
+
+        checks.put("firstFlattenedColumns", renderNames(fieldNames(f1)));
+        checks.put("secondFlattenedColumns", renderNames(fieldNames(f2)));
+        checks.put("cacheDistinguishesTheTwoSchemas", f1 != f2);
+        checks.put("secondFlatteningMatchesItsOwnSchema", doc.equals(baseline));
+        String inverse;
+        try {
+            inverse = schemaFlattener.reconstructOriginalSchema(f2).toString();
+        } catch (Throwable t) {
+            inverse = FidelityRender.thrown(t);
+        }
+        checks.put("inverseOfSecond", inverse);
+        checks.put("inverseReproducesSecondSchema", inverse.equals(v2.toString()));
+        m.recorded.put("cacheChecks", checks);
+        return new String[] {baseline, doc};
+    }
+
+    private static List<String> fieldNames(Schema schema) {
+        List<String> names = new ArrayList<>();
+        for (Schema.Field f : schema.getFields()) {
+            names.add(f.name());
+        }
+        return names;
+    }
+
+    // ---------------------------------------------------------------- AVRO: enriched schema API
+
+    /**
+     * Compares the enriched flattener's column names against another producer of the same flat
+     * namespace. Comparative on purpose: the property "these two agree" can genuinely pass and
+     * genuinely fail, which is what makes each row signal rather than a constant.
+     */
+    private static String[] runEnrichedKeyset(FidelityFixture fx, JsonNode avro, Schema schema,
+                                              AvroSchemaFlattener legacy,
+                                              Map<String, Object> flattened, Measurement m) {
+        FlattenOptions options = FidelityEnriched.buildOptions(avro);
+        String comparator = avro.path("enrichedCompare").asText("");
+        m.recorded.put("enrichedCompare", comparator);
+        m.recorded.put("enrichedOptions", FidelityEnriched.renderOptions(options));
+
+        String baseline;
+        String emissionOrder;
+        try {
+            List<FlattenedField> fields = FidelityEnriched.flatten(options, schema);
+            List<String> names = FidelityEnriched.names(fields);
+            baseline = renderNames(names);
+            // renderNames SORTS, which destroys the emission order that position() and positional
+            // injection are about. Recorded separately, unsorted, so an ordering change is visible.
+            emissionOrder = FidelityRender.text(names.stream().map(n -> (Object) ("S:" + n)).toList());
+        } catch (Throwable t) {
+            baseline = FidelityRender.thrown(t);
+            emissionOrder = baseline;
+        }
+        m.recorded.put("enrichedNames", emissionOrder);
+
+        String doc;
+        try {
+            doc = switch (comparator) {
+                case "MAP_FLATTENER" -> flattened == null
+                        ? FidelityRender.thrown(new IllegalStateException("flatten failed"))
+                        : renderNames(new ArrayList<>(flattened.keySet()));
+                case "LEGACY_AVRO_SCHEMA_FLATTENER" -> renderNames(schemaFieldNames(legacy, schema));
+                case "GAVRO_SCHEMA_FLATTENER" -> renderNames(
+                        new ArrayList<>(new GAvroSchemaFlattener().flattenSchema(schema).keySet()));
+                case "ENRICHED_STREAM" -> renderNames(FidelityEnriched.streamNames(options, schema));
+                default -> throw new IllegalStateException("fixture " + fx.id()
+                        + " declares unknown avro.enrichedCompare '" + comparator + "'");
+            };
+        } catch (IllegalStateException unknown) {
+            throw unknown;
+        } catch (Throwable t) {
+            doc = FidelityRender.thrown(t);
+        }
+        return new String[] {baseline, doc};
+    }
+
+    /** Compares what the enriched flattener REPORTS about a leaf against what the schema DECLARES. */
+    private static String[] runEnrichedMetadata(FidelityFixture fx, JsonNode avro, Schema schema,
+                                                Measurement m) {
+        FlattenOptions options = FidelityEnriched.buildOptions(avro);
+        String comparator = avro.path("enrichedCompare").asText("");
+        m.recorded.put("enrichedCompare", comparator);
+        m.recorded.put("enrichedOptions", FidelityEnriched.renderOptions(options));
+
+        List<FlattenedField> fields;
+        try {
+            fields = FidelityEnriched.flatten(options, schema);
+        } catch (Throwable t) {
+            String failed = FidelityRender.thrown(t);
+            m.recorded.put("propertyPlacement", failed);
+            return new String[] {failed + " (declared side not reached)", failed};
+        }
+        m.recorded.put("propertyPlacement", FidelityEnriched.propertyPlacement(fields));
+
+        return switch (comparator) {
+            // A SET comparison on purpose: with inheritance on, a record-level property reaches N
+            // leaves, so a per-path comparison would report divergence for a reason that is a
+            // feature. Placement is pinned separately, above, but is not the verdict.
+            case "PROPERTY_SET" -> new String[] {
+                    FidelityEnriched.declaredPropertySet(schema),
+                    FidelityEnriched.emittedPropertySet(fields)};
+            case "DECLARED_DOC" -> new String[] {
+                    FidelityEnriched.declaredDocs(schema),
+                    FidelityEnriched.emittedDocs(fields)};
+            case "DECODED_PATH" -> new String[] {
+                    FidelityEnriched.declaredPaths(fields),
+                    FidelityEnriched.decodedPaths(fields, options)};
+            default -> throw new IllegalStateException("fixture " + fx.id()
+                    + " declares unknown avro.enrichedCompare '" + comparator + "'");
+        };
     }
 
     private static String avroDefaultsArm(Map<String, Object> flattened, Schema schema) {
@@ -475,31 +848,45 @@ final class FidelityRunner {
         if (probe == null || probe.isMissingNode() || probe.isNull()) {
             return;
         }
-        Map<String, Object> source;
-        try {
-            source = LENIENT.readValue(fx.input(), MAP_TYPE);
-        } catch (Exception e) {
-            throw new IllegalStateException("fixture " + fx.id() + " input is not parseable JSON", e);
-        }
         String kind = probe.path("kind").asText();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("kind", kind);
         result.put("expect", probe.path("expect").asText(""));
 
+        // A schema-only probe must not depend on the datum parsing, and a javaInput fixture has no
+        // input TEXT to re-parse - the source is built once and shared so that identity, which is
+        // what detectCircularReferences keys on, is the same graph in both arms.
         if ("RECONSTRUCT_CONFIG_COMPARE".equals(kind)) {
-            Map<String, Object> flat = flattener(fx.config()).flatten(source);
-            String a = FidelityRender.text(FidelityRender.java(
-                    reconstructor(probe.path("configA")).reconstruct(flat)));
-            String b = FidelityRender.text(FidelityRender.java(
-                    reconstructor(probe.path("configB")).reconstruct(flat)));
+            Map<String, Object> source = source(fx);
+            String a;
+            String b;
+            try {
+                Map<String, Object> flat = flattener(fx.config()).flatten(source);
+                a = FidelityRender.text(FidelityRender.java(
+                        reconstructor(probe.path("configA")).reconstruct(flat)));
+                b = FidelityRender.text(FidelityRender.java(
+                        reconstructor(probe.path("configB")).reconstruct(flat)));
+            } catch (Throwable t) {
+                a = FidelityRender.thrown(t);
+                b = a;
+            }
             result.put("a", a);
             result.put("b", b);
             result.put("equal", a.equals(b));
         } else if ("FLATTEN_CONFIG_COMPARE".equals(kind)) {
-            String a = FidelityRender.text(FidelityRender.java(
-                    flattener(probe.path("configA")).flatten(source)));
-            String b = FidelityRender.text(FidelityRender.java(
-                    flattener(probe.path("configB")).flatten(source)));
+            // Each arm is captured independently: one configuration can throw where the other does
+            // not, and "it threw" must be a comparable outcome rather than an aborted measurement.
+            // The detection-off arm of the cycle fixtures drives MapFlattener into stringifyObject
+            // on a self-referential container, which is exactly that case.
+            String a = flattenArm(fx, probe.path("configA"));
+            String b = flattenArm(fx, probe.path("configB"));
+            result.put("a", a);
+            result.put("b", b);
+            result.put("equal", a.equals(b));
+        } else if ("ENRICHED_CONFIG_COMPARE".equals(kind)) {
+            Schema schema = new Schema.Parser().parse(fx.config().path("avro").path("avsc").toString());
+            String a = enrichedArm(probe.path("configA"), schema);
+            String b = enrichedArm(probe.path("configB"), schema);
             result.put("a", a);
             result.put("b", b);
             result.put("equal", a.equals(b));
@@ -512,7 +899,7 @@ final class FidelityRunner {
             if (!"BIGDECIMAL_TWIN".equals(twin.path("kind").asText())) {
                 throw new IllegalStateException("unknown twin kind on fixture " + fx.id());
             }
-            Object typed = substitute(source, twin.path("key").asText(),
+            Object typed = substitute(source(fx), twin.path("key").asText(),
                     new BigDecimal(twin.path("decimal").asText()));
             @SuppressWarnings("unchecked")
             Map<String, Object> typedMap = (Map<String, Object>) typed;
@@ -520,6 +907,31 @@ final class FidelityRunner {
                     flattener(fx.config()).flatten(typedMap))));
         }
         m.recorded.put("probe", result);
+    }
+
+    private static String flattenArm(FidelityFixture fx, JsonNode config) {
+        try {
+            return FidelityRender.text(FidelityRender.java(flattener(config).flatten(source(fx))));
+        } catch (Throwable t) {
+            return FidelityRender.thrown(t);
+        }
+    }
+
+    /**
+     * Renders every leaf's doc, inheritance flag, mapped type, properties, nullability, array
+     * membership and position - NOT just its name. A probe that rendered only the name would
+     * report EQUAL for {@code inheritDoc}, for {@code inheritRecordProperties} and for a live doc
+     * control alike, which is the exact "appears present and does nothing" failure this corpus has
+     * already hit four times inside its own harness.
+     */
+    private static String enrichedArm(JsonNode config, Schema schema) {
+        try {
+            FlattenOptions options = FidelityEnriched.buildOptions(
+                    config.isObject() ? config : LENIENT.createObjectNode());
+            return FidelityEnriched.renderLeaves(FidelityEnriched.flatten(options, schema));
+        } catch (Throwable t) {
+            return FidelityRender.thrown(t);
+        }
     }
 
     /** Replaces every leaf reached by {@code key} with a Java-typed value the JSON stack cannot express. */

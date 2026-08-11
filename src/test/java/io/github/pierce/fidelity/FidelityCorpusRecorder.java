@@ -69,6 +69,7 @@ public final class FidelityCorpusRecorder {
         int lossy = 0;
         int changed = 0;
         List<String> disagreements = new ArrayList<>();
+        List<String> recipeVerdicts = new ArrayList<>();
 
         for (Path file : files) {
             String before = Files.readString(file, StandardCharsets.UTF_8);
@@ -93,6 +94,12 @@ public final class FidelityCorpusRecorder {
                 lossy++;
             }
 
+            // The published-recipe verdict is DERIVED here rather than guessed into the manifest by
+            // hand. It has to be computed AFTER the expected block is refreshed, because it
+            // compares the recipe's output against this row's own recording.
+            FidelityFixture refreshed = FidelityFixture.from((ObjectNode) JSON.readTree(after));
+            recipeVerdicts.add(fx.id() + "	" + FidelityRecipe.verdict(refreshed));
+
             String declared = declaredClassification(manifest, fx.id());
             if (declared != null && "LOSSLESS".equals(declared) != isLossless) {
                 disagreements.add(fx.id() + ": manifest says " + declared
@@ -100,6 +107,8 @@ public final class FidelityCorpusRecorder {
             }
         }
 
+        System.out.println("---- holdsUnderPublishedRecipe (copy into manifest.json by hand) ----");
+        recipeVerdicts.forEach(v -> System.out.println("RECIPE	" + v));
         System.out.println("re-measured " + files.size() + " fixtures under " + root);
         System.out.println("  lossless=" + lossless + "  lossy=" + lossy + "  files rewritten=" + changed);
         if (disagreements.isEmpty()) {

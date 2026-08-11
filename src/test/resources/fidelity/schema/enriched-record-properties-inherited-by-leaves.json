@@ -1,0 +1,79 @@
+{
+  "id" : "enriched-record-properties-inherited-by-leaves",
+  "family" : "schema",
+  "title" : "inheritRecordProperties(false) drops the record-level property from every leaf",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The live-control twin to the dead inheritDoc control. inheritRecordProperties IS read by walkRecord, so turning it off must change the output. Filed as its own row so that the pair - one of these two adjacent booleans works and the other does not - is visible in the published table rather than buried in a probe note. The loss is exactly what the caller asked for, is bounded to record-level properties, and is disclosed by requiresNonDefaultConfig.",
+  "catchesBugClass" : "inheritRecordProperties becoming inert - the same death its neighbour inheritDoc already died. The probe fires on that directly; the verdict fires on it too, since the emitted set would stop shrinking.",
+  "cannotCatch" : "It cannot show whether inheritance is the right default. It cannot distinguish 'property never harvested' from 'property harvested and then not inherited' - for that you need this row read together with the properties-survive row.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The declared set still contains the record-level property; the emitted set does not, because no leaf inherits it."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs PROPERTY_SET, inheritRecordProperties=false",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "PROPERTY_SET",
+      "enriched" : {
+        "inheritRecordProperties" : false
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string",
+          "x-erwin-physical-type" : "VARCHAR(36)",
+          "x-chase-dataelem" : "DE-1001"
+        }, {
+          "name" : "customer",
+          "type" : {
+            "type" : "record",
+            "name" : "Customer",
+            "x-owner" : "payments",
+            "fields" : [ {
+              "name" : "full_name",
+              "type" : "string",
+              "x-chase-dataelem" : "DE-2001"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "probe" : {
+    "kind" : "ENRICHED_CONFIG_COMPARE",
+    "expect" : "DIFFERENT",
+    "configA" : {
+      "enriched" : { }
+    },
+    "configB" : {
+      "enriched" : {
+        "inheritRecordProperties" : false
+      }
+    },
+    "note" : "inheritRecordProperties must change the emitted leaves; if it stops doing so it has joined inheritDoc as a dead control."
+  },
+  "input" : "{\"order_id\":\"o-1\",\"customer\":{\"full_name\":\"A B\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "PROPERTY_SET",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=false;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"customer.full_name\":\"S:[x-chase-dataelem]\",\"order_id\":\"S:[x-chase-dataelem, x-erwin-physical-type]\"}",
+    "flat" : "{\"customer_full\\\\_name\":\"S:A B\",\"order\\\\_id\":\"S:o-1\"}",
+    "avroBaseline" : "x-chase-dataelem=DE-1001 x-chase-dataelem=DE-2001 x-erwin-physical-type=VARCHAR(36) x-owner=payments",
+    "avroDoc" : "x-chase-dataelem=DE-1001 x-chase-dataelem=DE-2001 x-erwin-physical-type=VARCHAR(36)",
+    "losslessAvro" : false,
+    "probe" : {
+      "kind" : "ENRICHED_CONFIG_COMPARE",
+      "expect" : "DIFFERENT",
+      "a" : "{\"customer_full_name\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={x-chase-dataelem=DE-2001, x-owner=payments};nullable=false;withinArray=false;position=2\",\"order_id\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={x-chase-dataelem=DE-1001, x-erwin-physical-type=VARCHAR(36)};nullable=false;withinArray=false;position=1\"}",
+      "b" : "{\"customer_full_name\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={x-chase-dataelem=DE-2001};nullable=false;withinArray=false;position=2\",\"order_id\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={x-chase-dataelem=DE-1001, x-erwin-physical-type=VARCHAR(36)};nullable=false;withinArray=false;position=1\"}",
+      "equal" : false
+    }
+  },
+  "measuredLossless" : false
+}

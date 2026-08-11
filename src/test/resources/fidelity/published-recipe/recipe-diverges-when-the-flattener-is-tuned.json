@@ -1,0 +1,34 @@
+{
+  "id" : "recipe-diverges-when-the-flattener-is-tuned",
+  "family" : "published-recipe",
+  "title" : "A bounded, defaults-holding loss that the published recipe still cannot reproduce",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The per-row recipe verdict is a tri-state column across the whole corpus, and a column that always answers YES is a column that does nothing. This is the purpose-built NO case, so the control is proven live from a fixture the corpus owns rather than from whichever existing row happens to diverge this month. Under maxDepth(2) the subtree below a_b is truncated to JSON text; the row reconstructs identically through the DEFAULT reconstructor, so the existing defaults arm answers YES - and a consumer following the published recipe verbatim gets a completely different document, because the page's flattener runs at its own default depth. That gap is the whole reason the recipe column exists: the defaults arm re-reconstructs a map the fixture's flattener already produced and is structurally blind to any divergence the FLATTENER creates.\n\nTWO PREDICTIONS WERE WRONG HERE AND BOTH ARE RECORDED RATHER THAN QUIETLY FIXED. First, depth-overflow-aliases-a-real-string was expected to flip to recipe=NO and does not: its leaf is a string at depth 3, inside its own maxDepth(3), so a default flatten produces the identical map. Second, this row was predicted LOSSLESS on the theory that a truncated subtree round-trips as its own text. It does not: the BASELINE is the original nested object, not the truncated one, so truncation is lossy by construction - the same mechanism depth-one-over-max already publishes as ACCEPTED_LOSS. Measurement wins; the classification was corrected and an override records the disagreement.",
+  "catchesBugClass" : "The specific misleading shape this gap is about: a row published as holding under defaults which a consumer following the published recipe verbatim cannot reproduce. It proves the recipe verdict can return NO for a FLATTENER-side divergence, which is the class the defaults arm cannot see at all.",
+  "cannotCatch" : "It proves the column can say NO for a flattener-side divergence only. It cannot prove the column discriminates correctly across every other row, and it cannot prove the verdict is right where it says NOT_APPLICABLE - that population is pinned by a count gate, not by this fixture. Its LOSS is not an independent finding: the truncation mechanism duplicates depth-one-over-max exactly, and this row earns its place as the recipe control rather than as evidence of a second depth bug.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Predicted LOSSLESS on the theory that the truncated subtree round-trips as its own text. MEASURED LOSSY: the baseline is the original nested object, so a_b comes back as a string where the source had an object. The prediction is kept verbatim, the manifest publishes the measurement, and classificationOverrides records the disagreement."
+  },
+  "configDescription" : "mapFlattener.maxDepth=2",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 2
+    }
+  },
+  "input" : "{\"a\":{\"b\":{\"c\":{\"d\":\"leaf\"}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":{\"c\":{\"d\":\"S:leaf\"}}}}",
+    "flat" : "{\"a_b\":\"S:{\\\"c\\\":{\\\"d\\\":\\\"leaf\\\"}}\"}",
+    "mapDoc" : "{\"a\":{\"b\":\"S:{\\\"c\\\":{\\\"d\\\":\\\"leaf\\\"}}\"}}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"a\":{\"b\":{\"c\":{\"d\":\"S:leaf\"}}}}",
+    "flatJson" : "{\"a_b\":\"S:{\\\"c\\\":{\\\"d\\\":\\\"leaf\\\"}}\"}",
+    "jsonDoc" : "{\"a\":{\"b\":\"S:{\\\"c\\\":{\\\"d\\\":\\\"leaf\\\"}}\"}}",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

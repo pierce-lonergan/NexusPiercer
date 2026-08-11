@@ -1,0 +1,63 @@
+{
+  "id" : "enriched-stream-drops-injected-columns",
+  "family" : "schema",
+  "title" : "stream() silently returns none of the columns injectField() configured",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "EnrichedSchemaFlattener.flatten calls applyInjections; stream does not. A caller who configures injectField and then calls stream gets no synthetic columns and no signal. The javadoc states this and concedes that a caller who configured injections and got none would have no way to tell - which by this repository's own doctrine describes a control that appears present and does nothing, not an acceptable design. The existing unit test streamMatchesList compares the two entry points WITHOUT injections configured, so it structurally cannot see this. Filed DEFECT rather than ACCEPTED_LOSS deliberately: the loss is documented but not bounded from the caller's side, and the cheap honest fix - throw from stream() when injectedFields is non-empty - is available. The javadoc's defence is recorded here so a reviewer can reclassify with their eyes open.",
+  "catchesBugClass" : "An entry point that silently discards configuration another entry point honours. Also catches applyInjections being moved into the streaming path, which would flip this row and correctly demand a manifest update.",
+  "cannotCatch" : "It cannot show the memory argument that motivated the design, so it cannot adjudicate whether throwing or splicing is the right repair. It also cannot detect injections at positions beyond the source length, where applyInjections has a separate append-in-ascending-order branch that no fixture reaches.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "flatten emits the injected column at its position; stream emits only the three real ones."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs ENRICHED_STREAM, one injected field",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "ENRICHED_STREAM",
+      "enriched" : {
+        "inject" : [ {
+          "position" : 1,
+          "name" : "event_identifier",
+          "flattenedName" : "event_identifier",
+          "avroType" : "STRING"
+        } ]
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "ENRICHED_STREAM",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[1]",
+    "enrichedNames" : "[\"S:event_identifier\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:event_identifier\",\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "avroDoc" : "[\"S:order_id\",\"S:ship_city\",\"S:ship_post_code\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

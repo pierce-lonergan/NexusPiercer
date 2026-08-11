@@ -1,0 +1,57 @@
+{
+  "id" : "avro-generic-record-is-not-a-valid-datum",
+  "family" : "avro",
+  "title" : "reconstruct() returns a GenericRecord whose nested record is a LinkedHashMap",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The minimal reproducer for the second Avro reconstruction entry point, deliberately array-free so nobody can file it as an array bug. AvroReconstructor.reconstruct(Map,Schema) is reconstructToMap() followed by mapToGenericRecord(), and that second step iterates only the ROOT schema's fields and does builder.set(name, value) with whatever the map held. GenericRecordBuilder validates nullability and nothing else, so the LinkedHashMap that genericRecordToMap produced for the nested Ship record is set into a record-typed field and build() succeeds. The object looks right in a debugger, prints right in a log, and cannot be written. No assert mode before this one called reconstruct() at all.",
+  "catchesBugClass" : "A converter that rebuilds a typed container only at the top level and copies untyped children through verbatim, plus any 'validation' that checks nullability and calls it type checking. It also pins the exact failure surface: validate() says false and the writer throws, rather than the record silently encoding wrong bytes.",
+  "cannotCatch" : "It cannot catch a nested record that is wrong in CONTENT rather than in type - mapToGenericRecord would copy a correctly-typed but wrong-valued GenericRecord through unchanged and every check here would pass. It says nothing about unions, maps, logical types or enums under reconstruct(), nor about depth greater than two. Recording the encode failure by throwable type couples this row to the Avro version: TracingClassCastException did not exist before Avro 1.11.1, so an Avro bump forces a deliberate re-record. That is a stated decision, not a surprise.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "avroDoc will EQUAL avroBaseline - the corpus oracle renders a GenericRecord and a LinkedHashMap identically - so the entire verdict comes from datumChecks: validatesAgainstSchema=false, nestedRecordsAreRecords=false, nonRecordNestedPaths='ship=LinkedHashMap', binaryEncodes=false."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "R",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "int"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"id\":1,\"ship\":{\"city\":\"NY\"}}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : false,
+      "nestedRecordsAreRecords" : false,
+      "nonRecordNestedPaths" : "ship=LinkedHashMap",
+      "encodeFailure" : "ClassCastException",
+      "binaryEncodes" : false
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"id\":\"I:1\",\"ship_city\":\"S:NY\"}",
+    "avroBaseline" : "{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}}",
+    "avroDoc" : "{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

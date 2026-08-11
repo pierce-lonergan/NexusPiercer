@@ -1,0 +1,40 @@
+{
+  "id" : "vd-binary-array-collides-with-array-text",
+  "family" : "value-domain",
+  "title" : "A byte[] flattens to the byte-identical text a real array and an array-lookalike string produce",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "byte[] never reaches flattenValue's normalizePrimitive path at all - getClass().isArray() diverts it to flattenArray, which widens each byte to a list element and JSON-serialises it. The result is the bracket-leading text that vd-string-that-looks-like-array and vd-real-array-collides-with-array-text already collide on. That makes the collision class three members wide and, crucially, reachable with NO string and NO array anywhere in the input. The corpus spent three fixtures on this misdetection and none of them could reach it from the type Spark actually hands you for BinaryType.",
+  "catchesBugClass" : "Non-injectivity of the value encoding extended to the binary domain, and the asymmetry between ByteBuffer (base64 marker, deliberately preserved) and byte[] (widened to integers, destroyed). Any fix to array misdetection that keys on 'the value is a String' will still be wrong here, because no String existed in the input.",
+  "cannotCatch" : "Requires depth >= 2; a top-level byte[] produces a single-segment key, the prefix loop never runs, and the string survives untouched. Does not cover a byte[] of length 1 (parses to one element, spared) or of length 0. Cannot show which of the three colliding inputs the library should favour.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Strictly worse than the string case: the parent object is retyped as an array AND the binary payload is gone, with no base64 marker of the kind serializeValue applies to ByteBuffer."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "a",
+      "value" : {
+        "kind" : "map",
+        "entries" : [ {
+          "key" : "b",
+          "value" : {
+            "kind" : "bytes",
+            "value" : [ 1, 2, 3 ]
+          }
+        } ]
+      }
+    } ]
+  },
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":\"BYTES:AQID\"}}",
+    "flat" : "{\"a_b\":\"S:[1,2,3]\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"I:1\"},{\"b\":\"I:2\"},{\"b\":\"I:3\"}]}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

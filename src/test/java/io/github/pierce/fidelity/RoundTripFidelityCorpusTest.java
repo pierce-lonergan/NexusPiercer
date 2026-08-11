@@ -8,9 +8,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -20,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,7 +28,7 @@ import static org.assertj.core.api.Assertions.fail;
  * <h2>What this test is for</h2>
  *
  * <p>{@code src/test/resources/fidelity/manifest.json} is a contract published to consumers: for
- * each of 108 documents it states exactly what survives a flatten/reconstruct round trip and what
+ * each of 147 documents it states exactly what survives a flatten/reconstruct round trip and what
  * does not. This class is the mechanism that stops the repository changing any of it quietly.</p>
  *
  * <p>Each fixture is checked three ways, and the three are separate test methods so the executed
@@ -78,82 +74,33 @@ import static org.assertj.core.api.Assertions.fail;
 @DisplayName("Round-trip fidelity corpus: the published guarantee")
 class RoundTripFidelityCorpusTest {
 
-    private static final String MANIFEST_RESOURCE = "/fidelity/manifest.json";
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Map<String, FidelityRunner.Measurement> MEASUREMENTS = new ConcurrentHashMap<>();
-    private static final Map<String, FidelityFixture> FIXTURES = new ConcurrentHashMap<>();
 
     /** The three per-stack verdict keys. A fixture must record at least one of them. */
     private static final String[] STACK_FLAGS = {"losslessMap", "losslessJson", "losslessAvro"};
 
     // ------------------------------------------------------------------ loading (fails loudly)
+    //
+    // Delegated to FidelityCorpus so the published-snippet gate reads the SAME corpus this class
+    // asserts. Two loaders would be two ideas of what the corpus is, and they could disagree about
+    // which fixtures exist - the failure mode where a gate runs over a smaller set than it appears
+    // to. Every failure message below still names the problem and refuses to present as an empty
+    // pass; see FidelityCorpus.
 
     private static Path corpusRoot() {
-        URL url = RoundTripFidelityCorpusTest.class.getResource(MANIFEST_RESOURCE);
-        if (url == null) {
-            throw new AssertionError("FIDELITY CORPUS DID NOT RUN: " + MANIFEST_RESOURCE
-                    + " is not on the test classpath. The guarantee is unverified - this is a "
-                    + "failure, not an empty pass.");
-        }
-        try {
-            return Path.of(url.toURI()).getParent();
-        } catch (URISyntaxException e) {
-            throw new AssertionError("FIDELITY CORPUS DID NOT RUN: manifest URL is not a file path: " + url, e);
-        }
+        return FidelityCorpus.corpusRoot();
     }
 
-    private static final Map<String, JsonNode> MANIFEST_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, JsonNode> ENTRY_CACHE = new ConcurrentHashMap<>();
-
-    /**
-     * Parses once and caches, but ONLY on success: every failure path re-reads and re-throws, so
-     * a broken manifest can never be cached into silence.
-     */
     private static JsonNode manifest() {
-        JsonNode cached = MANIFEST_CACHE.get("m");
-        if (cached != null) {
-            return cached;
-        }
-        JsonNode parsed = readManifest();
-        MANIFEST_CACHE.put("m", parsed);
-        return parsed;
-    }
-
-    private static JsonNode readManifest() {
-        Path file = corpusRoot().resolve("manifest.json");
-        String text;
-        try {
-            text = Files.readString(file, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new AssertionError("FIDELITY CORPUS DID NOT RUN: manifest is unreadable at " + file, e);
-        }
-        if (text.isBlank()) {
-            throw new AssertionError("FIDELITY CORPUS DID NOT RUN: manifest at " + file
-                    + " is empty. An empty contract is not a satisfied contract.");
-        }
-        JsonNode node;
-        try {
-            node = JSON.readTree(text);
-        } catch (IOException e) {
-            throw new AssertionError("FIDELITY CORPUS DID NOT RUN: manifest at " + file
-                    + " is not parseable JSON", e);
-        }
-        JsonNode fixtures = node.get("fixtures");
-        if (fixtures == null || !fixtures.isArray() || fixtures.isEmpty()) {
-            throw new AssertionError("FIDELITY CORPUS DID NOT RUN: manifest at " + file
-                    + " declares no fixtures. Zero fixtures is a failure, never a pass.");
-        }
-        return node;
+        return FidelityCorpus.manifest();
     }
 
     private static List<JsonNode> manifestEntries() {
-        List<JsonNode> out = new ArrayList<>();
-        manifest().get("fixtures").forEach(out::add);
-        return out;
+        return FidelityCorpus.manifestEntries();
     }
 
     static Stream<String> manifestFixtureIds() {
-        return manifestEntries().stream().map(e -> e.get("id").asText());
+        return FidelityCorpus.manifestFixtureIds();
     }
 
     static Stream<String> fixtureIdsWithProbes() {
@@ -173,35 +120,15 @@ class RoundTripFidelityCorpusTest {
     }
 
     private static JsonNode entry(String id) {
-        return ENTRY_CACHE.computeIfAbsent(id, k -> {
-            for (JsonNode e : manifestEntries()) {
-                if (k.equals(e.get("id").asText())) {
-                    return e;
-                }
-            }
-            throw new AssertionError("no manifest entry for fixture id " + k);
-        });
+        return FidelityCorpus.entry(id);
     }
 
     private static FidelityFixture fixture(String id) {
-        return FIXTURES.computeIfAbsent(id, k -> {
-            JsonNode e = entry(k);
-            Path file = corpusRoot().resolve(e.get("file").asText());
-            if (!Files.isRegularFile(file)) {
-                throw new AssertionError("MANIFEST REFERENCES A MISSING FIXTURE: " + e.get("file").asText()
-                        + " is declared in the manifest but no such file exists under "
-                        + corpusRoot() + ". The guarantee for '" + k + "' is unverifiable.");
-            }
-            try {
-                return FidelityFixture.from(JSON.readTree(Files.readString(file, StandardCharsets.UTF_8)));
-            } catch (IOException ex) {
-                throw new AssertionError("fixture file is unreadable or unparseable: " + file, ex);
-            }
-        });
+        return FidelityCorpus.fixture(id);
     }
 
     private static FidelityRunner.Measurement measure(String id) {
-        return MEASUREMENTS.computeIfAbsent(id, k -> FidelityRunner.run(fixture(k)));
+        return FidelityCorpus.measure(id);
     }
 
     // ------------------------------------------------------------------ corpus integrity
@@ -458,6 +385,16 @@ class RoundTripFidelityCorpusTest {
                         + "defaults, or the disclosure is wrong. Manifest says: %s",
                         id, declared, e.get("detail").asText())
                 .isEqualTo(FidelityRunner.defaultsVerdict(measure(id)));
+
+        // The published RECIPE is a stronger claim than default reconstruction: the defaults arm
+        // only re-reconstructs an already-flattened map, so it is blind to a divergence the
+        // FLATTENER creates. A row measured under maxDepth(2) can hold under defaults and still be
+        // unreproducible by anyone following the page verbatim. The verdict itself is measured in
+        // PublishedSnippetsCompileTest; this gate is what makes publishing it non-optional.
+        assertThat(e.path("holdsUnderPublishedRecipe").asText(""))
+                .as("entry %s must publish holdsUnderPublishedRecipe", id)
+                .isIn(FidelityRunner.DEFAULTS_HOLD, FidelityRunner.DEFAULTS_DIVERGE,
+                        FidelityRunner.DEFAULTS_NA);
     }
 
     /** True when the fixture turns any knob the library would otherwise leave at its default. */
@@ -469,10 +406,16 @@ class RoundTripFidelityCorpusTest {
         // The Avro WRITER'S SCHEMA is data, not configuration - an Avro fixture cannot exist
         // without one, so counting it would make every Avro row read as "non-default" and the
         // flag would stop discriminating.
+        // avro.enriched is FlattenOptions - separator, collisionPolicy, inheritDoc, injections -
+        // and a row that sets it is measuring a tuned flattener. avro.enrichedCompare is
+        // deliberately a SIBLING key rather than a member of this block: it names the comparator,
+        // not a knob, and tuned() is a size>0 test, so a selector living inside the block would
+        // flip every enriched row to "non-default" and the flag would stop discriminating.
         return tuned(c.path("mapFlattener"))
                 || tuned(c.path("reconstructor"))
                 || tuned(c.path("avro").path("reconstructor"))
-                || tuned(c.path("avro").path("schemaFlattener"));
+                || tuned(c.path("avro").path("schemaFlattener"))
+                || tuned(c.path("avro").path("enriched"));
     }
 
     private static boolean tuned(JsonNode node) {
@@ -568,6 +511,8 @@ class RoundTripFidelityCorpusTest {
         JsonNode counts = manifest().path("counts");
         int nonDefault = 0;
         int losslessNotUnderDefaults = 0;
+        int losslessNotUnderRecipe = 0;
+        int recipeNotApplicable = 0;
         for (JsonNode e : manifestEntries()) {
             if (e.path("requiresNonDefaultConfig").asBoolean()) {
                 nonDefault++;
@@ -576,6 +521,14 @@ class RoundTripFidelityCorpusTest {
                     && FidelityRunner.DEFAULTS_DIVERGE.equals(
                             e.path("holdsUnderDefaultReconstruction").asText())) {
                 losslessNotUnderDefaults++;
+            }
+            String recipe = e.path("holdsUnderPublishedRecipe").asText("");
+            if ("LOSSLESS".equals(e.get("classification").asText())
+                    && FidelityRunner.DEFAULTS_DIVERGE.equals(recipe)) {
+                losslessNotUnderRecipe++;
+            }
+            if (FidelityRunner.DEFAULTS_NA.equals(recipe)) {
+                recipeNotApplicable++;
             }
         }
         assertThat(counts.path("nonDefaultConfig").asInt(-1))
@@ -586,6 +539,19 @@ class RoundTripFidelityCorpusTest {
                         + "reconstruction entry point. This is the number a consumer who reads "
                         + "only the summary most needs.")
                 .isEqualTo(losslessNotUnderDefaults);
+        assertThat(counts.path("losslessNotUnderPublishedRecipe").asInt(-1))
+                .as("the headline count of LOSSLESS rows a consumer following the published recipe "
+                        + "verbatim cannot reproduce")
+                .isEqualTo(losslessNotUnderRecipe);
+        // Load-bearing and easy to omit: without it, a bug that stopped the recipe measurement
+        // running would turn every row NOT_APPLICABLE and the next person to update the manifest
+        // would bless that as the new truth. Pinning the NA population makes a mass-NA regression
+        // a count failure - and FidelityCorpusRecorder never edits manifest.json, which is exactly
+        // why the count belongs here.
+        assertThat(counts.path("publishedRecipeNotApplicable").asInt(-1))
+                .as("the count of rows for which no published recipe exists (the Avro schema-path "
+                        + "and enriched-schema-path modes reconstruct no data)")
+                .isEqualTo(recipeNotApplicable);
     }
 
     @Test
@@ -595,7 +561,7 @@ class RoundTripFidelityCorpusTest {
         assertThat(known != null && known.isArray() && !known.isEmpty())
                 .as("the manifest must carry the up-front known-lossy list that the published "
                         + "document leads with. An empty list publishes a document implying "
-                        + "nothing is lost, which is false 76 times over.")
+                        + "nothing is lost, which is false 103 times over.")
                 .isTrue();
 
         Set<String> citedFamilies = new TreeSet<>();
@@ -648,8 +614,73 @@ class RoundTripFidelityCorpusTest {
         assertThat(citedFamilies)
                 .as("every family that contains a known loss must be represented in the up-front "
                         + "warning list. A family whose losses are only discoverable by reading "
-                        + "108 table rows has not been disclosed.")
+                        + "147 table rows has not been disclosed.")
                 .containsAll(lossyFamilies);
+    }
+
+    /**
+     * Every mechanism the harness offers is used by at least one fixture, verified by COUNT.
+     *
+     * <p>An assert mode, a comparator selector, a probe kind or an input hatch that no fixture
+     * exercises is a control that appears present and does nothing - the failure this repository
+     * has shipped a dozen times, four of them inside this very harness. The declared sets below
+     * are the CONTRACT: an unused mechanism fails because the used set is smaller, and an
+     * undeclared one fails because the used set is larger, so adding a mode without a fixture and
+     * adding a fixture on an unlisted mode are both build failures.</p>
+     */
+    @Test
+    @DisplayName("every harness mechanism is exercised by at least one fixture")
+    void everyHarnessMechanismIsExercisedByAFixture() {
+        Set<String> declaredModes = new TreeSet<>(List.of(
+                "DATA", "DATUM", "KEYSET", "SCHEMA", "SCHEMA_ARG_IGNORED", "SCHEMA_CACHED",
+                "ENRICHED_KEYSET", "ENRICHED_METADATA"));
+        Set<String> declaredComparators = new TreeSet<>(List.of(
+                "MAP_FLATTENER", "LEGACY_AVRO_SCHEMA_FLATTENER", "GAVRO_SCHEMA_FLATTENER",
+                "ENRICHED_STREAM", "PROPERTY_SET", "DECLARED_DOC", "DECODED_PATH"));
+        Set<String> declaredProbes = new TreeSet<>(List.of(
+                "RECONSTRUCT_CONFIG_COMPARE", "FLATTEN_CONFIG_COMPARE", "ENRICHED_CONFIG_COMPARE"));
+        Set<String> declaredPairKinds = new TreeSet<>(List.of("FLAT_EQUAL", "RECON_TYPE_AT_PATH"));
+
+        Set<String> usedModes = new TreeSet<>();
+        Set<String> usedComparators = new TreeSet<>();
+        Set<String> usedProbes = new TreeSet<>();
+        int javaInputRows = 0;
+        for (JsonNode e : manifestEntries()) {
+            FidelityFixture fx = fixture(e.get("id").asText());
+            if ("AVRO".equals(fx.stack())) {
+                usedModes.add(fx.config().path("avro").path("assert").asText("DATA"));
+                String cmp = fx.config().path("avro").path("enrichedCompare").asText("");
+                if (!cmp.isEmpty()) {
+                    usedComparators.add(cmp);
+                }
+            }
+            if (fx.probe() != null) {
+                usedProbes.add(fx.probe().path("kind").asText());
+            }
+            if (fx.javaInput() != null) {
+                javaInputRows++;
+            }
+        }
+        Set<String> usedPairKinds = new TreeSet<>();
+        manifestPairs().forEach(p -> usedPairKinds.add(p.get("kind").asText()));
+
+        assertThat(usedModes).as("every Avro assert mode the runner dispatches on must have a "
+                + "fixture, and no fixture may declare a mode that is not in this list")
+                .isEqualTo(declaredModes);
+        assertThat(usedComparators).as("every enrichedCompare selector must have a fixture")
+                .isEqualTo(declaredComparators);
+        assertThat(usedProbes).as("every probe kind must have a fixture")
+                .isEqualTo(declaredProbes);
+        assertThat(usedPairKinds).as("every pair-invariant kind must have a pair")
+                .isEqualTo(declaredPairKinds);
+        assertThat(javaInputRows).as("the typed javaInput hatch must be exercised; it is the only "
+                + "way to reach the Java value domain and the only way to build a cycle, so a "
+                + "corpus with zero javaInput rows means the hatch measures nothing")
+                .isGreaterThanOrEqualTo(9);
+        assertThat(declaredModes.size() + declaredComparators.size() + declaredProbes.size())
+                .as("VERIFY THE COUNT of mechanisms under test, so gutting a list above is a "
+                        + "failure rather than a silently smaller gate")
+                .isEqualTo(18);
     }
 
     private static List<String> expectedFlags(String stack) {
@@ -764,7 +795,22 @@ class RoundTripFidelityCorpusTest {
             assertThat(fx.rationale()).as("%s must say why it exists", id).isNotBlank();
             assertThat(fx.catchesBugClass()).as("%s must say what it catches", id).isNotBlank();
             assertThat(fx.cannotCatch()).as("%s must state its limits honestly", id).isNotBlank();
-            assertThat(fx.input()).as("%s must carry its input document", id).isNotBlank();
+            // SOURCE XOR. Exactly one of input (JSON text) and javaInput (a typed-constructor
+            // spec) must carry the document. Relaxing this to isNotNull() would accept a fixture
+            // with no source at all, which is the one thing this assertion exists to prevent.
+            boolean hasInput = fx.input() != null && !fx.input().isBlank();
+            boolean hasJava = fx.javaInput() != null;
+            assertThat(hasInput ^ hasJava)
+                    .as("%s must carry exactly one source document: 'input' as JSON text OR "
+                            + "'javaInput' as a typed spec. Neither is a fixture that measures "
+                            + "nothing; both is a field that reads like the source and is not.", id)
+                    .isTrue();
+            if (hasJava) {
+                assertThat(fx.stack())
+                        .as("%s uses javaInput, which only the MAP stack can accept - the JSON, "
+                                + "BOTH and AVRO arms all need parseable source text", id)
+                        .isEqualTo("MAP");
+            }
             checked++;
         }
         assertThat(checked).as("fixtures checked").isEqualTo(manifestEntries().size());

@@ -1,0 +1,52 @@
+{
+  "id" : "enriched-gavro-parity-claim-fails-at-array-boundaries",
+  "family" : "schema",
+  "title" : "The enriched defaults mark array boundaries with a doubled separator where GAvroSchemaFlattener's defaults use a single one",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The second, independent half of the false parity claim, isolated so it cannot be confused with the escaping half. GAvroSchemaFlattener's config defaults useArrayBoundarySeparator to false, which uses the plain separator for ALL joins including array element fields; FlattenOptions defaults arrayBoundarySeparator to a doubled separator unconditionally. Every name below an array differs. Deliberately underscore-free so the ONLY variable is the boundary marker.",
+  "catchesBugClass" : "Divergent boundary-marker conventions between two flatteners that claim a common one. Also catches a change to either default - making the enriched parity factory set a single-character boundary separator is the obvious repair and would flip this row.",
+  "cannotCatch" : "It cannot show the downstream consequence, that a Spark job migrating flatteners silently produces an all-null column under the new name. It says nothing about which convention consumers actually depend on, which is the question that decides the repair.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The enriched arm emits items__sku; the GAvro arm emits items_sku."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Item",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"items\":[{\"sku\":\"A1\"}]}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "GAVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:items__sku\"]",
+    "flat" : "{\"items_sku\":\"S:[\\\"A1\\\"]\"}",
+    "avroBaseline" : "[\"S:items__sku\"]",
+    "avroDoc" : "[\"S:items_sku\"]",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

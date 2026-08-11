@@ -1,0 +1,59 @@
+{
+  "id" : "avro-schema-cache-serves-a-stale-flattened-schema",
+  "family" : "avro",
+  "title" : "Two schemas sharing a full name: the second flattening is silently the first",
+  "stack" : "AVRO",
+  "referenceIssue" : "NP-003/NP-009",
+  "rationale" : "AvroSchemaFlattener.schemaCache is private static final and getFlattenedSchema(Schema) keys it on getFullName() plus two boolean flags, with no schema CONTENT in the key. The second call's computeIfAbsent lambda never runs, so the new field never appears AND the instance's recordDefinitions still describe v1, which is why reconstructOriginalSchema of the second result also replays v1. In a long-lived Spark executor a schema-registry version bump is discarded for the JVM lifetime - the normal case, not the edge case. This is the only corpus row that touches the entry point the published stack recipe used to name. It depends on a static map being untouched between two calls: default surefire is one JVM with no parallel classes, so it holds today; if anyone ever enables parallel test execution this fixture becomes flaky and the temptation will be to delete it. Do not.",
+  "catchesBugClass" : "A memoisation key that identifies a value by its NAME rather than by its content - the general class, of which this is one instance. It also catches the derived fault that the instance's recordDefinitions are left describing the wrong schema after a cache hit, which is a separate bug reachable only through the cached path.",
+  "cannotCatch" : "Single-threaded and single-instance. It cannot catch the concurrency hazard - two threads, one flattener, interleaved computeIfAbsent leaving recordDefinitions describing whichever schema finished last - which is the version of this bug that actually bites in an executor and which no fixture format here can express. It cannot catch unbounded cache growth, and it says nothing about getFlattenedSchema(String schemaPath), the third entry point, which keys on a file path and has the same defect.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "secondFlattenedColumns omits amount, cacheDistinguishesTheTwoSchemas=false, secondFlatteningMatchesItsOwnSchema=false, and the inverse taken after the cache hit does not reproduce v2."
+  },
+  "configDescription" : "assert SCHEMA_CACHED",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA_CACHED",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Ev",
+        "namespace" : "x",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        } ]
+      },
+      "avsc2" : {
+        "type" : "record",
+        "name" : "Ev",
+        "namespace" : "x",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        }, {
+          "name" : "amount",
+          "type" : [ "null", "double" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"id\":\"e1\",\"amount\":12.5}",
+  "expected" : {
+    "avroAssert" : "SCHEMA_CACHED",
+    "cacheChecks" : {
+      "sameFullNameRequired" : "true",
+      "firstFlattenedColumns" : "[\"S:id\"]",
+      "secondFlattenedColumns" : "[\"S:id\"]",
+      "cacheDistinguishesTheTwoSchemas" : false,
+      "secondFlatteningMatchesItsOwnSchema" : false,
+      "inverseOfSecond" : "{\"type\":\"record\",\"name\":\"Ev\",\"namespace\":\"x\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"}]}",
+      "inverseReproducesSecondSchema" : false
+    },
+    "flat" : "{\"amount\":\"D:12.5\",\"id\":\"S:e1\"}",
+    "avroBaseline" : "{\"amount\":\"S:type=[\\\"null\\\",\\\"double\\\"];logical=none;doc=null;hasDefault=false\",\"id\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "avroDoc" : "{\"id\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

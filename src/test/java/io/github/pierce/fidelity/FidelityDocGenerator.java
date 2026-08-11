@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * Renders {@code docs/ROUND_TRIP_FIDELITY.md} from {@code manifest.json}.
  *
- * <p>The published document is <b>generated, never written</b>. A hand-maintained table of 108
+ * <p>The published document is <b>generated, never written</b>. A hand-maintained table of 147
  * rows would go stale the first time a fixture was reclassified, and a consumer would then be
  * reading a promise the corpus no longer makes - which is the exact pathology this repository has
  * found a dozen times and would be self-parody to ship inside the fidelity guarantee itself.</p>
@@ -120,6 +120,10 @@ public final class FidelityDocGenerator {
                 + counts.path("nonDefaultConfig").asInt() + " |");
         line(b, "| `LOSSLESS` rows that do **not** hold through the default reconstruction entry "
                 + "point | " + counts.path("losslessNotUnderDefaultReconstruction").asInt() + " |");
+        line(b, "| `LOSSLESS` rows the **published recipe on this page** cannot reproduce | "
+                + counts.path("losslessNotUnderPublishedRecipe").asInt() + " |");
+        line(b, "| rows for which no published recipe exists (schema-only paths) | "
+                + counts.path("publishedRecipeNotApplicable").asInt() + " |");
         blank(b);
         line(b, "**" + counts.path("acceptedLoss").asInt() + " + " + counts.path("defect").asInt()
                 + " = " + (counts.path("acceptedLoss").asInt() + counts.path("defect").asInt())
@@ -225,6 +229,26 @@ public final class FidelityDocGenerator {
                 + "reconstructs no data at all -");
         line(b, "the Avro schema-only rows.");
         blank(b);
+        line(b, "The sharpest question of the three is the `recipe` column: does the row still "
+                + "hold when you run the");
+        line(b, "code block published in section 3 verbatim? That is strictly stronger than the "
+                + "`defaults` column, which");
+        line(b, "only re-reconstructs a map the row's own flattener already produced and is "
+                + "therefore blind to any");
+        line(b, "divergence the FLATTENER creates. Every recipe on this page is a compiled, "
+                + "executed method body - a");
+        line(b, "test asserts the text is byte-identical to source that javac accepted and that "
+                + "running it reproduces the");
+        line(b, "recorded answer.");
+        blank(b);
+        int recipeNo = 0;
+        for (JsonNode e : req(m, "fixtures")) {
+            if ("NO".equals(e.path("holdsUnderPublishedRecipe").asText())) {
+                recipeNo++;
+            }
+        }
+        line(b, "**" + recipeNo + " rows are not reproducible by the published recipe at all.**");
+        blank(b);
 
         List<JsonNode> diverging = new ArrayList<>();
         for (JsonNode e : req(m, "fixtures")) {
@@ -273,8 +297,9 @@ public final class FidelityDocGenerator {
                     + fc.path("LOSSLESS").asInt() + " lossless, "
                     + fc.path("ACCEPTED_LOSS").asInt() + " accepted loss, "
                     + fc.path("DEFECT").asInt() + " defect)");
-            line(b, "| id | stack | covers | class | what happens | config | defaults | issue |");
-            line(b, "| --- | --- | --- | --- | --- | --- | --- | --- |");
+            line(b, "| id | stack | covers | class | what happens | config | defaults | recipe "
+                    + "| issue |");
+            line(b, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
             for (JsonNode e : en.getValue()) {
                 String issue = e.path("referenceIssue").asText("");
                 line(b, "| `" + e.path("id").asText() + "` "
@@ -284,6 +309,7 @@ public final class FidelityDocGenerator {
                         + "| " + cell(e.path("detail").asText()) + " "
                         + "| " + cell(e.path("configDescription").asText()) + " "
                         + "| " + e.path("holdsUnderDefaultReconstruction").asText() + " "
+                        + "| " + e.path("holdsUnderPublishedRecipe").asText() + " "
                         + "| " + (issue.isEmpty() ? "-" : issue) + " |");
             }
             blank(b);

@@ -1,0 +1,38 @@
+{
+  "id" : "vd-java-date-is-not-a-function-of-its-input",
+  "family" : "value-domain",
+  "title" : "The flattened value of a java.util.Date depends on the JVM's default timezone, not only on the Date",
+  "stack" : "MAP",
+  "referenceIssue" : "",
+  "rationale" : "The sharpest single finding in the Java value domain, and it is not 'Date becomes String'. normalizePrimitive returns Date.toString(), which formats through TimeZone.getDefault(). Two Spark executors in different regions therefore emit DIFFERENT column values for the same row - flatten() is not a pure function of its argument. Nothing in the corpus, and nothing in MapFlattener's javadoc, discloses this. The fixture pins the zone explicitly so the recording is reproducible; the pin is itself the evidence, because a fixture that could not be pinned would be flaky. The pin is process-global and safe only because surefire runs one JVM with no parallel execution; if that ever changes this row becomes a source of cross-test flakes that will look like anything but a timezone pin.",
+  "catchesBugClass" : "Environment-dependent output presented as data. Catches any change to the Date branch of normalizePrimitive, and - because the harness pins and then asserts restoration of TimeZone and Locale - catches a future harness change that leaks the pin into sibling tests.",
+  "cannotCatch" : "Cannot catch the same non-determinism in java.sql.Date or java.sql.Timestamp: both also format through the default zone and both are subclasses caught by the same branch, so a per-subclass regression is invisible here. It removes the flake rather than demonstrating it. If a future JDK changes the short display name for UTC, this recording moves for a reason unrelated to the library.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The baseline is timezone-independent epoch millis; the flattened value is an unparseable English sentence that is a function of ambient JVM state."
+  },
+  "configDescription" : "defaults, with the JVM TimeZone pinned to UTC and Locale to en-US for the measurement",
+  "config" : { },
+  "javaInput" : {
+    "kind" : "map",
+    "entries" : [ {
+      "key" : "when",
+      "value" : {
+        "kind" : "date",
+        "epochMillis" : 0
+      }
+    } ],
+    "environment" : {
+      "timeZone" : "UTC",
+      "locale" : "en-US"
+    }
+  },
+  "expected" : {
+    "mapBaseline" : "{\"when\":\"DATE:0\"}",
+    "flat" : "{\"when\":\"S:Thu Jan 01 00:00:00 UTC 1970\"}",
+    "mapDoc" : "{\"when\":\"S:Thu Jan 01 00:00:00 UTC 1970\"}",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

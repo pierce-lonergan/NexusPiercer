@@ -1,0 +1,51 @@
+{
+  "id" : "avro-empty-datum-cannot-build-a-record",
+  "family" : "avro",
+  "title" : "An empty flattened map: reconstructToMap returns a partial map, reconstruct() disagrees",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The missing/empty-input drill doctrine requires of every new gate, and a real asymmetry rather than a ceremonial one. reconstructToMap early-returns createEmptyRecord for an empty flattened map, which populates only defaulted and nullable fields. reconstruct() then feeds that partial map to mapToGenericRecord, whose GenericRecordBuilder.build() has to answer for a required field with no default. Two sibling methods give the same input two different answers about whether it is representable - the same shape as avro-flattened-name-collision-guard-fires.",
+  "catchesBugClass" : "A degenerate-input path that diverges between two public entry points, and a builder that reports a missing required field only on one of them. Also catches the empty-map early return being deleted or widened.",
+  "cannotCatch" : "It cannot tell you which of the two answers is CORRECT - arguably both throwing, or both returning a partial map, would be defensible; it only pins that they disagree. It also does not cover a partially-populated flattened map, which is the far more common Spark case and reaches a different branch.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "UNCERTAIN AND FLAGGED: depends on what MapFlattener.flatten({}) returns. If it returns an empty map, reconstructToMap early-returns {region:null} and reconstruct() throws on the required id. The recorder decides; if measurement contradicts DEFECT the manifest publishes the measurement and an override records the disagreement."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Req",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        }, {
+          "name" : "region",
+          "type" : [ "null", "string" ],
+          "default" : null
+        } ]
+      }
+    }
+  },
+  "input" : "{}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : false,
+      "validatesAgainstSchema" : false,
+      "nestedRecordsAreRecords" : false,
+      "nonRecordNestedPaths" : "",
+      "binaryEncodes" : false,
+      "encodeFailure" : ""
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{}",
+    "avroBaseline" : "{}",
+    "avroDoc" : "THROWN: AvroMissingFieldException: Field id type:STRING pos:0 not set and has no default value",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

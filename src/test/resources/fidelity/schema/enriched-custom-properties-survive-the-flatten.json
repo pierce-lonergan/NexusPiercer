@@ -1,0 +1,56 @@
+{
+  "id" : "enriched-custom-properties-survive-the-flatten",
+  "family" : "schema",
+  "title" : "Every custom Avro property the producer declared reaches at least one flattened leaf",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "getObjectProps had never been called anywhere in this library before this API, so property preservation is a brand-new published claim with no corpus row. It is squarely fidelity-relevant: the properties ARE what the consumer gets back, and a governance pipeline's physical-type cascade reads them. The set comparison is chosen so that inheritance, which multiplies a record-level property across N leaves, does not register as divergence; placement is recorded separately and pinned byte-exactly without being the verdict.",
+  "catchesBugClass" : "getObjectProps ceasing to be called; the merge order inverting so an inherited property shadows a field's own, which is visible in propertyPlacement; reserved-key structural metadata leaking into user properties, which would grow the set.",
+  "cannotCatch" : "Set equality alone cannot tell WHICH leaf carries a property - that is why placement is recorded, but placement is pinned, not judged. It also cannot see properties whose names collide with the library's private reserved list; the sibling DEFECT fixture exists precisely because this one is blind to that.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The declared set and the emitted set are the same four key=value pairs."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs PROPERTY_SET, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "PROPERTY_SET",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string",
+          "x-erwin-physical-type" : "VARCHAR(36)",
+          "x-chase-dataelem" : "DE-1001"
+        }, {
+          "name" : "customer",
+          "type" : {
+            "type" : "record",
+            "name" : "Customer",
+            "x-owner" : "payments",
+            "fields" : [ {
+              "name" : "full_name",
+              "type" : "string",
+              "x-chase-dataelem" : "DE-2001"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"customer\":{\"full_name\":\"A B\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "PROPERTY_SET",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"customer.full_name\":\"S:[x-chase-dataelem, x-owner]\",\"order_id\":\"S:[x-chase-dataelem, x-erwin-physical-type]\"}",
+    "flat" : "{\"customer_full\\\\_name\":\"S:A B\",\"order\\\\_id\":\"S:o-1\"}",
+    "avroBaseline" : "x-chase-dataelem=DE-1001 x-chase-dataelem=DE-2001 x-erwin-physical-type=VARCHAR(36) x-owner=payments",
+    "avroDoc" : "x-chase-dataelem=DE-1001 x-chase-dataelem=DE-2001 x-erwin-physical-type=VARCHAR(36) x-owner=payments",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

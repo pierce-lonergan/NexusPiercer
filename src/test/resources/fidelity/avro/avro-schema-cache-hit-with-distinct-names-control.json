@@ -1,0 +1,60 @@
+{
+  "id" : "avro-schema-cache-hit-with-distinct-names-control",
+  "family" : "avro",
+  "title" : "Control: two differently-named schemas through the cached entry point each get their own flattening",
+  "stack" : "AVRO",
+  "referenceIssue" : "NP-003/NP-009",
+  "rationale" : "The good-input drill for SCHEMA_CACHED and the reason the stale-cache row is signal. Identical to the stale row except that the second schema is named x.Ev2, so the cache key differs and both lambdas run. Without this control, a SCHEMA_CACHED implementation that returned the first flattening unconditionally - or that computed the baseline from v1 by mistake - would make the DEFECT row pass while measuring nothing. The same-full-name guard is opted out of here through avro.requireSameFullName, and the mode records that flag in cacheChecks so the exemption is visible in the recording rather than hidden in the runner.",
+  "catchesBugClass" : "Proves the cached entry point works when the key is actually distinct, so the stale row's failure is attributable to the key and not to the mode. Also catches reconstructOriginalSchema failing after a genuine cache MISS - the hazard the runner's cache comment describes but which no fixture reached while the harness only ever called getFlattenedSchemaNoCache.",
+  "cannotCatch" : "Two calls in one JVM in one order. It cannot catch eviction, cross-fixture leakage (the runAvro clearCache bracket hides exactly that), or the flags half of the cache key - two flatteners built with different includeArrayStatistics on the same schema are a distinct case with no fixture.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Distinct cache keys, so both lambdas run: the second flattening carries both columns, matches a fresh uncached flattening of its own schema, and its inverse reproduces it."
+  },
+  "configDescription" : "assert SCHEMA_CACHED, requireSameFullName=false",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA_CACHED",
+      "requireSameFullName" : false,
+      "avsc" : {
+        "type" : "record",
+        "name" : "Ev",
+        "namespace" : "x",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        } ]
+      },
+      "avsc2" : {
+        "type" : "record",
+        "name" : "Ev2",
+        "namespace" : "x",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        }, {
+          "name" : "amount",
+          "type" : [ "null", "double" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"id\":\"e1\",\"amount\":12.5}",
+  "expected" : {
+    "avroAssert" : "SCHEMA_CACHED",
+    "cacheChecks" : {
+      "sameFullNameRequired" : "false",
+      "firstFlattenedColumns" : "[\"S:id\"]",
+      "secondFlattenedColumns" : "[\"S:amount\",\"S:id\"]",
+      "cacheDistinguishesTheTwoSchemas" : true,
+      "secondFlatteningMatchesItsOwnSchema" : true,
+      "inverseOfSecond" : "{\"type\":\"record\",\"name\":\"Ev2\",\"namespace\":\"x\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":[\"null\",\"double\"]}]}",
+      "inverseReproducesSecondSchema" : true
+    },
+    "flat" : "{\"amount\":\"D:12.5\",\"id\":\"S:e1\"}",
+    "avroBaseline" : "{\"amount\":\"S:type=[\\\"null\\\",\\\"double\\\"];logical=none;doc=null;hasDefault=false\",\"id\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "avroDoc" : "{\"amount\":\"S:type=[\\\"null\\\",\\\"double\\\"];logical=none;doc=null;hasDefault=false\",\"id\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

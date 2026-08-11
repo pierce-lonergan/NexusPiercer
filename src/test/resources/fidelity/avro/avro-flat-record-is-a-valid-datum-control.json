@@ -1,0 +1,59 @@
+{
+  "id" : "avro-flat-record-is-a-valid-datum-control",
+  "family" : "avro",
+  "title" : "Control: a record of scalars survives reconstruct() as a writable datum",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The good-input drill for the DATUM mode, and the reason the mode is not a control that appears present and does nothing. Without it, a DATUM implementation that hardcoded validatesAgainstSchema=false and binaryEncodes=false would make every DATUM DEFECT row pass and nobody would ever know. It is also the row that turns RED the day reconstruct() is repaired in a way that breaks the simple case.",
+  "catchesBugClass" : "Proves the DATUM mode's three new gates can return true, so a false from any DEFECT row is signal rather than a constant. Also catches a regression where reconstruct() starts failing on the trivial case - a builder change that stops setting explicitly-null nullable fields, for instance, which would make build() throw or drop the key.",
+  "cannotCatch" : "It is entirely flat, which is exactly the condition under which the code works, so it cannot catch anything the nested-record rows are about. It exercises no logical type, no enum, no fixed and no bytes; avro-logical-type-datum-is-writable-control covers those separately.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Every field is a scalar, so mapToGenericRecord's one-level copy is sufficient: validate passes, no non-record path is reported, the datum encodes, and avroDoc equals avroBaseline."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Flat",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "int"
+        }, {
+          "name" : "name",
+          "type" : "string"
+        }, {
+          "name" : "ok",
+          "type" : "boolean"
+        }, {
+          "name" : "ratio",
+          "type" : "double"
+        }, {
+          "name" : "note",
+          "type" : [ "null", "string" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"id\":7,\"name\":\"a\",\"ok\":true,\"ratio\":1.5,\"note\":null}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : true,
+      "nestedRecordsAreRecords" : true,
+      "nonRecordNestedPaths" : "",
+      "encodeFailure" : "",
+      "binaryEncodes" : true
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"id\":\"I:7\",\"name\":\"S:a\",\"note\":null,\"ok\":\"B:true\",\"ratio\":\"D:1.5\"}",
+    "avroBaseline" : "{\"id\":\"I:7\",\"name\":\"S:a\",\"note\":null,\"ok\":\"B:true\",\"ratio\":\"D:1.5\"}",
+    "avroDoc" : "{\"id\":\"I:7\",\"name\":\"S:a\",\"note\":null,\"ok\":\"B:true\",\"ratio\":\"D:1.5\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

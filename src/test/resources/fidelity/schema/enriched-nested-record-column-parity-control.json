@@ -1,0 +1,59 @@
+{
+  "id" : "enriched-nested-record-column-parity-control",
+  "family" : "schema",
+  "title" : "Control: on an array-free nested record the two flatteners produce identical columns",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The good-input drill that makes the LEGACY comparator a real one rather than one that can only report inequality. Deliberately array-free and map-free: the enriched defaults use a doubled array-boundary separator while the legacy flattener joins everything with a single one, so ANY array here would make the control fail for a reason that has nothing to do with correctness. Naming that trap in the fixture is the point. Addr is used TWICE without being nested inside itself, which is the case guardRecursion's open-set design exists to permit.",
+  "catchesBugClass" : "Proves the LEGACY comparator can return lossless, so the recursive row's inequality is signal. Independently catches a separator or join-order divergence between the two flatteners on ordinary nested records, and catches guardRecursion being changed from an open-set to a visited-set check - the cheapest possible detector for that specific mistake.",
+  "cannotCatch" : "Column NAMES only. Nothing here compares types, nullability, doc inheritance, mappedType, path segments or position - the entire enrichment the new API exists to provide is invisible to this row. It excludes arrays and maps by construction, which is where the two flatteners are most likely to diverge, and it uses default FlattenOptions so no option is exercised at all.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both arms emit the same five names."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs LEGACY_AVRO_SCHEMA_FLATTENER, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "LEGACY_AVRO_SCHEMA_FLATTENER",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Person",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        }, {
+          "name" : "home",
+          "type" : {
+            "type" : "record",
+            "name" : "Addr",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "zip",
+              "type" : [ "null", "string" ],
+              "default" : null
+            } ]
+          }
+        }, {
+          "name" : "work",
+          "type" : "Addr"
+        } ]
+      }
+    }
+  },
+  "input" : "{\"id\":\"p1\",\"home\":{\"city\":\"NY\",\"zip\":\"10001\"},\"work\":{\"city\":\"LA\",\"zip\":null}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "LEGACY_AVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:id\",\"S:home_city\",\"S:home_zip\",\"S:work_city\",\"S:work_zip\"]",
+    "flat" : "{\"home_city\":\"S:NY\",\"home_zip\":\"S:10001\",\"id\":\"S:p1\",\"work_city\":\"S:LA\",\"work_zip\":null}",
+    "avroBaseline" : "[\"S:home_city\",\"S:home_zip\",\"S:id\",\"S:work_city\",\"S:work_zip\"]",
+    "avroDoc" : "[\"S:home_city\",\"S:home_zip\",\"S:id\",\"S:work_city\",\"S:work_zip\"]",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

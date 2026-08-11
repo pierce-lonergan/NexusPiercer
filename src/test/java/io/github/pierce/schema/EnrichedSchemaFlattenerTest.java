@@ -117,12 +117,36 @@ class EnrichedSchemaFlattenerTest {
             assertThat(f.isDocInherited()).isFalse();
         }
 
+        /**
+         * MEASURED, NOT PREDICTED. This test was called "inheritance can be switched off", passed
+         * {@code inheritDoc(TRUE)} - the default - and asserted the doc was present. It could only
+         * ever pass, which by this repository's doctrine is a disabled test.
+         *
+         * <p>{@code FlattenOptions.inheritDoc} is declared, defaulted, validated, stored and
+         * exposed by a getter, and a grep across {@code src/main} finds ZERO reads of
+         * {@code options.inheritDoc()}: {@code walkRecord} computes the inherited doc
+         * unconditionally. The control is dead.
+         *
+         * <p>Doctrine forbids resolving that by deleting the test, so the test now says what is
+         * true. It is pinned at the corpus level too, by
+         * {@code schema/enriched-inheritdoc-false-is-a-dead-control}, whose probe measures the two
+         * settings producing byte-identical leaves. When someone wires the flag up, this assertion
+         * and that fixture both go red together - which is correct, and is the signal that the
+         * published contract has changed.
+         */
         @Test
-        @DisplayName("inheritance can be switched off")
-        void inheritanceIsOptional() {
+        @DisplayName("inheritance CANNOT be switched off: inheritDoc(false) is a dead control")
+        void docInheritanceCannotBeSwitchedOff() {
             FlattenedField f = byName(
-                    flatten(FlattenOptions.builder().inheritDoc(true).build()), "customer_full_name");
-            assertThat(f.doc()).isPresent();
+                    flatten(FlattenOptions.builder().inheritDoc(false).build()), "customer_full_name");
+            assertThat(f.doc())
+                    .as("inheritDoc(false) asks for declared-only documentation; the leaf declares "
+                            + "none, so an honoured flag would leave this empty")
+                    .isPresent();
+            assertThat(f.isDocInherited())
+                    .as("and the library still reports the doc as inherited, so the caller is told "
+                            + "plainly that it got what it asked not to get")
+                    .isTrue();
         }
     }
 

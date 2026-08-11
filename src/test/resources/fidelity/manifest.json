@@ -12,17 +12,22 @@
     "MAP": {
       "title": "Stack A - Map level",
       "code": "MapFlattener f = MapFlattener.builder().build();\nMap<String, Object> flat = f.flatten(sourceMap);\nMap<String, Object> back = JsonReconstructor.quickReconstruct(flat);\n// lossless means back.equals(sourceMap)",
-      "note": "The source is an in-memory Java Map. Anything a JSON parser would have destroyed before flatten() was called is already absent from the source AND from the result, so this stack is structurally blind to parse-time loss. Fixtures that measure parse-time loss are declared JSON-only for that reason."
+      "note": "The source is an in-memory Java Map. Anything a JSON parser would have destroyed before flatten() was called is already absent from the source AND from the result, so this stack is structurally blind to parse-time loss. Fixtures that measure parse-time loss are declared JSON-only for that reason. SECOND, LARGER CAVEAT: until the typed javaInput hatch existed, every MAP row's source was produced by a JSON parser, so this stack exercised only the JSON value domain - String, Boolean, Integer, Long, Double, BigInteger, List, Map, null - which is a strict subset of what flatten(Map<String,Object>) accepts. Spark supplies Date, Instant, UUID, enums, byte[], Object[], Set and non-String keys through the same signature, and all of them are erased; see the java-value-domain warning. Nine LOSSLESS MAP rows read differently once that is stated."
     },
     "JSON": {
       "title": "Stack B - JSON level",
-      "code": "JsonFlattener jf = JsonFlattener.builder().build();\nMap<String, Object> flat = jf.flattenToMap(jsonString);\nString back = JsonReconstructor.builder().build().reconstructToJson(flat);\n// lossless means back is semantically equal to jsonString",
-      "note": "The source is JSON text. Jackson parses it before the flattener runs, so this stack sees parse-time loss - declared decimal scale, exponent overflow - that Stack A cannot see. The corpus compares the two documents with BigDecimal-exact parsing on both sides: comparing the raw text would fail on 1e2 versus 100.0, and comparing with a default mapper would collapse both sides to the same Double and hide the money loss."
+      "code": "Map<String, Object> flat = JsonFlattener.create().from(jsonString).toMap();\nString back = JsonReconstructor.builder().build().reconstructToJson(flat);\n// lossless means back is semantically equal to jsonString",
+      "note": "The source is JSON text. Jackson parses it before the flattener runs, so this stack sees parse-time loss - declared decimal scale, exponent overflow - that Stack A cannot see. The corpus compares the two documents with BigDecimal-exact parsing on both sides: comparing the raw text would fail on 1e2 versus 100.0, and comparing with a default mapper would collapse both sides to the same Double and hide the money loss. TWO DISCLOSURES ADDED AFTER THE RECIPE WAS FIRST COMPILED. (1) The recipe published here previously declared a JsonFlattener variable, which cannot compile: the class's only constructor is private, all four factories return FluentOperation, and no public member anywhere returns the type, so flattenToMap, flattenToJson and flattenMapToJson are unreachable from outside the package. The corrected recipe reaches the same code because FluentOperation.from(String) delegates to flattenToMap. (2) Do NOT generalise that: from(Map) and from(JsonNode) bypass flattenToMap entirely and call the map flattener directly, so \"FluentOperation always routes through flattenToMap\" is false."
     },
     "AVRO": {
       "title": "Stack C - Avro",
-      "code": "AvroSchemaFlattener sf = new AvroSchemaFlattener(false, true);\nSchema flatSchema = sf.getFlattenedSchema(schema);\nMap<String, Object> flat = MapFlattener.builder().build().flatten(datum);\nMap<String, Object> back = AvroReconstructor.builder().build().reconstructToMap(flat, schema);",
-      "note": "Two separate things are measured and they do not agree with each other: the DATA path (flatten a datum, reconstruct it against the writer schema) and the SCHEMA path (flatten a schema, then ask reconstructOriginalSchema to invert it). The schema inverse replays definitions captured during the forward pass rather than reading the flattened schema, so it reproduces the original even when the flattened schema has discarded the information. The corpus therefore never accepts the inverse alone as a verdict; it conjoins it with direct checks on what the flattened schema still carries."
+      "code": "AvroSchemaFlattener.clearCache();\nAvroSchemaFlattener sf = new AvroSchemaFlattener(false, true);\n// getFlattenedSchemaNoCache, NOT getFlattenedSchema: the cached factory keys on the\n// schema's full name and returns another schema's columns when the name repeats.\n// flatSchema is the Spark-facing COLUMN LAYOUT - build your StructType from it.\n// Reconstruction takes the ORIGINAL schema, not this one.\nSchema flatSchema = sf.getFlattenedSchemaNoCache(schema);\nMap<String, Object> flat = MapFlattener.builder().build().flatten(datum);\nMap<String, Object> back = AvroReconstructor.builder().build().reconstructToMap(flat, schema);",
+      "note": "Two separate things are measured and they do not agree with each other: the DATA path (flatten a datum, reconstruct it against the writer schema) and the SCHEMA path (flatten a schema, then ask reconstructOriginalSchema to invert it). The schema inverse replays definitions captured during the forward pass rather than reading the flattened schema, so it reproduces the original even when the flattened schema has discarded the information. The corpus therefore never accepts the inverse alone as a verdict; it conjoins it with direct checks on what the flattened schema still carries. THREE DISCLOSURES. (1) The DATA path has TWO entry points and they do not agree: reconstructToMap returns a Map and is what every DATA row measures, while reconstruct returns a GenericRecord whose nested records are raw maps - it fails GenericData.validate and throws on a binary encode. Rows asserting DATUM measure that second entry point, and three LOSSLESS Map rows are qualified accordingly. (2) Every SCHEMA, KEYSET and enriched row is measured through getFlattenedSchemaNoCache; the recipe above says so explicitly because the previously published recipe named the statically CACHED getFlattenedSchema(Schema), which no row had ever executed. Exactly one row, avro-schema-cache-serves-a-stale-flattened-schema, exercises the cached factory, and it shows the cache keying on the schema's full name and serving another version's columns. (3) The enriched schema API (EnrichedSchemaFlattener.flatten and .stream, measured by the ENRICHED_KEYSET and ENRICHED_METADATA modes) has no inverse, so \"fidelity\" for the schema family means agreement between producers and encode/decode reversibility - never flatten-then-rebuild. No row in that family is evidence that data flattened under an enriched StructType comes back."
+    },
+    "AVRO_SCHEMA": {
+      "title": "Stack C - Avro, schema inverse",
+      "code": "AvroSchemaFlattener.clearCache();\nAvroSchemaFlattener sf = new AvroSchemaFlattener(false, true);\nSchema flatSchema = sf.getFlattenedSchemaNoCache(schema);\nSchema original = sf.reconstructOriginalSchema(flatSchema);",
+      "note": "Six Avro rows are measured on this path and until now the manifest published no recipe for it at all. Read the result with the same warning the data note carries: reconstructOriginalSchema REPLAYS record definitions captured during the forward pass rather than reading the flattened schema, so it reproduces the original even when the flattened schema has discarded the information, and it throws outright if the forward pass was served from the cache. The KEYSET path (avro-underscore-field-name-column-divergence) still has no published recipe; that is disclosed here rather than folded into this one."
     }
   },
   "repairPolicy": {
@@ -75,10 +80,11 @@
     {
       "id": "non-finite-numbers",
       "kind": "LOSS",
-      "headline": "A number that overflows a double becomes the text \"Infinity\".",
-      "statement": "A finite JSON number too large for a double is emitted as the JSON string \"Infinity\", not as a number and not as an error. A number too small underflows to 0.0. NaN and Infinity collapse to their string forms. A consumer parsing the output sees a string where the source had a number, and no exception is raised anywhere on the path.",
+      "headline": "A non-finite number is indistinguishable afterwards from a string of the same text.",
+      "statement": "Two separate facts, split because only one of them was previously backed by a fixture. (a) A literal that overflows a double during PARSING becomes the text \"Infinity\" - vd-exponent-overflow-and-underflow records a genuine Double.POSITIVE_INFINITY going through the flattener's isInfinite branch. (b) A non-finite Double handed to flatten() by a Spark Row is byte-identical afterwards to a user string of the same text - vd-nonfinite-double-collides-with-its-text. JSON has no NaN literal, so (b) was unassertable until the typed input hatch existed.",
       "fixtures": [
-        "vd-exponent-overflow-and-underflow"
+        "vd-exponent-overflow-and-underflow",
+        "vd-nonfinite-double-collides-with-its-text"
       ]
     },
     {
@@ -100,7 +106,8 @@
         "vd-decimal-scale-and-precision",
         "financial-transaction-high-precision",
         "vd-preserve-bigdecimal-flag-inert",
-        "avro-decimal-bytes-scale-mismatch"
+        "avro-decimal-bytes-scale-mismatch",
+        "vd-bigdecimal-java-native-scale-loss-and-the-live-flag"
       ]
     },
     {
@@ -121,12 +128,14 @@
     {
       "id": "string-array-lookalikes",
       "kind": "LOSS",
-      "headline": "A string whose text merely looks like a JSON array is turned into an array.",
-      "statement": "The value domain is not injective: a genuine array and a scalar string containing that array's text flatten to byte-identical output, so at most one of the two can ever round-trip. The misdetection does not only mis-type the value, it fabricates padding elements that were never in the input.",
+      "headline": "Anything whose serialised text starts with a bracket is turned into an array.",
+      "statement": "The collision class is wider than a string that merely looks like an array. A genuine array, a string containing array text, a byte[], an Object[] and a Set all flatten to the same bracket-leading value, and the last three reach it with no string and no array anywhere in the input. Whichever one you fed in, the parent object is retyped as an array on the way back.",
       "fixtures": [
         "vd-string-that-looks-like-array",
         "vd-array-lookalike-fabricates-padding",
-        "vd-real-array-collides-with-array-text"
+        "vd-real-array-collides-with-array-text",
+        "vd-binary-array-collides-with-array-text",
+        "vd-object-array-and-set-become-array-text"
       ]
     },
     {
@@ -226,7 +235,8 @@
         "avro-reconstruct-original-schema-ignores-argument",
         "avro-underscore-field-name-column-divergence",
         "avro-array-statistics-suffix-silent-overwrite",
-        "avro-flattened-name-collision-guard-fires"
+        "avro-flattened-name-collision-guard-fires",
+        "avro-schema-cache-serves-a-stale-flattened-schema"
       ]
     },
     {
@@ -242,22 +252,138 @@
     {
       "id": "inert-controls",
       "kind": "INERT_CONTROL",
-      "headline": "Two settings are wired, documented, readable - and cannot change the output.",
-      "statement": "JsonReconstructor.maxDepth is a dead control: maxDepth(1) and maxDepth(1000) produce byte-identical results, so it cannot fail closed on a deep document. preserveBigDecimalPrecision cannot fire on the JSON stack. Each of these is pinned by a probe that asserts the two configurations produce IDENTICAL output - the day either control is wired up, that probe fails and this warning must be withdrawn.",
+      "headline": "Four settings are wired, documented, readable - and cannot change the output.",
+      "statement": "JsonReconstructor.maxDepth and MapFlattener.preserveBigDecimalPrecision on the JSON stack were the first two. There are now two more, both in the newest code: FlattenOptions.inheritDoc is never read anywhere in src/main, so asking for declared-only documentation still returns inherited documentation; and MapFlattener.detectCircularReferences has no effect on a self-referential List, because the visit-stack calls exist only on the object path. Each is proven inert by a probe that measures the two settings producing byte-identical output.",
       "fixtures": [
         "reconstructor-maxdepth-is-a-dead-control",
-        "vd-preserve-bigdecimal-flag-inert"
+        "vd-preserve-bigdecimal-flag-inert",
+        "enriched-inheritdoc-false-is-a-dead-control",
+        "circular-list-reference-escapes-the-guard"
+      ]
+    },
+    {
+      "id": "avro-generic-record-unwritable",
+      "kind": "LOSS",
+      "headline": "reconstruct() returns an Avro record that cannot be written.",
+      "statement": "AvroReconstructor has two data entry points and they do not agree. reconstructToMap returns a Map and is what the LOSSLESS Avro rows are about. reconstruct returns a GenericRecord, and it rebuilds only the ROOT record: every nested record, array element and map value is left as the raw LinkedHashMap the map-building step produced. The builder validates nullability and nothing else, so build() succeeds, the object looks correct in a debugger, GenericData.validate returns false and writing it throws ClassCastException in an executor. An empty flattened map makes the two entry points disagree outright: one returns a partial record, the other throws.",
+      "fixtures": [
+        "avro-generic-record-is-not-a-valid-datum",
+        "avro-array-of-records-datum-unwritable",
+        "avro-map-of-records-datum-unwritable",
+        "avro-empty-datum-cannot-build-a-record"
+      ]
+    },
+    {
+      "id": "recursive-schemas",
+      "kind": "LOSS",
+      "headline": "A self-referential schema kills the task rather than failing the record.",
+      "statement": "AvroSchemaFlattener walks a schema with neither a visited set nor an open-type set, so a record containing itself exhausts the JVM stack in the first pass. The failure is a StackOverflowError, an Error, so ordinary per-record error handling does not catch it and the Spark task dies. EnrichedSchemaFlattener refuses the same schema with a typed RecursiveSchemaException naming the cycle, which is the correct behaviour and is why that pair is the argument for the new API.",
+      "fixtures": [
+        "avro-recursive-schema-stack-overflows",
+        "enriched-recursive-schema-fails-typed"
+      ]
+    },
+    {
+      "id": "avro-schema-cache-stale",
+      "kind": "LOSS",
+      "headline": "The cached schema factory identifies a schema by its name, not its content.",
+      "statement": "getFlattenedSchema(Schema) memoises in a process-wide static map keyed on the schema's full name plus two flags. Flatten two versions of the same named record in one JVM and the second silently receives the first's columns, and the instance's record definitions are left describing the first, so the schema inverse replays it too. In a long-lived executor a registry version bump is discarded for the JVM lifetime.",
+      "fixtures": [
+        "avro-schema-cache-serves-a-stale-flattened-schema"
+      ]
+    },
+    {
+      "id": "enriched-schema-api",
+      "kind": "LOSS",
+      "headline": "The enriched schema API names columns your rows do not have, and its migration-parity claim does not hold.",
+      "statement": "Under its default collision policy EnrichedSchemaFlattener emits field names verbatim while MapFlattener escapes them, so the StructType it describes and the rows the library produces disagree on every field containing the separator. FlattenOptions.gAvroParity()'s documented parity with GAvroSchemaFlattener fails on two independent counts - escaping and the array-boundary marker. stream() silently discards configured column injections that flatten() honours. A producer property whose name collides with a private reserved list is dropped without a diagnostic. And the ESCAPE policy's documented reversibility breaks the moment an array boundary is crossed.",
+      "fixtures": [
+        "enriched-keyset-diverges-from-map-rows",
+        "enriched-gavro-parity-claim-fails-on-underscores",
+        "enriched-gavro-parity-claim-fails-at-array-boundaries",
+        "enriched-stream-drops-injected-columns",
+        "enriched-reserved-prop-name-collision-drops-a-producer-property",
+        "enriched-escape-name-does-not-decode-across-an-array-boundary"
+      ]
+    },
+    {
+      "id": "java-value-domain",
+      "kind": "LOSS",
+      "headline": "Every Java value that is not a String, Number or Boolean leaves this library as a String.",
+      "statement": "Stack A's declared input is Map<String,Object> and Spark supplies Date, Instant, UUID, enum constants, byte[], Object[], Set and non-String map keys through it. All of them are erased, none is marked, and the library offers no inverse. java.util.Date is worse than erased: it is flattened via Date.toString(), which formats through the JVM default timezone, so the flattened value is not a function of its input and two executors in different regions emit different data. A non-String map key is stringified and, on collision, renamed to a field name nobody wrote.",
+      "fixtures": [
+        "vd-java-native-temporal-and-identity",
+        "vd-java-date-is-not-a-function-of-its-input",
+        "non-string-map-keys-collide-and-are-disambiguated"
+      ]
+    },
+    {
+      "id": "circular-references",
+      "kind": "LOSS",
+      "headline": "The cycle guard marks Map cycles and misses List cycles.",
+      "statement": "detectCircularReferences defaults on and works: a self-referential Map is cut with an explicit marker rather than hanging. It does nothing for a self-referential List, because the visit-stack calls exist only on the object path, so the list case is bounded by maxDepth alone and emits nested brackets around a JDK toString artefact with no marker at all. Neither marker is escaped, so both are aliasable by data a user could legitimately have authored.",
+      "fixtures": [
+        "circular-map-reference-is-marked-and-the-guard-is-live",
+        "circular-list-reference-escapes-the-guard"
+      ]
+    },
+    {
+      "id": "published-recipes-were-never-executed",
+      "kind": "LOSS",
+      "headline": "The code on this page was, until now, free text that nothing compiled and nothing ran.",
+      "statement": "Every stack recipe published here is now the body of a compiled method, extracted from source and asserted byte-identical, and each one is executed against a corpus row and compared to that row's recording. That gate found two live faults in what this page previously published: the JSON recipe could not compile at all, because JsonFlattener's constructor is private and every factory returns a different type; and the Avro recipe named a statically cached factory that no measurement in the corpus had ever executed and that returns another schema's columns when a name repeats. A third of the rows also publish holdsUnderPublishedRecipe, and 25 of them say NO.",
+      "fixtures": [
+        "avro-schema-cache-serves-a-stale-flattened-schema",
+        "recipe-diverges-when-the-flattener-is-tuned"
       ]
     }
   ],
   "counts": {
-    "total": 108,
-    "lossless": 32,
-    "acceptedLoss": 10,
-    "defect": 66,
-    "nonDefaultConfig": 32,
+    "total": 147,
+    "lossless": 44,
+    "acceptedLoss": 16,
+    "defect": 87,
+    "nonDefaultConfig": 42,
     "losslessNotUnderDefaultReconstruction": 3,
+    "losslessNotUnderPublishedRecipe": 1,
+    "publishedRecipeNotApplicable": 35,
     "families": {
+      "avro": {
+        "total": 27,
+        "LOSSLESS": 6,
+        "ACCEPTED_LOSS": 2,
+        "DEFECT": 19
+      },
+      "limits": {
+        "total": 20,
+        "LOSSLESS": 8,
+        "ACCEPTED_LOSS": 5,
+        "DEFECT": 7
+      },
+      "naming": {
+        "total": 19,
+        "LOSSLESS": 8,
+        "ACCEPTED_LOSS": 1,
+        "DEFECT": 10
+      },
+      "published-recipe": {
+        "total": 2,
+        "LOSSLESS": 1,
+        "ACCEPTED_LOSS": 1,
+        "DEFECT": 0
+      },
+      "real-world": {
+        "total": 18,
+        "LOSSLESS": 5,
+        "ACCEPTED_LOSS": 0,
+        "DEFECT": 13
+      },
+      "schema": {
+        "total": 19,
+        "LOSSLESS": 8,
+        "ACCEPTED_LOSS": 4,
+        "DEFECT": 7
+      },
       "structural": {
         "total": 18,
         "LOSSLESS": 4,
@@ -265,34 +391,10 @@
         "DEFECT": 13
       },
       "value-domain": {
-        "total": 18,
+        "total": 24,
         "LOSSLESS": 4,
         "ACCEPTED_LOSS": 2,
-        "DEFECT": 12
-      },
-      "naming": {
-        "total": 18,
-        "LOSSLESS": 8,
-        "ACCEPTED_LOSS": 1,
-        "DEFECT": 9
-      },
-      "avro": {
-        "total": 18,
-        "LOSSLESS": 3,
-        "ACCEPTED_LOSS": 2,
-        "DEFECT": 13
-      },
-      "limits": {
-        "total": 18,
-        "LOSSLESS": 8,
-        "ACCEPTED_LOSS": 4,
-        "DEFECT": 6
-      },
-      "real-world": {
-        "total": 18,
-        "LOSSLESS": 5,
-        "ACCEPTED_LOSS": 0,
-        "DEFECT": 13
+        "DEFECT": 18
       }
     }
   },
@@ -321,6 +423,11 @@
       "id": "financial-transaction-huge-minor-units",
       "classification": "DEFECT",
       "reason": "DELIBERATE RECLASSIFICATION, ACCEPTED_LOSS -> DEFECT, on review of the loss claims. This row and vd-integer-past-long measure the identical behaviour - a BigInteger past Long.MAX_VALUE is emitted as a quoted string, every digit intact and the JSON type gone - and the corpus was publishing them under different classifications, so the same fact appeared to a consumer as a defect under repair in one family and an accepted design limit in another. The stated rationale, 'exact-but-retyped beats silently-wrong', compares the behaviour to the older implementation that wrapped to a negative number; that is an argument for why it is no longer a catastrophe, not an argument for why it is correct. The manifest text already conceded it was 'still open and worth separate triage'. Aligned with vd-integer-past-long as DEFECT."
+    },
+    {
+      "id": "recipe-diverges-when-the-flattener-is-tuned",
+      "classification": "ACCEPTED_LOSS",
+      "reason": "PREDICTED LOSSLESS, MEASURED LOSSY. The design reasoned that a subtree truncated by maxDepth round-trips as the JSON text it was truncated to. It does not: the baseline is the ORIGINAL nested object, so a_b comes back as a string where the source had an object, and truncation is lossy by construction. Published ACCEPTED_LOSS to match depth-one-over-max, which is the identical mechanism at a different bound. The row still does the job it was built for - it is the purpose-built NO case for holdsUnderPublishedRecipe - but its LOSS is not an independent finding and the detail says so."
     }
   ],
   "fixtures": [
@@ -335,7 +442,8 @@
       "detail": "Flattens to the single key l1_l2_l3_l4_l5_l6_l7_l8 = \"leaf\". No prefix is flagged as an array because the leaf does not start with a bracket; buildHierarchy rebuilds all 8 levels.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-of-objects-two-elements-top-level",
@@ -348,7 +456,8 @@
       "detail": "Flattens to users_name = \"[\\\"Alice\\\",\\\"Bob\\\"]\" and users_age = \"[30,25]\". Prefix users sees two serialized values of parsed size 2, is flagged as an array, and reconstructArray zips the columns back into two elements.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-of-objects-single-element",
@@ -361,7 +470,8 @@
       "detail": "Both the array wrapper and the value types are lost. Flattens correctly, but both columns parse to size 1, fail the > 1 test, so users becomes an object path and the leaves are never parsed.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "nested-array-of-objects-default",
@@ -374,7 +484,8 @@
       "detail": "Flatten is correct. analyzeStructure attributes the whole key value to every prefix, so both order and order_items are flagged as array paths, and the enclosing object becomes an array of identical elements while the real array becomes an object of raw text.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "nested-array-of-objects-explicit-hints",
@@ -387,7 +498,8 @@
       "detail": "With inference disabled only the configured path order_items enters analysis.arrayPaths; order stays an object path and the array rebuilds exactly.",
       "configDescription": "JsonReconstructor.builder().inferArraysFromValues(false).arrayPaths(\"order_items\")",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "top-level-array-of-scalars",
@@ -400,7 +512,8 @@
       "detail": "Both arrays survive flattening intact and come back as those same Strings. The information is fully present in the flattened form; only the reconstructor discards it.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "nested-array-of-scalars",
@@ -413,7 +526,8 @@
       "detail": "Prefix user sees a size-2 serialized array and is flagged as the array path, so the object becomes a 2-element array and the array becomes a scalar at every position.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-of-arrays-with-empty-inner",
@@ -426,7 +540,8 @@
       "detail": "Flattening is correct via the _value sentinel. On reconstruct, prefix grid is flagged and the outer object is turned into an array of objects, transposing one nesting level away.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "mixed-nested-array-sentinel-collision",
@@ -439,7 +554,8 @@
       "detail": "Actual flatten output uses the base key \"data\" rather than the documented data_value, and there is no positional null padding, so index alignment is already destroyed before reconstruction.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "heterogeneous-array-scalar-first",
@@ -452,7 +568,8 @@
       "detail": "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "heterogeneous-array-object-first",
@@ -465,7 +582,8 @@
       "detail": "The one-segment key overwrites the array holder built from the longer keys, producing a syntactically perfect array with both object elements silently deleted and no error, warning, or log.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "ragged-array-of-objects-absent-vs-null",
@@ -478,7 +596,8 @@
       "detail": "The second element gains a key it never had. Array length, ordering and all present values are correct, so only a key-set comparison catches it.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-element-with-nested-object-duplicated",
@@ -491,7 +610,8 @@
       "detail": "Both people and people_addr are flagged as arrays from one value; index 1 falls into the use-last-value fallback and reuses the same nested holder, so LA is replaced by a duplicate of a wrong value.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "empty-containers-at-depth",
@@ -504,7 +624,8 @@
       "detail": "Three distinct container states collapse to one null. The ACCEPTED half holds: nesting depth of the empty chain is preserved exactly.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "boundary-separator-on-round-trip",
@@ -517,7 +638,8 @@
       "detail": "Semantically identical to the flag-OFF run - only the character count of the keys differs.",
       "configDescription": "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "boundary-separator-on-double-underscore-field",
@@ -530,7 +652,8 @@
       "detail": "sanitizeKey rewrites a__b to a_b; the genuine sibling then collides and generateUniqueKey renames it a_b_2. One field silently renamed, the other given an invented numeric suffix, no error and no warning.",
       "configDescription": "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "flattener-maxdepth-truncation",
@@ -543,7 +666,8 @@
       "detail": "Re-nesting below the limit is lost; the content is not. The reconstructor leaves the truncated String alone because looksLikeSerializedArray requires a leading bracket.",
       "configDescription": "MapFlattener(false, 3, 1000)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "reserved-marker-key-dropped",
@@ -556,7 +680,8 @@
       "detail": "Flattening is correct and lossless; processArrays then drops both __meta__ and ___ by the marker-skip test. No error, no warning, no count discrepancy reported anywhere.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-string-literal-lookalikes",
@@ -566,10 +691,11 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "Strings that impersonate JSON literals stay strings, and stay distinct from the literals",
-      "detail": "Every value is a String, Boolean or Number that normalizePrimitive returns unchanged. No value promotes the wrap prefix to an array path.",
+      "detail": "Every value is a String, Boolean or Number that normalizePrimitive returns unchanged. No value promotes the wrap prefix to an array path. QUALIFIED: this row's flattened output is byte-identical to vd-nonfinite-double-collides-with-its-text, which authors three of the same fields as real Doubles - NaN and the two infinities - and does NOT round-trip. The pair invariant pair-nonfinite-double-collides-with-its-text asserts that equality, so the claim that a genuine string \"NaN\" must not acquire a non-finite tag is now enforceable in both directions rather than only one.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-integer-boundaries-within-long",
@@ -582,7 +708,8 @@
       "detail": "Jackson yields Integer for the small values and Long for the rest; normalizePrimitive returns any Number untouched, so 9007199254740993 comes back exactly.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-integer-past-long",
@@ -595,7 +722,8 @@
       "detail": "i64max survives as a number; i64maxPlus1 and huge are parsed as BigInteger, hit longValueExact, and fall back to decimal text. No digit is lost; the TYPE is.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-decimal-scale-and-precision",
@@ -608,7 +736,8 @@
       "detail": "Declared scale is gone on trailingZero and oneFive; highScale drops to double precision; beyondDouble becomes indistinguishable from the literal 1.0. The exact digit strings are Jackson/JDK details - if measurement differs, correct the literal, not the classification.",
       "configDescription": "defaults; comparison uses exact-decimal parsing",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-preserve-bigdecimal-flag-inert",
@@ -618,10 +747,11 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "preserveBigDecimalPrecision is wired, readable, documented - and cannot fire on the JSON stack",
-      "detail": "Output is byte-identical to the same run with the flag false. The probe proves the flag has zero observable effect on this stack while the MAP twin fed a real BigDecimal does yield the exact text.",
+      "detail": "Output is byte-identical to the same run with the flag false. The probe proves the flag has zero observable effect on this stack. The LIVE side is now a first-class row rather than a field inside this probe: vd-bigdecimal-java-native-scale-loss-and-the-live-flag hands MapFlattener a real BigDecimal through the typed javaInput hatch and its probe measures the two flag settings producing DIFFERENT output. This row's BIGDECIMAL_TWIN probe is now partly redundant with that one and is KEPT deliberately: it is the JSON-stack fixture's only way to reach a Java type, and javaInput is MAP-only.",
       "configDescription": "MapFlattener.builder().preserveBigDecimalPrecision(true); probe compares against the same run with the flag off, plus a MAP twin fed a real BigDecimal",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-exponent-overflow-and-underflow",
@@ -631,10 +761,11 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "A finite JSON number silently becomes the string \"Infinity\", and a tiny one becomes exactly zero",
-      "detail": "over/negOver overflow to Infinity and are emitted as JSON strings; under underflows to 0.0; nearMax survives with exponent reformatting only.",
+      "detail": "over/negOver overflow to Infinity and are emitted as JSON strings; under underflows to 0.0; nearMax survives with exponent reformatting only. This row DOES reach a genuine Double.POSITIVE_INFINITY through normalizePrimitive's isInfinite branch - the MAP arm records it - so the Infinity half of the non-finite warning is pinned here. It cannot reach NaN: JSON has no literal for it and the corpus's lenient mapper does not enable ALLOW_NON_NUMERIC_NUMBERS. vd-nonfinite-double-collides-with-its-text is the row that reaches NaN, through the typed javaInput hatch.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-signed-zero",
@@ -647,7 +778,8 @@
       "detail": "negDouble keeps its sign bit; negInt loses its minus sign. Defensible: no Java integral type can represent a signed zero and preserving it would require promoting every -0 to a double.  ||  MEASURED: CORRECTION. The designer marked this JSON-only on the grounds that the MAP stack cannot observe the integer arm. Measurement shows the JSON stack cannot observe EITHER arm, so as declared the fixture was vacuous: the integer sign is gone at Jackson parse time so it is absent from the baseline as well as the result, and the double sign is invisible under exact-decimal comparison because BigDecimal has no signed zero (both -0.0 and 0.0 render as 0.0). Widened to BOTH. The MAP arm is now the live one: it renders Double.toString, so -0.0 and 0.0 stay distinct and the fixture goes red the moment reconstruction normalises the sign away. Measured LOSSLESS, not ACCEPTED_LOSS: the integer -0 is lost before flatten() is ever called, which is a property of JSON parsing and not of the round trip under test.  ||  CLASSIFIED: MEASUREMENT OVERRIDES THE PREDICTION. Predicted ACCEPTED_LOSS on the grounds that the JSON integer -0 loses its sign. It does - but at Jackson parse time, before flatten() is called, so it is absent from the baseline as well as from the result and no part of the round trip under test destroys it. The IEEE-754 double -0.0 is preserved end to end and the MAP arm pins it (rendered via Double.toString, so -0.0 and 0.0 stay distinct). Declared LOSSLESS for the round trip, with the parse-time integer loss recorded as out of scope.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-number-text-normalization",
@@ -660,7 +792,8 @@
       "detail": "The three fractional spellings converge on one canonical form; the integer stays an integer. Nothing about the VALUE is lost.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-empty-containers-end-to-end",
@@ -673,7 +806,8 @@
       "detail": "Three different authored values arrive as the same null; nonEmpty is untouched.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-preserve-nulls-false-erases-present-null",
@@ -686,7 +820,8 @@
       "detail": "The present key is gone entirely, not nulled. Defensible because it is explicitly opt-in and the sparse-output use case is legitimate; what is not defensible is the silence in the documentation.",
       "configDescription": "JsonReconstructor.builder().preserveNulls(false); probe asserts the default run DIFFERS",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "vd-string-that-looks-like-array",
@@ -699,7 +834,8 @@
       "detail": "The string is destroyed, its characters are retyped as integers, and the enclosing object becomes an array of three synthetic objects.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-array-lookalike-fabricates-padding",
@@ -712,7 +848,8 @@
       "detail": "Only c triggers detection but arrayPaths is keyed on the shared prefix, so b is pulled in and its single 7 is replicated into three records.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-real-array-collides-with-array-text",
@@ -725,7 +862,8 @@
       "detail": "Flattened output is identical to the string fixture. Both the array nesting and the element grouping are wrong; the correct answer is an object holding an array, not an array of three objects.",
       "configDescription": "defaults; paired flat-map equality against vd-string-that-looks-like-array",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "vd-comma-format-scalar-with-comma",
@@ -738,7 +876,8 @@
       "detail": "Flattening does not touch either value; the damage is entirely on the reconstruct side, where the comma splits the name into two array elements and the sibling is padded by repetition.",
       "configDescription": "arrayFormat COMMA_SEPARATED on both sides",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "vd-comma-format-atomic-coercion",
@@ -751,7 +890,8 @@
       "detail": "Quoting is gone after flattening, so nothing downstream can know these were strings; parseAtomicValue then returns a boolean, a null, an int with leading zeros dropped, a double with the trailing zero gone, and one surviving String.",
       "configDescription": "arrayFormat COMMA_SEPARATED on both sides",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "vd-comma-format-empty-and-trailing-null",
@@ -764,7 +904,8 @@
       "detail": "Two separate failures: empty-string-to-null (accepted and documented) and three elements becoming two (undocumented, and the reason this is DEFECT rather than ACCEPTED_LOSS).",
       "configDescription": "arrayFormat COMMA_SEPARATED on both sides",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "vd-nested-json-string-length-gate",
@@ -777,7 +918,8 @@
       "detail": "shortJson is expanded into structure; longJson is kept verbatim. Neither field round-trips to its input, and they fail in opposite directions from the same authored type.",
       "configDescription": "MapFlattener.builder().parseNestedJsonStrings(true).maxJsonStringLength(20)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "vd-control-chars-and-long-string",
@@ -790,7 +932,8 @@
       "detail": "Jackson decodes every escape on the way in and re-escapes correctly on the way out; the surrogate pair stays paired. MapFlattener.escapeString is never reached.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "separator-in-name-vs-nesting",
@@ -803,7 +946,8 @@
       "detail": "Decode yields the literal one-segment name and the two-segment nested path separately; reconstruct returns the source exactly.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "triple-underscore-key-dropped",
@@ -816,7 +960,8 @@
       "detail": "The ___ entry is dropped entirely: a document with one fewer field, no exception, no warning, no null placeholder.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "double-underscore-namespace-swallowed",
@@ -829,7 +974,8 @@
       "detail": "Two of three top-level fields are gone, one of them a whole subtree; the _x_ control survives.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "is-array-field-name-changes-json-type",
@@ -842,7 +988,8 @@
       "detail": "An object becomes an array and the __isArray__ field vanishes. Attacker-controlled key names can change the reconstructed JSON type, which is a schema-inference hazard, not just a fidelity gap.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "empty-string-key-renamed-into-collision",
@@ -855,7 +1002,8 @@
       "detail": "Both fields end up under wrong names and the first value now sits under a name the source assigned to the second. Renaming \"\" is arguably defensible; a substitute that is not reserved, not reported, and resolves in favour of the synthetic name is not.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "unicode-names-must-not-normalize",
@@ -868,7 +1016,8 @@
       "detail": "No name contains a separator or backslash so escapeSegment returns the identical instance; all four keys and values round-trip exactly and the NFC and NFD spellings stay separate map entries.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "punctuation-and-control-chars-in-names",
@@ -881,7 +1030,8 @@
       "detail": "All five are single unescaped segments and reconstruct verbatim, including the embedded double-quote and the literal newline.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "backslash-and-preencoded-lookalike-names",
@@ -894,7 +1044,8 @@
       "detail": "The five encode to distinct keys and each decodes back to its exact source name. Escaping the backslash first is what keeps the pre-encoded lookalike from decoding as the two-level path.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "multichar-separator-with-single-separator-char-in-name",
@@ -907,7 +1058,8 @@
       "detail": "Both keys decode to their exact segments. Neither name contains \"__\" so sanitizeKey collapse is a no-op here, which isolates the escaping from that control.",
       "configDescription": "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\") - quickReconstruct hard-codes \"_\" and would fail for the wrong reason",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-boundary-separator-manufactures-a-collision",
@@ -920,7 +1072,8 @@
       "detail": "Neither source name survives, the first value now sits under the name that belonged to the second, and no warning is emitted. Turning the flag off makes both names round-trip perfectly.",
       "configDescription": "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "top-level-double-sanitization-asymmetry",
@@ -933,7 +1086,8 @@
       "detail": "Two occurrences of one source name land under two different names, and neither is the original.",
       "configDescription": "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "snake-case-injects-unescaped-separators",
@@ -946,7 +1100,8 @@
       "detail": "A scalar at depth 1 is reconstructed as an object at depth 2. Case-folding is a requested transform and would be ACCEPTED_LOSS on its own; inventing structure is not.",
       "configDescription": "MapFlattener.builder().namingStrategy(SNAKE_CASE); reconstructor default",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "case-only-differing-names-preserved",
@@ -959,7 +1114,8 @@
       "detail": "No escaping is triggered, the collision set is case-sensitive, AS_IS skips transformKeys entirely, and all three round-trip exactly.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "lower-case-collision-suffix-corrupts-structure",
@@ -972,7 +1128,8 @@
       "detail": "Two scalars become one object with a fabricated _value key and a numeric-string key. Case folding is an ACCEPTED consequence of the requested strategy; the structural corruption and the invented _value are not.",
       "configDescription": "MapFlattener.builder().namingStrategy(LOWER_CASE); reconstructor default",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "strict-key-validation-folds-three-names-into-one",
@@ -985,7 +1142,8 @@
       "detail": "All three fold to one name and the clashes are resolved with invented numeric suffixes. The folding is defensible for SQL-safe identifiers; emitting no mapping, no warning and no exception is not.",
       "configDescription": "MapFlattener.builder().strictKeyValidation(true); reconstructor default",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "user-field-named-value-vs-flattener-sentinel",
@@ -998,7 +1156,8 @@
       "detail": "No sentinel comparison matches, because every user-supplied segment carries its escape.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "underscore-boundary-around-the-np022-trap",
@@ -1011,7 +1170,8 @@
       "detail": "All four decode to their exact source names; __x fails endsWith, x__ fails startsWith, and _ fails both, so processArrays keeps all of them.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "upper-case-strategy-renames-without-restructuring",
@@ -1024,7 +1184,8 @@
       "detail": "Names uppercased, structure and nesting intact, the escaped underscore inside a_b still decoded as part of the name. Defensible because the caller explicitly asked for a name transform.",
       "configDescription": "MapFlattener.builder().namingStrategy(UPPER_CASE); reconstructor default",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "avro-underscore-field-name-column-divergence",
@@ -1034,10 +1195,11 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Flattened schema and flattened rows disagree on column names for any field containing an underscore",
-      "detail": "The schema names a column no row contains. The DATA assertion passes in isolation, so a corpus that only checks DATA reports this document as fully lossless.",
+      "detail": "The schema names a column no row contains. The DATA assertion passes in isolation, so a corpus that only checks DATA reports this document as fully lossless. MATERIAL NEW FACT: the replacement API reproduces this defect rather than fixing it - enriched-keyset-diverges-from-map-rows shows EnrichedSchemaFlattener under its default FAIL policy emitting the same unescaped names. Unlike the legacy path it HAS a resolution, NameCollisionPolicy.ESCAPE (enriched-escape-policy-agrees-with-map-rows), which the legacy path cannot adopt because Avro forbids backslash in field names. A consumer reading this row alone would reasonably infer the new API is the escape hatch. It is not, by default.",
       "configDescription": "assert KEYSET",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-flattened-name-collision-guard-fires",
@@ -1047,10 +1209,11 @@
       "classification": "ACCEPTED_LOSS",
       "referenceIssue": "",
       "title": "Collision guard rejects a document the data path round-trips losslessly",
-      "detail": "Refusing is defensible: with a non-escapable separator the flattening is genuinely non-injective and silently overwriting one field would be worse. What is not defensible is the asymmetry - the data half round-trips this exact datum with perfect fidelity, so the library has no single answer to \"is this document representable\".",
+      "detail": "Refusing is defensible: with a non-escapable separator the flattening is genuinely non-injective and silently overwriting one field would be worse. What is not defensible is the asymmetry - the data half round-trips this exact datum with perfect fidelity. There are now FOUR answers to \"is this document representable\", not two: AvroSchemaFlattener throws, MapFlattener escapes and succeeds, EnrichedSchemaFlattener under FAIL throws (enriched-fail-policy-refuses-a-colliding-schema), and under ESCAPE it escapes and agrees with the rows (enriched-escape-resolves-the-collision). The library still has no single answer; it now has four.",
       "configDescription": "assert SCHEMA (expected to throw)",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-array-statistics-suffix-silent-overwrite",
@@ -1063,7 +1226,8 @@
       "detail": "The declared field is dropped and the surviving column is the synthetic statistics one. Assert on the doc string, not merely on the presence of the name, or the fixture cannot tell the two columns apart.",
       "configDescription": "includeArrayStatistics=true; assert SCHEMA",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-reconstruct-original-schema-ignores-argument",
@@ -1076,7 +1240,8 @@
       "detail": "Handed an unrelated, field-less record as the flattened schema, the method still returns the original schema. The argument is inert.",
       "configDescription": "assert SCHEMA_ARG_IGNORED - feeds an unrelated schema and shows the original comes back anyway",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-record-defaults-dropped-in-reconstructed-schema",
@@ -1089,7 +1254,8 @@
       "detail": "The reconstructed schema reports no default where the original had one. The DATA path is unaffected, so the loss is confined to the schema half.",
       "configDescription": "assert SCHEMA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-nullable-scalars-and-logical-types-control",
@@ -1099,10 +1265,11 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "Control: nullable scalars and the six supported logical types round-trip exactly",
-      "detail": "Each logical type reaches convertLogicalType with a value already in its epoch-integer encoding and takes the identity fast path; the uuid is already canonical. The int/long split matters - do not normalise numeric types in the comparator.",
+      "detail": "Each logical type reaches convertLogicalType with a value already in its epoch-integer encoding and takes the identity fast path; the uuid is already canonical. The int/long split matters - do not normalise numeric types in the comparator. The reconstruct() half of this row is MEASURED rather than assumed: avro-logical-type-datum-is-writable-control takes date, timestamp-millis and a nullable string through the GenericRecord entry point and the datum both validates and encodes. This row carries no nested record, which is the condition under which that entry point works.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-nullable-string-literal-null-collapses",
@@ -1115,7 +1282,8 @@
       "detail": "status and padded both reconstruct as null; safe survives, which is what lets the fixture distinguish \"the sentinel fires too eagerly\" from \"all strings are broken\". No configuration disables this.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-union-string-branch-swallows-int",
@@ -1128,7 +1296,8 @@
       "detail": "Both values come back as Strings. No member ordering makes both directions correct - the defect is the absence of a branch discriminator, not the ordering.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-union-long-before-double-truncates",
@@ -1141,7 +1310,8 @@
       "detail": "amount reconstructs as an integer with the fraction gone, silently, with no exception anywhere. count is included so the fixture can distinguish \"truncates fractions\" from \"always picks long\".",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-union-of-records-overlapping-fields",
@@ -1154,7 +1324,8 @@
       "detail": "The wrong branch is selected and two children go unconsumed. Total silence: no exception, and a structurally valid record of the wrong type.  ||  MEASURED: CONFIRMED, PLUS A NEW FINDING THE PREDICTION MISSED. The wrong branch is selected exactly as traced and routing/account are dropped. But the losing branch's defaulted field does not come back as a Java null: it comes back as org.apache.avro.JsonProperties.NULL_VALUE, a singleton OBJECT. Any consumer testing `value == null` on a defaulted nullable field sees a non-null object of an Avro-internal type. The corpus renders it as AVRO_NULL_DEFAULT so the distinction is visible and so the fixture does not depend on an identity hash code. Filed as a new defect for triage: useSchemaDefaults should materialise Avro's null default as a real null.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-decimal-bytes-scale-mismatch",
@@ -1167,7 +1338,8 @@
       "detail": "Reconstruction throws. Bytes-backed decimals do not round-trip from JSON-shaped input at all - and the inversion is the part worth recording: only decimals that were already out of range can be processed. Reading the datum with Avro jsonDecoder hides the whole defect, which is why the harness pins the plain-JSON path.  ||  MEASURED: CORRECTION - THE PREDICTED DEFECT DOES NOT REPRODUCE. Reconstruction does NOT throw. Measured output is two ByteBuffers holding unscaled 1250 and 50, i.e. exactly 12.50 and 0.50 at the declared scale 2. The reason is that Avro itself normalises scale: Conversions.DecimalConversion.validate() calls setScale(declaredScale, RoundingMode.UNNECESSARY) whenever the value scale differs, and 12.5 -> 12.50 is exact. The precision-based guard in convertDecimal is therefore dead code for this input rather than a live fault, and the fixture is reclassified ACCEPTED_LOSS: the value survives exactly and the ByteBuffer is the representation the schema mandates. TWO RESIDUAL FINDINGS THIS DATUM DOES NOT COVER, both needing their own fixture: (1) a value with MORE decimal places than the declared scale still reaches Avro with RoundingMode.UNNECESSARY and throws, and the precision guard cannot help because it tests the wrong property; (2) when precision genuinely overflows, the guard rounds HALF_UP silently, so the only decimals this code alters are the ones it should reject.  ||  CLASSIFIED: MEASUREMENT OVERRIDES THE PREDICTION. Predicted DEFECT on the grounds that reconstruction throws. It does not: Avro's own DecimalConversion normalises scale with RoundingMode.UNNECESSARY, so 12.5 becomes 12.50 exactly and both fields encode correctly. What survives is the exact numeric value at the declared scale; what changes is the Java representation, from Double to the ByteBuffer the schema mandates. That is an accepted representation change, not a fidelity defect. The two residual faults this datum does NOT reach are recorded in the fixture and are unfixtured gaps.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-logical-types-erased-inside-arrays",
@@ -1180,7 +1352,8 @@
       "detail": "The declared decimal precision and scale are unrecoverable from the flattened schema. The DATA assertion on this same datum passes, so only SCHEMA can see the loss.",
       "configDescription": "assert SCHEMA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-enum-accepted-fixed-decimal-erased",
@@ -1193,7 +1366,8 @@
       "detail": "The enum half is ACCEPTED - SQL and Spark columns have no enum type and the symbol text is the only faithful projection. The fixed-decimal half is a DEFECT and is filed here only because a single classification is required; it should be split if the cap allows.  ||  CLASSIFIED: DELIBERATE CLASSIFICATION CHANGE, not a measurement disagreement. The designer filed this ACCEPTED_LOSS while stating in the same breath that the fixed-decimal half is a DEFECT and should be split out. It cannot be split without changing the fixture count, so the aggregate label must reflect the worse half. Enum-to-string is genuinely accepted: SQL and Spark have no enum type and the symbol text is a faithful projection. Fixed-decimal-to-bare-bytes is not: precision 18 and scale 4 are gone and the eight bytes are uninterpretable by any consumer of the flattened schema.",
       "configDescription": "assert SCHEMA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE"
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
     },
     {
       "id": "avro-bytes-b64-sentinel-and-fixed-charset",
@@ -1206,7 +1380,8 @@
       "detail": "The literal ASCII payload is replaced by decoded bytes with no diagnostic, and the fixed value throws a size mismatch on a UTF-8-default JVM while the same fixture would PASS on an ISO-8859-1-default JVM. A fixture whose outcome depends on file.encoding is exactly what a corpus must pin.  ||  MEASURED: PARTIAL CORRECTION. The fixed/charset half reproduces exactly: reconstruction throws \"Fixed size mismatch at sig: expected 4, got 5\" because the high byte encodes to two bytes under the JVM default charset (UTF-8 on JDK 18+). The B64 half is NOT observable in this datum: reconstructRecord processes fields in schema order and aborts on sig, so payload is never converted and the sentinel misinterpretation cannot be seen in the output. The fixture pins one of the two defects it was designed to pin; the B64 sentinel needs its own datum with no fixed field beside it.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-map-of-records-control",
@@ -1215,11 +1390,12 @@
       "stack": "AVRO",
       "classification": "LOSSLESS",
       "referenceIssue": "",
-      "title": "Control: a map with record values, including a key that contains the separator",
-      "detail": "Both keys escape and decode correctly. The result is a HashMap where the input was a LinkedHashMap, but Avro maps are unordered and key insertion order is genuinely not part of the value here.",
+      "title": "Control: map with record values, LOSSLESS as a Map only",
+      "detail": "Both keys escape and decode correctly. The result is a HashMap where the input was a LinkedHashMap, but Avro maps are unordered and key insertion order is genuinely not part of the value here. QUALIFIED on the same terms as the array control: reconstruct() returns a record whose map VALUES are LinkedHashMaps, so validate fails and the datum cannot be written. That is asserted, not assumed by analogy - see avro-map-of-records-datum-unwritable, same schema, same input, different entry point.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-array-of-records-control",
@@ -1228,11 +1404,12 @@
       "stack": "AVRO",
       "classification": "LOSSLESS",
       "referenceIssue": "",
-      "title": "Control: array of records with a required nested record in each element",
-      "detail": "There is no bare array key, so the array node is not a leaf and the column-wise path is taken; elements come back in order.",
+      "title": "Control: array of records with a required nested record, LOSSLESS as a Map only",
+      "detail": "Lossless as a Map through reconstructToMap: there is no bare array key, so the array node is not a leaf, the column-wise path is taken, and elements come back in order. QUALIFIED, and the qualification is the important half: the GenericRecord that reconstruct() returns for this same document is NOT a writable datum. Its elements are LinkedHashMaps, GenericData.validate returns false and a binary encode throws ClassCastException. See avro-array-of-records-datum-unwritable, which uses byte-identical schema and input and differs only in which sibling entry point is called. Read this row as a guarantee about reconstructToMap and about nothing else.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-array-of-records-null-element-annihilates-array",
@@ -1245,7 +1422,8 @@
       "detail": "Both the record element and the array length are lost; the extracted field values are silently discarded. No exception at any point.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "avro-array-of-records-nullable-nested-record-shadowed",
@@ -1258,7 +1436,8 @@
       "detail": "The array length is right, the ids are right, and the nested record content is gone from every element. Silent, no exception, plausible-looking output.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "depth-below-max",
@@ -1271,7 +1450,8 @@
       "detail": "Two map levels, deepest flattenObject runs at depth 1, no truncation; neither value triggers array inference.",
       "configDescription": "MapFlattener.builder().maxDepth(3)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "depth-exactly-max",
@@ -1284,7 +1464,8 @@
       "detail": "Three map levels, deepest flattenObject runs at depth 2, the check does not fire, and the exact three-level structure rebuilds.",
       "configDescription": "MapFlattener.builder().maxDepth(3)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "depth-one-over-max",
@@ -1297,7 +1478,8 @@
       "detail": "Bounding depth necessarily truncates, and embedding the exact JSON text is the least-destructive truncation available: every byte survives. What is not defensible is that the type change carries no marker.",
       "configDescription": "MapFlattener.builder().maxDepth(3); flat map must equal depth-overflow-aliases-a-real-string",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "depth-overflow-aliases-a-real-string",
@@ -1310,7 +1492,8 @@
       "detail": "This document alone round-trips exactly. The defect is that its flattened form is byte-identical to depth-one-over-max, and the paired assertion is what records it.",
       "configDescription": "MapFlattener.builder().maxDepth(3); flat map must equal depth-one-over-max",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "depth-bound-map-vs-list-asymmetry",
@@ -1323,7 +1506,8 @@
       "detail": "Sibling keys at the same nesting position get opposite treatment, and reconstruction then compounds it by inferring an array and duplicating the stringified map into an element it never occupied.",
       "configDescription": "MapFlattener.builder().maxDepth(2)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "depth-bound-bypassed-by-empty-container",
@@ -1336,7 +1520,8 @@
       "detail": "Two sibling values at the identical structural position, one exempt from the bound and one not: {} becomes null without consulting maxDepth while the non-empty sibling is stringified.",
       "configDescription": "MapFlattener.builder().maxDepth(1)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "empty-chains-yield-keys-with-zero-leaves",
@@ -1349,7 +1534,8 @@
       "detail": "Zero leaves in, three keys out. Depth is preserved exactly - the already-pinned ACCEPTED behaviour - but every {} became null, the already-pinned DEFECT, now shown to propagate at every depth.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-size-below-max",
@@ -1362,7 +1548,8 @@
       "detail": "limit = min(3,4) = 3, no truncation, all columns the same length so no padding occurs and the zip-back is exact.",
       "configDescription": "MapFlattener.builder().maxArraySize(4)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-size-exactly-max",
@@ -1375,7 +1562,8 @@
       "detail": "limit = min(3,3) = 3, all elements retained, identical behaviour to the below-max fixture.",
       "configDescription": "MapFlattener.builder().maxArraySize(3)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "array-size-one-over-max",
@@ -1388,7 +1576,8 @@
       "detail": "Discarding elements past a configured array bound is precisely what the bound is for, and critically the TYPE survives - the field is still a list of the right element shape.",
       "configDescription": "MapFlattener.builder().maxArraySize(2)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "array-size-max-one-collapses-the-type",
@@ -1401,7 +1590,8 @@
       "detail": "An array of three objects comes back as an object with string fields: element type, container type and value type all wrong. Set maxArraySize to 2 and the same document returns a proper array - two configurations of one bound, two different reconstructed schemas.",
       "configDescription": "MapFlattener.builder().maxArraySize(1)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "single-element-array-at-the-arity-lower-bound",
@@ -1414,7 +1604,8 @@
       "detail": "Flattening is exactly right; reconstruction fails on arity alone. At arity 1 the array degrades to a string while at arity 2 the PARENT is wrongly promoted, so no single-sided fix resolves both.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "sparse-array-of-maps-padding-misaligns-elements",
@@ -1427,7 +1618,8 @@
       "detail": "Every sparse value is RELOCATED into element 0 and the later elements are emptied. Not loss - silent corruption that reads as valid data. Every element also gains explicit nulls for keys it never had.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "wide-record-210-fields-under-one-parent",
@@ -1440,7 +1632,8 @@
       "detail": "Every value fails the String check so no array inference runs and the record rebuilds field-for-field.",
       "configDescription": "defaults (210 < maxMapSize 10000)",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "wide-separator-heavy-np021-regression",
@@ -1453,7 +1646,8 @@
       "detail": "The literal underscores inside the names are escaped and the structural ones are not; decodeSegments recovers exactly three segments per key.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "map-size-limit-truncates-fields-silently",
@@ -1466,7 +1660,8 @@
       "detail": "Capping record width is the stated purpose of maxMapSize, iteration order is deterministic so the truncation is reproducible, and nothing about the surviving data type or position changes. One inconsistency worth recording: this bound announces itself at WARN while the array bound announces itself only at DEBUG.",
       "configDescription": "MapFlattener.builder().maxMapSize(8)",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "reconstructor-maxdepth-is-a-dead-control",
@@ -1476,10 +1671,11 @@
       "classification": "LOSSLESS",
       "referenceIssue": "",
       "title": "JsonReconstructor.maxDepth(2) happily reconstructs eight levels",
-      "detail": "The document round-trips perfectly under maxDepth(2), and the probe proves the setting is inert by showing maxDepth(1) and maxDepth(1000) produce byte-identical results. Operational note: the flattener converts StackOverflowError to IllegalStateException while the reconstructor catches only Exception, so it cannot fail closed on depth.",
+      "detail": "The document round-trips perfectly under maxDepth(2), and the probe proves the setting is inert by showing maxDepth(1) and maxDepth(1000) produce byte-identical results. There are now TWO dead controls in the corpus, in different subsystems: this one and FlattenOptions.inheritDoc, which is declared, defaulted, validated, stored, exposed by a getter and never read anywhere in src/main - see enriched-inheritdoc-false-is-a-dead-control. Operational note: the flattener converts StackOverflowError to IllegalStateException while the reconstructor catches only Exception.",
       "configDescription": "JsonReconstructor.builder().maxDepth(2); probe compares maxDepth(1) against maxDepth(1000) on the identical flat map",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "invalid-maxdepth-fails-closed",
@@ -1492,7 +1688,8 @@
       "detail": "Throws IllegalArgumentException during configuration - the input document is never parsed or flattened. Failing closed is right: a depth budget of zero has no coherent meaning and both alternatives (clamping, honouring) are worse.",
       "configDescription": "MapFlattener.builder().maxDepth(0) - expected to throw at build time",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "order-multi-line-items",
@@ -1505,7 +1702,8 @@
       "detail": "line_items is detected as an array; shipping_address has no array-valued leaf so it stays an object. Both discount_pct slots are physically present in both elements so the padding path is never entered.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "order-single-line-item",
@@ -1518,7 +1716,8 @@
       "detail": "The array becomes an object AND its leaves become JSON text: both the container type and the leaf types are wrong.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "order-line-item-nested-address",
@@ -1531,7 +1730,8 @@
       "detail": "Warehouse identity is destroyed for both items: the nested block is duplicated across elements and its leaves stay raw text.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "order-optional-discount-absent",
@@ -1544,7 +1744,8 @@
       "detail": "discount_pct migrates from line item 2 to line item 1 and item 2 gains an explicit null it never had. The document round-trips with the correct field count and a plausible shape - only the association is wrong.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "empty-cart",
@@ -1557,7 +1758,8 @@
       "detail": "A consumer iterating line_items now has to null-guard a field the source schema declares as a non-nullable array.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "line-item-tag-arrays",
@@ -1570,7 +1772,8 @@
       "detail": "Element identity and count are right; the tags type is wrong - inner arrays degrade to JSON text and one nesting level is lost.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "order-top-level-tags-array",
@@ -1583,7 +1786,8 @@
       "detail": "Both arrays come back as JSON strings. Flattening is correct; the single-segment keys never enter the prefix loop, so inference is never offered the path.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "order-line-items-comma-separated",
@@ -1596,7 +1800,8 @@
       "detail": "Defensible because the format exists to feed CSV/Athena SERDEs that cannot represent an embedded delimiter, the collision is documented verbatim, and a lossless alternative is one builder call away. NOT defensible, and worth separate triage: the reconstructor fabricates extra rows and duplicates values rather than reporting that the element counts disagree.",
       "configDescription": "arrayFormat COMMA_SEPARATED on both sides",
       "requiresNonDefaultConfig": true,
-      "holdsUnderDefaultReconstruction": "NO"
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "NO"
     },
     {
       "id": "customer-profile-addresses-and-preferences",
@@ -1609,7 +1814,8 @@
       "detail": "addresses is detected as an array; preferences holds only scalars and booleans so it stays an object. The postal code survives as a String because serializeArray writes it with JSON quotes.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "customer-profile-legacy-key-shadow",
@@ -1622,7 +1828,8 @@
       "detail": "The nested path encodes to two segments joined by the separator while the literal legacy field encodes to one segment with the separator escaped; decodeSegments splits only on unescaped separators.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "customer-preferences-object-with-array",
@@ -1635,7 +1842,8 @@
       "detail": "preferences becomes a three-element array with the scalars duplicated. Genuinely ambiguous on the wire, so a correct fix is a format change - but the same class of ambiguity in the KEY domain was treated as a bug worth a breaking change, and the value domain deserves the same verdict.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "event-envelope-sentinel-metadata-keys",
@@ -1648,7 +1856,8 @@
       "detail": "Flattening is faithful; the loss is entirely in the reconstructor internal-marker guard. Correct fix is to stop putting markers in the user namespace, not to tighten the name pattern.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "event-envelope-mixed-attachments",
@@ -1661,7 +1870,8 @@
       "detail": "Two of three attachments are silently deleted. No error, no warning, and the field count at root is unchanged, so nothing downstream can detect the deletion.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "financial-transaction-high-precision",
@@ -1674,7 +1884,8 @@
       "detail": "amount.value and fx_rate lose precision at PARSE time; amount_text survives exactly. Marked JSON-only because on the MAP stack the source Map already holds the rounded Double and the fixture would report LOSSLESS while silently destroying money.",
       "configDescription": "defaults; comparison uses exact-decimal parsing",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "financial-transaction-huge-minor-units",
@@ -1687,7 +1898,8 @@
       "detail": "Exact-but-retyped beats silently-wrong: the alternative it replaced truncated the low 64 bits and produced a plausible NEGATIVE number nothing downstream could detect. Still open and worth separate triage: the flattener could keep the BigInteger, or the reconstructor could re-widen.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "telemetry-nested-optional-groups",
@@ -1700,7 +1912,8 @@
       "detail": "Every prefix sees only scalars and nulls so none is misread as an array; preserveNulls defaults true so both nulls come back explicit.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "cdc-create-before-null",
@@ -1713,7 +1926,8 @@
       "detail": "before reconstructs as an explicit null; source and after are scalar-only so both stay objects; the epoch-millis long is never routed through double.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "cdc-update-with-array-column",
@@ -1726,7 +1940,554 @@
       "detail": "A downstream diff now compares a 2-row array with a 3-row array and reports every field as changed, when the only real change was status plus one added tag.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
-      "holdsUnderDefaultReconstruction": "YES"
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "avro-generic-record-is-not-a-valid-datum",
+      "family": "avro",
+      "file": "avro/avro-generic-record-is-not-a-valid-datum.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "reconstruct() returns a GenericRecord whose nested record is a LinkedHashMap",
+      "detail": "reconstruct() returns a GenericRecord whose nested Ship record is a LinkedHashMap. The rendered document is BYTE-IDENTICAL to the source - the corpus oracle renders a GenericRecord and a LinkedHashMap the same way - so the entire verdict comes from the datum checks: GenericData.validate returns false, the nested path is reported as ship=LinkedHashMap, and a binary encode throws ClassCastException. A round-trip-equality harness alone is structurally blind to this defect.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-array-of-records-datum-unwritable",
+      "family": "avro",
+      "file": "avro/avro-array-of-records-datum-unwritable.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The array-of-records control document, taken through reconstruct() instead of reconstructToMap()",
+      "detail": "Byte-identical schema and input to avro-array-of-records-control, which is published LOSSLESS; the only variable is the entry point. orders is set as a list of LinkedHashMaps - BOTH elements, so a fix that repairs only element 0 still fails - validate returns false and the encode throws ClassCastException.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-map-of-records-datum-unwritable",
+      "family": "avro",
+      "file": "avro/avro-map-of-records-datum-unwritable.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The map-of-records control document, taken through reconstruct() instead of reconstructToMap()",
+      "detail": "The map-of-records control through the sibling entry point: attrs{a} and attrs{b} are both LinkedHashMaps, validate returns false and the encode throws. This is what makes the requalification of avro-map-of-records-control an assertion rather than an argument by analogy with the array row.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-flat-record-is-a-valid-datum-control",
+      "family": "avro",
+      "file": "avro/avro-flat-record-is-a-valid-datum-control.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "Control: a record of scalars survives reconstruct() as a writable datum",
+      "detail": "A record of scalars, including a present-null nullable field, survives reconstruct() as a writable datum: validate passes, no non-record path is reported, and the binary encode succeeds. This is what proves the DATUM mode's three gates can return true, so a false on any other DATUM row is signal rather than a constant.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-logical-type-datum-is-writable-control",
+      "family": "avro",
+      "file": "avro/avro-logical-type-datum-is-writable-control.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "The nullable-scalars-and-logical-types control, measured through reconstruct() as well",
+      "detail": "date, timestamp-millis and a nullable string survive reconstruct(): validate passes and the datum encodes. Added so the third unqualified LOSSLESS Avro row is not left with its reconstruct() half unmeasured while the other two are qualified.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-empty-datum-cannot-build-a-record",
+      "family": "avro",
+      "file": "avro/avro-empty-datum-cannot-build-a-record.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "An empty flattened map: reconstructToMap returns a partial map, reconstruct() disagrees",
+      "detail": "The two sibling entry points give the same input different answers about whether it is representable. An empty flattened map makes reconstructToMap early-return createEmptyRecord, which populates only defaulted and nullable fields; feeding that partial map to mapToGenericRecord makes build() throw AvroMissingFieldException on the required id. Same shape as avro-flattened-name-collision-guard-fires, and filed DEFECT rather than ACCEPTED_LOSS because the disagreement itself is the fault - either answer alone would be defensible.",
+      "configDescription": "assert DATUM",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-recursive-schema-stack-overflows",
+      "family": "avro",
+      "file": "avro/avro-recursive-schema-stack-overflows.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "NP-002/NP-003",
+      "title": "A self-referential record kills the task with StackOverflowError, not an exception",
+      "detail": "A record whose nullable field is its own type kills the JVM stack. AvroSchemaFlattener.collectRecordDefinitions recurses with neither a visited set nor an open-type set, so it overflows in the FIRST pass. The failure is a StackOverflowError, an Error: it is not caught by ordinary row-level error handling and it kills the Spark task rather than the record. Category trees, org charts and threaded comments are ordinary shapes and no SCHEMA fixture was recursive before this one.",
+      "configDescription": "assert SCHEMA",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-schema-cache-serves-a-stale-flattened-schema",
+      "family": "avro",
+      "file": "avro/avro-schema-cache-serves-a-stale-flattened-schema.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "NP-003/NP-009",
+      "title": "Two schemas sharing a full name: the second flattening is silently the first",
+      "detail": "getFlattenedSchema(Schema) caches in a private static map keyed on the schema's FULL NAME plus two flags, with no schema content in the key. Flattening a second version of x.Ev returns the FIRST version's columns - amount is absent - and because computeIfAbsent short-circuits the flatten, the instance's record definitions still describe v1, so the inverse replays v1 too. In a long-lived Spark executor a schema-registry version bump is discarded for the JVM lifetime. This is the only row that exercises the cached factory the published Avro recipe used to name.",
+      "configDescription": "assert SCHEMA_CACHED",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-schema-cache-hit-with-distinct-names-control",
+      "family": "avro",
+      "file": "avro/avro-schema-cache-hit-with-distinct-names-control.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "NP-003/NP-009",
+      "title": "Control: two differently-named schemas through the cached entry point each get their own flattening",
+      "detail": "The same two calls with distinct full names: the cache key differs, both flattenings run, the second carries its own columns and its inverse reproduces its own schema. This is what makes the stale row attributable to the KEY rather than to the mode. Note for anyone extending it: the second schema deliberately declares no field default, because reconstructOriginalSchema drops declared defaults (avro-record-defaults-dropped-in-reconstructed-schema) and importing that unrelated defect into a control would stop the control isolating one variable.",
+      "configDescription": "assert SCHEMA_CACHED, requireSameFullName=false",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-keyset-diverges-from-map-rows",
+      "family": "schema",
+      "file": "schema/enriched-keyset-diverges-from-map-rows.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The enriched flattener's column names and MapFlattener's row keys disagree on every field containing an underscore",
+      "detail": "The enriched flattener names columns order_id and ship_post_code; MapFlattener's rows are keyed order\\_id and ship_post\\_code, because it escapes every raw field name before joining and the enriched flattener under its default FAIL policy does not. Two of three columns are named something no row contains. Note the escaping is per SEGMENT: the structural underscore in ship_city is not escaped, so the divergence is confined to names that themselves contain the separator.",
+      "configDescription": "assert ENRICHED_KEYSET vs MAP_FLATTENER, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-escape-policy-agrees-with-map-rows",
+      "family": "schema",
+      "file": "schema/enriched-escape-policy-agrees-with-map-rows.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "NameCollisionPolicy.ESCAPE makes the enriched column names byte-identical to MapFlattener's row keys",
+      "detail": "Under NameCollisionPolicy.ESCAPE the enriched column names are byte-identical to MapFlattener's row keys. This is the answer to \"which policy makes the StructType and the rows line up\", and its probe proves the policy is a live control by measuring the two settings producing different leaves. It is an agreement, not a recommendation: backslash is illegal in Avro and SQL identifiers.",
+      "configDescription": "assert ENRICHED_KEYSET vs MAP_FLATTENER, collisionPolicy ESCAPE",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-fail-policy-refuses-a-colliding-schema",
+      "family": "schema",
+      "file": "schema/enriched-fail-policy-refuses-a-colliding-schema.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "FAIL refuses a schema whose rows MapFlattener flattens without ambiguity",
+      "detail": "FAIL throws SchemaFlattenException naming both source paths for a schema whose rows MapFlattener flattens into two distinct, unambiguous keys. Refusing is defensible for a name destined to become a column; the asymmetry is not. This is the only exercise anywhere of EnrichedSchemaFlattener.checkCollision, whose legacy counterpart once compared each duplicate against itself and never fired.",
+      "configDescription": "assert ENRICHED_KEYSET vs MAP_FLATTENER, default FlattenOptions (FAIL)",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-escape-resolves-the-collision",
+      "family": "schema",
+      "file": "schema/enriched-escape-resolves-the-collision.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "On the genuinely ambiguous schema, ESCAPE produces two distinct names that match the two row keys",
+      "detail": "On the genuinely ambiguous schema, ESCAPE produces two distinct names that match the two row keys exactly. Together with the refusal row this says what a caller should do: the policy that makes the schema half agree with the row half is not the default.",
+      "configDescription": "assert ENRICHED_KEYSET vs MAP_FLATTENER, collisionPolicy ESCAPE",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-matches-legacy-avro-schema-flattener",
+      "family": "schema",
+      "file": "schema/enriched-matches-legacy-avro-schema-flattener.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "The enriched API reproduces AvroSchemaFlattener's column names exactly, including the wrong ones",
+      "detail": "The enriched API reproduces AvroSchemaFlattener's column names exactly. Mechanically lossless and substantively bad news: the answer both flatteners give is the one avro-underscore-field-name-column-divergence already publishes as a DEFECT, so the new API inherits the defect rather than fixing it. The row's value is that unilateral repair of either flattener now turns the build red.",
+      "configDescription": "assert ENRICHED_KEYSET vs LEGACY_AVRO_SCHEMA_FLATTENER, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-gavro-parity-claim-fails-on-underscores",
+      "family": "schema",
+      "file": "schema/enriched-gavro-parity-claim-fails-on-underscores.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "FlattenOptions.gAvroParity() does not reproduce GAvroSchemaFlattener's names for any field containing an underscore",
+      "detail": "FlattenOptions' javadoc says its defaults reproduce GAvroSchemaFlattener's conventions so a caller migrating starts at parity. They do not. GAvroSchemaFlattener escapes every segment; the enriched defaults under FAIL escape nothing, so every column whose field name contains an underscore is renamed by adopting the API that advertises parity.",
+      "configDescription": "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-gavro-parity-claim-fails-at-array-boundaries",
+      "family": "schema",
+      "file": "schema/enriched-gavro-parity-claim-fails-at-array-boundaries.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The enriched defaults mark array boundaries with a doubled separator where GAvroSchemaFlattener's defaults use a single one",
+      "detail": "The second, independent half of the same false parity claim, isolated on an underscore-free schema so the boundary marker is the only variable. GAvroSchemaFlattener's defaults join array element fields with a single separator; the enriched defaults use a doubled one. Every array-crossing column is silently renamed on migration.",
+      "configDescription": "assert ENRICHED_KEYSET vs GAVRO_SCHEMA_FLATTENER, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-stream-drops-injected-columns",
+      "family": "schema",
+      "file": "schema/enriched-stream-drops-injected-columns.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "stream() silently returns none of the columns injectField() configured",
+      "detail": "flatten() splices injected columns in at their positions; stream() returns none of them, with no error and no diagnostic. The javadoc documents the limitation and concedes the caller would have no way to tell, which by this repository's own doctrine describes a control that appears present and does nothing. Filed DEFECT rather than ACCEPTED_LOSS because the loss is documented but not bounded from the caller's side and the cheap honest fix - throw from stream() when injections are configured - is available. The dissent is recorded in the fixture.",
+      "configDescription": "assert ENRICHED_KEYSET vs ENRICHED_STREAM, one injected field",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-entrypoints-agree-without-injection",
+      "family": "schema",
+      "file": "schema/enriched-entrypoints-agree-without-injection.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "Without injections, flatten() and stream() return the same columns in the same order",
+      "detail": "Without injections the two entry points return the same columns in the same order, and the recorded emission order pins the sequence as well as the set. This is what stops the injection row's comparator being one that has only ever produced \"not equal\".",
+      "configDescription": "assert ENRICHED_KEYSET vs ENRICHED_STREAM, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-recursive-schema-fails-typed",
+      "family": "schema",
+      "file": "schema/enriched-recursive-schema-fails-typed.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "NP-002/NP-003",
+      "title": "The same recursive schema: the legacy flattener dies with an Error, the enriched one refuses with a typed exception",
+      "detail": "The same recursive schema as avro-recursive-schema-stack-overflows, one variable changed. The enriched flattener checks an OPEN-type deque on the way down and throws RecursiveSchemaException naming the cycle; the legacy flattener exhausts the stack. Accepted rather than defect because a recursive schema genuinely has no finite flattened form, so refusing is the right answer and the loss is bounded and typed. This pair IS the argument for the new API.",
+      "configDescription": "assert ENRICHED_KEYSET vs LEGACY_AVRO_SCHEMA_FLATTENER, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-nested-record-column-parity-control",
+      "family": "schema",
+      "file": "schema/enriched-nested-record-column-parity-control.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "Control: on an array-free nested record the two flatteners produce identical columns",
+      "detail": "On an array-free nested record - with the Addr type used twice but never inside itself - the enriched and legacy flatteners emit identical columns. Array-free on purpose: the two disagree on the array-boundary marker, so any array here would fail the control for a reason that is not about correctness. It is also the cheapest detector for guardRecursion regressing from an open-set to a visited-set check.",
+      "configDescription": "assert ENRICHED_KEYSET vs LEGACY_AVRO_SCHEMA_FLATTENER, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-custom-properties-survive-the-flatten",
+      "family": "schema",
+      "file": "schema/enriched-custom-properties-survive-the-flatten.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "Every custom Avro property the producer declared reaches at least one flattened leaf",
+      "detail": "Every custom property the producer declared - two on a field, one on a nested record, one on a nested field - reaches at least one flattened leaf. Compared as a SET, because with inheritance on a record-level property reaches N leaves and a per-path comparison would report divergence for a reason that is a feature; placement is recorded separately and pinned byte-exactly without being the verdict.",
+      "configDescription": "assert ENRICHED_METADATA vs PROPERTY_SET, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-reserved-prop-name-collision-drops-a-producer-property",
+      "family": "schema",
+      "file": "schema/enriched-reserved-prop-name-collision-drops-a-producer-property.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "A producer property named \"size\" is silently discarded, contradicting the javadoc immediately above the code that discards it",
+      "detail": "A field-level property named \"size\" is accepted by Avro as user metadata and then silently discarded by the flattener, which filters custom properties against a private reserved-name list. The javadoc four lines above that filter states that nothing is filtered by name, on the stated grounds that a library which only preserved properties it recognised would silently drop the one the caller cared about. Measured, not predicted: Avro 1.12 does hand \"size\" over and the library does drop it.",
+      "configDescription": "assert ENRICHED_METADATA vs PROPERTY_SET, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-record-properties-inherited-by-leaves",
+      "family": "schema",
+      "file": "schema/enriched-record-properties-inherited-by-leaves.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "inheritRecordProperties(false) drops the record-level property from every leaf",
+      "detail": "inheritRecordProperties(false) removes the record-level property from every leaf, so it is absent from the emitted set while still present in the declared one. Exactly what the caller asked for, bounded to record-level properties, and disclosed by requiresNonDefaultConfig. Its probe measures the two settings producing DIFFERENT output, which is what makes it the LIVE twin of the dead inheritDoc control sitting one line away in the same options class.",
+      "configDescription": "assert ENRICHED_METADATA vs PROPERTY_SET, inheritRecordProperties=false",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-leaf-doc-is-reported-as-its-own",
+      "family": "schema",
+      "file": "schema/enriched-leaf-doc-is-reported-as-its-own.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "When no ancestor declares documentation, every leaf's reported doc is exactly the doc it declared",
+      "detail": "When no ancestor declares documentation, each leaf's reported doc is exactly the doc it declared and isDocInherited is false. The passing leg of the doc comparator, without which that comparator could only ever report divergence.",
+      "configDescription": "assert ENRICHED_METADATA vs DECLARED_DOC, default FlattenOptions",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf",
+      "family": "schema",
+      "file": "schema/enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf.json",
+      "stack": "AVRO",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "A leaf that declared no documentation is reported as documented, with the enclosing record's text",
+      "detail": "Three leaves that declared no documentation are reported as documented, carrying the enclosing record's text. Inheritance is deliberate and isDocInherited is the honest flag, so the loss of provenance is bounded and recoverable - but a consumer does receive, for a column, documentation the producer never wrote about that column, and in a governance pipeline that text propagates into a data dictionary.",
+      "configDescription": "assert ENRICHED_METADATA vs DECLARED_DOC, default FlattenOptions (inheritDoc defaults true)",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-inheritdoc-false-is-a-dead-control",
+      "family": "schema",
+      "file": "schema/enriched-inheritdoc-false-is-a-dead-control.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "FlattenOptions.inheritDoc(false) changes nothing: leaves still inherit their ancestor's documentation",
+      "detail": "FlattenOptions.inheritDoc(false) changes nothing: the recorded output is byte-identical to the row measured with inheritance ON, and that identity IS the finding. inheritDoc is declared, defaulted, validated, stored and exposed by a getter, and grep across src/main finds zero reads of it. The consumer asked for declared-only documentation and got inherited documentation with no error and no diagnostic. The probe expecting EQUAL is the inert-control proof, and it is only meaningful because the sibling probes on collisionPolicy and inheritRecordProperties expect DIFFERENT and get it.",
+      "configDescription": "assert ENRICHED_METADATA vs DECLARED_DOC, inheritDoc=false",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-escape-name-decodes-back-to-its-path",
+      "family": "schema",
+      "file": "schema/enriched-escape-name-decodes-back-to-its-path.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "Under ESCAPE and with no array crossed, the flattened name decodes back to exactly the source path",
+      "detail": "Under ESCAPE, with no array crossed, decoding each flattened name recovers exactly the source path segments. This is the most literal round-trip claim anywhere in the enriched API and it holds here.",
+      "configDescription": "assert ENRICHED_METADATA vs DECODED_PATH, collisionPolicy ESCAPE",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "enriched-escape-name-does-not-decode-across-an-array-boundary",
+      "family": "schema",
+      "file": "schema/enriched-escape-name-does-not-decode-across-an-array-boundary.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "An ESCAPE-policy name containing the array marker decodes to a phantom empty segment",
+      "detail": "NameCollisionPolicy.ESCAPE's javadoc claims the rendering is lossless and reversible. It is not once an array is crossed: join() escapes each segment with the separator and then joins with the array-boundary separator, which is two UNESCAPED copies of that character, so decoding items__sku yields a phantom empty middle segment. checkCollision also returns early under ESCAPE on the stated grounds that the rendering is injective by construction, which this contradicts.",
+      "configDescription": "assert ENRICHED_METADATA vs DECODED_PATH, collisionPolicy ESCAPE",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
+      "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "vd-java-native-temporal-and-identity",
+      "family": "value-domain",
+      "file": "value-domain/vd-java-native-temporal-and-identity.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "Instant, UUID and an enum arrive as Strings; Character, Short and Float survive - and nothing marks the difference",
+      "detail": "Instant, UUID and an enum constant all leave the library as Strings; Character, Short and Float survive as themselves. Nothing marks the difference, so nothing downstream can tell an erased UUID from a user string that happens to look like one - the same loss vd-integer-past-long already publishes as a DEFECT. This is the first fixture to reach normalizePrimitive's Temporal, Enum and unknown-type branches at all, because every previous MAP source was built by a JSON parser.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "vd-java-date-is-not-a-function-of-its-input",
+      "family": "value-domain",
+      "file": "value-domain/vd-java-date-is-not-a-function-of-its-input.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The flattened value of a java.util.Date depends on the JVM's default timezone, not only on the Date",
+      "detail": "A java.util.Date is flattened by calling Date.toString(), which formats through TimeZone.getDefault(). The column value is therefore a function of ambient JVM state, not only of the data: two Spark executors in different regions emit different values for the same row. The epoch instant also becomes an unparseable English sentence. The corpus pins the zone for the measurement and asserts the pin is restored; that pin is itself the evidence, because a fixture that could not be pinned would be flaky.",
+      "configDescription": "defaults, with the JVM TimeZone pinned to UTC and Locale to en-US for the measurement",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "vd-binary-array-collides-with-array-text",
+      "family": "value-domain",
+      "file": "value-domain/vd-binary-array-collides-with-array-text.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "A byte[] flattens to the byte-identical text a real array and an array-lookalike string produce",
+      "detail": "A byte[] never reaches normalizePrimitive: it is diverted to the array path, widened element by element and JSON-serialised, producing the bracket-leading text that a genuine array and an array-lookalike string also produce. The parent object is then retyped as an array AND the binary payload is gone, with none of the base64 marking a ByteBuffer receives. This is the collision class reached with no string and no array anywhere in the input - the type Spark hands you for BinaryType.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "vd-object-array-and-set-become-array-text",
+      "family": "value-domain",
+      "file": "value-domain/vd-object-array-and-set-become-array-text.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "Object[] and a LinkedHashSet are serialized as array text and promote their parent to an array",
+      "detail": "Object[] and a LinkedHashSet are both serialised to array text, both parse back to two elements, and the parent prefix is promoted, so two independent fields are zipped into two synthetic records. These are the last two container types ordinary Java code hands to flatten() that no fixture reached. Set-ness itself is NOT under test - the oracle renders any Collection positionally - and the fixture says so.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "vd-nonfinite-double-collides-with-its-text",
+      "family": "value-domain",
+      "file": "value-domain/vd-nonfinite-double-collides-with-its-text.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "Double.NaN and the string \"NaN\" flatten to byte-identical output; one round-trips and one does not",
+      "detail": "Three authored Doubles - NaN and both infinities - and three authored Strings of the same text are the same six characters after flattening. The flattened map is byte-identical to vd-string-literal-lookalikes', which is published LOSSLESS, and the pair invariant asserts that equality. JSON has no NaN literal, so this collision was documented in the warning list and unassertable until the typed input hatch existed.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "vd-bigdecimal-java-native-scale-loss-and-the-live-flag",
+      "family": "value-domain",
+      "file": "value-domain/vd-bigdecimal-java-native-scale-loss-and-the-live-flag.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "A real BigDecimal loses its declared scale by default - and preserveBigDecimalPrecision, inert on the JSON stack, is LIVE here",
+      "detail": "A real BigDecimal handed straight to flatten() loses its declared scale under defaults. The probe additionally shows preserveBigDecimalPrecision producing DIFFERENT output on this stack, which is what makes its inertness on the JSON stack (vd-preserve-bigdecimal-flag-inert) a specific defect rather than a general \"this option does nothing\". requiresNonDefaultConfig is false: the row is measured at defaults and only the probe tunes the flag.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "non-string-map-keys-collide-and-are-disambiguated",
+      "family": "naming",
+      "file": "naming/non-string-map-keys-collide-and-are-disambiguated.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "An Integer key 1 and a String key \"1\" both stringify to \"1\"; the second is renamed to a field name nobody wrote",
+      "detail": "An Integer key 1 and a String key \"1\" both stringify to \"1\"; the disambiguator renames the second to a field name nobody wrote, which then acquires an escape because it contains the separator. Both the key TYPE and the key IDENTITY are gone and the new name carries no marker. Unreachable from JSON text - every JSON object key is a String - and ordinary from Spark, which hands Map keys of any type for MapType(IntegerType, ...).",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "circular-map-reference-is-marked-and-the-guard-is-live",
+      "family": "limits",
+      "file": "limits/circular-map-reference-is-marked-and-the-guard-is-live.json",
+      "stack": "MAP",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "detectCircularReferences is real: a self-referential Map is cut with an explicit marker instead of running away",
+      "detail": "detectCircularReferences is real and this is the only row that can see it: a cyclic graph cannot be expressed as JSON text, so the guard had run unwitnessed on every previous fixture. A self-referential Map is cut with an explicit [CIRCULAR_REFERENCE] marker, and the probe proves the guard is live by measuring detection on and off producing different output. Accepted on the same footing as depth-one-over-max: a cyclic graph has no tree encoding and the library marks rather than hangs. The caveat that must be read with it is that the marker is a bare unescaped string a user could have authored, so this truncation is aliasable exactly as maxDepth truncation is. The marker lands at a_a rather than a because flatten() enters a defensive top-level copy first.",
+      "configDescription": "mapFlattener.maxDepth=3",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "circular-list-reference-escapes-the-guard",
+      "family": "limits",
+      "file": "limits/circular-list-reference-escapes-the-guard.json",
+      "stack": "MAP",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "The same guard does nothing for a self-referential List, and the error path claims otherwise",
+      "detail": "The same guard does nothing for a self-referential List. The visit-stack calls live only in flattenObject, so a List containing itself is bounded only by maxDepth, and the probe measures detection on and off producing IDENTICAL output - the guard is inert here. There is no marker at all: the value is nested brackets around a JDK toString artefact, which is data-shaped and silently wrong, and the sibling Map row shows the library can do better. A guard whose coverage does not match its name.",
+      "configDescription": "mapFlattener.maxDepth=3",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
+    },
+    {
+      "id": "recipe-diverges-when-the-flattener-is-tuned",
+      "family": "published-recipe",
+      "file": "published-recipe/recipe-diverges-when-the-flattener-is-tuned.json",
+      "stack": "BOTH",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "A bounded, defaults-holding loss that the published recipe still cannot reproduce",
+      "detail": "maxDepth(2) truncates the subtree below a_b to JSON text, so a_b comes back as a string where the source had an object - the same bounded loss depth-one-over-max already publishes. What is new is the DISCLOSURE: this row holds under default reconstruction (the defaults arm re-reconstructs the fixture's own flattened map and agrees) and does NOT hold under the published recipe, whose flattener runs at its own default depth. That combination is the reason holdsUnderPublishedRecipe exists as a separate column, and this row is the purpose-built proof that it can say NO.",
+      "configDescription": "mapFlattener.maxDepth=2",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
+    },
+    {
+      "id": "recipe-holds-on-a-plain-defaults-document",
+      "family": "published-recipe",
+      "file": "published-recipe/recipe-holds-on-a-plain-defaults-document.json",
+      "stack": "BOTH",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "A plain defaults document is reproduced exactly by the published recipe on both Stack A and Stack B",
+      "detail": "Four scalar runtime types and a present null, at defaults, on both stacks, reproduced exactly by the published recipe. The passing leg of the recipe-verdict drill: without it, a verdict wired to a constant NO would be indistinguishable from a corpus in which no row happens to hold.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     }
   ],
   "pairs": [
@@ -1735,7 +2496,7 @@
       "kind": "FLAT_EQUAL",
       "left": "vd-string-that-looks-like-array",
       "right": "vd-real-array-collides-with-array-text",
-      "detail": "A scalar string holding the text of an array and a genuine array flatten to byte-identical output. The value domain is not injective, so at most one of the two can ever round-trip without a wire-format change. This equality is the value-domain analogue of the FlattenedPath key-injectivity proof."
+      "detail": "A scalar string holding the text of an array and a genuine array flatten to byte-identical output. The collision class is THREE members wide, not two: vd-binary-array-collides-with-array-text reaches the same bytes from a byte[], with no string and no array anywhere in the input, and Object[] and Set reach it too. At most one of the three can ever round-trip without a wire-format change. This equality is the value-domain analogue of the FlattenedPath key-injectivity proof."
     },
     {
       "id": "pair-depth-truncation-aliases-a-real-string",
@@ -1775,6 +2536,28 @@
       "path": "r.tags",
       "expectedType": "SCALAR",
       "detail": "With every limit wide open, a one-element array still reconstructs as a scalar string. This isolates the size>1 detection gate from maxArraySize entirely."
+    },
+    {
+      "id": "pair-binary-collides-with-array-text",
+      "kind": "FLAT_EQUAL",
+      "left": "vd-binary-array-collides-with-array-text",
+      "right": "vd-string-that-looks-like-array",
+      "detail": "A byte[] and a string containing array text flatten to byte-identical output. This is the member of the collision class reachable with no string and no array in the input, which is why it cannot be dismissed as a string-parsing quirk."
+    },
+    {
+      "id": "pair-nonfinite-double-collides-with-its-text",
+      "kind": "FLAT_EQUAL",
+      "left": "vd-nonfinite-double-collides-with-its-text",
+      "right": "vd-string-literal-lookalikes",
+      "detail": "Deliberately pointed at a published-LOSSLESS row: this LOSSLESS row's flattened output is byte-identical to a document that does not round-trip. The day non-finite doubles are tagged, this equality breaks AND the LOSSLESS row's claim that a genuine string \"NaN\" must not acquire the tag becomes enforceable in both directions."
+    },
+    {
+      "id": "pair-binary-promotes-parent-to-list",
+      "kind": "RECON_TYPE_AT_PATH",
+      "left": "vd-binary-array-collides-with-array-text",
+      "path": "a",
+      "expectedType": "LIST",
+      "detail": "The parent of a byte[] reconstructs as a LIST. The binary payload is gone and the container type changed; naming the type flip directly is stronger than leaving it inside a general inequality."
     }
   ]
 }

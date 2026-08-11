@@ -1,0 +1,46 @@
+{
+  "id" : "enriched-recursive-schema-fails-typed",
+  "family" : "schema",
+  "title" : "The same recursive schema: the legacy flattener dies with an Error, the enriched one refuses with a typed exception",
+  "stack" : "AVRO",
+  "referenceIssue" : "NP-002/NP-003",
+  "rationale" : "The pair that IS the argument for the new API, and nothing in the corpus stated it. EnrichedSchemaFlattener.guardRecursion checks an OPEN-type deque on the way down and throws RecursiveSchemaException naming the cycle and the path, so it fails at the point of recursion instead of after exhausting the stack. Same avsc as avro-recursive-schema-stack-overflows, so the two rows are one experiment with one variable. Classified ACCEPTED_LOSS rather than LOSSLESS or DEFECT: a recursive schema genuinely has no finite flattened form, so refusing is the right answer and the loss - you cannot flatten it at all - is understood and bounded. The rationale survives scrutiny precisely because the alternative on offer is an Error that kills the executor.",
+  "catchesBugClass" : "Regression of the open-type guard to a visited-set guard, which would reject the ordinary two-Address schema, or to no guard at all, which would make the enriched arm overflow like the legacy one. Because the comparison arm is the legacy flattener's outcome, it also catches the legacy side silently acquiring a cycle guard, which would be good news requiring a deliberate manifest rewrite.",
+  "cannotCatch" : "It proves the enriched flattener refuses; it does not prove the refusal is ACTIONABLE. Nothing here asserts the message names the right cycle or that getRecursiveType() returns the right full name - only that the throwable type and truncated message text are stable. It covers only direct self-reference, and it says nothing about what a caller should DO with a recursive schema, which is the actual unsolved problem.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The enriched arm throws RecursiveSchemaException; the legacy arm throws StackOverflowError. They differ, so the row is not lossless."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs LEGACY_AVRO_SCHEMA_FLATTENER, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "LEGACY_AVRO_SCHEMA_FLATTENER",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Category",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "name",
+          "type" : "string"
+        }, {
+          "name" : "child",
+          "type" : [ "null", "Category" ],
+          "default" : null
+        } ]
+      }
+    }
+  },
+  "input" : "{\"name\":\"root\",\"child\":{\"name\":\"leaf\",\"child\":null}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "LEGACY_AVRO_SCHEMA_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "THROWN: RecursiveSchemaException: Schema 'com.example.Category' is recursive: type 'com.example.Category' contains itself at path 'child'. A recursive schema has no finite flattened form. Break the cycle, or exclude the recursive branch before flattening.",
+    "flat" : "{\"child_child\":null,\"child_name\":\"S:leaf\",\"name\":\"S:root\"}",
+    "avroBaseline" : "THROWN: RecursiveSchemaException: Schema 'com.example.Category' is recursive: type 'com.example.Category' contains itself at path 'child'. A recursive schema has no finite flattened form. Break the cycle, or exclude the recursive branch before flattening.",
+    "avroDoc" : "THROWN: StackOverflowError: ",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

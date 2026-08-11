@@ -1,0 +1,59 @@
+{
+  "id" : "avro-logical-type-datum-is-writable-control",
+  "family" : "avro",
+  "title" : "The nullable-scalars-and-logical-types control, measured through reconstruct() as well",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "avro-nullable-scalars-and-logical-types-control is the third unqualified LOSSLESS Avro row, and logical types are exactly where genericRecordToMap converts representations - a decimal can come back as a ByteBuffer where the writer wants a fixed, and 'probably safe' is not a guarantee. Rather than leave the reconstruct() half of a published LOSSLESS row unmeasured, this row measures it. Same avsc and same datum as the control, so the only variable is the entry point.",
+  "catchesBugClass" : "A logical-type conversion that survives reconstructToMap and breaks under the writer. Because the encode is attempted rather than merely validated, it catches a representation the schema accepts by type but the encoder rejects by size or branch.",
+  "cannotCatch" : "It covers date, timestamp-millis and a nullable string only. It says nothing about decimal-on-fixed, uuid, or a logical type nested inside an array - avro-logical-types-erased-inside-arrays owns that case and does not reach reconstruct() either.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "No nested record, so the one-level copy is sufficient and the datum should validate and encode."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "LT",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "d",
+          "type" : {
+            "type" : "int",
+            "logicalType" : "date"
+          }
+        }, {
+          "name" : "ts",
+          "type" : {
+            "type" : "long",
+            "logicalType" : "timestamp-millis"
+          }
+        }, {
+          "name" : "s",
+          "type" : [ "null", "string" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"d\":19000,\"ts\":1700000000000,\"s\":null}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : true,
+      "nestedRecordsAreRecords" : true,
+      "nonRecordNestedPaths" : "",
+      "encodeFailure" : "",
+      "binaryEncodes" : true
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"d\":\"I:19000\",\"s\":null,\"ts\":\"L:1700000000000\"}",
+    "avroBaseline" : "{\"d\":\"I:19000\",\"s\":null,\"ts\":\"L:1700000000000\"}",
+    "avroDoc" : "{\"d\":\"I:19000\",\"s\":null,\"ts\":\"L:1700000000000\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

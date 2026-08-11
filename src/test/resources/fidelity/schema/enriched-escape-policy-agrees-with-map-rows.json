@@ -1,0 +1,78 @@
+{
+  "id" : "enriched-escape-policy-agrees-with-map-rows",
+  "family" : "schema",
+  "title" : "NameCollisionPolicy.ESCAPE makes the enriched column names byte-identical to MapFlattener's row keys",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The other half of the pair, and the reason the pair exists: it tells a consumer which policy makes the StructType and the rows line up. ESCAPE had no fixture anywhere in the repository. Same schema and same datum as the DEFECT twin, so the only variable is the policy. The probe demands that the two policies produce DIFFERENT leaf renderings, which is what proves collisionPolicy is a live control and is what makes the EQUAL result on the inheritDoc fixture meaningful rather than vacuous.",
+  "catchesBugClass" : "A regression in either escaping implementation, and any drift between FlattenedPath.escapeSegment's two call sites. Because the probe demands the two policies differ, it also catches ESCAPE silently degrading into a no-op - the exact way this control would die.",
+  "cannotCatch" : "It proves agreement only on a schema with no array boundary; the sibling DECODED_PATH fixture shows ESCAPE is NOT injective once an array boundary is crossed, so this row must not be read as 'ESCAPE is always safe'. It also cannot be adopted by a consumer whose names become Avro or SQL identifiers, because backslash is illegal there - the row states an agreement, not a recommendation.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Under ESCAPE, join() escapes each segment with the separator before joining, which is MapFlattener.buildKey's contract, so both sides render the same three names."
+  },
+  "configDescription" : "assert ENRICHED_KEYSET vs MAP_FLATTENER, collisionPolicy ESCAPE",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_KEYSET",
+      "enrichedCompare" : "MAP_FLATTENER",
+      "enriched" : {
+        "collisionPolicy" : "ESCAPE"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "probe" : {
+    "kind" : "ENRICHED_CONFIG_COMPARE",
+    "expect" : "DIFFERENT",
+    "configA" : {
+      "enriched" : { }
+    },
+    "configB" : {
+      "enriched" : {
+        "collisionPolicy" : "ESCAPE"
+      }
+    },
+    "note" : "collisionPolicy must change the emitted names; if it stops doing so, ESCAPE has become a no-op."
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_KEYSET",
+    "enrichedCompare" : "MAP_FLATTENER",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "enrichedNames" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "avroDoc" : "[\"S:order\\\\_id\",\"S:ship_city\",\"S:ship_post\\\\_code\"]",
+    "losslessAvro" : true,
+    "probe" : {
+      "kind" : "ENRICHED_CONFIG_COMPARE",
+      "expect" : "DIFFERENT",
+      "a" : "{\"order_id\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=1\",\"ship_city\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=2\",\"ship_post_code\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=3\"}",
+      "b" : "{\"order\\\\_id\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=1\",\"ship_city\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=2\",\"ship_post\\\\_code\":\"S:doc=null;docInherited=false;mappedType=VARCHAR;props={};nullable=false;withinArray=false;position=3\"}",
+      "equal" : false
+    }
+  },
+  "measuredLossless" : true
+}

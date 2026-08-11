@@ -1,0 +1,58 @@
+{
+  "id" : "enriched-escape-name-decodes-back-to-its-path",
+  "family" : "schema",
+  "title" : "Under ESCAPE and with no array crossed, the flattened name decodes back to exactly the source path",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "NameCollisionPolicy.ESCAPE's javadoc claims it is lossless and round-trips. That is an encode/decode claim, the most literal round-trip statement anywhere in the enriched API, and it belongs in a round-trip corpus. This fixture pins the case where the claim holds, and is the passing leg of the DECODED_PATH comparator.",
+  "catchesBugClass" : "A regression that makes the escaped rendering non-decodable - escaping the full separator string instead of its first character, for instance, the exact bug FlattenedPath.appendEscaped's comment records having been caught by a property test.",
+  "cannotCatch" : "Array boundaries, deliberately - see the sibling DEFECT. It cannot check the FAIL policy, where the names are known not to decode; that divergence is already carried by the keyset fixtures and a third row would be redundant.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "decodeSegments of each flattened name equals that leaf's path segment names."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs DECODED_PATH, collisionPolicy ESCAPE",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "DECODED_PATH",
+      "enriched" : {
+        "collisionPolicy" : "ESCAPE"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string"
+            }, {
+              "name" : "post_code",
+              "type" : "string"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\",\"post_code\":\"80202\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "DECODED_PATH",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"order_id\":\"S:[]\",\"ship.city\":\"S:[]\",\"ship.post_code\":\"S:[]\"}",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\",\"ship_post\\\\_code\":\"S:80202\"}",
+    "avroBaseline" : "{\"order_id\":\"S:[order_id]\",\"ship.city\":\"S:[ship, city]\",\"ship.post_code\":\"S:[ship, post_code]\"}",
+    "avroDoc" : "{\"order_id\":\"S:[order_id]\",\"ship.city\":\"S:[ship, city]\",\"ship.post_code\":\"S:[ship, post_code]\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

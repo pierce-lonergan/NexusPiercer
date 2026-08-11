@@ -25,7 +25,31 @@
 
 ## High Priority
 
-*None yet*
+### [BL-010] JsonFlattener is dead public surface
+
+**Found by:** the P2.2 published-recipe gate (`PublishedSnippetsCompileTest`), while making
+`manifest.stacks[*].code` compile.
+
+`JsonFlattener` is a 2000-line public class that no caller outside `io.github.pierce` can hold a
+reference to. Its only constructor is private; `create()`, both `with(...)` overloads and
+`Builder.build()` all return `FluentOperation`; no public member anywhere in the file returns
+`JsonFlattener`. Its public instance methods `flattenToMap`, `flattenToJson` and
+`flattenMapToJson` are therefore unreachable from outside the package.
+
+The manifest's published Stack B recipe declared a `JsonFlattener` variable and so could never have
+compiled in a consumer's project. That snippet has been corrected to the fluent form, which reaches
+the same code because `FluentOperation.from(String)` delegates to `flattenToMap` — note that
+`from(Map)` and `from(JsonNode)` do **not**, so "FluentOperation always routes through
+flattenToMap" is false and must not be written down.
+
+Additional evidence: the class has **zero** tests anywhere in the repository. A full grep of
+`src/test` finds exactly one reference to it, in `FidelityRunner`.
+
+**Not fixed here, deliberately.** Making the constructor or a factory return `JsonFlattener` is a
+public-API change that needs a review and a migration path, and doing it in the same pass would
+silently invalidate the corrected Stack B snippet the moment it landed. Cross-reference
+[BL-008], whose description ("a fluent wrapper around MapFlattener") is now known to be incomplete:
+it is a wrapper nobody can name.
 
 ---
 

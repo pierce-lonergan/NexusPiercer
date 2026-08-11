@@ -22,7 +22,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  * @param predicted          the designer's prediction, kept even where measurement disagreed
  * @param config             machine-readable configuration applied by the runner
  * @param probe              optional extra measurement (config comparison, typed twin)
- * @param input              the source document, as JSON text
+ * @param input              the source document as JSON text, or null when {@code javaInput} is used
+ * @param javaInput          a typed-constructor spec for a source document JSON cannot express
+ *                           (java.util.Date, UUID, Instant, enum, byte[], Object[], Set,
+ *                           non-String map keys, or a cycle), or null when {@code input} is used
  * @param expected           the recorded renderings the guarantee is checked against
  */
 record FidelityFixture(
@@ -39,12 +42,29 @@ record FidelityFixture(
         JsonNode config,
         JsonNode probe,
         String input,
+        JsonNode javaInput,
         JsonNode expected) {
 
     static FidelityFixture from(JsonNode node) {
         JsonNode probe = node.path("probe");
+        JsonNode java = node.path("javaInput");
+        boolean hasJava = java.isObject() && java.size() > 0;
+        String id = text(node, "id");
+        // SOURCE XOR, deliberately an error rather than a precedence rule. If javaInput merely
+        // "won" when present, a fixture could carry a vestigial input string that reads like the
+        // source and is not - a field that appears present and does nothing, in the file a
+        // reviewer opens first.
+        JsonNode rawInput = node.get("input");
+        boolean hasInput = rawInput != null && !rawInput.isNull() && !rawInput.asText().isEmpty();
+        if (hasInput && hasJava) {
+            throw new IllegalStateException("fixture " + id + " declares BOTH input and javaInput - "
+                    + "one of them would be silently ignored");
+        }
+        if (!hasInput && !hasJava) {
+            throw new IllegalStateException("fixture " + id + " declares no source document");
+        }
         return new FidelityFixture(
-                text(node, "id"),
+                id,
                 text(node, "family"),
                 text(node, "title"),
                 text(node, "stack"),
@@ -56,7 +76,8 @@ record FidelityFixture(
                 node.path("predicted"),
                 node.path("config"),
                 probe.isObject() ? probe : null,
-                text(node, "input"),
+                hasInput ? rawInput.asText() : null,
+                hasJava ? java : null,
                 node.path("expected"));
     }
 

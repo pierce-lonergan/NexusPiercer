@@ -52,36 +52,88 @@ final class FidelityRender {
 
     /** Renders a Java object graph (the MAP stack domain) to its canonical form. */
     static Object java(Object value) {
+        return java(value, new java.util.IdentityHashMap<>(), 0);
+    }
+
+    /**
+     * @param open  containers currently being rendered, mapped to the depth they sit at. A value
+     *              that is its own ancestor renders as {@code CYCLE:^n} instead of recursing
+     *              forever. Siblings that share a reference (a DAG) still render in full, which
+     *              matches {@code MapFlattener}'s own backtracking visit-stack semantics.
+     * @param depth how deep the current value sits, used only to compute {@code n}.
+     */
+    private static Object java(Object value, java.util.IdentityHashMap<Object, Integer> open, int depth) {
         if (value == null) {
             return null;
         }
+        Integer ancestor = open.get(value);
+        if (ancestor != null) {
+            return "CYCLE:^" + (depth - ancestor);
+        }
         if (value instanceof Map<?, ?> map) {
-            Map<String, Object> sorted = new TreeMap<>();
-            for (Map.Entry<?, ?> e : map.entrySet()) {
-                sorted.put(String.valueOf(e.getKey()), java(e.getValue()));
+            open.put(value, depth);
+            try {
+                Map<String, Object> sorted = new TreeMap<>();
+                for (Map.Entry<?, ?> e : map.entrySet()) {
+                    // A map key is a VALUE, and on the MAP stack it need not be a String: Spark
+                    // hands MapType(IntegerType, ...) through as Integer keys. Rendering every key
+                    // with String.valueOf() merged an Integer 1 with a String "1" and silently lost
+                    // a field from the BASELINE, before the round trip was even measured.
+                    Object k = e.getKey();
+                    String rendered = k instanceof String s ? s : String.valueOf(scalar(k));
+                    Object clash = sorted.put(rendered, java(e.getValue(), open, depth + 1));
+                    if (clash != null) {
+                        throw new IllegalStateException("FidelityRender: two distinct map keys "
+                                + "render to '" + rendered + "'. The oracle would silently merge "
+                                + "them and the baseline would lose a field.");
+                    }
+                }
+                return new LinkedHashMap<String, Object>(sorted);
+            } finally {
+                open.remove(value);
             }
-            return new LinkedHashMap<String, Object>(sorted);
         }
         if (value instanceof Collection<?> col) {
-            List<Object> out = new ArrayList<>(col.size());
-            for (Object o : col) {
-                out.add(java(o));
+            open.put(value, depth);
+            try {
+                List<Object> out = new ArrayList<>(col.size());
+                for (Object o : col) {
+                    out.add(java(o, open, depth + 1));
+                }
+                return out;
+            } finally {
+                open.remove(value);
             }
-            return out;
         }
         if (value instanceof Object[] arr) {
-            List<Object> out = new ArrayList<>(arr.length);
-            for (Object o : arr) {
-                out.add(java(o));
+            open.put(value, depth);
+            try {
+                List<Object> out = new ArrayList<>(arr.length);
+                for (Object o : arr) {
+                    out.add(java(o, open, depth + 1));
+                }
+                return out;
+            } finally {
+                open.remove(value);
             }
-            return out;
         }
-        return scalar(value);
+        return scalar(value, open, depth);
     }
 
     private static Object scalar(Object value) {
+        return scalar(value, new java.util.IdentityHashMap<>(), 0);
+    }
+
+    private static Object scalar(Object value, java.util.IdentityHashMap<Object, Integer> open, int depth) {
         if (value instanceof String s) {
             return "S:" + s;
+        }
+        if (value instanceof java.util.Date d) {
+            // Epoch millis, NOT toString(): Date.toString() formats through TimeZone.getDefault(),
+            // so a baseline built from it would encode the ambient JVM zone and the fixture would
+            // record different bytes on a different machine. The flattened side is deliberately
+            // left carrying the zone-dependent sentence - that IS the finding.
+            return "DATE:" + d.getTime();
         }
         if (value instanceof Boolean b) {
             return "B:" + b;
@@ -119,7 +171,7 @@ final class FidelityRender {
             dup.get(bytes);
             return "BYTES:" + Base64.getEncoder().encodeToString(bytes);
         }
-        return avroAware(value);
+        return avroAware(value, open, depth);
     }
 
     /**
@@ -128,7 +180,7 @@ final class FidelityRender {
      * byte content, and records by field name and value. Numeric types are NOT normalised into
      * each other - several fixtures turn on exactly that distinction.
      */
-    private static Object avroAware(Object value) {
+    private static Object avroAware(Object value, java.util.IdentityHashMap<Object, Integer> open, int depth) {
         String cls = value.getClass().getName();
         if ("org.apache.avro.util.Utf8".equals(cls)) {
             return "S:" + value;
@@ -140,11 +192,16 @@ final class FidelityRender {
             return "FIXED:" + Base64.getEncoder().encodeToString(fixed.bytes());
         }
         if (value instanceof org.apache.avro.generic.GenericRecord rec) {
-            Map<String, Object> sorted = new TreeMap<>();
-            for (org.apache.avro.Schema.Field f : rec.getSchema().getFields()) {
-                sorted.put(f.name(), java(rec.get(f.name())));
+            open.put(value, depth);
+            try {
+                Map<String, Object> sorted = new TreeMap<>();
+                for (org.apache.avro.Schema.Field f : rec.getSchema().getFields()) {
+                    sorted.put(f.name(), java(rec.get(f.name()), open, depth + 1));
+                }
+                return new LinkedHashMap<String, Object>(sorted);
+            } finally {
+                open.remove(value);
             }
-            return new LinkedHashMap<String, Object>(sorted);
         }
         if ("org.apache.avro.JsonProperties$Null".equals(cls)) {
             // Avro's NULL_VALUE singleton, which is what reconstruction substitutes for a

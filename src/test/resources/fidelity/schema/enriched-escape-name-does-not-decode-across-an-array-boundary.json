@@ -1,0 +1,55 @@
+{
+  "id" : "enriched-escape-name-does-not-decode-across-an-array-boundary",
+  "family" : "schema",
+  "title" : "An ESCAPE-policy name containing the array marker decodes to a phantom empty segment",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Under ESCAPE, join() escapes each segment with the separator but then joins across an array boundary with the arrayBoundarySeparator, which is two UNESCAPED copies of the separator character. FlattenedPath.decodeSegments splits on every unescaped separator, so items__sku decodes to three segments with an empty one in the middle. NameCollisionPolicy.ESCAPE's javadoc says it is lossless and reversible; it is not, the moment an array is crossed under the default boundary separator. checkCollision also returns early under ESCAPE on the stated grounds that the rendering is injective by construction, which this contradicts.",
+  "catchesBugClass" : "An escaping scheme that is injective per segment but not per joined key because a second, unescaped joiner was introduced. Catches any repair - escaping the boundary, choosing a boundary character outside the separator alphabet, or dropping the rendered marker in favour of FlattenedField.arrayBoundaries() - and forces the manifest to state which was chosen.",
+  "cannotCatch" : "It does not exhibit an actual two-paths-one-name COLLISION, only a wrong decode; Avro forbids empty field names, so constructing a true collision may be impossible and the fixture does not claim one. It cannot detect the same hazard under FAIL, where nothing is escaped and the decode is wrong for a different reason.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The declared path is [items, sku]; the decoded path carries an unnamed middle level. A consumer who took the javadoc at its word and used the flattened name as a map key or JSON pointer reconstructs a three-level path."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs DECODED_PATH, collisionPolicy ESCAPE",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "DECODED_PATH",
+      "enriched" : {
+        "collisionPolicy" : "ESCAPE"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Item",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"items\":[{\"sku\":\"A1\"}]}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "DECODED_PATH",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=ESCAPE;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"items.sku\":\"S:[]\"}",
+    "flat" : "{\"items_sku\":\"S:[\\\"A1\\\"]\"}",
+    "avroBaseline" : "{\"items.sku\":\"S:[items, sku]\"}",
+    "avroDoc" : "{\"items.sku\":\"S:[items, , sku]\"}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

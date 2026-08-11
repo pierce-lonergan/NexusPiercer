@@ -1,0 +1,30 @@
+{
+  "id" : "recipe-holds-on-a-plain-defaults-document",
+  "family" : "published-recipe",
+  "title" : "A plain defaults document is reproduced exactly by the published recipe on both Stack A and Stack B",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The other half of the drill. Without a fixture that must answer YES, a bug that hard-wired the recipe verdict to NO would be indistinguishable from a corpus in which no row happens to hold. Cheap, and it makes the published-recipe family self-contained rather than dependent on the classification of rows in other families. Present-null is included deliberately because JsonReconstructor.preserveNulls defaults to true and the corpus oracle distinguishes absent from present-null; if that default ever changes, this row fails on the round trip and the recipe verdict simultaneously, and the two failures together localise the change to the reconstructor default rather than to the recipe.",
+  "catchesBugClass" : "A recipe verdict wired to a constant NO or to a constant NOT_APPLICABLE; a regression in the default reconstruction of present nulls or of scalar runtime types.",
+  "cannotCatch" : "It is the easiest possible document. It cannot catch anything about arrays, which is where the overwhelming majority of this library's losses live - the first two known-lossy headlines are both about arrays. Reading a YES here as 'the recipe works' would be exactly the misreading the corpus exists to prevent.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "LOSSLESS on both arms, holding under defaults and under the published recipe."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order\":{\"id\":\"A-1\",\"qty\":3,\"paid\":true,\"note\":null}}",
+  "expected" : {
+    "mapBaseline" : "{\"order\":{\"id\":\"S:A-1\",\"note\":null,\"paid\":\"B:true\",\"qty\":\"I:3\"}}",
+    "flat" : "{\"order_id\":\"S:A-1\",\"order_note\":null,\"order_paid\":\"B:true\",\"order_qty\":\"I:3\"}",
+    "mapDoc" : "{\"order\":{\"id\":\"S:A-1\",\"note\":null,\"paid\":\"B:true\",\"qty\":\"I:3\"}}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"order\":{\"id\":\"S:A-1\",\"note\":null,\"paid\":\"B:true\",\"qty\":\"I:3\"}}",
+    "flatJson" : "{\"order_id\":\"S:A-1\",\"order_note\":null,\"order_paid\":\"B:true\",\"order_qty\":\"I:3\"}",
+    "jsonDoc" : "{\"order\":{\"id\":\"S:A-1\",\"note\":null,\"paid\":\"B:true\",\"qty\":\"I:3\"}}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

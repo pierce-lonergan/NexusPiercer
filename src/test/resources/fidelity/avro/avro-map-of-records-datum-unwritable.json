@@ -1,0 +1,57 @@
+{
+  "id" : "avro-map-of-records-datum-unwritable",
+  "family" : "avro",
+  "title" : "The map-of-records control document, taken through reconstruct() instead of reconstructToMap()",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The twin avro-map-of-records-control needs so that its requalification is an assertion rather than an argument by analogy with the array row. A map with record VALUES goes through the same one-level mapToGenericRecord copy, so attrs is set as a Map of LinkedHashMap and GenericData.validate fails on the value type.",
+  "catchesBugClass" : "A fix that repairs arrays and plain nested records but leaves map values untyped - the third container shape, reached by a different branch of genericRecordToMap.",
+  "cannotCatch" : "A map with SCALAR values is untouched by this defect and is not exercised here, so the row cannot separate 'maps are broken' from 'record values are broken'. It says nothing about map keys, which are Utf8 on the way out and String on the way in.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "attrs is a LinkedHashMap of LinkedHashMap; validate fails on the value type and the encode throws."
+  },
+  "configDescription" : "assert DATUM",
+  "config" : {
+    "avro" : {
+      "assert" : "DATUM",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Bag",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "attrs",
+          "type" : {
+            "type" : "map",
+            "values" : {
+              "type" : "record",
+              "name" : "Attr",
+              "fields" : [ {
+                "name" : "v",
+                "type" : "string"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"attrs\":{\"a\":{\"v\":\"x\"},\"b\":{\"v\":\"y\"}}}",
+  "expected" : {
+    "avroAssert" : "DATUM",
+    "datumChecks" : {
+      "reconstructReturnedARecord" : true,
+      "validatesAgainstSchema" : false,
+      "nestedRecordsAreRecords" : false,
+      "nonRecordNestedPaths" : "attrs{a}=LinkedHashMap attrs{b}=LinkedHashMap",
+      "encodeFailure" : "ClassCastException",
+      "binaryEncodes" : false
+    },
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"attrs_a_v\":\"S:x\",\"attrs_b_v\":\"S:y\"}",
+    "avroBaseline" : "{\"attrs\":{\"a\":{\"v\":\"S:x\"},\"b\":{\"v\":\"S:y\"}}}",
+    "avroDoc" : "{\"attrs\":{\"a\":{\"v\":\"S:x\"},\"b\":{\"v\":\"S:y\"}}}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

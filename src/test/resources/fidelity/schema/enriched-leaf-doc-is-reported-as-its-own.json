@@ -1,0 +1,54 @@
+{
+  "id" : "enriched-leaf-doc-is-reported-as-its-own",
+  "family" : "schema",
+  "title" : "When no ancestor declares documentation, every leaf's reported doc is exactly the doc it declared",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The passing leg of the DECLARED_DOC comparator. Without it the comparator has only diverging fixtures and cannot be distinguished from a comparator that always diverges. It also states a real guarantee: isDocInherited is false and doc is verbatim when nothing was inherited.",
+  "catchesBugClass" : "docInherited being set for a leaf that declared its own doc - the flag is computed as field.doc()==null && fieldDoc!=null, which a refactor could easily invert - and a leaf's own doc being overwritten by an ancestor's.",
+  "cannotCatch" : "Nothing about inheritance, by construction, since no ancestor declares a doc. It also cannot see a record-level doc on the ROOT record, which the walk seeds separately.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Both sides are keyed by source path and carry the same shape, so equality is meaningful rather than a shape mismatch that can never be equal."
+  },
+  "configDescription" : "assert ENRICHED_METADATA vs DECLARED_DOC, default FlattenOptions",
+  "config" : {
+    "avro" : {
+      "assert" : "ENRICHED_METADATA",
+      "enrichedCompare" : "DECLARED_DOC",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Order",
+        "namespace" : "gov",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string",
+          "doc" : "Order id"
+        }, {
+          "name" : "ship",
+          "type" : {
+            "type" : "record",
+            "name" : "Ship",
+            "fields" : [ {
+              "name" : "city",
+              "type" : "string",
+              "doc" : "City"
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"o-1\",\"ship\":{\"city\":\"Denver\"}}",
+  "expected" : {
+    "avroAssert" : "ENRICHED_METADATA",
+    "enrichedCompare" : "DECLARED_DOC",
+    "enrichedOptions" : "separator=_;arrayBoundarySeparator=__;inheritDoc=true;inheritRecordProperties=true;unwrapNullableUnions=true;collisionPolicy=FAIL;maxDepth=64;maxFields=100000;injected=[]",
+    "propertyPlacement" : "{\"order_id\":\"S:[]\",\"ship.city\":\"S:[]\"}",
+    "flat" : "{\"order\\\\_id\":\"S:o-1\",\"ship_city\":\"S:Denver\"}",
+    "avroBaseline" : "{\"order_id\":\"S:doc=Order id;inherited=false\",\"ship.city\":\"S:doc=City;inherited=false\"}",
+    "avroDoc" : "{\"order_id\":\"S:doc=Order id;inherited=false\",\"ship.city\":\"S:doc=City;inherited=false\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}
