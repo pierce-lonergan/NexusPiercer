@@ -1,0 +1,31 @@
+{
+  "id" : "lower-case-collision-suffix-corrupts-structure",
+  "family" : "naming",
+  "title" : "The case-collision disambiguator emits an unescaped _2 that the decoder reads as a nesting level",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "transformKeys calls generateUniqueKey AFTER encoding, and generateUniqueKey appends a raw separator with no escaping. Two case-variant fields fold to one name and the disambiguating suffix is parsed as structure. It also drags in setNestedValue _value wrapper, which invents a key that appears in no source document.",
+  "catchesBugClass" : "Uniquification suffixes emitted into an encoded namespace without escaping. The only fixture that exercises setNestedValue leaf/parent conflict wrapper.",
+  "cannotCatch" : "It cannot catch the same generateUniqueKey call made from sanitizeKey, which runs BEFORE encoding and produces a renamed-but-structurally-intact result - a materially different failure mode.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two scalars become one object with a fabricated _value key and a numeric-string key. Case folding is an ACCEPTED consequence of the requested strategy; the structural corruption and the invented _value are not."
+  },
+  "configDescription" : "MapFlattener.builder().namingStrategy(LOWER_CASE); reconstructor default",
+  "config" : {
+    "mapFlattener" : {
+      "namingStrategy" : "LOWER_CASE"
+    }
+  },
+  "input" : "{\"Id\":1,\"id\":2}",
+  "expected" : {
+    "mapBaseline" : "{\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "flat" : "{\"id\":\"I:1\",\"id_2\":\"I:2\"}",
+    "mapDoc" : "{\"id\":{\"2\":\"I:2\",\"_value\":\"I:1\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "jsonDoc" : "{\"id\":{\"2\":\"I:2\",\"_value\":\"I:1\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

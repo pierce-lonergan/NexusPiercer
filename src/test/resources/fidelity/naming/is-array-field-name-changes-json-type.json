@@ -1,0 +1,27 @@
+{
+  "id" : "is-array-field-name-changes-json-type",
+  "family" : "naming",
+  "title" : "A user field named __isArray__ converts its parent object into a JSON array",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-022",
+  "rationale" : "The worst manifestation of the same root cause and not mentioned anywhere in SECURITY.md. buildHierarchy places the decoded name as a real map key with value true; processArrays then evaluates its marker test on that user data and takes the array branch. The parent object does not merely lose a field - it changes JSON type.",
+  "catchesBugClass" : "Type confusion driven by field naming: the reconstructor reads control flow out of the same namespace it reads data from. Any consumer inferring a Spark schema gets array<struct> where the source had struct.",
+  "cannotCatch" : "It cannot catch the __arrayPath__ twin, which is only removed and skipped so its failure mode is plain deletion. It also cannot tell you what happens when __isArray__ carries a non-true value.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "An object becomes an array and the __isArray__ field vanishes. Attacker-controlled key names can change the reconstructed JSON type, which is a schema-inference hazard, not just a fidelity gap."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"cfg\":{\"__isArray__\":true,\"name\":\"x\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"cfg\":{\"__isArray__\":\"B:true\",\"name\":\"S:x\"}}",
+    "flat" : "{\"cfg_\\\\_\\\\_isArray\\\\_\\\\_\":\"B:true\",\"cfg_name\":\"S:x\"}",
+    "mapDoc" : "{\"cfg\":[{\"name\":\"S:x\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"cfg\":{\"__isArray__\":\"B:true\",\"name\":\"S:x\"}}",
+    "jsonDoc" : "{\"cfg\":[{\"name\":\"S:x\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

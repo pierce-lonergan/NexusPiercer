@@ -1,0 +1,31 @@
+{
+  "id" : "depth-one-over-max",
+  "family" : "limits",
+  "title" : "Nesting one level past maxDepth stringifies the subtree instead of expanding it",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The cliff edge from above, and the fixture that documents what the truncation actually is. Most readers assume exceeding maxDepth drops or throws; it does neither - the whole subtree is replaced by its JSON text under the parent key, at log.debug only.",
+  "catchesBugClass" : "A change in truncation STRATEGY - silently switching to dropping the subtree, to a placeholder token, or to partial expansion. Any of those would be a wire-format change for every over-deep document.",
+  "cannotCatch" : "It cannot catch the ambiguity it creates; that requires the paired fixture. It also cannot catch the asymmetry with lists, and says nothing about whether ACCEPTED is the right verdict.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Bounding depth necessarily truncates, and embedding the exact JSON text is the least-destructive truncation available: every byte survives. What is not defensible is that the type change carries no marker."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(3); flat map must equal depth-overflow-aliases-a-real-string",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 3
+    }
+  },
+  "input" : "{\"l1\":{\"l2\":{\"l3\":{\"leaf\":7}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"leaf\":\"I:7\"}}}}",
+    "flat" : "{\"l1_l2_l3\":\"S:{\\\"leaf\\\":7}\"}",
+    "mapDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"leaf\":\"I:7\"}}}}",
+    "jsonDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"leaf\\\":7}\"}}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

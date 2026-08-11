@@ -1,0 +1,27 @@
+{
+  "id" : "array-of-objects-single-element",
+  "family" : "structural",
+  "title" : "Single-element array of objects - the array-vs-scalar ambiguity",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The classic ambiguity, decided the wrong way by an explicit numeric threshold rather than by accident: analyzeStructure requires parsed.size() > 1 before flagging a prefix as an array. One element never qualifies. Same document as the two-element fixture with one element removed, so the corpus contains the exact pair that isolates the threshold.",
+  "catchesBugClass" : "Cardinality-dependent behaviour: any code path whose correctness depends on how many elements happened to be in the input. This is the shape that makes a pipeline pass in test and corrupt in production on single-row days.",
+  "cannotCatch" : "Which of the two co-occurring failures is primary - the missing array wrapper or the unparsed leaf - because both follow from the same isArray=false decision. It also cannot tell us what the correct answer is for a genuinely one-element array versus a scalar; that needs schema, not inference.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both the array wrapper and the value types are lost. Flattens correctly, but both columns parse to size 1, fail the > 1 test, so users becomes an object path and the leaves are never parsed."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"users\":[{\"name\":\"Alice\",\"age\":30}]}",
+  "expected" : {
+    "mapBaseline" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"}]}",
+    "flat" : "{\"users_age\":\"S:[30]\",\"users_name\":\"S:[\\\"Alice\\\"]\"}",
+    "mapDoc" : "{\"users\":{\"age\":\"S:[30]\",\"name\":\"S:[\\\"Alice\\\"]\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"users\":[{\"age\":\"I:30\",\"name\":\"S:Alice\"}]}",
+    "jsonDoc" : "{\"users\":{\"age\":\"S:[30]\",\"name\":\"S:[\\\"Alice\\\"]\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

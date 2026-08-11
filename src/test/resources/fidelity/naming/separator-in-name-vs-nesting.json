@@ -1,0 +1,27 @@
+{
+  "id" : "separator-in-name-vs-nesting",
+  "family" : "naming",
+  "title" : "A literal separator in a field name stays distinct from real nesting (NP-021 pin)",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-021",
+  "rationale" : "The exact pair FlattenedPath was written to separate, in ONE document. buildKey escapes the raw field name so the literal emits an escaped separator and the nested path emits a structural one; decodeSegments splits only on unescaped separators. If anyone reverts to legacy encoding or drops escapeSegment from buildKey, these two keys collapse to one and one field is silently overwritten.",
+  "catchesBugClass" : "Loss of injectivity in the key encoding. Also catches a reconstructor/flattener separator mismatch, and analyzeStructure re-encoding prefixes inconsistently.",
+  "cannotCatch" : "It cannot catch the near-miss beside it: processArrays builds its path by RAW concatenation while analysis.arrayPaths holds ESCAPED encodings. Here both raw paths are the same string and only fail to collide because neither was classified as an array.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Decode yields the literal one-segment name and the two-segment nested path separately; reconstruct returns the source exactly."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"user_id\":1,\"user\":{\"id\":2}}",
+  "expected" : {
+    "mapBaseline" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
+    "flat" : "{\"user\\\\_id\":\"I:1\",\"user_id\":\"I:2\"}",
+    "mapDoc" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
+    "jsonDoc" : "{\"user\":{\"id\":\"I:2\"},\"user_id\":\"I:1\"}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

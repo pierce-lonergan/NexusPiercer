@@ -1,0 +1,31 @@
+{
+  "id" : "depth-bound-map-vs-list-asymmetry",
+  "family" : "limits",
+  "title" : "At one structural position, maxDepth truncates the map and spares the list",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "A Map value recurses at depth+1 but a List value recurses at depth. The same configured number means \"N map levels\" for maps and \"N+1 levels\" for lists. A user who sets maxDepth to bound memory gets a bound that varies with the shape of their data. Sibling containers at the identical position make the divergence impossible to argue away.",
+  "catchesBugClass" : "Two classes in one document: a bound whose meaning depends on container type, and length-mismatched fields being back-filled with a duplicated last value instead of null.",
+  "cannotCatch" : "It cannot separate the two failures, so the assertion must be on the exact reconstructed structure rather than a boolean. It also cannot tell you WHICH treatment is correct.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Sibling keys at the same nesting position get opposite treatment, and reconstruction then compounds it by inferring an array and duplicating the stringified map into an element it never occupied."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(2)",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 2
+    }
+  },
+  "input" : "{\"a\":{\"b\":{\"c\":1},\"d\":[1,2]}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":{\"c\":\"I:1\"},\"d\":[\"I:1\",\"I:2\"]}}",
+    "flat" : "{\"a_b\":\"S:{\\\"c\\\":1}\",\"a_d\":\"S:[1,2]\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"S:{\\\"c\\\":1}\",\"d\":\"I:1\"},{\"b\":\"S:{\\\"c\\\":1}\",\"d\":\"I:2\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{\"b\":{\"c\":\"I:1\"},\"d\":[\"I:1\",\"I:2\"]}}",
+    "jsonDoc" : "{\"a\":[{\"b\":\"S:{\\\"c\\\":1}\",\"d\":\"I:1\"},{\"b\":\"S:{\\\"c\\\":1}\",\"d\":\"I:2\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

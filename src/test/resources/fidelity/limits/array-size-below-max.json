@@ -1,0 +1,31 @@
+{
+  "id" : "array-size-below-max",
+  "family" : "limits",
+  "title" : "A three-element array of maps under maxArraySize=4 round-trips exactly",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The below-the-cliff control for maxArraySize, and proof that array-of-maps CAN round-trip, which stops the array DEFECT fixtures from being dismissed as \"arrays just do not work\".",
+  "catchesBugClass" : "An over-eager maxArraySize comparison and any regression in the columnar zip-back for uniform arrays of maps. The only shape in the family that exercises the happy path through reconstructArray.",
+  "cannotCatch" : "It is uniform and dense by construction, so it cannot catch padding misalignment, the last-value duplication branch, or the size>1 detection gate.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "limit = min(3,4) = 3, no truncation, all columns the same length so no padding occurs and the zip-back is exact."
+  },
+  "configDescription" : "MapFlattener.builder().maxArraySize(4)",
+  "config" : {
+    "mapFlattener" : {
+      "maxArraySize" : 4
+    }
+  },
+  "input" : "{\"r\":[{\"a\":1,\"b\":10},{\"a\":2,\"b\":20},{\"a\":3,\"b\":30}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "flat" : "{\"r_a\":\"S:[1,2,3]\",\"r_b\":\"S:[10,20,30]\"}",
+    "mapDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "jsonDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

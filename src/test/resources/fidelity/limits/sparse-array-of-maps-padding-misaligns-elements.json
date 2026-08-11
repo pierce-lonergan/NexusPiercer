@@ -1,0 +1,27 @@
+{
+  "id" : "sparse-array-of-maps-padding-misaligns-elements",
+  "family" : "limits",
+  "title" : "Sparse array of maps: cells grow quadratically and values move to the wrong element",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The real \"more output than input\" case and the most serious defect in this family. One column per distinct field across all elements means output cells scale as fields x elements while maxArraySize bounds only the element count. Worse, padding appends nulls to the END of each short column instead of inserting at the absent element index.",
+  "catchesBugClass" : "Positional information destroyed by columnar flattening of heterogeneous array elements; padding that equalises length without preserving index; absent-key-becomes-present-null inside array elements; and output-size growth that no configured bound constrains.",
+  "cannotCatch" : "Uniform arrays never trigger it, which is why it survived. It also cannot quantify the blowup at this size; a wider variant is needed to make the quadratic growth measurable.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Every sparse value is RELOCATED into element 0 and the later elements are emptied. Not loss - silent corruption that reads as valid data. Every element also gains explicit nulls for keys it never had."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"r\":[{\"k1\":1,\"z\":0},{\"k2\":2,\"z\":0},{\"k3\":3,\"z\":0}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"k1\":\"I:1\",\"z\":\"I:0\"},{\"k2\":\"I:2\",\"z\":\"I:0\"},{\"k3\":\"I:3\",\"z\":\"I:0\"}]}",
+    "flat" : "{\"r_k1\":\"S:[1,null,null]\",\"r_k2\":\"S:[2,null,null]\",\"r_k3\":\"S:[3,null,null]\",\"r_z\":\"S:[0,0,0]\"}",
+    "mapDoc" : "{\"r\":[{\"k1\":\"I:1\",\"k2\":\"I:2\",\"k3\":\"I:3\",\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"r\":[{\"k1\":\"I:1\",\"z\":\"I:0\"},{\"k2\":\"I:2\",\"z\":\"I:0\"},{\"k3\":\"I:3\",\"z\":\"I:0\"}]}",
+    "jsonDoc" : "{\"r\":[{\"k1\":\"I:1\",\"k2\":\"I:2\",\"k3\":\"I:3\",\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"},{\"k1\":null,\"k2\":null,\"k3\":null,\"z\":\"I:0\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

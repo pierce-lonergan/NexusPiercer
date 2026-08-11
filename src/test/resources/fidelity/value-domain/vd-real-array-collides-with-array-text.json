@@ -1,0 +1,27 @@
+{
+  "id" : "vd-real-array-collides-with-array-text",
+  "family" : "value-domain",
+  "title" : "A genuine array and a string containing its text flatten to byte-identical output",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The pair to vd-string-that-looks-like-array, and the reason that one cannot simply be fixed. The value domain is not injective: information is destroyed at flatten time, not at reconstruct time. This is the value-domain analogue of the key collision FlattenedPath was built to eliminate.",
+  "catchesBugClass" : "Non-injectivity of the value encoding - the root cause behind the whole array-inference family. It turns \"the reconstructor guesses badly\" into \"the flattener already threw the information away\".",
+  "cannotCatch" : "Does not cover arrays of objects, mixed-type arrays, or the _value sentinel paths. It also cannot show which of the two colliding inputs is more common in practice.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flattened output is identical to the string fixture. Both the array nesting and the element grouping are wrong; the correct answer is an object holding an array, not an array of three objects."
+  },
+  "configDescription" : "defaults; paired flat-map equality against vd-string-that-looks-like-array",
+  "config" : { },
+  "input" : "{\"a\":{\"b\":[1,2,3]}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":[\"I:1\",\"I:2\",\"I:3\"]}}",
+    "flat" : "{\"a_b\":\"S:[1,2,3]\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"I:1\"},{\"b\":\"I:2\"},{\"b\":\"I:3\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{\"b\":[\"I:1\",\"I:2\",\"I:3\"]}}",
+    "jsonDoc" : "{\"a\":[{\"b\":\"I:1\"},{\"b\":\"I:2\"},{\"b\":\"I:3\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

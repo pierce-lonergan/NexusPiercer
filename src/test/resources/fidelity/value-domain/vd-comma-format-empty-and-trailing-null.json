@@ -1,0 +1,34 @@
+{
+  "id" : "vd-comma-format-empty-and-trailing-null",
+  "family" : "value-domain",
+  "title" : "Under COMMA_SEPARATED an array loses an element, not just a distinction",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The Javadoc documents that empty string and null are indistinguishable in delimited formats - an accepted, stated loss. What is NOT documented is that the array also changes LENGTH: splitRespectingBrackets only emits a trailing segment when the buffer is non-empty, so a final empty field is dropped entirely.",
+  "catchesBugClass" : "Silent arity loss in delimited round trips, and specifically the trailing-empty-field bug that a leading or interior empty field would not reveal.",
+  "cannotCatch" : "Cannot separate the accepted half from the defective half automatically. It also does not test two consecutive trailing empties or an all-empty array, and says nothing about PIPE_SEPARATED.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two separate failures: empty-string-to-null (accepted and documented) and three elements becoming two (undocumented, and the reason this is DEFECT rather than ACCEPTED_LOSS)."
+  },
+  "configDescription" : "arrayFormat COMMA_SEPARATED on both sides",
+  "config" : {
+    "mapFlattener" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    },
+    "reconstructor" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    }
+  },
+  "input" : "{\"a\":{\"b\":[\"\",\"x\",null]}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":[\"S:\",\"S:x\",null]}}",
+    "flat" : "{\"a_b\":\"S:,x,\"}",
+    "mapDoc" : "{\"a\":[{\"b\":null},{\"b\":\"S:x\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{\"b\":[\"S:\",\"S:x\",null]}}",
+    "jsonDoc" : "{\"a\":[{\"b\":null},{\"b\":\"S:x\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

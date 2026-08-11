@@ -1,0 +1,27 @@
+{
+  "id" : "vd-exponent-overflow-and-underflow",
+  "family" : "value-domain",
+  "title" : "A finite JSON number silently becomes the string \"Infinity\", and a tiny one becomes exactly zero",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The known non-finite defect is about Double.NaN colliding with the text \"NaN\". This reaches the boundary that finding never touched: the input contains no non-finite literal at all, yet 1e400 overflows during parsing and MapFlattener then stringifies it, so a legal JSON number leaves the pipeline as a quoted word.",
+  "catchesBugClass" : "Silent magnitude overflow presented as a successful round trip; the non-finite stringification defect reached through an input a reviewer would never flag as risky.",
+  "cannotCatch" : "Depends on Jackson continuing to parse 1e400 without error. It cannot catch the underflow half on the MAP stack, and it does not cover the subnormal boundary where precision degrades gradually.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "over/negOver overflow to Infinity and are emitted as JSON strings; under underflows to 0.0; nearMax survives with exponent reformatting only."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"d\":{\"over\":1e400,\"negOver\":-1e400,\"under\":1e-400,\"nearMax\":1e308}}",
+  "expected" : {
+    "mapBaseline" : "{\"d\":{\"nearMax\":\"D:1.0E308\",\"negOver\":\"D:-Infinity\",\"over\":\"D:Infinity\",\"under\":\"D:0.0\"}}",
+    "flat" : "{\"d_nearMax\":\"D:1.0E308\",\"d_negOver\":\"S:-Infinity\",\"d_over\":\"S:Infinity\",\"d_under\":\"D:0.0\"}",
+    "mapDoc" : "{\"d\":{\"nearMax\":\"D:1.0E308\",\"negOver\":\"S:-Infinity\",\"over\":\"S:Infinity\",\"under\":\"D:0.0\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"d\":{\"nearMax\":\"BD:1E+308\",\"negOver\":\"BD:-1E+400\",\"over\":\"BD:1E+400\",\"under\":\"BD:1E-400\"}}",
+    "jsonDoc" : "{\"d\":{\"nearMax\":\"BD:1.0E+308\",\"negOver\":\"S:-Infinity\",\"over\":\"S:Infinity\",\"under\":\"BD:0.0\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

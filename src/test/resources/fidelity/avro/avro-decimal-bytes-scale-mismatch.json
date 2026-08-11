@@ -1,0 +1,52 @@
+{
+  "id" : "avro-decimal-bytes-scale-mismatch",
+  "family" : "avro",
+  "title" : "A conforming bytes-backed decimal fails to reconstruct because only precision overflow triggers rescaling",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "convertDecimal guards rescaling on precision but Avro DecimalConversion validates SCALE, and scale must be normalised unconditionally. The result is inverted: a decimal that fits the declared precision throws, while one that overflows it succeeds after being silently rounded.",
+  "catchesBugClass" : "Wrong-predicate guards: a normalisation gated on a condition unrelated to what it normalises. Also catches the silent-rounding half if the precision-overflow variant is added as a sibling.",
+  "cannotCatch" : "Says nothing about fixed-backed decimals whose scale happens to match. It also cannot detect that a successfully-encoded decimal has the wrong scale unless the comparator checks BigDecimal scale explicitly.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Reconstruction throws. Bytes-backed decimals do not round-trip from JSON-shaped input at all - and the inversion is the part worth recording: only decimals that were already out of range can be processed. Reading the datum with Avro jsonDecoder hides the whole defect, which is why the harness pins the plain-JSON path."
+  },
+  "measurementNote" : "CORRECTION - THE PREDICTED DEFECT DOES NOT REPRODUCE. Reconstruction does NOT throw. Measured output is two ByteBuffers holding unscaled 1250 and 50, i.e. exactly 12.50 and 0.50 at the declared scale 2. The reason is that Avro itself normalises scale: Conversions.DecimalConversion.validate() calls setScale(declaredScale, RoundingMode.UNNECESSARY) whenever the value scale differs, and 12.5 -> 12.50 is exact. The precision-based guard in convertDecimal is therefore dead code for this input rather than a live fault, and the fixture is reclassified ACCEPTED_LOSS: the value survives exactly and the ByteBuffer is the representation the schema mandates. TWO RESIDUAL FINDINGS THIS DATUM DOES NOT COVER, both needing their own fixture: (1) a value with MORE decimal places than the declared scale still reaches Avro with RoundingMode.UNNECESSARY and throws, and the precision guard cannot help because it tests the wrong property; (2) when precision genuinely overflows, the guard rounds HALF_UP silently, so the only decimals this code alters are the ones it should reject.",
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Invoice",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "amount",
+          "type" : {
+            "type" : "bytes",
+            "logicalType" : "decimal",
+            "precision" : 10,
+            "scale" : 2
+          }
+        }, {
+          "name" : "fee",
+          "type" : {
+            "type" : "bytes",
+            "logicalType" : "decimal",
+            "precision" : 10,
+            "scale" : 2
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"amount\":12.50,\"fee\":0.5}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "flat" : "{\"amount\":\"D:12.5\",\"fee\":\"D:0.5\"}",
+    "avroBaseline" : "{\"amount\":\"D:12.5\",\"fee\":\"D:0.5\"}",
+    "avroDoc" : "{\"amount\":\"BYTES:BOI=\",\"fee\":\"BYTES:Mg==\"}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

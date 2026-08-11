@@ -1,0 +1,58 @@
+{
+  "id" : "avro-array-of-records-nullable-nested-record-shadowed",
+  "family" : "avro",
+  "title" : "One null nested record erases the nested records of every other element",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "The partial-loss sibling of the previous fixture and the more insidious one, because the array length survives so the result looks structurally plausible. A bare key emitted by the null element gives the field a value list, so the reconstructor takes the primitive branch instead of the record branch and the child node holding the real data is never read for any element.",
+  "catchesBugClass" : "Branch-selection shadowing: an incidental key emitted by one element diverting every element down the wrong reconstruction path. Distinct from the previous fixture precedence bug - a fix to one will not fix the other.",
+  "cannotCatch" : "Cannot catch the mirrored ordering where the null element comes first, which becomes a MISPLACEMENT rather than a deletion. It also cannot catch the analogous shadowing for a nullable nested ARRAY field, which fails by a different mechanism.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The array length is right, the ids are right, and the nested record content is gone from every element. Silent, no exception, plausible-looking output."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "orders",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Order",
+              "fields" : [ {
+                "name" : "id",
+                "type" : "int"
+              }, {
+                "name" : "ship",
+                "type" : [ "null", {
+                  "type" : "record",
+                  "name" : "Ship",
+                  "fields" : [ {
+                    "name" : "city",
+                    "type" : "string"
+                  } ]
+                } ]
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":null}]}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "flat" : "{\"orders_id\":\"S:[1,2]\",\"orders_ship\":\"S:[null,null]\",\"orders_ship_city\":\"S:[\\\"NY\\\",null]\"}",
+    "avroBaseline" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":null}]}",
+    "avroDoc" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":null},{\"id\":\"I:2\",\"ship\":null}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

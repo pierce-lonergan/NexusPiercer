@@ -1,0 +1,34 @@
+{
+  "id" : "order-line-items-comma-separated",
+  "family" : "real-world",
+  "title" : "Order exported in COMMA_SEPARATED format with a description containing commas",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Exercises the Athena/CSV configuration axis on realistic data. The delimiter collision is explicitly documented in the MapFlattener class javadoc with a recommendation to use JSON instead, so the ambiguity is a design decision - but this also exposes what the reconstructor does with the ambiguity, which that documentation does not cover.",
+  "catchesBugClass" : "Format-specific value/delimiter collision. Also proves the reconstructor arrayFormat setting is actually consulted.",
+  "cannotCatch" : "It cannot catch anything about PIPE_SEPARATED or BRACKET_LIST, which take different branches in both serializeArray and parseArrayValue. It also cannot distinguish \"ambiguous input\" from \"reconstructor fabricates rows\".",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Defensible because the format exists to feed CSV/Athena SERDEs that cannot represent an embedded delimiter, the collision is documented verbatim, and a lossless alternative is one builder call away. NOT defensible, and worth separate triage: the reconstructor fabricates extra rows and duplicates values rather than reporting that the element counts disagree."
+  },
+  "configDescription" : "arrayFormat COMMA_SEPARATED on both sides",
+  "config" : {
+    "mapFlattener" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    },
+    "reconstructor" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    }
+  },
+  "input" : "{\"order_id\":\"ORD-2026-0008\",\"currency_code\":\"USD\",\"line_items\":[{\"sku\":\"SKU-311\",\"description\":\"Bolt, hex, M8\",\"quantity\":4},{\"sku\":\"SKU-312\",\"description\":\"Washer\",\"quantity\":8}]}",
+  "expected" : {
+    "mapBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
+    "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_description\":\"S:Bolt, hex, M8,Washer\",\"line\\\\_items_quantity\":\"S:4,8\",\"line\\\\_items_sku\":\"S:SKU-311,SKU-312\",\"order\\\\_id\":\"S:ORD-2026-0008\"}",
+    "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:hex\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:M8\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
+    "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"description\":\"S:Bolt\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:hex\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:M8\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}],\"order_id\":\"S:ORD-2026-0008\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

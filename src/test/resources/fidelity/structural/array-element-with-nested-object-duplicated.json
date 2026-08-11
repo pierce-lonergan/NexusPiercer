@@ -1,0 +1,27 @@
+{
+  "id" : "array-element-with-nested-object-duplicated",
+  "family" : "structural",
+  "title" : "Array of objects whose elements contain a nested object - elements duplicated",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Distinct from nested-array-of-objects-default: here the array is at the root and the OBJECT is nested inside the elements, and the observable damage is correct cardinality but fabricated, duplicated content. It isolates reconstructArray fallback, which reuses the LAST value when a column is shorter than maxSize. That fallback invents data rather than failing.",
+  "catchesBugClass" : "Data fabrication by the shorter-column fallback, and prefix over-attribution producing two nested array holders from one array.",
+  "cannotCatch" : "It cannot distinguish fabrication from correct behaviour by row count - the output has the right number of rows. It shares a root cause with nested-array-of-objects-default, so one upstream fix may resolve both; do not treat them as independent confirmations of two bugs.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both people and people_addr are flagged as arrays from one value; index 1 falls into the use-last-value fallback and reuses the same nested holder, so LA is replaced by a duplicate of a wrong value."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"people\":[{\"addr\":{\"city\":\"NY\"}},{\"addr\":{\"city\":\"LA\"}}]}",
+  "expected" : {
+    "mapBaseline" : "{\"people\":[{\"addr\":{\"city\":\"S:NY\"}},{\"addr\":{\"city\":\"S:LA\"}}]}",
+    "flat" : "{\"people_addr_city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}",
+    "mapDoc" : "{\"people\":[{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}},{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"people\":[{\"addr\":{\"city\":\"S:NY\"}},{\"addr\":{\"city\":\"S:LA\"}}]}",
+    "jsonDoc" : "{\"people\":[{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}},{\"addr\":{\"city\":\"S:[\\\"NY\\\",\\\"LA\\\"]\"}}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,27 @@
+{
+  "id" : "top-level-array-of-scalars",
+  "family" : "structural",
+  "title" : "Arrays of scalars at the document root never reconstruct",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The commonest JSON shape in the world and it silently does not round-trip, for a structural reason invisible from the outside: analyzeStructure prefix loop is for (i = 1; i < parts.length; i++), so a one-segment key contributes no prefix and can never be flagged as an array, no matter what its value looks like.",
+  "catchesBugClass" : "Depth-dependent behaviour of the array heuristic. Catches any regression where root-level leaves are handled by a different path from nested leaves, and pins that the loss is on the reconstruct side.",
+  "cannotCatch" : "It cannot distinguish \"a root array is not detected\" from \"a root array is detected but not parsed\", because processArrays reaches the same else-branch either way. It also cannot cover the inverse hazard of a user string that genuinely is \"[1,2,3]\".",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both arrays survive flattening intact and come back as those same Strings. The information is fully present in the flattened form; only the reconstructor discards it."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"tags\":[\"red\",\"green\",\"blue\"],\"scores\":[1,2,3]}",
+  "expected" : {
+    "mapBaseline" : "{\"scores\":[\"I:1\",\"I:2\",\"I:3\"],\"tags\":[\"S:red\",\"S:green\",\"S:blue\"]}",
+    "flat" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
+    "mapDoc" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"scores\":[\"I:1\",\"I:2\",\"I:3\"],\"tags\":[\"S:red\",\"S:green\",\"S:blue\"]}",
+    "jsonDoc" : "{\"scores\":\"S:[1,2,3]\",\"tags\":\"S:[\\\"red\\\",\\\"green\\\",\\\"blue\\\"]\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

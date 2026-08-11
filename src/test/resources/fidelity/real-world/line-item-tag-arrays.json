@@ -1,0 +1,27 @@
+{
+  "id" : "line-item-tag-arrays",
+  "family" : "real-world",
+  "title" : "Order whose line items each carry a tag array of differing length",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "An array inside an array element is common (tags, serial numbers, applied promotions). The outer array survives, the inner does not: flattenObject serialises the inner list to a JSON string before the outer transposition sees it, and nothing ever re-parses it.",
+  "catchesBugClass" : "Single-level array expansion - the reconstructor unwraps exactly one array layer and leaves deeper ones as text. Also catches any future change that starts eagerly re-parsing string leaves.",
+  "cannotCatch" : "It cannot tell whether the failure is at flatten time or reconstruct time - both are true and it reports one result. It also cannot catch three-level array nesting, which routes through a different code path.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Element identity and count are right; the tags type is wrong - inner arrays degrade to JSON text and one nesting level is lost."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order_id\":\"ORD-2026-0006\",\"line_items\":[{\"sku\":\"SKU-100\",\"tags\":[\"gift\",\"fragile\"]},{\"sku\":\"SKU-205\",\"tags\":[\"backorder\"]}]}",
+  "expected" : {
+    "mapBaseline" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":[\"S:gift\",\"S:fragile\"]},{\"sku\":\"S:SKU-205\",\"tags\":[\"S:backorder\"]}],\"order_id\":\"S:ORD-2026-0006\"}",
+    "flat" : "{\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_tags\":\"S:[\\\"[\\\\\\\"gift\\\\\\\",\\\\\\\"fragile\\\\\\\"]\\\",\\\"[\\\\\\\"backorder\\\\\\\"]\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0006\"}",
+    "mapDoc" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":\"S:[\\\"gift\\\",\\\"fragile\\\"]\"},{\"sku\":\"S:SKU-205\",\"tags\":\"S:[\\\"backorder\\\"]\"}],\"order_id\":\"S:ORD-2026-0006\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":[\"S:gift\",\"S:fragile\"]},{\"sku\":\"S:SKU-205\",\"tags\":[\"S:backorder\"]}],\"order_id\":\"S:ORD-2026-0006\"}",
+    "jsonDoc" : "{\"line_items\":[{\"sku\":\"S:SKU-100\",\"tags\":\"S:[\\\"gift\\\",\\\"fragile\\\"]\"},{\"sku\":\"S:SKU-205\",\"tags\":\"S:[\\\"backorder\\\"]\"}],\"order_id\":\"S:ORD-2026-0006\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

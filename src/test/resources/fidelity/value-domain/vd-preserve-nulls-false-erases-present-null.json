@@ -1,0 +1,53 @@
+{
+  "id" : "vd-preserve-nulls-false-erases-present-null",
+  "family" : "value-domain",
+  "title" : "preserveNulls(false) converts a present null into an absent key, silently voiding the absent-vs-null guarantee",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "\"An absent key is distinct from a present null\" is asserted unconditionally. It is not unconditional: one builder flag turns it off, and the Javadoc never mentions that disabling it destroys a documented fidelity property. This is the synthetic-violation arm for the null domain.",
+  "catchesBugClass" : "A default flip on preserveNulls, and an implementation where the flag is honoured inconsistently - respected at the top level but ignored inside reconstructArray.",
+  "cannotCatch" : "Only exercises a null at depth 2 in an object. It does not cover a null ELEMENT inside a reconstructed array, where dropping the entry changes element identity rather than key presence.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "The present key is gone entirely, not nulled. Defensible because it is explicitly opt-in and the sparse-output use case is legitimate; what is not defensible is the silence in the documentation."
+  },
+  "configDescription" : "JsonReconstructor.builder().preserveNulls(false); probe asserts the default run DIFFERS",
+  "config" : {
+    "reconstructor" : {
+      "preserveNulls" : false
+    }
+  },
+  "probe" : {
+    "kind" : "RECONSTRUCT_CONFIG_COMPARE",
+    "expect" : "DIFFERENT",
+    "note" : "preserveNulls(false) vs the default must produce different documents - that difference proves the control is live",
+    "configA" : {
+      "reconstructor" : {
+        "preserveNulls" : false
+      }
+    },
+    "configB" : {
+      "reconstructor" : {
+        "preserveNulls" : true
+      }
+    }
+  },
+  "input" : "{\"p\":{\"present\":null,\"other\":1}}",
+  "expected" : {
+    "mapBaseline" : "{\"p\":{\"other\":\"I:1\",\"present\":null}}",
+    "flat" : "{\"p_other\":\"I:1\",\"p_present\":null}",
+    "mapDoc" : "{\"p\":{\"other\":\"I:1\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"p\":{\"other\":\"I:1\",\"present\":null}}",
+    "jsonDoc" : "{\"p\":{\"other\":\"I:1\"}}",
+    "losslessJson" : false,
+    "probe" : {
+      "kind" : "RECONSTRUCT_CONFIG_COMPARE",
+      "expect" : "DIFFERENT",
+      "a" : "{\"p\":{\"other\":\"I:1\"}}",
+      "b" : "{\"p\":{\"other\":\"I:1\",\"present\":null}}",
+      "equal" : false
+    }
+  },
+  "measuredLossless" : false
+}

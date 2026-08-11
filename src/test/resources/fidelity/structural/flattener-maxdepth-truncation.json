@@ -1,0 +1,33 @@
+{
+  "id" : "flattener-maxdepth-truncation",
+  "family" : "structural",
+  "title" : "Flattener maxDepth reached mid-document - subtree preserved as verbatim JSON text",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The one structural loss judged defensible, included so the corpus is not a monotone list of defects. maxDepth is a real recursion guard and the truncated subtree is not discarded - flattenObject stores its exact JSON serialisation, so an aware consumer can recover it byte for byte. Classifying this DEFECT would devalue the label everywhere else it appears.",
+  "catchesBugClass" : "That the depth guard fires at the configured boundary and stringifies rather than dropping. Catches an off-by-one at the boundary and any regression where the truncated subtree is replaced by null or a placeholder.",
+  "cannotCatch" : "Nothing marks the resulting String as a truncated subtree, so it is indistinguishable from a user who genuinely stored that JSON text; the only signal is a debug-level log. It also does not cover maxArraySize, which truncates by DISCARDING elements - a very different bargain.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Re-nesting below the limit is lost; the content is not. The reconstructor leaves the truncated String alone because looksLikeSerializedArray requires a leading bracket."
+  },
+  "configDescription" : "MapFlattener(false, 3, 1000)",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : false,
+      "maxDepth" : 3,
+      "maxArraySize" : 1000
+    }
+  },
+  "input" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":\"deep\"}}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":\"S:deep\"}}}}}",
+    "flat" : "{\"l1_l2_l3\":\"S:{\\\"l4\\\":{\\\"l5\\\":\\\"deep\\\"}}\"}",
+    "mapDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"l4\\\":{\\\"l5\\\":\\\"deep\\\"}}\"}}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":\"S:deep\"}}}}}",
+    "jsonDoc" : "{\"l1\":{\"l2\":{\"l3\":\"S:{\\\"l4\\\":{\\\"l5\\\":\\\"deep\\\"}}\"}}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

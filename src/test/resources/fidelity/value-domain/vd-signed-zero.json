@@ -1,0 +1,28 @@
+{
+  "id" : "vd-signed-zero",
+  "family" : "value-domain",
+  "title" : "IEEE-754 negative zero survives; the JSON integer -0 does not",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "measurementNote" : "CORRECTION. The designer marked this JSON-only on the grounds that the MAP stack cannot observe the integer arm. Measurement shows the JSON stack cannot observe EITHER arm, so as declared the fixture was vacuous: the integer sign is gone at Jackson parse time so it is absent from the baseline as well as the result, and the double sign is invisible under exact-decimal comparison because BigDecimal has no signed zero (both -0.0 and 0.0 render as 0.0). Widened to BOTH. The MAP arm is now the live one: it renders Double.toString, so -0.0 and 0.0 stay distinct and the fixture goes red the moment reconstruction normalises the sign away. Measured LOSSLESS, not ACCEPTED_LOSS: the integer -0 is lost before flatten() is ever called, which is a property of JSON parsing and not of the round trip under test.",
+  "rationale" : "The contract test celebrates that negative zero is preserved, but only for -0.0d at the Map level. JSON permits -0 as an INTEGER too, and that arm behaves differently: Jackson reads an int token and the sign is gone before the flattener runs. Both in one document makes the boundary explicit instead of implied.",
+  "catchesBugClass" : "A reconstruction path that normalises -0.0 to 0.0, and any oracle using == or equals on boxed Doubles rather than Double.compare.",
+  "cannotCatch" : "Marked JSON-only because the MAP stack cannot observe the integer arm. It also does not exercise -0.0 inside an array, nor under the delimiter formats.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "negDouble keeps its sign bit; negInt loses its minus sign. Defensible: no Java integral type can represent a signed zero and preserving it would require promoting every -0 to a double."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"z\":{\"negDouble\":-0.0,\"posDouble\":0.0,\"negInt\":-0,\"posInt\":0}}",
+  "expected" : {
+    "mapBaseline" : "{\"z\":{\"negDouble\":\"D:-0.0\",\"negInt\":\"I:0\",\"posDouble\":\"D:0.0\",\"posInt\":\"I:0\"}}",
+    "flat" : "{\"z_negDouble\":\"D:-0.0\",\"z_negInt\":\"I:0\",\"z_posDouble\":\"D:0.0\",\"z_posInt\":\"I:0\"}",
+    "mapDoc" : "{\"z\":{\"negDouble\":\"D:-0.0\",\"negInt\":\"I:0\",\"posDouble\":\"D:0.0\",\"posInt\":\"I:0\"}}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"z\":{\"negDouble\":\"BD:0.0\",\"negInt\":\"I:0\",\"posDouble\":\"BD:0.0\",\"posInt\":\"I:0\"}}",
+    "jsonDoc" : "{\"z\":{\"negDouble\":\"BD:0.0\",\"negInt\":\"I:0\",\"posDouble\":\"BD:0.0\",\"posInt\":\"I:0\"}}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

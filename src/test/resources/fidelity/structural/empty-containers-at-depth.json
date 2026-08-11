@@ -1,0 +1,27 @@
+{
+  "id" : "empty-containers-at-depth",
+  "family" : "structural",
+  "title" : "Empty object, empty array and explicit null at depth, plus an empty chain",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "ValueDomainContractTest pins the flatten-side collapse of {} / [] / null. This extends it to the reconstruct side and to depth: the collapse is not repaired anywhere downstream, and the reconstructed document actively asserts null where the source asserted an empty container.",
+  "catchesBugClass" : "That the known flatten-side collapse is not compensated during reconstruction and survives arbitrary depth. Also guards the accepted half - if a future fix preserves emptiness by dropping the terminal key, this catches the depth regression.",
+  "cannotCatch" : "It cannot distinguish the three collapsed inputs from each other after flattening - they are byte-identical, so no reconstructor-only change can pass it. It also does not cover an empty container as the ROOT document.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Three distinct container states collapse to one null. The ACCEPTED half holds: nesting depth of the empty chain is preserved exactly."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a\":{\"emptyObj\":{},\"emptyArr\":[],\"explicitNull\":null,\"deep\":{\"x\":{\"y\":{}}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"deep\":{\"x\":{\"y\":{}}},\"emptyArr\":[],\"emptyObj\":{},\"explicitNull\":null}}",
+    "flat" : "{\"a_deep_x_y\":null,\"a_emptyArr\":null,\"a_emptyObj\":null,\"a_explicitNull\":null}",
+    "mapDoc" : "{\"a\":{\"deep\":{\"x\":{\"y\":null}},\"emptyArr\":null,\"emptyObj\":null,\"explicitNull\":null}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{\"deep\":{\"x\":{\"y\":{}}},\"emptyArr\":[],\"emptyObj\":{},\"explicitNull\":null}}",
+    "jsonDoc" : "{\"a\":{\"deep\":{\"x\":{\"y\":null}},\"emptyArr\":null,\"emptyObj\":null,\"explicitNull\":null}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

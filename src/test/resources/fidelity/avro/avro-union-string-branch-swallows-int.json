@@ -1,0 +1,41 @@
+{
+  "id" : "avro-union-string-branch-swallows-int",
+  "family" : "avro",
+  "title" : "Multi-branch union: a string branch listed before int converts every value to text",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Branch identity is not recorded in the flattened form, so the reconstructor re-derives it by trying each non-null branch in declaration order and taking the first that does not throw. The STRING case never throws for any input, so a string branch anywhere before another branch absorbs everything after it. Union member order has no semantic weight in Avro, so fidelity depends on an arbitrary ordering decision.",
+  "catchesBugClass" : "Union branch-tag erasure resolved by permissive coercion. Would go green on a real fix that adds a discriminator column or selects the branch from the runtime Java type.",
+  "cannotCatch" : "It cannot catch loss when two branches are both string-like. It also cannot catch anything on the array-of-records path, which never reaches reconstructUnionValue at all.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both values come back as Strings. No member ordering makes both directions correct - the defect is the absence of a branch discriminator, not the ordering."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Poly",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "v",
+          "type" : [ "null", "string", "int" ]
+        }, {
+          "name" : "w",
+          "type" : [ "null", "string", "boolean" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"v\":42,\"w\":true}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "flat" : "{\"v\":\"I:42\",\"w\":\"B:true\"}",
+    "avroBaseline" : "{\"v\":\"I:42\",\"w\":\"B:true\"}",
+    "avroDoc" : "{\"v\":\"S:42\",\"w\":\"S:true\"}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

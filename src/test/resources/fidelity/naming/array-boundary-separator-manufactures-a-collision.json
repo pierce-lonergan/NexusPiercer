@@ -1,0 +1,36 @@
+{
+  "id" : "array-boundary-separator-manufactures-a-collision",
+  "family" : "naming",
+  "title" : "useArrayBoundarySeparator collapses __ inside names and creates the exact collision escaping prevents",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "sanitizeKey does replace(\"__\",\"_\") whenever useArrayBoundarySeparator is set, commented \"Prevent key conflicts with separator\". It runs BEFORE escaping. FlattenedPath already makes a __ inside a name harmless, so this control defends against a collision that no longer exists and by rewriting the name it manufactures a real one.",
+  "catchesBugClass" : "Dead defensive code that has outlived the vulnerability it guarded and is now a data-corruption source. Also catches the general class of sanitize-before-encode ordering errors.",
+  "cannotCatch" : "It cannot show which field wins under a non-insertion-ordered input Map. The JSON stack always gives LinkedHashMap so the fixture is deterministic - that determinism is an artefact of the entry point, not a property of the code.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Neither source name survives, the first value now sits under the name that belonged to the second, and no warning is emitted. Turning the flag off makes both names round-trip perfectly."
+  },
+  "configDescription" : "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : true,
+      "maxDepth" : 50,
+      "maxArraySize" : 1000
+    },
+    "reconstructor" : {
+      "separator" : "__"
+    }
+  },
+  "input" : "{\"a__b\":1,\"a_b\":2}",
+  "expected" : {
+    "mapBaseline" : "{\"a__b\":\"I:1\",\"a_b\":\"I:2\"}",
+    "flat" : "{\"a\\\\_b\":\"I:1\",\"a\\\\_b\\\\_2\":\"I:2\"}",
+    "mapDoc" : "{\"a_b\":\"I:1\",\"a_b_2\":\"I:2\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a__b\":\"I:1\",\"a_b\":\"I:2\"}",
+    "jsonDoc" : "{\"a_b\":\"I:1\",\"a_b_2\":\"I:2\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

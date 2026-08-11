@@ -1,0 +1,24 @@
+{
+  "id" : "vd-decimal-scale-and-precision",
+  "family" : "value-domain",
+  "title" : "Declared decimal scale and beyond-double precision are destroyed before the flattener ever runs",
+  "stack" : "JSON",
+  "referenceIssue" : "",
+  "rationale" : "On the JSON stack neither half of the BigDecimal story applies: JsonFlattener sets USE_BIG_DECIMAL_FOR_FLOATS to false, so every JSON fraction becomes a Double at PARSE time and MapFlattener never sees a BigDecimal. The loss is earlier, unconditional, and not mentioned anywhere in the library documentation of the issue.",
+  "catchesBugClass" : "Any claim of lossless round-tripping for monetary or fixed-scale data on the JSON path; a mapper reconfiguration that changes float handling in either direction.",
+  "cannotCatch" : "Cannot be observed on the MAP stack at all - the harness builds sourceMap with the same Jackson, so the Double is already lossy before flatten() is called. It also cannot show what a fix would cost.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Declared scale is gone on trailingZero and oneFive; highScale drops to double precision; beyondDouble becomes indistinguishable from the literal 1.0. The exact digit strings are Jackson/JDK details - if measurement differs, correct the literal, not the classification."
+  },
+  "configDescription" : "defaults; comparison uses exact-decimal parsing",
+  "config" : { },
+  "input" : "{\"d\":{\"trailingZero\":37.7740,\"oneFive\":1.500,\"highScale\":0.1234567890123456789012345,\"beyondDouble\":1.00000000000000000000001,\"money\":19.99}}",
+  "expected" : {
+    "jsonBaseline" : "{\"d\":{\"beyondDouble\":\"BD:1.00000000000000000000001\",\"highScale\":\"BD:0.1234567890123456789012345\",\"money\":\"BD:19.99\",\"oneFive\":\"BD:1.500\",\"trailingZero\":\"BD:37.7740\"}}",
+    "flat" : "{\"d_beyondDouble\":\"D:1.0\",\"d_highScale\":\"D:0.12345678901234568\",\"d_money\":\"D:19.99\",\"d_oneFive\":\"D:1.5\",\"d_trailingZero\":\"D:37.774\"}",
+    "jsonDoc" : "{\"d\":{\"beyondDouble\":\"BD:1.0\",\"highScale\":\"BD:0.12345678901234568\",\"money\":\"BD:19.99\",\"oneFive\":\"BD:1.5\",\"trailingZero\":\"BD:37.774\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

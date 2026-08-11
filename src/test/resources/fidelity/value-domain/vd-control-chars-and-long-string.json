@@ -1,0 +1,27 @@
+{
+  "id" : "vd-control-chars-and-long-string",
+  "family" : "value-domain",
+  "title" : "Control characters, escapes, astral-plane text and a long string all survive intact",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The character-level floor of the value domain and the second good-input arm. Every field is a place a naive implementation loses data. The library has a hand-rolled escaper that handles only five characters and would mangle NUL; this fixture establishes that the default path does not reach it.",
+  "catchesBugClass" : "Hand-rolled escaping replacing Jackson anywhere on the scalar path; truncation of long values; surrogate-pair splitting; and double-unescaping of backslash sequences.",
+  "cannotCatch" : "The long field is only ~220 characters, far below the 1,000,000 threshold that is the sole length-sensitive branch. It also cannot catch encoding-level loss, since the oracle compares Java Strings and Maps rather than bytes.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Jackson decodes every escape on the way in and re-escapes correctly on the way out; the surrogate pair stays paired. MapFlattener.escapeString is never reached."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"s\":{\"ctrl\":\"a\\u0000b\\u001fcd\",\"ws\":\"tab\\there\\nnl\\rcr\",\"quotes\":\"he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"h\\u00e9llo \\ud83d\\ude00 \\u4e2d\\u6587\",\"long\":\"Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
+    "flat" : "{\"s_ctrl\":\"S:a\\u0000b\\u001fcd\",\"s_long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"s_quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"s_unicode\":\"S:héllo 😀 中文\",\"s_ws\":\"S:tab\\there\\nnl\\rcr\"}",
+    "mapDoc" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
+    "jsonDoc" : "{\"s\":{\"ctrl\":\"S:a\\u0000b\\u001fcd\",\"long\":\"S:Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat\",\"quotes\":\"S:he said \\\"hi\\\" and \\\\ backslash\",\"unicode\":\"S:héllo 😀 中文\",\"ws\":\"S:tab\\there\\nnl\\rcr\"}}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

@@ -1,0 +1,36 @@
+{
+  "id" : "boundary-separator-on-double-underscore-field",
+  "family" : "structural",
+  "title" : "useArrayBoundarySeparator ON mangles a field name containing __ and collides with its sibling",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The flag-ON failure arm and the sharpest ON/OFF contrast: this document round-trips losslessly with the flag OFF and corrupts two field names with it ON. sanitizeKey rewrites the user field name BEFORE FlattenedPath ever sees it, so the injectivity guarantee the 2.0 encoding was built to provide is bypassed upstream of the encoder.",
+  "catchesBugClass" : "Pre-encoding key mutation that voids the FlattenedPath injectivity contract, and collision resolution that invents field names instead of failing.",
+  "cannotCatch" : "It cannot catch the same mangling when no sibling collides - a lone {\"a__b\":1} still becomes {\"a_b\":1}, corruption without the extra _2 signal. It also cannot cover strictKeyValidation, a separate sanitiser with the same pre-encoding timing bug.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "sanitizeKey rewrites a__b to a_b; the genuine sibling then collides and generateUniqueKey renames it a_b_2. One field silently renamed, the other given an invented numeric suffix, no error and no warning."
+  },
+  "configDescription" : "MapFlattener(true, 50, 1000); JsonReconstructor.builder().separator(\"__\")",
+  "config" : {
+    "mapFlattener" : {
+      "useArrayBoundarySeparator" : true,
+      "maxDepth" : 50,
+      "maxArraySize" : 1000
+    },
+    "reconstructor" : {
+      "separator" : "__"
+    }
+  },
+  "input" : "{\"a__b\":1,\"a_b\":2}",
+  "expected" : {
+    "mapBaseline" : "{\"a__b\":\"I:1\",\"a_b\":\"I:2\"}",
+    "flat" : "{\"a\\\\_b\":\"I:1\",\"a\\\\_b\\\\_2\":\"I:2\"}",
+    "mapDoc" : "{\"a_b\":\"I:1\",\"a_b_2\":\"I:2\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a__b\":\"I:1\",\"a_b\":\"I:2\"}",
+    "jsonDoc" : "{\"a_b\":\"I:1\",\"a_b_2\":\"I:2\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

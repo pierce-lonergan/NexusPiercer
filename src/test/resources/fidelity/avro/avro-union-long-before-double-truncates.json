@@ -1,0 +1,41 @@
+{
+  "id" : "avro-union-long-before-double-truncates",
+  "family" : "avro",
+  "title" : "Union [long, double] silently truncates a fractional value to an integer",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "Worse than the string case because it is arithmetic corruption rather than a type change. The LONG case calls Number.longValue(), so a Double 3.7 does not throw and the union trial loop never tries the double branch. The same failure shape the repo already fixed for BigInteger, reappearing in a different method.",
+  "catchesBugClass" : "Lossy numeric narrowing inside permissive union resolution - longValue/intValue/floatValue used as a conversion where a range-and-exactness check is required. The repo IntegerConverter already models the correct behaviour.",
+  "cannotCatch" : "Cannot catch the equivalent narrowing in the INT case unless a separate fixture puts an int branch ahead of a long branch. It also cannot catch float/double precision loss where the truncation is invisible in decimal.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "amount reconstructs as an integer with the fraction gone, silently, with no exception anywhere. count is included so the fixture can distinguish \"truncates fractions\" from \"always picks long\"."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Numeric",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "amount",
+          "type" : [ "null", "long", "double" ]
+        }, {
+          "name" : "count",
+          "type" : [ "null", "long", "double" ]
+        } ]
+      }
+    }
+  },
+  "input" : "{\"amount\":3.7,\"count\":5}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "flat" : "{\"amount\":\"D:3.7\",\"count\":\"I:5\"}",
+    "avroBaseline" : "{\"amount\":\"D:3.7\",\"count\":\"I:5\"}",
+    "avroDoc" : "{\"amount\":\"L:3\",\"count\":\"L:5\"}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,77 @@
+{
+  "id" : "avro-logical-types-erased-inside-arrays",
+  "family" : "avro",
+  "title" : "Every logical type on a field inside an array becomes an untyped STRING column",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "addField replaces any primitive within an array with a bare STRING, and Schema.create builds a primitive with no logicalType, so timestamp, date and decimal precision/scale are all discarded for every field reachable through an array. Arrays of records are the normal shape for event data, so this is exactly where logical types matter most.",
+  "catchesBugClass" : "Type-metadata erasure in a widening conversion - Schema.create used where a logicalType-preserving copy is required. Also catches the same erasure at the FIXED case, which fires even outside arrays.",
+  "cannotCatch" : "Only covers primitives inside arrays. It cannot reach a logical type inside a MAP value, because the MAP case collapses the entire map to one STRING column and never descends. It also cannot catch loss on a top-level scalar, where the logical type genuinely survives.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The declared decimal precision and scale are unrecoverable from the flattened schema. The DATA assertion on this same datum passes, so only SCHEMA can see the loss."
+  },
+  "configDescription" : "assert SCHEMA",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "EventBatch",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "events",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "Event",
+              "fields" : [ {
+                "name" : "occurredAt",
+                "type" : {
+                  "type" : "long",
+                  "logicalType" : "timestamp-millis"
+                }
+              }, {
+                "name" : "day",
+                "type" : {
+                  "type" : "int",
+                  "logicalType" : "date"
+                }
+              }, {
+                "name" : "amount",
+                "type" : {
+                  "type" : "bytes",
+                  "logicalType" : "decimal",
+                  "precision" : 9,
+                  "scale" : 2
+                }
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"events\":[{\"occurredAt\":1609459200000,\"day\":18628,\"amount\":1.25}]}",
+  "expected" : {
+    "avroAssert" : "SCHEMA",
+    "flattenedSchema" : "{\"events\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"events_amount\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"events_day\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"events_occurredAt\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "schemaChecks" : {
+      "inverseReproducesOriginal" : true,
+      "originalLogicalTypes" : "date,decimal,timestamp-millis",
+      "flattenedLogicalTypes" : "",
+      "logicalTypesPreserved" : false,
+      "originalNamedTypes" : "",
+      "flattenedNamedTypes" : "",
+      "namedTypesPreserved" : true,
+      "declaredColumnsNotShadowed" : true,
+      "shadowedColumns" : ""
+    },
+    "flat" : "{\"events_amount\":\"S:[1.25]\",\"events_day\":\"S:[18628]\",\"events_occurredAt\":\"S:[1609459200000]\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"EventBatch\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"events\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Event\",\"fields\":[{\"name\":\"occurredAt\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-millis\"}},{\"name\":\"day\",\"type\":{\"type\":\"int\",\"logicalType\":\"date\"}},{\"name\":\"amount\",\"type\":{\"type\":\"bytes\",\"logicalType\":\"decimal\",\"precision\":9,\"scale\":2}}]}}}]}",
+    "avroDoc" : "{\"type\":\"record\",\"name\":\"EventBatch\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"events\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Event\",\"fields\":[{\"name\":\"occurredAt\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-millis\"}},{\"name\":\"day\",\"type\":{\"type\":\"int\",\"logicalType\":\"date\"}},{\"name\":\"amount\",\"type\":{\"type\":\"bytes\",\"logicalType\":\"decimal\",\"precision\":9,\"scale\":2}}]}}}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

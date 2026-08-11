@@ -1,0 +1,27 @@
+{
+  "id" : "cdc-update-with-array-column",
+  "family" : "real-world",
+  "title" : "CDC update where both before and after images contain a tag_list array of different lengths",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "One CDC row becomes several, and how many depends on the length of an array column. Two sibling objects explode independently to different cardinalities, so the fabricated row count is data-dependent - a consumer counting change events gets an answer that varies with tag count.",
+  "catchesBugClass" : "Data-dependent cardinality fabrication: the row count of the output depends on an unrelated column length, so the same schema yields different shapes per record. Also catches that two sibling paths are analysed and exploded fully independently with no consistency check.",
+  "cannotCatch" : "It cannot catch the case where before and after have the SAME array length, which produces two equal-length fabricated arrays a naive diff might still line up. It also cannot be triaged as a separate bug from the preferences fixture - both are the same root cause.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "A downstream diff now compares a 2-row array with a 3-row array and reports every field as changed, when the only real change was status plus one added tag."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"op\":\"u\",\"ts_ms\":1786321931482,\"before\":{\"order_id\":8814,\"status\":\"pending\",\"tag_list\":[\"rush\",\"gift\"]},\"after\":{\"order_id\":8814,\"status\":\"shipped\",\"tag_list\":[\"rush\",\"gift\",\"insured\"]}}",
+  "expected" : {
+    "mapBaseline" : "{\"after\":{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":[\"S:rush\",\"S:gift\",\"S:insured\"]},\"before\":{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":[\"S:rush\",\"S:gift\"]},\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
+    "flat" : "{\"after_order\\\\_id\":\"I:8814\",\"after_status\":\"S:shipped\",\"after_tag\\\\_list\":\"S:[\\\"rush\\\",\\\"gift\\\",\\\"insured\\\"]\",\"before_order\\\\_id\":\"I:8814\",\"before_status\":\"S:pending\",\"before_tag\\\\_list\":\"S:[\\\"rush\\\",\\\"gift\\\"]\",\"op\":\"S:u\",\"ts\\\\_ms\":\"L:1786321931482\"}",
+    "mapDoc" : "{\"after\":[{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:gift\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:insured\"}],\"before\":[{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:gift\"}],\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"after\":{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":[\"S:rush\",\"S:gift\",\"S:insured\"]},\"before\":{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":[\"S:rush\",\"S:gift\"]},\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
+    "jsonDoc" : "{\"after\":[{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:gift\"},{\"order_id\":\"I:8814\",\"status\":\"S:shipped\",\"tag_list\":\"S:insured\"}],\"before\":[{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:rush\"},{\"order_id\":\"I:8814\",\"status\":\"S:pending\",\"tag_list\":\"S:gift\"}],\"op\":\"S:u\",\"ts_ms\":\"L:1786321931482\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,27 @@
+{
+  "id" : "empty-string-key-renamed-into-collision",
+  "family" : "naming",
+  "title" : "An empty-string key is renamed to empty_key and steals a real sibling name",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "sanitizeKey substitutes the literal name \"empty_key\" for an empty key. JSON permits \"\" as an object key, so this is reachable from ordinary input. Paired with a genuine field actually called empty_key - the substitute name is not reserved and not checked for pre-existence in the source.",
+  "catchesBugClass" : "Silent identity substitution: a sanitizer that invents a name inside the user namespace with no returned mapping, no warning, and no exception. Also catches order-dependence.",
+  "cannotCatch" : "It cannot catch the null-key branch, because JSON object keys are never null. It also cannot catch a nested empty key colliding across depths, since the collision set is per-map-level.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both fields end up under wrong names and the first value now sits under a name the source assigned to the second. Renaming \"\" is arguably defensible; a substitute that is not reserved, not reported, and resolves in favour of the synthetic name is not."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"\":1,\"empty_key\":2}",
+  "expected" : {
+    "mapBaseline" : "{\"\":\"I:1\",\"empty_key\":\"I:2\"}",
+    "flat" : "{\"empty\\\\_key\":\"I:1\",\"empty\\\\_key\\\\_2\":\"I:2\"}",
+    "mapDoc" : "{\"empty_key\":\"I:1\",\"empty_key_2\":\"I:2\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"\":\"I:1\",\"empty_key\":\"I:2\"}",
+    "jsonDoc" : "{\"empty_key\":\"I:1\",\"empty_key_2\":\"I:2\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

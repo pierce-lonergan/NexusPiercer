@@ -1,0 +1,27 @@
+{
+  "id" : "nested-array-of-objects-default",
+  "family" : "structural",
+  "title" : "Objects inside an array inside an object, default config",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The commonest real payload shape. It fails in a way that is worse than lossy: it produces a well-formed document of the wrong shape with duplicated content, which nothing downstream can detect.",
+  "catchesBugClass" : "Prefix over-attribution in analyzeStructure and the missing nested-holder case in reconstructArray. Also catches silent record inflation: a 1-object document reconstructs as a multi-element array, so any downstream count is wrong.",
+  "cannotCatch" : "It cannot separate the two defects - over-attribution of the outer prefix and reconstructArray failing to recurse into holders - since either alone still produces a wrong document. Asserting the exact expected output rather than merely \"not equal\" is what makes a partial fix visible.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flatten is correct. analyzeStructure attributes the whole key value to every prefix, so both order and order_items are flagged as array paths, and the enclosing object becomes an array of identical elements while the real array becomes an object of raw text."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order\":{\"items\":[{\"sku\":\"A\",\"qty\":1},{\"sku\":\"B\",\"qty\":2}]}}",
+  "expected" : {
+    "mapBaseline" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "flat" : "{\"order_items_qty\":\"S:[1,2]\",\"order_items_sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}",
+    "mapDoc" : "{\"order\":[{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}},{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"order\":{\"items\":[{\"qty\":\"I:1\",\"sku\":\"S:A\"},{\"qty\":\"I:2\",\"sku\":\"S:B\"}]}}",
+    "jsonDoc" : "{\"order\":[{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}},{\"items\":{\"qty\":\"S:[1,2]\",\"sku\":\"S:[\\\"A\\\",\\\"B\\\"]\"}}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

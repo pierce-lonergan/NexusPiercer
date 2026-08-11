@@ -1,0 +1,27 @@
+{
+  "id" : "vd-integer-past-long",
+  "family" : "value-domain",
+  "title" : "One integer past Long.MAX_VALUE stops being a number and becomes a quoted string",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-015",
+  "rationale" : "NP-015 was fixed by making an out-of-range BigInteger fall back to exact decimal text instead of silently wrapping negative. That fix is right, but it was only ever measured at the Map level. End to end, a JSON number turns into a JSON string and the document changes shape in a way that breaks any consumer with a typed schema.",
+  "catchesBugClass" : "A regression to the NP-015 wrap-around, and equally a regression in the other direction if someone narrows the string back to a long. Also catches the absence of a type sidecar.",
+  "cannotCatch" : "It cannot distinguish \"defensible transport choice\" from \"bug\" on its own - that is the human classification this fixture exists to force. It is also invisible to JsonReconstructor.verify(), which calls String and Number compatible types.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "i64max survives as a number; i64maxPlus1 and huge are parsed as BigInteger, hit longValueExact, and fall back to decimal text. No digit is lost; the TYPE is."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"n\":{\"i64max\":9223372036854775807,\"i64maxPlus1\":9223372036854775808,\"huge\":123456789012345678901234567890}}",
+  "expected" : {
+    "mapBaseline" : "{\"n\":{\"huge\":\"BI:123456789012345678901234567890\",\"i64max\":\"L:9223372036854775807\",\"i64maxPlus1\":\"BI:9223372036854775808\"}}",
+    "flat" : "{\"n_huge\":\"S:123456789012345678901234567890\",\"n_i64max\":\"L:9223372036854775807\",\"n_i64maxPlus1\":\"S:9223372036854775808\"}",
+    "mapDoc" : "{\"n\":{\"huge\":\"S:123456789012345678901234567890\",\"i64max\":\"L:9223372036854775807\",\"i64maxPlus1\":\"S:9223372036854775808\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"n\":{\"huge\":\"BI:123456789012345678901234567890\",\"i64max\":\"L:9223372036854775807\",\"i64maxPlus1\":\"BI:9223372036854775808\"}}",
+    "jsonDoc" : "{\"n\":{\"huge\":\"S:123456789012345678901234567890\",\"i64max\":\"L:9223372036854775807\",\"i64maxPlus1\":\"S:9223372036854775808\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

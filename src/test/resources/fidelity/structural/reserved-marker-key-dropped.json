@@ -1,0 +1,27 @@
+{
+  "id" : "reserved-marker-key-dropped",
+  "family" : "structural",
+  "title" : "Field names matching the reconstructor internal marker syntax are silently deleted",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-022",
+  "rationale" : "NP-022 in the structural domain. processArrays skips any key that starts with \"__\" and ends with \"__\" so it can hide its own holders, but the check runs against every user key at every level, and the two conditions can overlap so \"___\" matches too. The flatten side handles these names perfectly, which makes this purely a reconstructor namespace bug.",
+  "catchesBugClass" : "Reserved-namespace collision between reconstructor internals and legitimate user field names, including the overlapping-match case that a naive length>=4 guard would still get wrong.",
+  "cannotCatch" : "It cannot catch the same collision at the ARRAY-element level, where reconstructArray strips markers by exact name rather than by pattern. It also cannot catch the \"_value\" sentinel collision, a different reserved name on a different code path.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Flattening is correct and lossless; processArrays then drops both __meta__ and ___ by the marker-skip test. No error, no warning, no count discrepancy reported anywhere."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"cfg\":{\"__meta__\":1,\"___\":2,\"name\":\"x\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"cfg\":{\"___\":\"I:2\",\"__meta__\":\"I:1\",\"name\":\"S:x\"}}",
+    "flat" : "{\"cfg_\\\\_\\\\_\\\\_\":\"I:2\",\"cfg_\\\\_\\\\_meta\\\\_\\\\_\":\"I:1\",\"cfg_name\":\"S:x\"}",
+    "mapDoc" : "{\"cfg\":{\"name\":\"S:x\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"cfg\":{\"___\":\"I:2\",\"__meta__\":\"I:1\",\"name\":\"S:x\"}}",
+    "jsonDoc" : "{\"cfg\":{\"name\":\"S:x\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

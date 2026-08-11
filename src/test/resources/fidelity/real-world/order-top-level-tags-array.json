@@ -1,0 +1,27 @@
+{
+  "id" : "order-top-level-tags-array",
+  "family" : "real-world",
+  "title" : "Order with two top-level arrays of plain strings",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Isolates the dead control: array inference can never fire on a depth-1 key because the prefix loop starts at i=1 and a single-segment key yields no prefixes. inferArraysFromValues(true) is the default and looks like it handles this. It does not.",
+  "catchesBugClass" : "A configuration flag that is wired, defaulted on, documented, and unreachable for an entire class of input. Also catches the raw-versus-encoded path inconsistency between analyzeStructure and processArrays.",
+  "cannotCatch" : "It cannot catch the mirror problem for arrays of OBJECTS at top level, because those produce multi-segment keys and do reach inference. Nor does it prove the arrayPaths escape hatch works for a NESTED path.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both arrays come back as JSON strings. Flattening is correct; the single-segment keys never enter the prefix loop, so inference is never offered the path."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"order_id\":\"ORD-2026-0007\",\"status\":\"confirmed\",\"fulfillment_tags\":[\"priority\",\"gift_wrap\",\"signature_required\"],\"warehouse_codes\":[\"NYC-1\",\"LAX-2\"]}",
+  "expected" : {
+    "mapBaseline" : "{\"fulfillment_tags\":[\"S:priority\",\"S:gift_wrap\",\"S:signature_required\"],\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":[\"S:NYC-1\",\"S:LAX-2\"]}",
+    "flat" : "{\"fulfillment\\\\_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order\\\\_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse\\\\_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
+    "mapDoc" : "{\"fulfillment_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"fulfillment_tags\":[\"S:priority\",\"S:gift_wrap\",\"S:signature_required\"],\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":[\"S:NYC-1\",\"S:LAX-2\"]}",
+    "jsonDoc" : "{\"fulfillment_tags\":\"S:[\\\"priority\\\",\\\"gift_wrap\\\",\\\"signature_required\\\"]\",\"order_id\":\"S:ORD-2026-0007\",\"status\":\"S:confirmed\",\"warehouse_codes\":\"S:[\\\"NYC-1\\\",\\\"LAX-2\\\"]\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

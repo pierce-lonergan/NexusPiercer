@@ -1,0 +1,27 @@
+{
+  "id" : "vd-empty-containers-end-to-end",
+  "family" : "value-domain",
+  "title" : "The empty-container collapse, followed all the way to the reconstructed JSON document",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The known DEFECT is pinned as an equality between two flattened maps - a statement about the middle of the pipeline. What a user experiences is the end. A non-empty sibling is present so the fixture also proves the collapse is local and does not damage neighbouring structure.",
+  "catchesBugClass" : "Regression in either direction on the empty-container contract, and specifically a partial fix that repairs {} but not []. The nonEmpty sibling catches a fix that over-reaches and starts emitting spurious nulls beside real data.",
+  "cannotCatch" : "Cannot distinguish the three collapsed cases from each other after the fact. It also does not cover empty containers nested inside arrays, which take an entirely different code path.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Three different authored values arrive as the same null; nonEmpty is untouched."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"e\":{\"emptyObj\":{},\"emptyArr\":[],\"explicitNull\":null,\"nonEmpty\":{\"x\":1}}}",
+  "expected" : {
+    "mapBaseline" : "{\"e\":{\"emptyArr\":[],\"emptyObj\":{},\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
+    "flat" : "{\"e_emptyArr\":null,\"e_emptyObj\":null,\"e_explicitNull\":null,\"e_nonEmpty_x\":\"I:1\"}",
+    "mapDoc" : "{\"e\":{\"emptyArr\":null,\"emptyObj\":null,\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"e\":{\"emptyArr\":[],\"emptyObj\":{},\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
+    "jsonDoc" : "{\"e\":{\"emptyArr\":null,\"emptyObj\":null,\"explicitNull\":null,\"nonEmpty\":{\"x\":\"I:1\"}}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,48 @@
+{
+  "id" : "avro-array-of-records-null-element-annihilates-array",
+  "family" : "avro",
+  "title" : "A single null element destroys the entire array of records",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "When an array of nullable records contains a null, the flattener puts the null under the BARE array key while the record fields go under prefixed keys, and the two lists are padded only against each other so positional alignment is already gone at flatten time. In the path tree the bare key then makes the node a leaf, and the leaf case beats the field-extraction case.",
+  "catchesBugClass" : "Positional desynchronisation in column-wise array flattening when elements are heterogeneous, plus a precedence bug where the leaf-value case shadows the field-extraction case instead of merging with it.",
+  "cannotCatch" : "Cannot catch the same desynchronisation when it does NOT produce a bare key - for instance an element that merely omits an optional field, where values shift position rather than being annihilated. It also cannot distinguish a wrong array length from wrong element content.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Both the record element and the array length are lost; the extracted field values are silently discarded. No exception at any point."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Cart",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "orders",
+          "type" : {
+            "type" : "array",
+            "items" : [ "null", {
+              "type" : "record",
+              "name" : "Order",
+              "fields" : [ {
+                "name" : "id",
+                "type" : "int"
+              } ]
+            } ]
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"orders\":[{\"id\":1},null]}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "flat" : "{\"orders\":\"S:[null]\",\"orders_id\":\"S:[1]\"}",
+    "avroBaseline" : "{\"orders\":[{\"id\":\"I:1\"},null]}",
+    "avroDoc" : "{\"orders\":[null]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,27 @@
+{
+  "id" : "customer-profile-legacy-key-shadow",
+  "family" : "real-world",
+  "title" : "Customer profile carrying both a preferences object and a legacy flat preferences_theme column",
+  "stack" : "BOTH",
+  "referenceIssue" : "NP-021",
+  "rationale" : "The direct NP-021 sentinel in realistic clothing: a document mid-migration where the flat legacy column and the new nested field would have produced the identical flattened key under pre-2.0 concatenation. If FlattenedPath escaping regresses, these two fields collide into one and this is the first thing to go red.",
+  "catchesBugClass" : "Loss of injectivity in the key encoding, plus the quadratic prefix-grouping blowup that ambiguity caused. Also catches an escape/unescape asymmetry.",
+  "cannotCatch" : "It only exercises the single-character separator. The multi-character case has its own documented hazard which this cannot reach, and which quickReconstruct cannot test at all because it hardcodes the default separator.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The nested path encodes to two segments joined by the separator while the literal legacy field encodes to one segment with the separator escaped; decodeSegments splits only on unescaped separators."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"customer_id\":\"CUST-90210\",\"preferences\":{\"theme\":\"dark\",\"digest\":\"weekly\"},\"preferences_theme\":\"light\",\"notification_settings\":{\"push\":true}}",
+  "expected" : {
+    "mapBaseline" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
+    "flat" : "{\"customer\\\\_id\":\"S:CUST-90210\",\"notification\\\\_settings_push\":\"B:true\",\"preferences\\\\_theme\":\"S:light\",\"preferences_digest\":\"S:weekly\",\"preferences_theme\":\"S:dark\"}",
+    "mapDoc" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
+    "jsonDoc" : "{\"customer_id\":\"S:CUST-90210\",\"notification_settings\":{\"push\":\"B:true\"},\"preferences\":{\"digest\":\"S:weekly\",\"theme\":\"S:dark\"},\"preferences_theme\":\"S:light\"}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

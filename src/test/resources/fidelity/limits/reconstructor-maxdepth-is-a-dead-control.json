@@ -1,0 +1,53 @@
+{
+  "id" : "reconstructor-maxdepth-is-a-dead-control",
+  "family" : "limits",
+  "title" : "JsonReconstructor.maxDepth(2) happily reconstructs eight levels",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The reconstruction-side bound cannot disagree with the flattener because it is never consulted: declared, assigned, validated, and read nowhere. The repo signature pathology, and the audit history says to assume every deliverable contains one - here it is.",
+  "catchesBugClass" : "Dead configuration: a builder method that validates its argument, stores it, and is never read. Nothing else in this corpus can find that, because a dead control produces correct-looking output by definition.",
+  "cannotCatch" : "A round-trip assertion CANNOT detect this - the document round-trips exactly, so a harness checking only losslessness reports a pass and the finding disappears. It also cannot show the StackOverflow consequence, which needs thousands of levels.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The document round-trips perfectly under maxDepth(2), and the probe proves the setting is inert by showing maxDepth(1) and maxDepth(1000) produce byte-identical results. Operational note: the flattener converts StackOverflowError to IllegalStateException while the reconstructor catches only Exception, so it cannot fail closed on depth."
+  },
+  "configDescription" : "JsonReconstructor.builder().maxDepth(2); probe compares maxDepth(1) against maxDepth(1000) on the identical flat map",
+  "config" : {
+    "reconstructor" : {
+      "maxDepth" : 2
+    }
+  },
+  "probe" : {
+    "kind" : "RECONSTRUCT_CONFIG_COMPARE",
+    "expect" : "EQUAL",
+    "note" : "maxDepth(1) and maxDepth(1000) must produce identical documents - that equality IS the dead-control proof, and it flips the day the setting is wired up",
+    "configA" : {
+      "reconstructor" : {
+        "maxDepth" : 1
+      }
+    },
+    "configB" : {
+      "reconstructor" : {
+        "maxDepth" : 1000
+      }
+    }
+  },
+  "input" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":1}}}}}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+    "flat" : "{\"d1_d2_d3_d4_d5_d6_d7_leaf\":\"I:1\"}",
+    "mapDoc" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+    "jsonDoc" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+    "losslessJson" : true,
+    "probe" : {
+      "kind" : "RECONSTRUCT_CONFIG_COMPARE",
+      "expect" : "EQUAL",
+      "a" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+      "b" : "{\"d1\":{\"d2\":{\"d3\":{\"d4\":{\"d5\":{\"d6\":{\"d7\":{\"leaf\":\"I:1\"}}}}}}}}",
+      "equal" : true
+    }
+  },
+  "measuredLossless" : true
+}

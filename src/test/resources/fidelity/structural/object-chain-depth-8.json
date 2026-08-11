@@ -1,0 +1,27 @@
+{
+  "id" : "object-chain-depth-8",
+  "family" : "structural",
+  "title" : "Pure object chain, depth 8, scalar leaf",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The only structural shape traced as unambiguously lossless on both stacks. It is the good-input arm of the gate: if this ever fails, key encoding, prefix grouping, or setNestedValue has broken, and every DEFECT fixture becomes uninterpretable because a new bug could not be told from a regression in the baseline.",
+  "catchesBugClass" : "Regression in depth handling and in the FlattenedPath encode/decode round trip: an off-by-one in the prefix loop, a change in escapeSegment, or an over-eager array heuristic that starts firing on non-array String leaves.",
+  "cannotCatch" : "Nothing about arrays (it contains none) and nothing about depth truncation (default maxDepth is 50, this document is 8 deep). Also insensitive to field order, because Map.equals and semantic JSON comparison both ignore key order.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Flattens to the single key l1_l2_l3_l4_l5_l6_l7_l8 = \"leaf\". No prefix is flagged as an array because the leaf does not start with a bracket; buildHierarchy rebuilds all 8 levels."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":{\"l6\":{\"l7\":{\"l8\":\"leaf\"}}}}}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":{\"l6\":{\"l7\":{\"l8\":\"S:leaf\"}}}}}}}}",
+    "flat" : "{\"l1_l2_l3_l4_l5_l6_l7_l8\":\"S:leaf\"}",
+    "mapDoc" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":{\"l6\":{\"l7\":{\"l8\":\"S:leaf\"}}}}}}}}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":{\"l6\":{\"l7\":{\"l8\":\"S:leaf\"}}}}}}}}",
+    "jsonDoc" : "{\"l1\":{\"l2\":{\"l3\":{\"l4\":{\"l5\":{\"l6\":{\"l7\":{\"l8\":\"S:leaf\"}}}}}}}}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

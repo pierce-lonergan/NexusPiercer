@@ -1,0 +1,27 @@
+{
+  "id" : "case-only-differing-names-preserved",
+  "family" : "naming",
+  "title" : "Names differing only by case stay three distinct fields under AS_IS",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The default naming strategy must not fold case, and generateUniqueKey collision set must be case-sensitive. Three spellings of the same word in one object is the cheapest way to pin both. This is the good-input arm of the naming-strategy drill: it must pass while the LOWER_CASE fixture must fail.",
+  "catchesBugClass" : "Accidental case folding anywhere in the key path - a case-insensitive collection used for the collision set, a Locale-sensitive toLowerCase leaking out, or a default naming strategy change.",
+  "cannotCatch" : "It cannot catch Turkish-locale damage, because applyNamingStrategy is never invoked under AS_IS. More importantly it cannot catch the downstream consequence: Spark resolves column names case-insensitively by default, so LOSSLESS here is not \"safe\".",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "No escaping is triggered, the collision set is case-sensitive, AS_IS skips transformKeys entirely, and all three round-trip exactly."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"Id\":1,\"id\":2,\"ID\":3}",
+  "expected" : {
+    "mapBaseline" : "{\"ID\":\"I:3\",\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "flat" : "{\"ID\":\"I:3\",\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "mapDoc" : "{\"ID\":\"I:3\",\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"ID\":\"I:3\",\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "jsonDoc" : "{\"ID\":\"I:3\",\"Id\":\"I:1\",\"id\":\"I:2\"}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

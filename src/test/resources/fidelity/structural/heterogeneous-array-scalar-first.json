@@ -1,0 +1,27 @@
+{
+  "id" : "heterogeneous-array-scalar-first",
+  "family" : "structural",
+  "title" : "Heterogeneous array, scalars before the object - internal sentinel leaks out",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "Heterogeneous arrays take MapFlattener Case 3, which splits the array into a base-key column for non-map items and suffixed columns for map fields. On reconstruct the two columns collide and the reconstructor private \"_value\" wrapper key ends up in user-visible output. Ordering matters, so this is one of a deliberate pair.",
+  "catchesBugClass" : "Namespace leakage of reconstructor internals into output, and positional collapse of heterogeneous arrays. Also pins that padding nulls become observable data rather than being stripped.",
+  "cannotCatch" : "It cannot catch the case where a user legitimately has a field named \"_value\", which would be silently merged with the wrapper. It also cannot distinguish the wrapper leak from the failure to parse the columns, since both are consequences of the same collision.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"mixed\":[1,2,{\"a\":3}]}",
+  "expected" : {
+    "mapBaseline" : "{\"mixed\":[\"I:1\",\"I:2\",{\"a\":\"I:3\"}]}",
+    "flat" : "{\"mixed\":\"S:[1,2]\",\"mixed_a\":\"S:[3,null]\"}",
+    "mapDoc" : "{\"mixed\":{\"_value\":\"S:[1,2]\",\"a\":\"S:[3,null]\"}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"mixed\":[\"I:1\",\"I:2\",{\"a\":\"I:3\"}]}",
+    "jsonDoc" : "{\"mixed\":{\"_value\":\"S:[1,2]\",\"a\":\"S:[3,null]\"}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

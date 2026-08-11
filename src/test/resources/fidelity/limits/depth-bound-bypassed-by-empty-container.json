@@ -1,0 +1,31 @@
+{
+  "id" : "depth-bound-bypassed-by-empty-container",
+  "family" : "limits",
+  "title" : "An empty map at the depth limit is admitted where a non-empty map is truncated",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "flattenValue checks isEmpty and short-circuits to a null BEFORE ever calling flattenObject, so the depth check never runs for an empty container. The bound is not applied uniformly and the exemption is invisible from the configuration.",
+  "catchesBugClass" : "Non-uniform enforcement of a bound - a guard that a specific value shape can walk around. Also pins that the isEmpty short-circuit ordering is load-bearing.",
+  "cannotCatch" : "With a single empty terminal the exemption costs at most one level, so it cannot demonstrate unbounded bypass. It also cannot distinguish the collapse from the skipped bound by round-trip comparison alone - the flattened map assertion is what names it.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Two sibling values at the identical structural position, one exempt from the bound and one not: {} becomes null without consulting maxDepth while the non-empty sibling is stringified."
+  },
+  "configDescription" : "MapFlattener.builder().maxDepth(1)",
+  "config" : {
+    "mapFlattener" : {
+      "maxDepth" : 1
+    }
+  },
+  "input" : "{\"a\":{},\"b\":{\"c\":1}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{},\"b\":{\"c\":\"I:1\"}}",
+    "flat" : "{\"a\":null,\"b\":\"S:{\\\"c\\\":1}\"}",
+    "mapDoc" : "{\"a\":null,\"b\":\"S:{\\\"c\\\":1}\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{},\"b\":{\"c\":\"I:1\"}}",
+    "jsonDoc" : "{\"a\":null,\"b\":\"S:{\\\"c\\\":1}\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

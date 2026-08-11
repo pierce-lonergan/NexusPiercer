@@ -1,0 +1,34 @@
+{
+  "id" : "vd-comma-format-atomic-coercion",
+  "family" : "value-domain",
+  "title" : "Under COMMA_SEPARATED, four of five strings come back as different types",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "parseAtomicValue is a type-guessing function with no schema and no escape hatch. Strings that are indistinguishable from literals - the exact set vd-string-literal-lookalikes proves safe on the default path - are silently retyped here. Same library, same document, opposite behaviour, selected by an enum that reads like a formatting choice.",
+  "catchesBugClass" : "Unguarded type inference on delimited formats - five distinct coercions in one assertion. A fix that addresses only the boolean case will still fail here.",
+  "cannotCatch" : "Cannot separate the value coercion from the structural change in a single assertion. It also does not reach parseAtomicValue quote-stripping branch, which only fires for BRACKET_LIST.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Quoting is gone after flattening, so nothing downstream can know these were strings; parseAtomicValue then returns a boolean, a null, an int with leading zeros dropped, a double with the trailing zero gone, and one surviving String."
+  },
+  "configDescription" : "arrayFormat COMMA_SEPARATED on both sides",
+  "config" : {
+    "mapFlattener" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    },
+    "reconstructor" : {
+      "arrayFormat" : "COMMA_SEPARATED"
+    }
+  },
+  "input" : "{\"a\":{\"b\":[\"true\",\"null\",\"007\",\"1.10\",\"0x1F\"]}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":[\"S:true\",\"S:null\",\"S:007\",\"S:1.10\",\"S:0x1F\"]}}",
+    "flat" : "{\"a_b\":\"S:true,null,007,1.10,0x1F\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"B:true\"},{\"b\":null},{\"b\":\"I:7\"},{\"b\":\"D:1.1\"},{\"b\":\"S:0x1F\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{\"b\":[\"S:true\",\"S:null\",\"S:007\",\"S:1.10\",\"S:0x1F\"]}}",
+    "jsonDoc" : "{\"a\":[{\"b\":\"B:true\"},{\"b\":null},{\"b\":\"I:7\"},{\"b\":\"BD:1.1\"},{\"b\":\"S:0x1F\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

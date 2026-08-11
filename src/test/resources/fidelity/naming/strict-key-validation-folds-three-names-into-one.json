@@ -1,0 +1,31 @@
+{
+  "id" : "strict-key-validation-folds-three-names-into-one",
+  "family" : "naming",
+  "title" : "strictKeyValidation is not validation - it silently rewrites and collides",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The flag reads as a gate. sanitizeKey implements it as a character-class replaceAll, which rejects nothing, reports nothing, and maps a large class of distinct names onto the same output. Three punctuation variants of the same stem is the minimum case that demonstrates the fold and the invented suffixes together.",
+  "catchesBugClass" : "A control whose name promises rejection and whose implementation performs unlogged, order-dependent, information-destroying rewriting. Pins that a correct fix must either reject or return the applied mapping.",
+  "cannotCatch" : "It cannot catch a cross-document collision, because escaping runs after the fold. The injectivity break is confined to within a single object level.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "All three fold to one name and the clashes are resolved with invented numeric suffixes. The folding is defensible for SQL-safe identifiers; emitting no mapping, no warning and no exception is not."
+  },
+  "configDescription" : "MapFlattener.builder().strictKeyValidation(true); reconstructor default",
+  "config" : {
+    "mapFlattener" : {
+      "strictKeyValidation" : true
+    }
+  },
+  "input" : "{\"a.b\":1,\"a-b\":2,\"a b\":3}",
+  "expected" : {
+    "mapBaseline" : "{\"a b\":\"I:3\",\"a-b\":\"I:2\",\"a.b\":\"I:1\"}",
+    "flat" : "{\"a\\\\_b\":\"I:1\",\"a\\\\_b\\\\_2\":\"I:2\",\"a\\\\_b\\\\_3\":\"I:3\"}",
+    "mapDoc" : "{\"a_b\":\"I:1\",\"a_b_2\":\"I:2\",\"a_b_3\":\"I:3\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a b\":\"I:3\",\"a-b\":\"I:2\",\"a.b\":\"I:1\"}",
+    "jsonDoc" : "{\"a_b\":\"I:1\",\"a_b_2\":\"I:2\",\"a_b_3\":\"I:3\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

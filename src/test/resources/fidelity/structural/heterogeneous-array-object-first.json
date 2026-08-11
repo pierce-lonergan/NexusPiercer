@@ -1,0 +1,27 @@
+{
+  "id" : "heterogeneous-array-object-first",
+  "family" : "structural",
+  "title" : "Heterogeneous array, objects before the scalars - object elements silently deleted",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The same shape as the previous fixture with element order reversed, and the damage is strictly worse: instead of a visible sentinel the object elements vanish and the output is a clean, plausible, wrong array. It exists solely because LinkedHashMap iteration order decides which of two colliding keys is written last.",
+  "catchesBugClass" : "Order-dependent silent data destruction from leaf/branch key collision. Also catches any change to MapFlattener fieldValues insertion order, which would flip this fixture to the sentinel-leak failure mode instead.",
+  "cannotCatch" : "It cannot detect the loss from the output alone - that is the point, and it means the harness must compare against the input, never self-validate the result. It also does not prove heterogeneous arrays fail in general, only in this collision shape.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The one-segment key overwrites the array holder built from the longer keys, producing a syntactically perfect array with both object elements silently deleted and no error, warning, or log."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"mixed\":[{\"a\":1},{\"a\":2},\"x\",\"y\"]}",
+  "expected" : {
+    "mapBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
+    "flat" : "{\"mixed\":\"S:[\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2]\"}",
+    "mapDoc" : "{\"mixed\":[\"S:x\",\"S:y\"]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
+    "jsonDoc" : "{\"mixed\":[\"S:x\",\"S:y\"]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

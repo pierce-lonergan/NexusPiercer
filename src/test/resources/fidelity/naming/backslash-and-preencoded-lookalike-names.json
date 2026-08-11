@@ -1,0 +1,27 @@
+{
+  "id" : "backslash-and-preencoded-lookalike-names",
+  "family" : "naming",
+  "title" : "Five names that all look like a_b under naive concatenation stay five distinct fields",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The direct probe of FlattenedPath injectivity. The document contains a name with a raw backslash, a name that is literally the encoder OWN OUTPUT for a different name, the name a_b itself, the two-level path a.b, and a name ending in a backslash. If escape order is wrong or the decoder escapes-nothing branch fires wrongly, at least two of these collapse into each other.",
+  "catchesBugClass" : "Escape-ordering bugs and double-unescaping. Specifically catches escaping the separator before the escape character, which would make a name that already contains a backslash indistinguishable from a name that was escaped once.",
+  "cannotCatch" : "It only probes the single-character default separator. It also cannot catch anything downstream of decode - a name here could decode perfectly and still be dropped by processArrays.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The five encode to distinct keys and each decodes back to its exact source name. Escaping the backslash first is what keeps the pre-encoded lookalike from decoding as the two-level path."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a\\\\b\":1,\"a\\\\_b\":2,\"a_b\":3,\"a\":{\"b\":4},\"a\\\\\":5}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":\"I:4\"},\"a\\\\\":\"I:5\",\"a\\\\_b\":\"I:2\",\"a\\\\b\":\"I:1\",\"a_b\":\"I:3\"}",
+    "flat" : "{\"a\\\\\\\\\":\"I:5\",\"a\\\\\\\\\\\\_b\":\"I:2\",\"a\\\\\\\\b\":\"I:1\",\"a\\\\_b\":\"I:3\",\"a_b\":\"I:4\"}",
+    "mapDoc" : "{\"a\":{\"b\":\"I:4\"},\"a\\\\\":\"I:5\",\"a\\\\_b\":\"I:2\",\"a\\\\b\":\"I:1\",\"a_b\":\"I:3\"}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"a\":{\"b\":\"I:4\"},\"a\\\\\":\"I:5\",\"a\\\\_b\":\"I:2\",\"a\\\\b\":\"I:1\",\"a_b\":\"I:3\"}",
+    "jsonDoc" : "{\"a\":{\"b\":\"I:4\"},\"a\\\\\":\"I:5\",\"a\\\\_b\":\"I:2\",\"a\\\\b\":\"I:1\",\"a_b\":\"I:3\"}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

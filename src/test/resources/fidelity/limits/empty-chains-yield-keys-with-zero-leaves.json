@@ -1,0 +1,27 @@
+{
+  "id" : "empty-chains-yield-keys-with-zero-leaves",
+  "family" : "limits",
+  "title" : "Deeply nested empty chains: three keys from a document with no leaves at all",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The \"flattens to more keys than it has leaves\" case. Nested empty containers produce a key each and contribute zero scalar leaves, and this exercises empty chains at three different depths in one document.",
+  "catchesBugClass" : "Key-count accounting that assumes keys track leaves, plus regression of the depth-preservation property at more than one level. It would also catch a fix that drops empty chains entirely to save keys.",
+  "cannotCatch" : "It cannot catch the far worse CELL blowup from array-of-maps. It also cannot distinguish {} from [] from null anywhere, so it keeps passing under any fix that addresses only one of the three.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Zero leaves in, three keys out. Depth is preserved exactly - the already-pinned ACCEPTED behaviour - but every {} became null, the already-pinned DEFECT, now shown to propagate at every depth."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a\":{},\"b\":{\"c\":{}},\"d\":{\"e\":{\"f\":{}}}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{},\"b\":{\"c\":{}},\"d\":{\"e\":{\"f\":{}}}}",
+    "flat" : "{\"a\":null,\"b_c\":null,\"d_e_f\":null}",
+    "mapDoc" : "{\"a\":null,\"b\":{\"c\":null},\"d\":{\"e\":{\"f\":null}}}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{},\"b\":{\"c\":{}},\"d\":{\"e\":{\"f\":{}}}}",
+    "jsonDoc" : "{\"a\":null,\"b\":{\"c\":null},\"d\":{\"e\":{\"f\":null}}}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

@@ -1,0 +1,27 @@
+{
+  "id" : "customer-preferences-object-with-array",
+  "family" : "real-world",
+  "title" : "Customer profile whose preferences map contains a notification_channels array",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The flagship structural defect reduced to its minimum realistic form. One multi-element array inside an otherwise ordinary settings object converts the entire object into an array of fabricated rows with every scalar sibling duplicated. The flattened form is byte-identical to that of a genuine array of three objects, so the loss is in the wire format, not merely in the reconstructor.",
+  "catchesBugClass" : "The object-versus-array ambiguity of separator-only flattening; scalar duplication via repeat-last-value; row-count fabrication driven by an unrelated field length.",
+  "cannotCatch" : "It cannot show the severity scaling with two array-valued siblings of different lengths. It also cannot distinguish a format-level fix from a reconstructor-level hack that special-cases length-1 vectors.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "preferences becomes a three-element array with the scalars duplicated. Genuinely ambiguous on the wire, so a correct fix is a format change - but the same class of ambiguity in the KEY domain was treated as a bug worth a breaking change, and the value domain deserves the same verdict."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"customer_id\":\"CUST-88120\",\"loyalty_tier\":\"gold\",\"preferences\":{\"theme\":\"dark\",\"locale\":\"en_GB\",\"notification_channels\":[\"email\",\"sms\",\"push\"]}}",
+  "expected" : {
+    "mapBaseline" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":{\"locale\":\"S:en_GB\",\"notification_channels\":[\"S:email\",\"S:sms\",\"S:push\"],\"theme\":\"S:dark\"}}",
+    "flat" : "{\"customer\\\\_id\":\"S:CUST-88120\",\"loyalty\\\\_tier\":\"S:gold\",\"preferences_locale\":\"S:en_GB\",\"preferences_notification\\\\_channels\":\"S:[\\\"email\\\",\\\"sms\\\",\\\"push\\\"]\",\"preferences_theme\":\"S:dark\"}",
+    "mapDoc" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":[{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:email\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:sms\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:push\",\"theme\":\"S:dark\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":{\"locale\":\"S:en_GB\",\"notification_channels\":[\"S:email\",\"S:sms\",\"S:push\"],\"theme\":\"S:dark\"}}",
+    "jsonDoc" : "{\"customer_id\":\"S:CUST-88120\",\"loyalty_tier\":\"S:gold\",\"preferences\":[{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:email\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:sms\",\"theme\":\"S:dark\"},{\"locale\":\"S:en_GB\",\"notification_channels\":\"S:push\",\"theme\":\"S:dark\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

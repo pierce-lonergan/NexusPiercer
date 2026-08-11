@@ -1,0 +1,58 @@
+{
+  "id" : "avro-record-defaults-dropped-in-reconstructed-schema",
+  "family" : "avro",
+  "title" : "Field default values are erased by schema reconstruction",
+  "stack" : "AVRO",
+  "referenceIssue" : "",
+  "rationale" : "reconstructRecord builds every field with the default-value argument hard-coded to null, which Avro reads as \"no default\". Defaults are the mechanism Avro schema evolution is built on; a reconstructed schema that has lost them is not the schema that went in, and readers using it will reject records the original accepted.",
+  "catchesBugClass" : "Metadata dropped in a copy-through: any reconstruction that rebuilds Avro Fields from name+type+doc while discarding default, order, aliases and custom props.",
+  "cannotCatch" : "It only checks defaults. Field order, aliases and arbitrary schema properties are dropped by the same constructor call and this is blind to all of them.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The reconstructed schema reports no default where the original had one. The DATA path is unaffected, so the loss is confined to the schema half."
+  },
+  "configDescription" : "assert SCHEMA",
+  "config" : {
+    "avro" : {
+      "assert" : "SCHEMA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "Job",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "id",
+          "type" : "string"
+        }, {
+          "name" : "retries",
+          "type" : "int",
+          "default" : 3
+        }, {
+          "name" : "region",
+          "type" : [ "null", "string" ],
+          "default" : null
+        } ]
+      }
+    }
+  },
+  "input" : "{\"id\":\"x-1\",\"retries\":3,\"region\":\"us-east-1\"}",
+  "expected" : {
+    "avroAssert" : "SCHEMA",
+    "flattenedSchema" : "{\"id\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"region\":\"S:type=[\\\"null\\\",\\\"string\\\"];logical=none;doc=null;hasDefault=false\",\"retries\":\"S:type=[\\\"null\\\",\\\"int\\\"];logical=none;doc=null;hasDefault=false\"}",
+    "schemaChecks" : {
+      "inverseReproducesOriginal" : false,
+      "originalLogicalTypes" : "",
+      "flattenedLogicalTypes" : "",
+      "logicalTypesPreserved" : true,
+      "originalNamedTypes" : "",
+      "flattenedNamedTypes" : "",
+      "namedTypesPreserved" : true,
+      "declaredColumnsNotShadowed" : true,
+      "shadowedColumns" : ""
+    },
+    "flat" : "{\"id\":\"S:x-1\",\"region\":\"S:us-east-1\",\"retries\":\"I:3\"}",
+    "avroBaseline" : "{\"type\":\"record\",\"name\":\"Job\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"retries\",\"type\":\"int\",\"default\":3},{\"name\":\"region\",\"type\":[\"null\",\"string\"],\"default\":null}]}",
+    "avroDoc" : "{\"type\":\"record\",\"name\":\"Job\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"retries\",\"type\":\"int\"},{\"name\":\"region\",\"type\":[\"null\",\"string\"]}]}",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

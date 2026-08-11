@@ -1,0 +1,27 @@
+{
+  "id" : "empty-cart",
+  "family" : "real-world",
+  "title" : "Abandoned cart with no line items, no promo codes and an uncomputed totals block",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "An empty collection is a normal state, not an edge case - every cart starts here. Confirms the known empty-container collapse survives contact with a realistic composite document and shows what a consumer actually sees: three semantically different absences all rendered as null.",
+  "catchesBugClass" : "Type-erasure of empty containers into null; and, if the scheduled type-tagged-null sentinel ever lands, this proves it works on a real document rather than a one-key map.",
+  "cannotCatch" : "It cannot distinguish which of the three collapses is which - it asserts the aggregate. It also cannot catch the case where a container is empty at depth inside an array element.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "A consumer iterating line_items now has to null-guard a field the source schema declares as a non-nullable array."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"cart_id\":\"CART-000551\",\"customer_id\":\"CUST-77301\",\"line_items\":[],\"applied_promo_codes\":[],\"totals\":{},\"updated_at\":\"2026-08-09T14:32:11Z\"}",
+  "expected" : {
+    "mapBaseline" : "{\"applied_promo_codes\":[],\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":[],\"totals\":{},\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
+    "flat" : "{\"applied\\\\_promo\\\\_codes\":null,\"cart\\\\_id\":\"S:CART-000551\",\"customer\\\\_id\":\"S:CUST-77301\",\"line\\\\_items\":null,\"totals\":null,\"updated\\\\_at\":\"S:2026-08-09T14:32:11Z\"}",
+    "mapDoc" : "{\"applied_promo_codes\":null,\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":null,\"totals\":null,\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"applied_promo_codes\":[],\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":[],\"totals\":{},\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
+    "jsonDoc" : "{\"applied_promo_codes\":null,\"cart_id\":\"S:CART-000551\",\"customer_id\":\"S:CUST-77301\",\"line_items\":null,\"totals\":null,\"updated_at\":\"S:2026-08-09T14:32:11Z\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

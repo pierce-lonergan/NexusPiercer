@@ -1,0 +1,57 @@
+{
+  "id" : "vd-preserve-bigdecimal-flag-inert",
+  "family" : "value-domain",
+  "title" : "preserveBigDecimalPrecision is wired, readable, documented - and cannot fire on the JSON stack",
+  "stack" : "JSON",
+  "referenceIssue" : "",
+  "rationale" : "The repo signature pathology: a control that appears present and does nothing. preserveBigDecimalPrecision(true) is the documented remedy for scale loss and works when handed an actual BigDecimal. JsonFlattener.with(that flattener) compiles, reads as correctly configured, and changes nothing, because the flattener is only ever handed a Double.",
+  "catchesBugClass" : "Configuration that silently no-ops. Also catches a future fix landing on only one of the two stacks.",
+  "cannotCatch" : "Only proves inertness for THIS flag on THIS stack. It also cannot tell you whether the right fix is to make the flag reachable or to remove it from the JSON-stack API surface.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "Output is byte-identical to the same run with the flag false. The probe proves the flag has zero observable effect on this stack while the MAP twin fed a real BigDecimal does yield the exact text."
+  },
+  "configDescription" : "MapFlattener.builder().preserveBigDecimalPrecision(true); probe compares against the same run with the flag off, plus a MAP twin fed a real BigDecimal",
+  "config" : {
+    "mapFlattener" : {
+      "preserveBigDecimalPrecision" : true
+    }
+  },
+  "probe" : {
+    "kind" : "FLATTEN_CONFIG_COMPARE",
+    "expect" : "EQUAL",
+    "note" : "preserveBigDecimalPrecision(true) vs (false) on JSON input must produce identical flattened maps - that equality IS the inertness proof",
+    "configA" : {
+      "mapFlattener" : {
+        "preserveBigDecimalPrecision" : true
+      }
+    },
+    "configB" : {
+      "mapFlattener" : {
+        "preserveBigDecimalPrecision" : false
+      }
+    },
+    "twin" : {
+      "kind" : "BIGDECIMAL_TWIN",
+      "key" : "amount",
+      "decimal" : "37.7740",
+      "note" : "the same flattener fed a real BigDecimal via the MAP stack DOES yield the exact text - the asymmetry is the proof"
+    }
+  },
+  "input" : "{\"d\":{\"amount\":37.7740}}",
+  "expected" : {
+    "jsonBaseline" : "{\"d\":{\"amount\":\"BD:37.7740\"}}",
+    "flat" : "{\"d_amount\":\"D:37.774\"}",
+    "jsonDoc" : "{\"d\":{\"amount\":\"BD:37.774\"}}",
+    "losslessJson" : false,
+    "probe" : {
+      "kind" : "FLATTEN_CONFIG_COMPARE",
+      "expect" : "EQUAL",
+      "a" : "{\"d_amount\":\"D:37.774\"}",
+      "b" : "{\"d_amount\":\"D:37.774\"}",
+      "equal" : true,
+      "twinFlat" : "{\"d_amount\":\"S:37.7740\"}"
+    }
+  },
+  "measuredLossless" : false
+}

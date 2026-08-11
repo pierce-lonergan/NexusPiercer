@@ -1,0 +1,31 @@
+{
+  "id" : "array-size-exactly-max",
+  "family" : "limits",
+  "title" : "An array of exactly maxArraySize elements is not truncated",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The cliff edge from below for maxArraySize. Math.min makes size==limit safe, but nothing states that as a contract; a change to a strict comparison would silently drop the last element of every array sitting exactly at the bound.",
+  "catchesBugClass" : "Off-by-one at the array bound - the same silent-shape-change risk as depth-exactly-max, and it would corrupt only the population least likely to appear in ad-hoc testing.",
+  "cannotCatch" : "Identical input to the below-max fixture, so it can only catch a regression in the COMPARISON, never in element handling. Paired with array-size-one-over-max it brackets the cliff; alone it proves very little.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "limit = min(3,3) = 3, all elements retained, identical behaviour to the below-max fixture."
+  },
+  "configDescription" : "MapFlattener.builder().maxArraySize(3)",
+  "config" : {
+    "mapFlattener" : {
+      "maxArraySize" : 3
+    }
+  },
+  "input" : "{\"r\":[{\"a\":1,\"b\":10},{\"a\":2,\"b\":20},{\"a\":3,\"b\":30}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "flat" : "{\"r_a\":\"S:[1,2,3]\",\"r_b\":\"S:[10,20,30]\"}",
+    "mapDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "losslessMap" : true,
+    "jsonBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "jsonDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:10\"},{\"a\":\"I:2\",\"b\":\"I:20\"},{\"a\":\"I:3\",\"b\":\"I:30\"}]}",
+    "losslessJson" : true
+  },
+  "measuredLossless" : true
+}

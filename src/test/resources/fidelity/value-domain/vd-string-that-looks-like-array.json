@@ -1,0 +1,27 @@
+{
+  "id" : "vd-string-that-looks-like-array",
+  "family" : "value-domain",
+  "title" : "A scalar string whose text resembles a JSON array turns its parent object into an array",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "analyzeStructure inspects VALUES to decide STRUCTURE: any string value under a multi-segment key that looks like a serialized array of more than one element promotes its parent prefix to an array path. Nothing about the input is an array. Note the arity dependence: \"[7]\" parses to one element and is spared, so fidelity depends on how many commas the user typed.",
+  "catchesBugClass" : "Value-driven structural inference: the entire class of bug where a leaf CONTENT decides its parent TYPE. Any fix must make array detection depend on the flattener own emitted metadata rather than on string shape.",
+  "cannotCatch" : "Requires depth >= 2. At top level the prefix loop never executes, so a flat single-level document round-trips perfectly - a corpus built only from flat documents would show this library as clean.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "The string is destroyed, its characters are retyped as integers, and the enclosing object becomes an array of three synthetic objects."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"a\":{\"b\":\"[1,2,3]\"}}",
+  "expected" : {
+    "mapBaseline" : "{\"a\":{\"b\":\"S:[1,2,3]\"}}",
+    "flat" : "{\"a_b\":\"S:[1,2,3]\"}",
+    "mapDoc" : "{\"a\":[{\"b\":\"I:1\"},{\"b\":\"I:2\"},{\"b\":\"I:3\"}]}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a\":{\"b\":\"S:[1,2,3]\"}}",
+    "jsonDoc" : "{\"a\":[{\"b\":\"I:1\"},{\"b\":\"I:2\"},{\"b\":\"I:3\"}]}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}

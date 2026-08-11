@@ -1,0 +1,31 @@
+{
+  "id" : "upper-case-strategy-renames-without-restructuring",
+  "family" : "naming",
+  "title" : "UPPER_CASE changes names as requested and does NOT damage the encoding",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The control for the two naming-strategy defect fixtures. UPPER_CASE goes through the same transformKeys path that SNAKE_CASE and LOWER_CASE corrupt, but inserts no separators and leaves the backslash escapes intact, so structure must survive even though names change. If this starts failing structurally the bug is in transformKeys itself.",
+  "catchesBugClass" : "Collateral damage from transformKeys that is independent of which strategy is selected - re-escaping, escape stripping, or uniquification firing when there is no collision.",
+  "cannotCatch" : "It cannot catch case-collision damage, because no two names here fold together. It also cannot catch Locale-sensitivity: toUpperCase is called with no Locale.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "Names uppercased, structure and nesting intact, the escaped underscore inside a_b still decoded as part of the name. Defensible because the caller explicitly asked for a name transform."
+  },
+  "configDescription" : "MapFlattener.builder().namingStrategy(UPPER_CASE); reconstructor default",
+  "config" : {
+    "mapFlattener" : {
+      "namingStrategy" : "UPPER_CASE"
+    }
+  },
+  "input" : "{\"a_b\":{\"cD\":1},\"e\":2}",
+  "expected" : {
+    "mapBaseline" : "{\"a_b\":{\"cD\":\"I:1\"},\"e\":\"I:2\"}",
+    "flat" : "{\"A\\\\_B_CD\":\"I:1\",\"E\":\"I:2\"}",
+    "mapDoc" : "{\"A_B\":{\"CD\":\"I:1\"},\"E\":\"I:2\"}",
+    "losslessMap" : false,
+    "jsonBaseline" : "{\"a_b\":{\"cD\":\"I:1\"},\"e\":\"I:2\"}",
+    "jsonDoc" : "{\"A_B\":{\"CD\":\"I:1\"},\"E\":\"I:2\"}",
+    "losslessJson" : false
+  },
+  "measuredLossless" : false
+}
