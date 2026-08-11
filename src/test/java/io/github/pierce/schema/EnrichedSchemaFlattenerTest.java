@@ -698,10 +698,24 @@ class EnrichedSchemaFlattenerTest {
             new EnrichedSchemaFlattener(opts)
                     .stream(shippingSchema(), f -> log.add("S:" + f.flattenedName()));
 
+            // Every column is intercepted immediately before it is delivered, injected ones
+            // included. The previous expectation here was
+            //     I:order_id, S:event_identifier, S:order_id, I:ship_city, ...
+            // which recorded two defects rather than a contract: interception ran inside the walk,
+            // upstream of the injection merge, so I:order_id fired before anything was delivered
+            // and the injected column was never intercepted at all. Updated because the behaviour
+            // was fixed, not to make the build green.
             assertThat(log).containsExactly(
-                    "I:order_id", "S:event_identifier", "S:order_id",
+                    "I:event_identifier", "S:event_identifier",
+                    "I:order_id", "S:order_id",
                     "I:ship_city", "S:ship_city",
                     "I:ship_post_code", "S:ship_post_code");
+
+            // AND THE ANTI-BUFFERING PROPERTY THIS TEST EXISTS FOR, asserted separately so the
+            // pairing above cannot be mistaken for it. If stream() collected the fields and
+            // spliced at the end, every S: would follow every I:. It does not: the first column
+            // reaches the sink before the last one has been walked.
+            assertThat(log.indexOf("S:order_id")).isLessThan(log.indexOf("I:ship_post_code"));
         }
 
         /**
@@ -1417,6 +1431,113 @@ class EnrichedSchemaFlattenerTest {
             assertThat(back.flattenedName()).isEqualTo(original.flattenedName());
             assertThat(back.pathSegments()).isEqualTo(original.pathSegments());
             assertThat(back.sourcePath()).isEqualTo("u.id");
+        }
+    }
+
+    /**
+     * LeafInterceptor's javadoc promised "in emission order" while interception ran inside the
+     * traversal, on the wrong side of the injection merge. Two things were wrong: injected columns
+     * were never offered to the interceptor at all, and the position() a source leaf carried was
+     * its pre-renumber source ordinal rather than the one the caller receives.
+     *
+     * <p>What these catch: interception moving back inside the walk, or the injection merge being
+     * reordered around it. What they cannot catch: whether an interceptor that mutates properties
+     * on an injected column is doing something the caller wanted — the caller built that column,
+     * so it is their business.</p>
+     */
+    @Nested
+    @DisplayName("LeafInterceptor sees what the caller sees")
+    class InterceptorEmissionOrder {
+
+        private Schema twoFields() {
+            return new Schema.Parser().parse(
+                    "{\"type\":\"record\",\"name\":\"R\",\"fields\":["
+                            + "{\"name\":\"alpha\",\"type\":\"string\"},"
+                            + "{\"name\":\"beta\",\"type\":\"string\"}]}");
+        }
+
+        private FlattenedField injected(String name) {
+            return FlattenedField.builder().name(name).flattenedName(name)
+                    .avroType(Schema.Type.STRING).synthetic(true).build();
+        }
+
+        @Test
+        @DisplayName("an injected column is offered to the interceptor, not skipped")
+        void injectedColumnsAreIntercepted() {
+            List<String> seen = new ArrayList<>();
+            FlattenOptions opts = FlattenOptions.builder()
+                    .injectField(1, injected("ingested_at"))
+                    .leafInterceptor(f -> seen.add(f.flattenedName()))
+                    .build();
+
+            new EnrichedSchemaFlattener(opts).flatten(twoFields());
+
+            assertThat(seen).containsExactly("ingested_at", "alpha", "beta");
+        }
+
+        @Test
+        @DisplayName("position() read by the interceptor is the final one, not the source ordinal")
+        void positionsAreFinal() {
+            List<String> seen = new ArrayList<>();
+            FlattenOptions opts = FlattenOptions.builder()
+                    .injectField(1, injected("ingested_at"))
+                    .leafInterceptor(f -> seen.add(f.flattenedName() + "@" + f.position()))
+                    .build();
+
+            new EnrichedSchemaFlattener(opts).flatten(twoFields());
+
+            // Before the fix alpha and beta reported @1 and @2 — their source ordinals — while the
+            // caller received them at 2 and 3.
+            assertThat(seen).containsExactly("ingested_at@1", "alpha@2", "beta@3");
+        }
+
+        @Test
+        @DisplayName("the interceptor sees the same sequence flatten() returns")
+        void interceptorAgreesWithResult() {
+            List<String> seen = new ArrayList<>();
+            FlattenOptions opts = FlattenOptions.builder()
+                    .injectField(2, injected("mid"))
+                    .injectField(99, injected("tail"))
+                    .leafInterceptor(f -> seen.add(f.flattenedName() + "@" + f.position()))
+                    .build();
+
+            List<FlattenedField> result = new EnrichedSchemaFlattener(opts).flatten(twoFields());
+
+            assertThat(seen).isEqualTo(
+                    result.stream().map(f -> f.flattenedName() + "@" + f.position()).toList());
+        }
+
+        @Test
+        @DisplayName("stream() and flatten() offer the interceptor identical sequences")
+        void bothEntryPointsAgree() {
+            FlattenOptions opts = FlattenOptions.builder()
+                    .injectField(1, injected("head"))
+                    .build();
+
+            List<String> viaFlatten = new ArrayList<>();
+            List<String> viaStream = new ArrayList<>();
+
+            new EnrichedSchemaFlattener(FlattenOptions.builder()
+                    .injectField(1, injected("head"))
+                    .leafInterceptor(f -> viaFlatten.add(f.flattenedName() + "@" + f.position()))
+                    .build()).flatten(twoFields());
+
+            new EnrichedSchemaFlattener(FlattenOptions.builder()
+                    .injectField(1, injected("head"))
+                    .leafInterceptor(f -> viaStream.add(f.flattenedName() + "@" + f.position()))
+                    .build()).stream(twoFields(), f -> { });
+
+            assertThat(viaFlatten).isEqualTo(viaStream).isNotEmpty();
+            assertThat(opts.injectedFields()).hasSize(1);
+        }
+
+        /** noop() returned a fresh lambda per call, so every identity check against it was false. */
+        @Test
+        @DisplayName("noop() is a stable singleton so == is a usable test")
+        void noopIsASingleton() {
+            assertThat(LeafInterceptor.noop()).isSameAs(LeafInterceptor.noop());
+            assertThat(LeafInterceptor.noop()).isSameAs(LeafInterceptor.NOOP);
+            assertThat(FlattenOptions.defaults().leafInterceptor()).isSameAs(LeafInterceptor.NOOP);
         }
     }
 }

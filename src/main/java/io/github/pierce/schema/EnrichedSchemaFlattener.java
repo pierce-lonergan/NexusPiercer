@@ -154,17 +154,54 @@ public final class EnrichedSchemaFlattener implements Serializable {
         // used to be, under both policies and through both entry points.
         Output out = new Output(root.getFullName(), options);
 
+        // The interceptor wraps the CALLER'S sink, outside the injection merge, so it sees every
+        // column that reaches the caller: source leaves at their final positions and injected
+        // columns too, in delivery order. It used to be called inside emit(), which put it on the
+        // wrong side of the merge — it never saw an injected column at all, and the position() it
+        // read was the pre-renumber source ordinal rather than the one the caller receives. Its
+        // javadoc said "in emission order" throughout.
+        //
+        // Wrapped here rather than inside InjectingSink because the zero-injection path skips the
+        // merge entirely; interception placed there would have been silently absent for every
+        // caller who configured no injections, which is most of them.
+        Consumer<FlattenedField> delivery = intercepting(sink);
+
         Map<Integer, FlattenedField> injections = options.injectedFields();
         if (injections.isEmpty()) {
-            // Explicit short circuit: with nothing to splice, the caller's own sink reaches the
-            // traversal unwrapped, so the zero-injection path allocates no merge and rebuilds no
-            // field. Every column it produces still passes through Output.
-            walk(root, out, sink);
+            // Explicit short circuit: with nothing to splice, no merge is allocated and no field
+            // is rebuilt. Every column it produces still passes through Output.
+            walk(root, out, delivery);
             return;
         }
-        InjectingSink merge = new InjectingSink(sink, injections, out);
+        InjectingSink merge = new InjectingSink(delivery, injections, out);
         walk(root, out, merge);
         merge.finish();
+    }
+
+    /**
+     * Wraps a sink so every delivered column is offered to the configured {@link LeafInterceptor}
+     * first.
+     *
+     * <p>Returns the sink unchanged when no interceptor was configured, so the common path adds no
+     * frame and the zero-injection case still reaches the traversal as the caller's own object.
+     * The test asserting that lives in {@code EnrichedSchemaFlattenerTest}; an earlier draft of
+     * this javadoc claimed the fidelity corpus asserted it, which was not true of any fixture.</p>
+     *
+     * <p>Keyed on {@link FlattenOptions#hasLeafInterceptor()} rather than on comparing the
+     * interceptor against the no-op singleton. Reference comparison would have worked, but only
+     * because {@code noop()} is now interned — which it was not until this change, and a
+     * correctness argument that rests on an invariant established three commits ago is one nobody
+     * will re-check.</p>
+     */
+    private Consumer<FlattenedField> intercepting(Consumer<FlattenedField> sink) {
+        if (!options.hasLeafInterceptor()) {
+            return sink;
+        }
+        LeafInterceptor interceptor = options.leafInterceptor();
+        return field -> {
+            interceptor.onLeaf(field);
+            sink.accept(field);
+        };
     }
 
     /** The traversal both entry points share. Nothing above this line inspects a field. */
@@ -454,7 +491,8 @@ public final class EnrichedSchemaFlattener implements Serializable {
             field = rebuildWithMappedType(field, mapped);
         }
 
-        options.leafInterceptor().onLeaf(field);
+        // No onLeaf call here on purpose: interception happens at delivery, in stream(), so the
+        // interceptor sees the field the caller sees — final position, injected columns included.
         walk.sink.accept(field);
     }
 

@@ -46,6 +46,7 @@ public final class FlattenOptions implements Serializable {
     private final int maxFields;
     private final TypeMapper typeMapper;
     private final LeafInterceptor leafInterceptor;
+    private final boolean hasLeafInterceptor;
     private final Map<Integer, FlattenedField> injectedFields;
 
     private FlattenOptions(Builder b) {
@@ -59,6 +60,7 @@ public final class FlattenOptions implements Serializable {
         this.maxFields = b.maxFields;
         this.typeMapper = b.typeMapper;
         this.leafInterceptor = b.leafInterceptor;
+        this.hasLeafInterceptor = b.hasLeafInterceptor;
         this.injectedFields = Map.copyOf(b.injectedFields);
     }
 
@@ -148,6 +150,14 @@ public final class FlattenOptions implements Serializable {
     public TypeMapper typeMapper() { return typeMapper; }
     public LeafInterceptor leafInterceptor() { return leafInterceptor; }
 
+    /**
+     * Whether a real interceptor was configured, as opposed to the no-op default.
+     *
+     * <p>Recorded when the builder is called rather than derived afterwards by comparing against
+     * the no-op, so the answer does not depend on that instance being interned.</p>
+     */
+    public boolean hasLeafInterceptor() { return hasLeafInterceptor; }
+
     /** Synthetic fields to inject, keyed by 1-based position. */
     public Map<Integer, FlattenedField> injectedFields() { return injectedFields; }
 
@@ -162,6 +172,7 @@ public final class FlattenOptions implements Serializable {
         private int maxFields = 100_000;
         private TypeMapper typeMapper = TypeMapper.defaultMapper();
         private LeafInterceptor leafInterceptor = LeafInterceptor.noop();
+        private boolean hasLeafInterceptor;
         private final Map<Integer, FlattenedField> injectedFields = new LinkedHashMap<>();
 
         /** Path join separator. Default {@code "_"}. */
@@ -242,6 +253,8 @@ public final class FlattenOptions implements Serializable {
         /** Per-leaf hook, invoked in emission order. Composes via {@link LeafInterceptor#andThen}. */
         public Builder leafInterceptor(LeafInterceptor v) {
             this.leafInterceptor = v == null ? LeafInterceptor.noop() : v;
+            // Passing null CLEARS the interceptor rather than leaving a previously-set one armed.
+            this.hasLeafInterceptor = v != null;
             return this;
         }
 
