@@ -26,13 +26,20 @@ io.github.pierce
 | CreateSparkStructFromAvroSchema | Generate Spark StructType | ~200 | No |
 
 **Formerly Groovy, ported to Java (all now in `src/main/java`):**
-| Class | Purpose | Lines | Explored |
-|-------|---------|-------|----------|
-| JsonFlattener | Fluent JSON flattening API over MapFlattener | ~500 | No |
-| JsonReconstructor | Reconstruct JSON from flattened | ~400 | No |
-| MapFlattener | Production Map flattening | 1300 | Partial |
-| AvroReconstructor | Reconstruct Avro from flattened | ~400 | No |
-| GAvroSchemaFlattener | Avro schema wrapper (the `G` prefix is a fossil of its Groovy origin) | ~200 | No |
+
+> **Line counts re-measured 2026-08-17 with `wc -l`.** The previous figures were guesses and
+> understated the two largest files by roughly 4x and 7x — AvroReconstructor was listed at "~400"
+> against an actual 2,975, and JsonFlattener at "~500" against 2,091. ROADMAP Phase 2 already
+> ordered this table regenerated mechanically for exactly that reason. The "Explored" column has
+> been dropped: it was a discovery-session artifact that had begun to read as a coverage claim.
+
+| Class | Purpose | Lines |
+|-------|---------|-------|
+| AvroReconstructor | Reconstruct Avro from flattened | 2975 |
+| JsonFlattener | Fluent JSON flattening API over MapFlattener; `builder().buildFlattener()` yields the reusable engine (2.1.0+) | 2091 |
+| MapFlattener | Production Map flattening | 1354 |
+| JsonReconstructor | Schema-less reconstruction of JSON from flattened | 1295 |
+| GAvroSchemaFlattener | Avro schema wrapper (the `G` prefix is a fossil of its Groovy origin) | 888 |
 
 ---
 

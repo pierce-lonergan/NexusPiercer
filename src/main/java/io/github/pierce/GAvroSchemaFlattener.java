@@ -62,6 +62,18 @@ public class GAvroSchemaFlattener implements Serializable {
             ThreadLocal.withInitial(HashMap::new);
 
     /**
+     * Shared TypeReference for the {@code List<Object>} parse in convertSerializedArray.
+     *
+     * <p>This was a {@code new TypeReference<List<Object>>() {}} expression inside an INSTANCE
+     * method, which javac compiles to an anonymous class carrying a synthetic {@code this$0}
+     * reference to the whole flattener (SIC_INNER_SHOULD_BE_STATIC_ANON on
+     * GAvroSchemaFlattener$1), re-allocated on every array parse. In static context there is no
+     * enclosing instance and the single instance is shared.
+     */
+    private static final TypeReference<List<Object>> LIST_OF_OBJECT =
+            new TypeReference<List<Object>>() { };
+
+    /**
      * Configuration for Avro schema flattening
      */
     public static class AvroFlatteningConfig implements Serializable {
@@ -365,10 +377,16 @@ public class GAvroSchemaFlattener implements Serializable {
                 default:
                     // Primitive types
                     DataType dataType = mapAvroTypeToDataType(currentSchema);
-                    // Use node.nullable instead of isNullable(currentSchema)
+                    // Nullability comes from node.nullable, computed by analyzeUnion during
+                    // traversal. It must NOT be recomputed from currentSchema here: by this
+                    // point currentSchema has already been union-unwrapped, so a local check
+                    // would see a bare type and lose the ancestor nullability the traversal
+                    // accumulated. A private isNullable(Schema) used to sit below for exactly
+                    // that local check; its last caller became this comment, and the dead method
+                    // was deleted on 2026-08-17.
                     result.put(node.path.isEmpty() ? "value" : node.path,
                             new FlattenedFieldType(node.path, dataType, false, null,
-                                    currentSchema.getType(), node.nullable));  // Use node.nullable!
+                                    currentSchema.getType(), node.nullable));
                     break;
             }
         }
@@ -502,22 +520,6 @@ public class GAvroSchemaFlattener implements Serializable {
         }
 
         return new UnionTypeInfo(hasNull, nonNullSchema);
-    }
-
-    /**
-     * Check if a schema is nullable (union with null)
-     */
-    private boolean isNullable(Schema schema) {
-        if (schema.getType() != Schema.Type.UNION) {
-            return false;
-        }
-
-        for (Schema type : schema.getTypes()) {
-            if (type.getType() == Schema.Type.NULL) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -691,8 +693,7 @@ public class GAvroSchemaFlattener implements Serializable {
 
         try {
             // Parse the JSON array
-            List<?> parsedArray = objectMapper.readValue(serialized,
-                    new TypeReference<List<Object>>() {});
+            List<?> parsedArray = objectMapper.readValue(serialized, LIST_OF_OBJECT);
 
             // Convert each element to the correct type
             List<Object> typedArray = new ArrayList<>(parsedArray.size());

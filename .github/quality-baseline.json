@@ -25,7 +25,52 @@
     "justification in the commit message and CODEOWNERS approval."
   ],
 
-  "recorded": "2026-08-11",
+  "recorded": "2026-08-17",
+
+  "_scope_2026_08_17": [
+    "THE FIVE-CLASS SPOTBUGS EXCLUDE BLOCK IS GONE, AND THE FOLLOW-UP IT OWED IS DISCHARGED.",
+    "",
+    "src/main/spotbugs/spotbugs-exclude.xml carried a five-class x three-pattern <Match> with no",
+    "<Method> narrowing, masking ten findings in hand-written Java. All ten are fixed and the",
+    "block is deleted rather than narrowed. Nothing about it survived: JsonFlattener and",
+    "JsonReconstructor never contributed a single finding to it and were pure collateral.",
+    "",
+    "MEASURED, and two predictions were WRONG in the same direction - both gates fell further",
+    "than the analysis predicted. Stated loudly rather than quietly banked:",
+    "",
+    "  SpotBugs  241 -> 237.  PREDICTED 241 (no change).",
+    "    The prediction was that fixing the ten could not lower the number, because 241 was the",
+    "    count WITH the block and 251 the count WITHOUT it - the ten ARE the difference. That",
+    "    arithmetic is right, and the number still fell by 3, because THREE findings that were",
+    "    always counted inside the 241 lived inside the body of one of the deleted methods:",
+    "      DE_MIGHT_IGNORE       AvroReconstructor.calculateArraySize   (the empty catch)",
+    "      REC_CATCH_EXCEPTION   AvroReconstructor.calculateArraySize   (same catch)",
+    "      SF_SWITCH_NO_DEFAULT  AvroReconstructor.calculateArraySize   (switch on arrayFormat)",
+    "    Deleting dead code took its live findings with it. 241 - 3 = 238.",
+    "    A FOURTH came off with the BL-010 constructor repair, and it is worth naming because",
+    "    the gate had been reporting the bug all along at HIGH priority:",
+    "      NP_NULL_ON_SOME_PATH  JsonFlattener.<init>  'Possible null pointer dereference of",
+    "                            config ... Dereferenced at line 224, Known null at line 223'",
+    "    That is JsonFlattener.with(flattener, null) throwing NPE - the guard on 223 defeated by",
+    "    the parameter read on 224. 238 - 1 = 237.",
+    "",
+    "  PMD       361 -> 351.  PREDICTED 353-356.",
+    "    UnusedPrivateMethod       5 -> 0   the five dead methods; PMD has no per-class",
+    "                                      exclusions and had been counting them all along",
+    "    UnusedFormalParameter    40 -> 38",
+    "    EmptyCatchBlock          26 -> 25",
+    "    AvoidDuplicateLiterals   25 -> 24",
+    "    SwitchStmtsShouldHaveDefault 2 -> 1",
+    "",
+    "TWO STALE NUMBERS IN THIS FILE, corrected while re-measuring. The pmd.topRules block below",
+    "recorded AvoidLiteralsInIfCondition at 58 and EmptyCatchBlock at 25. Measured at the",
+    "PRE-CHANGE baseline they were 62 and 26. Those entries were already wrong before this work",
+    "and are now re-measured rather than carried forward.",
+    "",
+    "Checkstyle unmoved at 0. Test count 2333 -> 2389 (Maven summary line, authoritative;",
+    "the surefire-XML sum reads 1840 and undercounts by 532 because @Nested classes emit a",
+    "separate report each while the outer class reports tests=0)."
+  ],
 
   "_scope_2026_08_11": [
     "WHY THE GROOVY REMOVAL LOWERED NOTHING HERE, measured rather than assumed.",
@@ -55,24 +100,27 @@
   },
 
   "pmd": {
-    "ceiling": 361,
+    "ceiling": 351,
     "mode": "ratchet",
     "topRules": {
-            "AvoidLiteralsInIfCondition": 58,
+      "AvoidLiteralsInIfCondition": 62,
       "GuardLogStatement": 44,
-      "UnusedFormalParameter": 40,
+      "UnusedFormalParameter": 38,
       "NullAssignment": 37,
       "EmptyCatchBlock": 25,
-      "AvoidDuplicateLiterals": 25,
-      "ReturnEmptyCollectionRatherThanNull": 16
+      "AvoidDuplicateLiterals": 24,
+      "ReturnEmptyCollectionRatherThanNull": 16,
+      "SystemPrintln": 15,
+      "UseLocaleWithCaseConversions": 14
     },
-    "note": "449 -> 361 on 2026-08-10: AvoidFieldNameMatchingMethodName (88) is now excluded project-wide in pmd-ruleset.xml, because it fires on the record-style accessor convention the language itself generates. EmptyCatchBlock (25) is the one to attack first — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
+    "note": "361 -> 351 on 2026-08-17, all of it from deleting the five dead private methods the SpotBugs exclude block used to hide. This is where the ratchet actually moved: pmd-ruleset.xml pulls in category/java/bestpractices.xml whole, which contains UnusedPrivateMethod, and PMD has no per-class exclusions at all, so it had been counting all five inside its total the entire time the SpotBugs block was hiding them. Rules that fell: UnusedPrivateMethod 5 -> 0, UnusedFormalParameter 40 -> 38, EmptyCatchBlock 26 -> 25, AvoidDuplicateLiterals 25 -> 24, SwitchStmtsShouldHaveDefault 2 -> 1. The topRules figures above are re-measured; the previous entry recorded AvoidLiteralsInIfCondition as 58 and EmptyCatchBlock as 25 when the true pre-change values were 62 and 26. EARLIER: 449 -> 361 on 2026-08-10, AvoidFieldNameMatchingMethodName (88) excluded project-wide in pmd-ruleset.xml because it fires on the record-style accessor convention the language itself generates. EmptyCatchBlock (25) is still the one to attack next — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
   },
 
   "spotbugs": {
-    "ceiling": 241,
+    "ceiling": 237,
     "mode": "ratchet",
-    "note_2026_08_11": "UNCHANGED at 241 by the Groovy-toolchain removal, and that is itself the finding. RE-MEASURED INDEPENDENTLY on 2026-08-11 during adversarial-review follow-up, because the review task asserted the exclude block 'named five now-deleted classes' and that SpotBugs should therefore fall. Both halves are false. (1) All five classes are present as ordinary Java: src/main/java/io/github/pierce/{AvroReconstructor,GAvroSchemaFlattener,JsonFlattener,JsonReconstructor,MapFlattener}.java. None was deleted, and src/main went Groovy-free well before this change, so nothing about porting src/test/groovy could have retired the block. Its old 'Groovy-compiled classes' label was already false when written. (2) Deleting the block and re-running spotbugs:spotbugs gives 251 <BugInstance> entries against 241 with it - 10 masked findings in hand-written Java, none a compiler artefact: UPM_UNCALLED_PRIVATE_METHOD x5, SIC_INNER_SHOULD_BE_STATIC_ANON x3, RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE x2. The block is therefore RETAINED - deleting it would RAISE the ceiling, which is forbidden - but was NARROWED from five suppressed patterns to the three that actually fire; NP_LOAD_OF_KNOWN_NULL_VALUE and UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD suppressed nothing and were a standing exemption for future code. No SpotBugs ceiling reduction was earned by the Groovy removal. FOLLOW-UP OWED: the five UPM findings are dead private methods in the SHIPPED library - AvroReconstructor.calculateArraySize, .reconstructNestedArrayOfRecords, .unwrapUnion, GAvroSchemaFlattener.isNullable, MapFlattener.flattenSingleValue. Either they are unreachable and should be deleted, or a caller was lost and something is silently not running. Not fixed here: changing library behaviour inside a build-tooling change would hide it.",
+    "note_2026_08_17": "FOLLOW-UP DISCHARGED, block deleted, 241 -> 238. The five-class x three-pattern exclude <Match> is gone from src/main/spotbugs/spotbugs-exclude.xml and all ten findings it masked are fixed. VERDICT ON THE FIVE DEAD PRIVATE METHODS, each established from the occurrence count of the symbol in every historical revision of its file following renames - not from reading the code and guessing: TWO WERE BORN DEAD, never called in any revision - AvroReconstructor.reconstructNestedArrayOfRecords (count 0 before cad816b, 1 in cad816b and every revision since; the live variant reconstructNestedArrayOfRecordsAtIndex was added by the SAME commit) and MapFlattener.flattenSingleValue (count 1 in all 8 revisions of the file). THREE HAD CALLERS THAT A SPECIFIC COMMIT REMOVED, but in every case the commit installed a named replacement at the same decision point, so nothing stopped running and no behaviour was owed restoration - AvroReconstructor.unwrapUnion (4 occurrences through ef625f2, 1 from cad816b; its 3 call sites became unwrapNullable), AvroReconstructor.calculateArraySize (2 through ef625f2, 1 from cad816b; ef625f2:1192's call became determineArraySize, introduced by the same commit), GAvroSchemaFlattener.isNullable(Schema) (its 5df36e2:317 caller became node.nullable, and the old call text survived only inside a comment, which is why a raw -S search never showed movement). NO caller was lost, so NO corpus DEFECT is explained by any of the five, and the fidelity corpus stayed green through the change - 156 fixtures, 51/23/82 unmoved, verified rather than assumed. THE COUNT FELL BY 3, NOT BY 0 AS PREDICTED: the ten were masked rather than counted so fixing them could not lower the number, but three findings that WERE inside the 241 lived in the body of calculateArraySize and went with it - DE_MIGHT_IGNORE, REC_CATCH_EXCEPTION and SF_SWITCH_NO_DEFAULT, all on its empty catch and its default-less switch. TWO LOSSY SUBSTITUTIONS ARE NOW UNDOCUMENTED IN CODE and are tracked in docs/BACKLOG.md instead, because the dead methods that recorded them are gone: unwrapNullable returns a union UNCHANGED at arity 3+ where unwrapUnion returned the first non-null branch at any arity; and determineArraySize has no BRACKET_LIST/COMMA_SEPARATED/PIPE_SEPARATED fallback where calculateArraySize did. Neither is repaired by resurrecting the dead method - both need a fix at the live call site, and both change reconstructed output, so both are separate corpus-moving work items. CORRECTION TO THE PREVIOUS NOTE'S WORDING: it said 'deleting it would RAISE the ceiling, which is forbidden'. Deleting the block raises the measured COUNT to 251; the ceiling is a recorded number that only ever moves by hand. The ratchet would have rejected 251 against the 241 ceiling - that is the accurate statement, and it is why the ten had to be fixed in the same change as the deletion.",
+    "note_2026_08_11": "SUPERSEDED by note_2026_08_17, retained for the measurement it records. UNCHANGED at 241 by the Groovy-toolchain removal, and that is itself the finding. RE-MEASURED INDEPENDENTLY on 2026-08-11 during adversarial-review follow-up, because the review task asserted the exclude block 'named five now-deleted classes' and that SpotBugs should therefore fall. Both halves are false. (1) All five classes are present as ordinary Java: src/main/java/io/github/pierce/{AvroReconstructor,GAvroSchemaFlattener,JsonFlattener,JsonReconstructor,MapFlattener}.java. None was deleted, and src/main went Groovy-free well before this change, so nothing about porting src/test/groovy could have retired the block. Its old 'Groovy-compiled classes' label was already false when written. (2) Deleting the block and re-running spotbugs:spotbugs gives 251 <BugInstance> entries against 241 with it - 10 masked findings in hand-written Java, none a compiler artefact: UPM_UNCALLED_PRIVATE_METHOD x5, SIC_INNER_SHOULD_BE_STATIC_ANON x3, RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE x2. No SpotBugs ceiling reduction was earned by the Groovy removal.",
     "note": "242 -> 241 on 2026-08-10: the io.github.pierce.schema package added 6 findings and now contributes 0. Four were fixed (SE_BAD_FIELD x2 - FlattenOptions declared Serializable while holding non-serializable TypeMapper and LeafInterceptor fields, so it could not serialize at all, not even with defaults; UC_USELESS_OBJECT; SE_NO_SERIALVERSIONID). Two EI_EXPOSE_REP on FlattenedField are suppressed by named method in spotbugs-exclude.xml with reasoning. Still includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization."
   }
 }

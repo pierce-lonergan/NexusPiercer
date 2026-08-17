@@ -864,16 +864,6 @@ public class MapFlattener implements Serializable {
                 .replace("\t", "\\t");
     }
 
-    private Object flattenSingleValue(Object value, int depth) {
-        if (value == null) {
-            return null;
-        } else if (isPrimitive(value)) {
-            return normalizePrimitive(value);
-        } else {
-            return stringifyObject(value);
-        }
-    }
-
     private boolean isPrimitive(Object value) {
         return !(value instanceof Map ||
                 value instanceof List ||

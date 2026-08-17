@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| 1.0.8 | Yes — security fixes only |
+| 2.0.x | Yes |
+| 1.0.8 | Security fixes only |
 | < 1.0.8 | No |
 
 ## Reporting a vulnerability
@@ -29,17 +30,17 @@ These are documented rather than hidden. All are tracked in
 
 | ID | Issue | Impact |
 |---|---|---|
-| `quality/NP-001` | `FileFinder` declares `validatePaths`, `allowedExtensions`, and `maxFileSize` but never reads them. `..`, `../..`, and `../../..` are in the default search paths. | Arbitrary local file read if a schema name is caller-influenced. |
+| ~~`quality/NP-001`~~ | ~~`FileFinder` declares `validatePaths`, `allowedExtensions`, and `maxFileSize` but never reads them.~~ **FIXED and RELEASED in 2.0.0.** Re-verified 2026-08-17 against `FileFinder.java`: `validatePaths` (default `true`) is read and rejects a caller-supplied name containing `../` or starting `..`; `allowedExtensions` is read and enforced; `maxFileSize` is read and throws on breach. This row contradicted `README.md`, which was the correct document. **Residual, narrowed:** `..`, `../..` and `../../..` remain in the DEFAULT search paths, so a caller who explicitly sets `validatePaths(false)` still resolves outside the working directory. | Was: arbitrary local file read if a schema name is caller-influenced. Now: only if the caller disables `validatePaths`. |
 | `quality/NP-002` | `AvroSchemaFlattener.collectRecordDefinitions` recurses with no depth or cycle guard. | A self-referential `.avsc` causes `StackOverflowError`. |
 | `quality/NP-003` | `SchemaBasedMapConverter.flattenAvroSchema` tracks a depth counter it never checks. | `record Node { Node next }` loops until heap exhaustion — an unkillable hang rather than a fast failure. |
 | `quality/NP-013` | JSON explosion produces an unbounded cross-product. | Three array paths of 1,000 elements yields 10⁹ records — OOM on adversarial input. |
-| `arch/NP-002` | ~~Flattened key encoding is not injective~~ | **Fixed on `main`** — see below. Unreleased. |
-| `perf/NP-021` | ~~Reconstruction cost superlinear in separator count~~ | **Fixed on `main`** — see below. Unreleased. |
+| `arch/NP-002` | ~~Flattened key encoding is not injective~~ | **Fixed and RELEASED in 2.0.0** — see below. |
+| `perf/NP-021` | ~~Reconstruction cost superlinear in separator count~~ | **Fixed and RELEASED in 2.0.0** — see below. |
 | `recon/NP-022` | A field literally named `___` collides with the reconstructor's `__*__` sentinel namespace and is silently dropped. | Silent field loss for that specific name shape. |
 
 ### `arch/NP-002` / `perf/NP-021` — fixed by an injective key encoding
 
-**Still present in the released 1.0.8. Fixed on `main`, unreleased.**
+**Still present in the released 1.0.8. Fixed and released in 2.0.0 — upgrade to 2.0.0.**
 
 The old encoding concatenated path segments without escaping, so `{"user_id": 1}` and
 `{"user": {"id": 1}}` both produced the key `user_id`. That was known to be lossy. The JMH harness

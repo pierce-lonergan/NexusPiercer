@@ -1,6 +1,7 @@
 # Concerns Registry — NexusPiercer
 > Issues, technical debt, code smells, and architectural concerns
-> Last Updated: 2025-12-08
+> Last Updated: 2026-08-17
+> Last verified against: `05982a4`
 
 ## Severity Definitions
 - **CRITICAL:** System stability/security at risk. Address immediately.
@@ -31,7 +32,7 @@
 
 | ID | Category | Description | Location | Discovered |
 |----|----------|-------------|----------|------------|
-| C-001 | DEBT | JsonReconstructor was completely commented out (~1294 lines) when filed; the file is now `src/main/java/.../JsonReconstructor.java` following the Groovy port. Potential dead code or incomplete refactor that should be either removed or completed. | src/main/java/.../JsonReconstructor.java | Session 2 |
+| ~~C-001~~ | DEBT | **RESOLVED 2026-08-17 — PREMISE REFUTED.** The claim that the class was "completely commented out (~1294 lines)" does not reproduce and there is nothing to remove or complete. Measured: 1295 lines of live, compiled, exported Java, 72 `//` comment lines and **zero** commented-out code lines; 45 tests in `JsonReconstructorTest`, plus ~40 fidelity fixtures running through it; wired to the shared `FlattenedPath`, so the ROADMAP's "fourth key-encoding convention" hazard is retired too. See [BL-007]. | src/main/java/.../JsonReconstructor.java | Session 2 |
 
 ---
 

@@ -103,6 +103,22 @@ public class AvroReconstructor {
     // Shared ObjectMapper - configured for consistent JSON handling
     private static final ObjectMapper SHARED_OBJECT_MAPPER = createConfiguredMapper();
 
+    /**
+     * Shared TypeReference for the {@code List<Object>} parses on the array paths.
+     *
+     * <p>These were three separate {@code new TypeReference<List<Object>>() {}} expressions in
+     * INSTANCE methods, which javac compiles to anonymous classes carrying a synthetic
+     * {@code this$0} reference to the whole reconstructor
+     * (SIC_INNER_SHOULD_BE_STATIC_ANON on AvroReconstructor$1 and $2), and which allocated a
+     * fresh TypeReference on every parse. Declared here in static context there is no enclosing
+     * instance and one instance is shared by all call sites.
+     *
+     * <p>A fourth identical expression at the PathNode deserialization site was already in
+     * static context and correctly never reported; it now shares this constant too.
+     */
+    private static final TypeReference<List<Object>> LIST_OF_OBJECT =
+            new TypeReference<List<Object>>() { };
+
     private static ObjectMapper createConfiguredMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
@@ -920,7 +936,7 @@ public class AvroReconstructor {
             if (strValue.startsWith("[") && strValue.endsWith("]")) {
                 try {
                     List<Object> parsed = SHARED_OBJECT_MAPPER.readValue(strValue,
-                            new TypeReference<List<Object>>() {});
+                            LIST_OF_OBJECT);
                     return parsed;
                 } catch (Exception e) {
                     // Log the parsing failure for debugging
@@ -1285,9 +1301,6 @@ public class AvroReconstructor {
                                         actualFieldSchema.getElementType(),
                                         path + "." + fieldPrefix + "." + nestedFieldName,
                                         0);
-                                if (value == null) {
-                                    value = new ArrayList<>();
-                                }
                             }
                         }
                     } catch (Exception e) {
@@ -1325,10 +1338,8 @@ public class AvroReconstructor {
                             Object reconstructed = reconstructNestedArrayOfRecordsAtIndex(
                                     fieldChildNode, elementSchema, index,
                                     path + "." + nestedFieldName, 0);
-                            if (reconstructed != null) {
-                                builder.set(nestedFieldName, reconstructed);
-                                hasAnyField = true;
-                            }
+                            builder.set(nestedFieldName, reconstructed);
+                            hasAnyField = true;
                         } else {
                             // For primitive arrays or arrays without indexed data
                             Object reconstructed = reconstructValue(fieldChildNode, actualFieldSchema,
@@ -1769,7 +1780,7 @@ public class AvroReconstructor {
 
         // Try JSON parsing first
         try {
-            return objectMapper.readValue(trimmed, new TypeReference<List<Object>>() {});
+            return objectMapper.readValue(trimmed, LIST_OF_OBJECT);
         } catch (Exception e) {
             // Fall back to bracket-aware parsing
             return parseBracketListPreservingNesting(trimmed);
@@ -1857,96 +1868,6 @@ public class AvroReconstructor {
             }
         }
     }
-
-/**
- * Reconstruct a nested array of records (e.g., trackingEvents within shipments)
- */
-    private List<Object> reconstructNestedArrayOfRecords(
-            PathNode parentNode, String fieldName, Schema recordSchema,
-            List<Object> innerArrayValues, int outerIndex, String path, int depth) {
-
-        // Get the child node that contains field values for this nested array
-        PathNode childNode = parentNode.children.get(fieldName);
-
-        if (childNode == null || childNode.arrayFieldValues == null) {
-            // No nested data - just convert the values directly if they're primitives
-            List<Object> result = new ArrayList<>();
-            for (Object val : innerArrayValues) {
-                if (val != null) {
-                    // This shouldn't happen for record types, but handle gracefully
-                    result.add(val);
-                }
-            }
-            return result;
-        }
-
-        // Determine size of inner array from the parsed values
-        int innerSize = innerArrayValues.size();
-
-        List<Object> result = new ArrayList<>(innerSize);
-
-        for (int j = 0; j < innerSize; j++) {
-            GenericRecordBuilder builder = new GenericRecordBuilder(recordSchema);
-
-            for (Schema.Field field : recordSchema.getFields()) {
-                String nestedFieldName = field.name();
-                List<Object> nestedValues = childNode.arrayFieldValues.get(nestedFieldName);
-
-                if (nestedValues != null && !nestedValues.isEmpty()) {
-                    // The values are structured as [[val1, val2], [val3]] for nested arrays
-                    // We need to get the right inner list based on outerIndex,
-                    // then the right element based on j
-                    Object rawValue = nestedValues.get(0); // Usually single-element list
-
-                    if (rawValue instanceof String) {
-                        List<Object> parsed = parseNestedArrayStructure((String) rawValue);
-
-                        if (outerIndex < parsed.size()) {
-                            Object outerElement = parsed.get(outerIndex);
-
-                            if (outerElement instanceof List) {
-                                List<Object> innerList = (List<Object>) outerElement;
-                                if (j < innerList.size()) {
-                                    Object value = innerList.get(j);
-                                    Object converted = convertPrimitive(value, field.schema(),
-                                            path + "[" + j + "]." + nestedFieldName);
-                                    builder.set(nestedFieldName, converted);
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Handle defaults
-                if (field.hasDefaultValue()) {
-                    builder.set(nestedFieldName, field.defaultVal());
-                } else if (isNullable(field.schema())) {
-                    builder.set(nestedFieldName, null);
-                }
-            }
-
-            result.add(builder.build());
-        }
-
-        return result;
-    }
-
-    private Schema unwrapUnion(Schema schema) {
-        if (schema.getType() != UNION) {
-            return schema;
-        }
-
-        for (Schema type : schema.getTypes()) {
-            if (type.getType() != NULL) {
-                return type;
-            }
-        }
-
-        return schema;
-    }
-
-
 
     private List<Object> reconstructArrayFromValues(List<Object> values, Schema elementSchema,
                                                     String path, int currentDepth) {
@@ -2653,7 +2574,7 @@ public class AvroReconstructor {
 
             if (looksLikeJson) {
                 try {
-                    return objectMapper.readValue(strValue, new TypeReference<List<Object>>() {});
+                    return objectMapper.readValue(strValue, LIST_OF_OBJECT);
                 } catch (Exception e) {
                     log.debug("Failed to parse as JSON: {}", e.getMessage());
                 }
@@ -2886,89 +2807,6 @@ public class AvroReconstructor {
 
         // Return as-is if not an array string
         return value;
-    }
-
-    /**
-     * Calculate array size accounting for JSON-encoded arrays in field values.
-     */
-    private int calculateArraySize(PathNode node, Map<String, List<Object>> arrayFieldValues, Schema elementSchema) {
-        // If no array field values, try to determine size from child nodes
-        if (arrayFieldValues == null || arrayFieldValues.isEmpty()) {
-            // Look at child nodes to infer array size
-            if (!node.children.isEmpty()) {
-                // Get the first child node and check its arrayFieldValues
-                for (PathNode childNode : node.children.values()) {
-                    if (childNode.arrayFieldValues != null && !childNode.arrayFieldValues.isEmpty()) {
-                        // Get the size from the first field's value list
-                        for (List<Object> values : childNode.arrayFieldValues.values()) {
-                            if (values != null && !values.isEmpty()) {
-                                return values.size();
-                            }
-                        }
-                    }
-                }
-            }
-            // Default to 1 if we can't determine from children
-            return 1;
-        }
-
-        int maxSize = 0;
-
-        for (Map.Entry<String, List<Object>> entry : arrayFieldValues.entrySet()) {
-            String fieldName = entry.getKey();
-            List<Object> fieldValues = entry.getValue();
-
-            if (fieldValues == null || fieldValues.isEmpty()) {
-                continue;
-            }
-
-            // Get the field schema to check if it's a primitive type
-            Schema.Field field = elementSchema.getField(fieldName);
-            if (field != null) {
-                Schema actualFieldSchema = unwrapNullable(field.schema());
-                Object firstValue = fieldValues.get(0);
-
-                // Check if the first value is an array string for a primitive field
-                if (firstValue instanceof String && isPrimitiveType(actualFieldSchema.getType())) {
-                    String strValue = (String) firstValue;
-                    if (strValue.trim().startsWith("[") && strValue.trim().endsWith("]")) {
-                        List<Object> parsedArray = null;
-
-                        // Try JSON first
-                        try {
-                            parsedArray = objectMapper.readValue(strValue, List.class);
-                        } catch (Exception e) {
-                            // Not valid JSON, try format-specific parsing
-                        }
-
-                        // If JSON parsing failed, try format-specific parsing
-                        if (parsedArray == null) {
-                            switch (arrayFormat) {
-                                case BRACKET_LIST:
-                                    parsedArray = deserializeBracketList(strValue);
-                                    break;
-                                case COMMA_SEPARATED:
-                                    parsedArray = Arrays.asList(strValue.split(",", -1));
-                                    break;
-                                case PIPE_SEPARATED:
-                                    parsedArray = Arrays.asList(strValue.split("\\|", -1));
-                                    break;
-                            }
-                        }
-
-                        if (parsedArray != null) {
-                            maxSize = Math.max(maxSize, parsedArray.size());
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            // Default: use the outer list size
-            maxSize = Math.max(maxSize, fieldValues.size());
-        }
-
-        return maxSize > 0 ? maxSize : 1;
     }
 
     private Object getDefaultValue(Schema.Type type) {

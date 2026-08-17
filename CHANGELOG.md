@@ -7,6 +7,96 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Version on `main` is `2.1.0-SNAPSHOT`. Everything below is additive; `2.0.0` is released and
+staged on Maven Central and `main` must not sit on a released coordinate.
+
+### Added
+
+- **`JsonFlattener.Builder.buildFlattener()` and `JsonFlattener.newOperation()`** — the reusable
+  engine. Before this, no consumer could obtain a `JsonFlattener` at all: the constructor is
+  private and `create()`, both `with(...)` overloads and `Builder.build()` all return
+  `FluentOperation`. A caller who configured `builder().maxDepth(64)` therefore had to either
+  re-run the whole builder chain per document or reuse one `FluentOperation` across documents —
+  and `FluentOperation` holds unsynchronised mutable state, so two threads calling `from(...)`
+  on a shared one race on the loaded document. `buildFlattener()` yields the immutable,
+  shareable engine; `newOperation()` yields a fresh per-document pipeline.
+
+  ```java
+  JsonFlattener engine = JsonFlattener.builder().maxDepth(64).buildFlattener(); // share freely
+  Map<String, Object> a = engine.newOperation().from(docA).toMap();             // per document
+  ```
+
+  `build()` is unchanged and still returns `FluentOperation`; existing chains recompile and
+  re-link untouched. Closes [BL-010].
+
+### Fixed
+
+- **`JsonFlattener.with(mapFlattener, null)` no longer throws `NullPointerException`.** The
+  constructor guarded the parameter into `this.config` and then dereferenced the raw parameter
+  on the next line, so the null-defence was present and inert. Observed verbatim before the fix:
+  `NullPointerException: Cannot invoke "…JsonFlattenerConfig.isUsePrettyPrint()" because
+  "config" is null` at `JsonFlattener.<init>(JsonFlattener.java:224)`. This is a behaviour change
+  on a released method — it starts working instead of throwing — and no reasonable caller depends
+  on a constructor NPE, but it is listed rather than slipped in silently.
+
+- **Ten SpotBugs findings that a blanket exclude was hiding.** `src/main/spotbugs/spotbugs-exclude.xml`
+  carried a five-class × three-pattern `<Match>` with no method narrowing over `AvroReconstructor`,
+  `GAvroSchemaFlattener`, `JsonFlattener`, `JsonReconstructor` and `MapFlattener`. It is deleted,
+  not narrowed, and all ten are fixed: five dead private methods removed, three anonymous
+  `TypeReference` instances hoisted into shared `private static final` constants, and two
+  unreachable null checks removed. No behaviour change — the 156-fixture fidelity corpus was
+  re-run and no row moved. SpotBugs 241 → 238, PMD 361 → 351.
+
+### Changed
+
+- `JsonFlattener`'s class javadoc no longer claims "thread-safe for concurrent use" without
+  qualification. That was true of `JsonFlattener` and false of `FluentOperation`, which was the
+  only object the API could hand out. The two halves are now stated separately.
+
+### Documentation
+
+- `docs/BACKLOG.md` [BL-007] is closed as **refuted**: the claim that "the entire JsonReconstructor
+  class (~1294 lines) is commented out" was false. The class is 1295 lines of live Java with 72
+  comment lines and **zero** commented-out code lines, covered by 45 tests. The same false sentence
+  was carried in `docs/CONCERNS.md` C-001, `docs/CLASS_REGISTRY.md`, `docs/PROJECT_OVERVIEW.md`
+  and `docs/ARCHITECTURE_GRAPH.md`, and is corrected in all of them.
+- `docs/BACKLOG.md` [BL-010]'s claim that JsonFlattener "has **zero** tests anywhere in the
+  repository" was also false when written: `src/test/groovy/JsonFlattenerTest.groovy` existed at
+  the commit where the entry was filed and is now
+  `src/test/java/io/github/pierce/JsonFlattenerTest.java`, 63 tests in 12 nested classes.
+
+---
+
+## [2.0.0] - 2026-08-11
+
+First tagged, reproducible release from this repository (`v2.0.0`, commit `fc1139e`).
+
+### Added
+
+- **`io.github.pierce.schema` — the enriched flattening API.** Ten new public types:
+  `EnrichedSchemaFlattener`, `FlattenedField`, `FlattenOptions`, `TypeMapper`, `LeafInterceptor`,
+  `NameCollisionPolicy`, `PathSegment`, and the typed exceptions `SchemaFlattenException`,
+  `RecursiveSchemaException` and `SchemaLimitExceededException`. Flattening an Avro schema now
+  yields structured `FlattenedField` records carrying the path segments, the Avro schema, the
+  mapped type and nullability, rather than a bare name→type map, and `LeafInterceptor` lets a
+  caller annotate each leaf as it is emitted.
+
+- **The round-trip fidelity corpus, published as an enforced guarantee.** 156 fixtures under
+  `src/test/resources/fidelity/`, each classified `LOSSLESS` (51), `ACCEPTED_LOSS` (23) or
+  `DEFECT` (82) with a recorded round-trip and a written rationale. `manifest.json` is the
+  contract; `docs/ROUND_TRIP_FIDELITY.md` is generated from it and drift fails the build. A
+  `DEFECT` fixture asserts the defect is still present, so repairing one turns the build red by
+  design.
+
+- **`FlattenedPath`** — the single shared key-encoding used by both the flatten and reconstruct
+  sides.
+
+### Fixed
+
+- **`quality/NP-001` — `FileFinder`'s safety options are now enforced.** `validatePaths`,
+  `allowedExtensions` and `maxFileSize` were declared on the config and read by nothing. All
+  three are now consulted, and `maxFileSize` throws on breach.
+
 ### Breaking
 
 - **Flattened key encoding is now injective.** `FlattenedPath` escapes separator characters
@@ -118,5 +208,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Published to Maven Central. No corresponding git tag exists for this release; it is not traceable
 to a specific commit. Earlier history is recorded only in commit messages.
 
-[Unreleased]: https://github.com/pierce-lonergan/NexusPiercer/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/pierce-lonergan/NexusPiercer/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/pierce-lonergan/NexusPiercer/compare/v1.0.8...v2.0.0
 [1.0.8]: https://central.sonatype.com/artifact/io.github.pierce-lonergan/nexus-piercer/1.0.8

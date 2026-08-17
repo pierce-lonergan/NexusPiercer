@@ -45,8 +45,28 @@ import java.util.zip.GZIPOutputStream;
  *   <li>Schema validation and custom transformations</li>
  *   <li>Compression support (GZIP)</li>
  *   <li>Comprehensive error handling and reporting</li>
- *   <li>Thread-safe for concurrent use</li>
  * </ul>
+ *
+ * <h2>Thread safety - the two halves differ:</h2>
+ * <ul>
+ *   <li>A {@code JsonFlattener} is IMMUTABLE and safe to share across threads. Its three
+ *       fields are final and it delegates to a thread-safe {@link MapFlattener}.</li>
+ *   <li>{@code FluentOperation}, {@code BatchOperation} and {@code StreamOperation} hold
+ *       per-invocation mutable state and MUST NOT be shared. Two threads calling
+ *       {@code from(...)} on one {@code FluentOperation} race on the loaded document and can
+ *       both observe the same input.</li>
+ * </ul>
+ * This distinction used to be unstateable: every factory returned a {@code FluentOperation}
+ * and no public member returned the engine, so the only object a caller could hold was the
+ * unsafe one, while the javadoc advertised "thread-safe for concurrent use". Since 2.1.0
+ * {@code builder().buildFlattener()} yields the shareable engine.
+ *
+ * <h2>Reusable engine (2.1.0+):</h2>
+ * <pre>
+ * JsonFlattener engine = JsonFlattener.builder().maxDepth(64).buildFlattener(); // share freely
+ * Map&lt;String, Object&gt; a = engine.newOperation().from(docA).toMap();              // per document
+ * Map&lt;String, Object&gt; b = engine.newOperation().from(docB).toMap();
+ * </pre>
  *
  * <h2>Basic Usage:</h2>
  * <pre>
@@ -221,7 +241,38 @@ public class JsonFlattener implements Serializable {
     private JsonFlattener(MapFlattener mapFlattener, JsonFlattenerConfig config) {
         this.mapFlattener = mapFlattener != null ? mapFlattener : MapFlattener.builder().build();
         this.config = config != null ? config : JsonFlattenerConfig.defaults();
-        this.objectMapper = config.isUsePrettyPrint() ? PRETTY_MAPPER : STANDARD_MAPPER;
+        // Reads this.config, NOT the parameter. It used to read `config`, which defeated the
+        // guard installed on the line directly above and made JsonFlattener.with(flattener, null)
+        // throw NullPointerException on released 2.0.0 API - a null-defence that appeared
+        // present and did nothing.
+        this.objectMapper = this.config.isUsePrettyPrint() ? PRETTY_MAPPER : STANDARD_MAPPER;
+    }
+
+    // ========================= REUSABLE ENGINE =========================
+
+    /**
+     * Create a fresh single-use {@link FluentOperation} backed by this flattener.
+     *
+     * <p>THREADING, which is the whole reason this method exists. A {@code JsonFlattener} is
+     * immutable — three final fields over a thread-safe {@link MapFlattener} — and may be built
+     * once and shared freely across threads. A {@code FluentOperation} is the opposite: it
+     * holds per-invocation mutable state (the loaded document, the accumulated transformers,
+     * the validation rules and the filter) and must not be shared. Take a new one per document.
+     *
+     * <p>Each call ALLOCATES. Returning a cached operation would let one document's transformers
+     * leak into the next, which is exactly the class of defect this method was added to remove.
+     *
+     * <pre>
+     * JsonFlattener engine = JsonFlattener.builder().maxDepth(64).buildFlattener(); // share
+     * Map&lt;String, Object&gt; a = engine.newOperation().from(docA).toMap();              // per doc
+     * Map&lt;String, Object&gt; b = engine.newOperation().from(docB).toMap();
+     * </pre>
+     *
+     * @return a new, single-use fluent pipeline over this flattener
+     * @since 2.1.0
+     */
+    public FluentOperation newOperation() {
+        return new FluentOperation(this);
     }
 
     // ========================= STATIC HELPERS =========================
@@ -375,12 +426,50 @@ public class JsonFlattener implements Serializable {
             return mapFlattenerBuilder;
         }
 
-        public FluentOperation build() {
+        /**
+         * Resolve the configured engine.
+         *
+         * <p>Both {@link #build()} and {@link #buildFlattener()} go through here so the two
+         * doors cannot drift into configuring different engines. That drift is the specific
+         * risk of adding a second builder terminal, and it would be invisible: new callers
+         * would silently get different answers from old ones.
+         */
+        private JsonFlattener resolveFlattener() {
             MapFlattener flattener = mapFlattener != null
                     ? mapFlattener
                     : (mapFlattenerBuilder != null ? mapFlattenerBuilder.build() : MapFlattener.builder().build());
 
-            return new FluentOperation(new JsonFlattener(flattener, configBuilder.build()));
+            return new JsonFlattener(flattener, configBuilder.build());
+        }
+
+        /**
+         * Build a single-use fluent operation. Unchanged since 2.0.0.
+         *
+         * @return a new fluent pipeline; not thread-safe, and single-use per document
+         */
+        public FluentOperation build() {
+            return new FluentOperation(resolveFlattener());
+        }
+
+        /**
+         * Build the reusable, immutable {@link JsonFlattener} engine itself.
+         *
+         * <p>WHY THIS EXISTS. Before 2.1.0 no consumer could obtain a {@code JsonFlattener} at
+         * all: the constructor is private and every factory returned a {@code FluentOperation}.
+         * That made the configured engine unrecoverable — a caller who set up
+         * {@code builder().maxDepth(64)} had to either re-run the whole builder chain per
+         * document or reuse one non-thread-safe pipeline across documents, and the latter races
+         * on the loaded document and can hand two threads the same answer.
+         *
+         * <p>The engine returned here is immutable and safe to share; take a fresh
+         * {@link JsonFlattener#newOperation()} per document. It is configured identically to
+         * what {@link #build()} would have wrapped.
+         *
+         * @return the configured, shareable engine
+         * @since 2.1.0
+         */
+        public JsonFlattener buildFlattener() {
+            return resolveFlattener();
         }
     }
 

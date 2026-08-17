@@ -23,50 +23,47 @@
     </Match>
 
     <!--
-      NOT DEAD, AND NOT ABOUT GROOVY. Measured 2026-08-11 while removing the last of the Groovy
-      toolchain. The previous comment here claimed these were "Groovy-compiled classes" carrying
-      "compiler-synthesised members" and predicted the block would become dead once the Groovy
-      sources were ported. Both claims are false:
+      DELETED 2026-08-17: the five-class x three-pattern blanket that used to sit here.
 
-        * All five classes are, and were already, ordinary Java in src/main. src/main went
-          Groovy-free well before this change, so nothing about porting src/test/groovy could
-          have retired this block.
-        * Deleting the block moves SpotBugs 241 -> 251. It is actively suppressing 10 findings
-          in hand-written Java, none of which is a compiler artefact:
-              UPM_UNCALLED_PRIVATE_METHOD  (5) AvroReconstructor.calculateArraySize,
-                                               AvroReconstructor.reconstructNestedArrayOfRecords,
-                                               AvroReconstructor.unwrapUnion,
-                                               GAvroSchemaFlattener.isNullable,
-                                               MapFlattener.flattenSingleValue
-              SIC_INNER_SHOULD_BE_STATIC_ANON (3) AvroReconstructor$1, AvroReconstructor$2,
-                                               GAvroSchemaFlattener$1
-              RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE (2) AvroReconstructor
-                                               .reconstructNestedRecordFromArray
+      It named AvroReconstructor, GAvroSchemaFlattener, JsonFlattener, JsonReconstructor and
+      MapFlattener against UPM_UNCALLED_PRIVATE_METHOD, SIC_INNER_SHOULD_BE_STATIC_ANON and
+      RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE, with no <Method> narrowing at all. It masked ten
+      real findings in hand-written Java. All ten are now FIXED, so there is nothing left to
+      suppress and the block is gone rather than narrowed:
 
-      The five UPM findings are dead private methods in the shipped library and deserve a
-      deliberate follow-up: either they are genuinely unreachable and should be deleted, or a
-      caller was lost and something is silently not running. They are NOT fixed here, because
-      changing library behaviour inside a build-tooling removal would hide the change.
+        UPM x5 - five dead private methods deleted. Verdicts established from the occurrence
+          count of each symbol in every historical revision of its file:
+            AvroReconstructor.reconstructNestedArrayOfRecords  BORN DEAD (never called, ever)
+            MapFlattener.flattenSingleValue                    BORN DEAD (never called, ever)
+            AvroReconstructor.unwrapUnion                      caller replaced by unwrapNullable
+            AvroReconstructor.calculateArraySize               caller replaced by determineArraySize
+            GAvroSchemaFlattener.isNullable(Schema)            caller replaced by node.nullable
+          In all three "replaced" cases the substitute was installed at the same decision point
+          by the same commit, so nothing stopped running and no behaviour was restored.
 
-      The block is retained only to hold the 241 ceiling; the ceiling may not be raised. It has
-      been NARROWED from five suppressed patterns to the three that actually fire —
-      NP_LOAD_OF_KNOWN_NULL_VALUE and UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD suppressed nothing and
-      were a standing exemption for future code. Count after narrowing is unchanged at 241.
+        SIC x3 - three `new TypeReference<List<Object>>() {}` expressions in instance methods
+          hoisted into private static final constants, clearing the synthetic this$0 and
+          removing a per-parse allocation.
+
+        RCN x2 - two null checks in reconstructNestedRecordFromArray removed, guarding the
+          returns of reconstructArrayFromValues and reconstructNestedArrayOfRecordsAtIndex,
+          neither of which can return null on any path.
+
+      JsonFlattener and JsonReconstructor never contributed a single finding to this block; they
+      were pure collateral and are simply gone from it.
+
+      ON THE COUNT, because it looks like nothing was earned: SpotBugs stays at 241. That is the
+      expected result, not a disappointment. 241 was the count WITH the block and 251 the count
+      WITHOUT it; the ten ARE the difference, so fixing them returns the number to 241. The gain
+      is that a standing exemption over five of the largest classes in the library no longer
+      exists, so the ELEVENTH instance of any of these three patterns gets counted instead of
+      vanishing. The ratchet win landed on PMD, which had been counting the five dead methods
+      inside its total all along.
+
+      Guarded by src/test/java/io/github/pierce/gates/SpotBugsExcludeHasNoBlanketClassBlockTest,
+      which fails if a multi-class Match without a Method returns, in either literal or regex
+      spelling.
     -->
-    <Match>
-        <Or>
-            <Class name="io.github.pierce.AvroReconstructor"/>
-            <Class name="io.github.pierce.GAvroSchemaFlattener"/>
-            <Class name="io.github.pierce.JsonFlattener"/>
-            <Class name="io.github.pierce.JsonReconstructor"/>
-            <Class name="io.github.pierce.MapFlattener"/>
-        </Or>
-        <Or>
-            <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
-            <Bug pattern="SIC_INNER_SHOULD_BE_STATIC_ANON"/>
-            <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
-        </Or>
-    </Match>
 
     <!--
       EI_EXPOSE_REP / EI_EXPOSE_REP2 fire on every builder and config object that stores or

@@ -165,9 +165,17 @@ Questions that emerged during discovery:
    - **Answer:** AvroReconstructor (2980 lines) uses the Avro schema to rebuild hierarchical GenericRecords from flattened Maps. It includes verification utilities to confirm "perfect reconstruction" — meaning the reconstructed data matches the original exactly.
 
 3. **What is the status of JsonReconstructor?**
-   - **Answer:** JsonReconstructor was COMPLETELY COMMENTED OUT (~1294 lines) when this was written. This is potentially dead code or an in-progress refactor. Unlike AvroReconstructor, it was designed for schema-less reconstruction.
+   - **Answer (corrected 2026-08-17):** ACTIVE. 1295 lines of live, compiled, exported Java, wired
+     to the shared `FlattenedPath` encoding, covered by 45 tests plus roughly 40 fidelity fixtures.
+     Unlike AvroReconstructor it performs schema-LESS reconstruction, inferring structure from the
+     flattened keys. Its known limits are published in `docs/ROUND_TRIP_FIDELITY.md`, including a
+     dead `maxDepth` control and the `__*__` sentinel-key collision (`recon/NP-022`).
+   - **The previous answer here was false and is retained only so the correction is legible:**
+     "JsonReconstructor was COMPLETELY COMMENTED OUT (~1294 lines) when this was written." Measured
+     on 2026-08-17: 72 `//` comment lines, **zero** commented-out code lines. See [BL-007].
 
 ### Still Open:
+*(Question 3 above was answered on 2026-08-17 and is no longer open.)*
 4. What specific patterns are available in NexusPiercerPatterns? — Need to explore
 5. How does the library handle schema evolution? — Need to explore
 

@@ -62,7 +62,7 @@ graph LR
         JFC[JsonFlattenerConsolidator]
         MF[MapFlattener]
         JF[JsonFlattener]
-        JR[JsonReconstructor ⚠️ INACTIVE]
+        JR[JsonReconstructor]
         AR[AvroReconstructor]
     end
     

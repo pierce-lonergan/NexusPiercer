@@ -142,24 +142,35 @@ Each class entry follows this structure:
 - **Concerns:** None identified
 - **NOTE:** This is a fluent wrapper around MapFlattener, NOT a duplicate of JsonFlattenerConsolidator
 
-### JsonReconstructor ⚠️ COMMENTED OUT
+### JsonReconstructor
 - **File:** `src/main/java/io/github/pierce/JsonReconstructor.java`
 - **Layer:** DOMAIN
-- **Type:** Service (INACTIVE)
+- **Type:** Service (ACTIVE)
 - **Responsibility:** Schema-less reconstruction of hierarchical JSON from flattened data
-- **Collaborators:** ObjectMapper
-- **Used By:** NONE — entire class is commented out
-- **State:** N/A — COMMENTED OUT
-- **Thread Safety:** N/A — COMMENTED OUT
-- **Lines:** ~1294 (all commented)
-- **Key Features (if enabled):**
+- **Collaborators:** ObjectMapper, FlattenedPath
+- **Used By:** FidelityRunner and consumer code; public in the released artifact
+- **State:** Stateless per invocation; immutable configuration held on the instance
+- **Thread Safety:** Yes
+- **Lines:** 1295 (measured)
+- **Key Features:**
   - Schema-less reconstruction (infers structure from keys)
   - Support for all array serialization formats
   - Deep reconstruction of nested arrays and objects
   - Fluent API with builder pattern
   - Verification utilities
-- **Concerns:** ⚠️ MAJOR — Entire class is commented out (~1294 lines). Potential dead code or incomplete refactor.
-- **NOTE:** Unlike AvroReconstructor which is active, this is completely inactive
+- **Concerns:**
+  - `maxDepth` is a DEAD CONTROL. The field is assigned in the constructor and read nowhere;
+    `Builder.maxDepth(int)` validates its argument and stores a value that never binds. Published
+    as such by the fidelity fixture `reconstructor-maxdepth-is-a-dead-control`, which records
+    that `maxDepth(1)` and `maxDepth(1000)` produce byte-identical results.
+  - `recon/NP-022` — the `__*__` sentinel namespace. Any input key of the form `__x__` is
+    dropped, colliding with the internal `__isArray__` / `__arrayPath__` markers. Pinned by three
+    fidelity fixtures. Fixing it properly requires a private holder type and changes output, so
+    it is a 3.0.0 item.
+- **CORRECTION 2026-08-17:** this entry previously read "⚠️ COMMENTED OUT", "Used By: NONE",
+  "State: N/A", "Thread Safety: N/A", "Lines: ~1294 (all commented)" and "Concerns: ⚠️ MAJOR".
+  Every one of those was false. Measured: 72 `//` comment lines, **zero** commented-out code
+  lines, 45 tests. See [BL-007].
 
 ### AvroReconstructor
 - **File:** `src/main/java/io/github/pierce/AvroReconstructor.java`

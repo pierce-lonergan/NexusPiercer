@@ -23,7 +23,13 @@ resolving to *different* JDKs is a known source of confusing failures here.
 ./mvnw verify
 ```
 
-That runs the full suite (~1,200 test invocations, roughly 4 minutes). Faster loops:
+That runs the full suite (2,372 test invocations, roughly 4 minutes). Faster loops:
+
+**Read the count from Maven's `Tests run:` summary line, not from the surefire XML.** Summing
+`target/surefire-reports/*.xml` UNDERCOUNTS here by roughly 500 — measured 1,840 against Maven's
+2,372 on 2026-08-17 — because `@Nested` classes emit a separate report per nested class while the
+outer class's own report records `tests="0"`. 25 of the 205 report files are such zero-count
+outers. The Maven summary line is authoritative.
 
 ```bash
 ./mvnw -Pfast package
@@ -62,6 +68,23 @@ the floor to match in the same PR. It is not permitted to lower it to make a bui
 
 This rule exists because the floor previously sat at `0.20` against 60.3% actual coverage, which
 meant the gate could report success through a two-thirds regression.
+
+**The same rule governs the static-analysis ceilings**, and they are the gate you are far more
+likely to trip. `.github/quality-baseline.json` records a ceiling for PMD and SpotBugs, and
+Checkstyle at a hard zero. Ceilings may only ever go **down**. Fix the finding; never raise the
+number, and never add a suppression to `src/main/spotbugs/spotbugs-exclude.xml` in place of a fix.
+
+If your change lowers a count, lower the ceiling in the same commit to lock it in — the workflow
+prints `::notice::<tool> fell from X to Y` to tell you to. To re-measure:
+
+```bash
+./mvnw -Pquality verify -DskipTests -Djacoco.skip=true \
+    -Dspotbugs.fail=false -Dcheckstyle.fail=false -Dpmd.violation.buildFailOnViolation=false
+```
+
+A suppression must name a specific class **and** method with written reasoning. A `<Match>` that
+enumerates several classes with no `<Method>` is a blanket exemption and is rejected by
+`SpotBugsExcludeHasNoBlanketClassBlockTest` — one such block hid ten real findings for months.
 
 ## Benchmarks
 
