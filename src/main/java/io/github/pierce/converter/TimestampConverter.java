@@ -133,13 +133,36 @@ public class TimestampConverter extends AbstractTypeConverter<Long> {
         return instantToMicros(instant);
     }
 
+    /**
+     * The formats parseTimestampString tries, in order, named so the failure can say what it attempted.
+     *
+     * <p>THE CASCADE STAYS A CASCADE. The five (or three) branches are not homogeneous -
+     * they produce different intermediate types and two of them consult config - so folding
+     * them into a formatter array plus a loop would need a lambda per branch and would risk
+     * silently reordering which format wins for ambiguous input. Each catch body records the
+     * failure into {@code firstFailure} instead of discarding it: that is real work rather
+     * than a comment, it costs nothing on the success path, and it finally hands the
+     * discarded exception to the terminal.</p>
+     *
+     * <p>PMD's EmptyCatchBlock does NOT accept a commented catch as configured -
+     * allowCommentedBlocks defaults to false and src/main/pmd/pmd-ruleset.xml sets no
+     * properties - so all of these counted while carrying comments like "// Continue trying
+     * other formats". Flipping that property would have cleared twenty-five findings without
+     * a thought applied to any of them.</p>
+     */
+    private static final String TRIED_FORMATS = "ISO-8601 instant, ISO local datetime, space-separated datetime, ZonedDateTime, numeric epoch";
+
     private Long parseTimestampString(String str, Object original) {
+        // See ConversionFailure for why this is a method call and not two obvious lines, and
+        // for why it is the FIRST failure rather than the last.
+        RuntimeException firstFailure = null;
         // Try ISO-8601 instant (with Z or offset)
         try {
             Instant instant = Instant.parse(str);
             return instantToMicros(instant);
         } catch (DateTimeParseException e) {
             // Continue
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
         // Try ISO local datetime
@@ -148,6 +171,7 @@ public class TimestampConverter extends AbstractTypeConverter<Long> {
             return localDateTimeToMicros(ldt);
         } catch (DateTimeParseException e) {
             // Continue
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
         // Try with space separator (common in databases)
@@ -156,6 +180,7 @@ public class TimestampConverter extends AbstractTypeConverter<Long> {
             return localDateTimeToMicros(ldt);
         } catch (DateTimeParseException e) {
             // Continue
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
         // Try ZonedDateTime
@@ -164,6 +189,7 @@ public class TimestampConverter extends AbstractTypeConverter<Long> {
             return instantToMicros(zdt.toInstant());
         } catch (DateTimeParseException e) {
             // Continue
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
         // Try parsing as numeric timestamp
@@ -172,9 +198,11 @@ public class TimestampConverter extends AbstractTypeConverter<Long> {
             return convertLong(l, original);
         } catch (NumberFormatException e) {
             // Not a number
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
-        throw conversionError(original, "Cannot parse timestamp from string: '" + str + "'");
+        throw conversionError(original, "Cannot parse timestamp from string: '" + str + "'"
+                + ". Tried: " + TRIED_FORMATS, firstFailure);
     }
 
     /**

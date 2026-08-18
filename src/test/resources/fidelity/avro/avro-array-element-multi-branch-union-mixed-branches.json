@@ -1,0 +1,59 @@
+{
+  "id" : "avro-array-element-multi-branch-union-mixed-branches",
+  "family" : "avro",
+  "title" : "A three-branch union whose two array elements actually take DIFFERENT branches",
+  "stack" : "AVRO",
+  "referenceIssue" : "BL-014",
+  "rationale" : "The shape a three-branch union exists FOR, and a different mechanism from its sibling row. Because one element takes the record branch and the other the string branch, the flattener emits BOTH a bare items_meta column and an items_meta_src child column. That means the array node has a flat column for the field AND a child node for it, so element 0 must resolve to the record while element 1 must resolve to the string - from the same two columns, distinguished only by index. It is the arity-3 mirror of avro-array-of-records-nullable-nested-record-shadowed's flat-column-shadows-child-column mechanism, and the sibling fixture cannot reach it.",
+  "catchesBugClass" : "A union resolver that decides once per FIELD instead of once per ELEMENT. Any implementation that reads the child node's column set and commits to one branch for the whole array gets one of the two elements wrong here, and gets it wrong silently.",
+  "cannotCatch" : "It does not prove the resolver is right when both columns are populated for the SAME element, which is a genuinely contradictory input the flattener cannot produce from a well-formed document. It also cannot express ragged columns, for the same reason no corpus row can.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "UNCERTAIN AND FLAGGED. Element 0 has a child column and no scalar, element 1 has a scalar and a null child slot, and the resolver tries the record branch first for both. If reconstructNestedRecordFromArray succeeds for element 1 with a null src it wins wrongly; if it throws, element 1 correctly falls through to the string branch. The recorder decides and the manifest publishes the measurement."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "OrderM",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "ItemM",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              }, {
+                "name" : "meta",
+                "type" : [ "null", {
+                  "type" : "record",
+                  "name" : "MetaM",
+                  "fields" : [ {
+                    "name" : "src",
+                    "type" : "string"
+                  } ]
+                }, "string" ]
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"items\":[{\"sku\":\"a\",\"meta\":{\"src\":\"web\"}},{\"sku\":\"b\",\"meta\":\"plain\"}]}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"items_meta\":\"S:[\\\"plain\\\",null]\",\"items_meta_src\":\"S:[\\\"web\\\",null]\",\"items_sku\":\"S:[\\\"a\\\",\\\"b\\\"]\"}",
+    "avroBaseline" : "{\"items\":[{\"meta\":{\"src\":\"S:web\"},\"sku\":\"S:a\"},{\"meta\":\"S:plain\",\"sku\":\"S:b\"}]}",
+    "avroDoc" : "THROWN: ReconstructionException: Could not match any union type at: items[1].meta",
+    "losslessAvro" : false
+  },
+  "measuredLossless" : false
+}

@@ -177,16 +177,37 @@ class NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest {
     class Supersessors {
 
         @Test
-        @DisplayName("determineArraySize replaced calculateArraySize")
-        void determineArraySizeSurvives() {
-            assertDeclaresMethodNamed(AvroReconstructor.class, "determineArraySize",
-                    "This is the live sizing routine that calculateArraySize was replaced by at "
-                            + "cad816b. NOTE, and this is a tracked gap rather than a defect in "
-                            + "this test: determineArraySize has no BRACKET_LIST / "
-                            + "COMMA_SEPARATED / PIPE_SEPARATED fallback and calculateArraySize "
-                            + "did, so array-of-records sizing under those formats collapses to "
-                            + "1. That is a behaviour change and does not belong in a "
-                            + "static-analysis cleanup.");
+        @DisplayName("collectElementCounts + agreedElementCount replaced determineArraySize in 2.1.0")
+        void arrayOfRecordsSizingRoutineSurvives() {
+            // THE ASSERTION MOVED BECAUSE THE METHOD DID, DELIBERATELY, IN THE SAME COMMIT.
+            // determineArraySize was the supersessor of calculateArraySize and is now itself
+            // superseded, so this gate names the two methods that replaced it rather than
+            // silently passing on a name nobody calls any more.
+            //
+            // THE OLD MESSAGE HERE WAS FACTUALLY WRONG AND IS CORRECTED RATHER THAN DELETED. It
+            // said determineArraySize "has no BRACKET_LIST / COMMA_SEPARATED / PIPE_SEPARATED
+            // fallback and calculateArraySize did, so array-of-records sizing under those formats
+            // collapses to 1", inheriting BL-013's filed cause. MEASURED: no collapse occurred
+            // under any format for an element with a scalar field at its root, because the column
+            // had already been split upstream - porting those format branches back would have
+            // changed no output at all. The collapse was real but FORMAT-INDEPENDENT: it fired
+            // when every element field lived inside a nested record, so nothing was counted and a
+            // trailing `maxSize > 0 ? maxSize : 1` fabricated a size of 1, under the JSON default
+            // too. That is what collectElementCounts (schema-guided, per column) and
+            // agreedElementCount (refuses to pick a winner when columns disagree) replace.
+            assertDeclaresMethodNamed(AvroReconstructor.class, "collectElementCounts",
+                    "The schema-guided element counter. It walks the ELEMENT SCHEMA rather than "
+                            + "the PathNode tree, which is what lets it see fields that live only "
+                            + "inside a nested record.");
+            assertDeclaresMethodNamed(AvroReconstructor.class, "agreedElementCount",
+                    "The half that refuses to guess. determineArraySize took Math.max over the "
+                            + "columns and let handleMissingField pad the short ones while a "
+                            + "Math.min clamp duplicated the last nested value; this throws "
+                            + "ArrayCardinalityException instead.");
+            assertNoDeclaredMethodNamed(AvroReconstructor.class, "determineArraySize",
+                    "SUPERSEDED in 2.1.0 by collectElementCounts + agreedElementCount. Left "
+                            + "declared it would be a dead private method and PMD would count it; "
+                            + "this repository's ratchet may only go down.");
         }
 
         @Test
@@ -197,16 +218,18 @@ class NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest {
                             + "unwrapUnion was declared. NOTE, and this message previously stated "
                             + "it wrongly: unwrapNullable returns the union UNCHANGED unless it "
                             + "has exactly two branches, so a 3+ branch union inside an array "
-                            + "element matches neither the RECORD nor the ARRAY branch and falls "
-                            + "through to handleMissingField. That is a gap that has ALWAYS been "
-                            + "present, not a regression from a lossy substitution: unwrapUnion "
-                            + "was never declared in any revision where it was called, so its "
-                            + "'first non-null branch at any arity' behaviour never executed and "
-                            + "no arity-3+ handling was ever lost. Tracked as BL-014. Restoring "
-                            + "unwrapUnion is NOT the fix - 'first non-null branch' is a different "
-                            + "wrong answer, and the class already owns a real branch resolver in "
-                            + "reconstructUnionValue that the array-element path does not "
-                            + "consult.");
+                            + "element still matches neither the RECORD nor the ARRAY test. Its "
+                            + "[null,T] scope is DELIBERATE and unchanged: seven call sites rely "
+                            + "on it, and widening it to arity 3+ would re-point convertPrimitive, "
+                            + "handleMissingField and tryReconstructArrayFromFields at a "
+                            + "first-non-null-branch guess all at once. BL-014 IS FIXED, and not "
+                            + "here: reconstructArrayOfRecords gained a real UNION arm "
+                            + "(reconstructArrayElementUnion) that reuses reconstructUnionValue's "
+                            + "selection rule with the element index in hand. This message "
+                            + "previously described that gap in the present tense; nothing forced "
+                            + "the update, because the assertion only checks the method is "
+                            + "declared - which is exactly why a stale message survives here. "
+                            + "unwrapUnion is still NOT the fix and must not come back.");
         }
 
         @Test

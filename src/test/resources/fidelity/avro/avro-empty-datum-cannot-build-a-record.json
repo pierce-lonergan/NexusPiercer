@@ -1,15 +1,15 @@
 {
   "id" : "avro-empty-datum-cannot-build-a-record",
   "family" : "avro",
-  "title" : "An empty flattened map: reconstructToMap returns a partial map, reconstruct() disagrees",
+  "title" : "An empty flattened map: both entry points now agree that it is not representable",
   "stack" : "AVRO",
-  "referenceIssue" : "",
-  "rationale" : "The missing/empty-input drill doctrine requires of every new gate, and a real asymmetry rather than a ceremonial one. reconstructToMap early-returns createEmptyRecord for an empty flattened map, which populates only defaulted and nullable fields. reconstruct() then feeds that partial map to mapToGenericRecord, whose GenericRecordBuilder.build() has to answer for a required field with no default. Two sibling methods give the same input two different answers about whether it is representable - the same shape as avro-flattened-name-collision-guard-fires.",
-  "catchesBugClass" : "A degenerate-input path that diverges between two public entry points, and a builder that reports a missing required field only on one of them. Also catches the empty-map early return being deleted or widened.",
-  "cannotCatch" : "It cannot tell you which of the two answers is CORRECT - arguably both throwing, or both returning a partial map, would be defensible; it only pins that they disagree. It also does not cover a partially-populated flattened map, which is the far more common Spark case and reaches a different branch.",
+  "referenceIssue" : "NP-025",
+  "rationale" : "The missing/empty-input drill the doctrine requires of every new gate, and a real asymmetry rather than a ceremonial one. It was written to pin a DISAGREEMENT: reconstructToMap early-returned createEmptyRecord for an empty flattened map, which populated only defaulted and nullable fields; reconstruct() then fed that partial map to mapToGenericRecord, whose build() had to answer for a required field with no default. Two sibling methods gave the same input two different answers about whether it is representable - the same shape as avro-flattened-name-collision-guard-fires. That disagreement is repaired in 2.1.0, and this row's continuing job is the other half of its charter: to make sure the empty-map path stays identical to the ordinary path, and to notice immediately if a short-circuit is ever reintroduced.",
+  "catchesBugClass" : "A degenerate-input path that diverges between two public entry points. Now also: the reintroduction of ANY empty-or-null special case in reconstructToMap. Its own previous wording promised to catch 'the empty-map early return being deleted or widened' - the early return was deleted and this row went red on cue, which is the guarantee working rather than a fixture needing repair.",
+  "cannotCatch" : "It cannot tell you whether FAILING is the CORRECT answer for an empty map - it only pins that both entry points now give the same one, and that the message names the field. It does not cover a partially-populated flattened map, which is the far more common Spark case and reaches a different branch. And it says nothing about an all-optional schema, where an empty map still legitimately returns a populated record; that direction is pinned in AvroReconstructorEmptyInputTest so that 'make the empty case loud' cannot be implemented as 'make the empty case always throw'.",
   "predicted" : {
-    "classification" : "DEFECT",
-    "detail" : "UNCERTAIN AND FLAGGED: depends on what MapFlattener.flatten({}) returns. If it returns an empty map, reconstructToMap early-returns {region:null} and reconstruct() throws on the required id. The recorder decides; if measurement contradicts DEFECT the manifest publishes the measurement and an override records the disagreement."
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "An empty map now takes the ordinary path, so both entry points fail identically with a ReconstructionException naming the required field by its flattened path. Not LOSSLESS: an empty map genuinely cannot produce a record for a schema with a required no-default field, so the loss is in the input rather than in the library."
   },
   "configDescription" : "assert DATUM",
   "config" : {
@@ -44,8 +44,9 @@
     "avroDefaultsMatch" : true,
     "flat" : "{}",
     "avroBaseline" : "{}",
-    "avroDoc" : "THROWN: AvroMissingFieldException: Field id type:STRING pos:0 not set and has no default value",
+    "avroDoc" : "THROWN: ReconstructionException: Cannot reconstruct com.example.Req: no value in the flattened input and no usable schema default for required field(s) id. Supply the key(s), or allowMissingFields(true) to substitute Avro type defaults.",
     "losslessAvro" : false
   },
-  "measuredLossless" : false
+  "measuredLossless" : false,
+  "measurementNote" : "MOVED DEFECT -> ACCEPTED_LOSS in 2.1.0 by the NP-025 repair, and the PREDICTION WAS REWRITTEN WITH IT rather than left to be papered over by a classificationOverride - an override records measurement correcting a prediction, not a deliberate behaviour change. THE PREDICTION THIS REPLACES, kept verbatim so the repair does not erase it: 'DEFECT - UNCERTAIN AND FLAGGED: depends on what MapFlattener.flatten({}) returns. If it returns an empty map, reconstructToMap early-returns {region:null} and reconstruct() throws on the required id. The recorder decides; if measurement contradicts DEFECT the manifest publishes the measurement and an override records the disagreement.' THE RECORDING THIS REPLACES: avroDoc was 'THROWN: AvroMissingFieldException: Field id type:STRING pos:0 not set and has no default value' - Avro's own exception, leaking from GenericRecordBuilder.build() outside the per-field try, naming the field but never the flattened path. datumChecks were all false then and are all false now."
 }

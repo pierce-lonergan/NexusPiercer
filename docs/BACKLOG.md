@@ -168,7 +168,33 @@ design and is a hard break — deferred to 3.0.0 with a migration note.
 
 ---
 
-### [BL-012] Four `AvroReconstructor` knobs with no observed effect — **PROBE RUN 2026-08-17, SETTLED**
+### [BL-012] Four `AvroReconstructor` knobs with no observed effect — **SETTLED, AND THREE REPAIRED IN 2.1.0**
+
+> **REPAIRS 1, 3, 4 AND 5 ARE DONE (2026-08-18).** `useSchemaDefaults` now supplies a
+> schema-correct default and genuinely suppresses one at `false`; `allowMissingFields`
+> defaults to `false` and means FAIL-vs-FILL; the empty-map bypass is deleted; and all four
+> builder setters have javadoc. Repair 2 (make `useSchemaDefaults(false)` honest rather
+> than deprecating it) was taken rather than declined, precisely so the fix would not
+> MANUFACTURE a fourth member of the manifest's `inert-controls` block — after routing both
+> settings through `GenericData.getDefaultValue` they would otherwise have produced
+> identical output at both values.
+>
+> **TWO CORRECTIONS TO THE MEASUREMENT BELOW, made while repairing it.** (a) The claim that
+> `useSchemaDefaults` "cannot do what its name says" is true only for a NON-NULLABLE
+> defaulted field, where the unset slot is refilled by `build()`. On a NULLABLE field it
+> always could suppress — the ladder set null explicitly — so the knob's behaviour depended
+> silently on nullability. (b) A FOURTH defect in the same ladder, named nowhere: because
+> `useSchemaDefaults` was tested BEFORE `hasDefaultValue`,
+> `.useSchemaDefaults(false).allowMissingFields(false)` emitted "Required field missing and
+> no default: color" about a field that HAS a default. It was masked only by the old
+> `allowMissingFields` default, so flipping that default would have detonated it — which is
+> why the ladder was reordered around `hasDefaultValue` rather than patched at the leaves.
+>
+> **STILL OPEN:** `handleMissingField` invents `""` and `0` for a missing required field
+> inside an ARRAY ELEMENT, ungated by `allowMissingFields`. It logs a WARN now, but gating
+> it would turn array-of-records reconstructions that succeed today into throws at the
+> shipped default and puts the `avro-array-of-records-*` fixtures in play. Deferred loudly
+> rather than silently. `enableVerification` still gates one method only.
 
 > **THE TARGETED PROBE THIS ENTRY DEMANDED HAS BEEN RUN.** The entry's own instruction was
 > "Anyone acting on this entry must build that document first and let it decide". Documents were
@@ -271,68 +297,155 @@ that the knobs are dead.
 
 ---
 
-### [BL-013] `determineArraySize` has no non-JSON arrayFormat fallback — array-of-records sizing collapses to 1
+### [BL-013] Array-of-records element sizing — **FIXED IN 2.1.0, AND THE FILED CAUSE WAS WRONG**
 
-**Filed 2026-08-17, and it must exist because the code that documented it is now deleted.**
+**Filed 2026-08-17. Measured and repaired 2026-08-18. Three of this entry's factual claims were
+false, and they are corrected here rather than deleted, because leaving them standing is how the
+previous round's premises propagated.**
 
-`AvroReconstructor.calculateArraySize` was removed as an uncalled private method (SpotBugs
-`UPM_UNCALLED_PRIVATE_METHOD`). Its caller was not lost: commit `cad816b` replaced the single call
-site with `determineArraySize`, introduced by the same commit. **But the replacement is strictly
-weaker.** `calculateArraySize` carried `BRACKET_LIST` / `COMMA_SEPARATED` / `PIPE_SEPARATED`
-branches for parsing a bracket-delimited leaf; `determineArraySize` has none, and
-`reconstructArrayOfRecords` Step 1 only JSON-parses a value that starts `[` and ends `]`.
+**WHAT THE ENTRY CLAIMED.** That `calculateArraySize` carried `BRACKET_LIST` / `COMMA_SEPARATED` /
+`PIPE_SEPARATED` branches which `determineArraySize` lacks, that consequently "under those three
+array formats an N-element array of records collapses to one", and that the fix was to "add the
+format fallback to `reconstructArrayOfRecords` Step 1".
 
-**Consequence:** under those three array formats an N-element array of records collapses to one
-`parsedFieldValues` entry of size 1, `determineArraySize` returns 1, and N−1 records are lost.
+**WHAT WAS MEASURED.** All three are refuted.
 
-**The fix is at the caller, not by resurrecting the dead method** — add the format fallback to
-`reconstructArrayOfRecords` Step 1. It changes reconstructed output, so it is corpus-moving and
-must not ride along with a static-analysis change.
+1. **No collapse occurred under any format** for an element with a scalar field at its root.
+   `PathNode.addArrayFieldValue` did not store the raw column text — it stored the output of a
+   `static` deserializer that already JSON-parsed, and failing that stripped brackets and split on
+   comma then pipe. By the time Step 1 ran, the column was ALREADY a multi-element list, so Step
+   1's `rawValues.size() == 1 && startsWith("[")` guard was false and Step 1 was a no-op.
+   **Porting the format branches back would have produced a commit that changed no output at
+   all**, while reintroducing `DE_MIGHT_IGNORE`, `REC_CATCH_EXCEPTION` and `SF_SWITCH_NO_DEFAULT`
+   against a ratchet that may only go down. `docs/audit/FINDINGS.md:2935`'s instruction to port
+   them is hereby **discharged as based on a false premise**, not satisfied.
 
-**Corpus:** `order-line-items-comma-separated` is currently `ACCEPTED_LOSS` on the strength of a
-detail saying the reconstructor "fabricates extra rows and duplicates values rather than reporting
-that the element counts disagree". Repairing the sizing moves that row. Its own `cannotCatch` notes
-it covers neither `PIPE_SEPARATED` nor `BRACKET_LIST`, so two new fixtures are owed alongside it.
+2. **The real collapse was FORMAT-INDEPENDENT.** It fired when every field of the array element
+   lived inside a NESTED RECORD, so the array node carried no `arrayFieldValues` and every column
+   hung off a child node. `determineArraySize`'s child-node loop only counted a child's values
+   when the FIRST value was a String starting with `"[["` — a test that could never fire for a
+   column the deserializer had already parsed into a list of plain strings. `maxSize` stayed 0 and
+   the trailing `return maxSize > 0 ? maxSize : 1` FABRICATED a size of one. Measured: three
+   elements returned as one under all four formats **including the JSON default**. Because that
+   floor made zero unreachable, the `if (arraySize == 0) return new ArrayList<>()` branch was dead
+   code and an array node with no element data produced one record of type-defaults.
 
-**Also carried forward:** `docs/audit/FINDINGS.md:2935`'s instruction to "first diff
-`calculateArraySize` against `determineArraySize` and port over the format-specific branches" is
-NOT satisfied by the deletion. This entry is where it now lives.
+3. **`arrayFormat` was a DEAD KNOB on this path.** The split ran in a `static` method that is
+   structurally incapable of reading the instance field. Measured on a document built to reach the
+   branch: all four settings produced byte-identical output. And because comma was sniffed before
+   pipe, a legal comma inside a `PIPE_SEPARATED` element was split as a delimiter and **fabricated
+   a row** — the opposite direction from this entry's claim, and the direction nobody looks for.
+
+4. **A third defect the entry did not name.** `determineArraySize` took `Math.max` over the
+   columns, so short scalar columns were padded with `""` and `0` by `handleMissingField` and
+   short nested-record columns had their LAST value duplicated by a `Math.min(index, size - 1)`
+   clamp. Measured: `sku=S1,S2,S3` beside `meta_code=C1,C2` produced a third row whose code
+   repeated the second; the reverse direction silently discarded `C3`. Neither logged anything.
+
+**WHAT WAS DONE.** `determineArraySize` is replaced by `collectElementCounts` (walks the ELEMENT
+SCHEMA, descends into nested records through the child node, does not descend through ARRAY-typed
+fields because their inner cardinality is legitimately ragged) plus `agreedElementCount` (throws
+`ArrayCardinalityException` naming every column and its count and the configured format, rather
+than picking a winner). The column split moved to the instance side and is driven by the
+configured format with a bracket-aware splitter — and for `BRACKET_LIST` it uses that format's own
+reader, because `MapFlattener`'s `BRACKET_LIST` writer quotes and escapes its strings and a raw
+bracket split returns values with literal backslashes in them. Under `COMMA_SEPARATED` and
+`PIPE_SEPARATED`, text that is well-formed JSON array syntax now raises
+`ArrayFormatMismatchException`: those two writers structurally cannot emit a bracketed quoted list,
+so it is a detectable contradiction rather than a sniff.
+
+**CORPUS PREMISE ALSO REFUTED.** This entry said `order-line-items-comma-separated` is
+`ACCEPTED_LOSS` and would move. It was already `DEFECT`, and it **cannot** move on an
+`AvroReconstructor` change: its stack is `BOTH`, and `FidelityRunner` routes `config.reconstructor`
+to `JsonReconstructor` while `AvroReconstructor` is configured only from
+`config.avro.reconstructor`. Its recorded output is `JsonReconstructor` behaviour and is untouched.
+The two owed fixtures were written against the Avro path instead:
+`avro-array-of-records-pipe-format-comma-inside-element` and, as a declared control,
+`avro-array-of-records-bracket-list-round-trip`, beside the headline
+`avro-array-of-records-nested-only-collapses-to-one`.
+
+**RESIDUE, unfixable at the reconstructor and written into the new fixtures' `cannotCatch`.** Under
+`COMMA_SEPARATED`, `"Bolt, hex, M8"` and three separate elements are byte-identical after
+flattening; `MapFlattener` neither quotes nor escapes on that path. The cardinality check catches
+it whenever the split leaves the columns disagreeing, but a document where every column happened to
+contain the same number of stray delimiters would split consistently and pass while being wrong.
+
+**ALSO OWED AND NOT DONE:** the disagreeing-count case cannot be a corpus row at all.
+`FidelityFixture` takes a source DOCUMENT and `MapFlattener` always emits equal-length columns from
+a well-formed one; ragged columns come only from externally produced flat maps (Athena, Spark,
+CDC). It is pinned in `AvroArrayOfRecordsSizingTest` instead, and that limit is a real gap in what
+the corpus can express.
 
 ---
 
-### [BL-014] `unwrapNullable` drops unions of three or more branches inside array elements
+### [BL-014] Multi-branch unions inside array elements — **FIXED IN 2.1.0**
 
-**Filed 2026-08-17, same reason as [BL-013]** — the dead method that recorded the gap is gone.
+**Filed 2026-08-17, premise corrected the same day, repaired 2026-08-18.**
 
-**PREMISE CORRECTED 2026-08-17, one revision after filing.** This entry was filed as a *regression*:
-"unwrapUnion's three call sites were replaced by `unwrapNullable`, and the substitution is lossy at
-arity 3+". That framing is false and it mattered, because it implied a working predecessor whose
-behaviour was owed restoration. Measured per revision with `git grep -n unwrapUnion <rev>`:
-`unwrapUnion` had **no declaration in any revision in which a call to it existed** — four calls and
-zero declarations through `ef625f2`; the declaration appears at `cad816b`, the same commit that
-deleted all four calls, and never acquired a caller. It never executed. **No arity-3+ behaviour was
-ever lost, because none was ever in service.** This is a gap that has always been present in the
-array-element path, not a regression.
+The corrected framing held up under measurement and is worth restating because the obvious repair
+is the wrong one: this is a **never-implemented gap, not a regression**. `unwrapUnion` had four
+calls and zero declarations through `ef625f2`, and a declaration with zero callers from `cad816b`.
+It never executed, so no arity-3+ behaviour was ever lost and none was owed restoration.
+`NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest` asserts by reflection that no method of
+that name is declared, and re-adding it would correctly turn the build red.
 
-The technical defect is real and independently verified at HEAD:
+**THE DEFECT.** `reconstructArrayOfRecords` had no UNION arm at all. Its field dispatch recognised
+exactly three shapes — flat column present, RECORD, ARRAY — and `unwrapNullable` collapses only
+`[null, T]`, so a union of arity three or more arrived still typed UNION, matched nothing, and fell
+off the end into `handleMissingField`, which saw a NULL branch and wrote a plain null. Measured:
+`{"items":[{"sku":"a","meta":{"src":"web"}},{"sku":"b","meta":{"src":"pos"}}]}` came back as
+`[{sku=a, meta=null}, {sku=b, meta=null}]` while `items_meta_src=["web","pos"]` sat in the tree
+unread by anything.
 
-- `unwrapNullable` (`AvroReconstructor.java:2712`) returns the union UNCHANGED unless
-  `types.size() == 2`.
-- In `reconstructArrayOfRecords`, `actualFieldSchema = unwrapNullable(fieldSchema)` is then tested
-  against `RECORD` (line 1463) and `ARRAY` (line 1471). A 3+ branch union is still a `UNION` at
-  that point, so it matches neither and falls to `handleMissingField` at line 1481.
+**A SECOND FAULT ON THE SAME FIELD, not in the filing.** When the element DID have a flat column,
+`convertPrimitive` was handed the UNION, `unwrapNullable` gave it back unchanged, the switch had no
+UNION case and `default: return value` returned it UNCONVERTED. For `["null","long","string"]` with
+a Jackson-parsed number that set an `Integer` into a union with no `int` branch:
+`GenericData.validate` false, binary encode `UnresolvedUnionException` — the "succeeds until
+someone writes it" shape, fixed at the call site by passing the SELECTED BRANCH.
 
-**Consequence:** a field typed `["null","SomeRecord","string"]` inside an array element is silently
-dropped.
+**AN HONEST NARROWING OF THE FILING, measured while testing.** The SILENT drop is specific to
+unions that CONTAIN a null branch. With no null branch, `handleMissingField` falls to its switch
+default, log.warns, never sets the field, and `GenericRecordBuilder.build()` throws
+`AvroRuntimeException`. A null-free 3+ union was already loud, just uselessly so.
 
-**Restoring `unwrapUnion` is NOT the fix** — and now doubly so, since there is nothing to restore.
-"First non-null branch" is a different wrong answer, and the class already owns a real branch
-resolver in `reconstructUnionValue` — which the array-element path simply does not consult.
+**WHAT WAS DONE.** A new `reconstructArrayElementUnion` computes the element-local signals — the
+scalar at this index, and the child columns available — reuses `reconstructUnionValue`'s selection
+ordering, and dispatches through the index-aware helpers the method already calls, so index
+handling is inherited rather than reinvented. `reconstructUnionValue` itself could NOT be called:
+it reads `node.value`, `node.isLeaf`, `node.children` and `node.arrayFieldValues` as the content of
+ONE value and delegates through an index-free `reconstructValue`, while the only candidate node is
+column-wise across all N elements. Handing it over would return the same value for every element
+and feed a whole JSON-array column to a scalar field.
 
-**Corpus:** `avro-union-of-records-overlapping-fields` is already published as `DEFECT` with
-almost this rationale, but it goes through `reconstructUnionValue`, not the array-element path. A
-distinct fixture is owed for the array-element case — as a **never-implemented gap**, which is how
-its `detail` must read, not as a lost behaviour.
+Guarded at **arity > 2 deliberately**: every currently-passing `[null, T]` shape keeps its exact
+code path, which is why no existing fixture moved.
+
+**WHERE THE REPAIR IS IMPOSSIBLE IT IS LOUD INSTEAD.** Two record branches matching the same child
+columns are information-theoretically unresolvable from column names — the existing fixture's own
+`cannotCatch` says so. Under the default `strictValidation` that now throws naming both branches;
+under `strictValidation(false)` it warns and takes the first. A chosen branch that leaves columns
+unconsumed warns.
+
+**STILL OPEN, deliberately not bundled:**
+
+- **Arity-2 null-free unions.** `unwrapNullable` returns `types.get(0)` for `["string","int"]` —
+  "first branch wins", the answer this entry rules out at higher arity, live today at arity 2.
+  Widening the guard would also route `avro-array-of-records-nullable-nested-record-shadowed`
+  through the new selector and could change it. Own entry, own fixture move.
+- **`reconstructUnionValue`'s own behaviour is byte-identical.** Only the selection ORDERING is
+  shared; the loudness was not taken there, so `avro-union-of-records-overlapping-fields` stays
+  `DEFECT` and its repair is filed separately.
+- **`convertPrimitive`'s `default: return value`** is still reachable from
+  `tryReconstructArrayFromFields` and `reconstructNestedRecordFromArray` with a 3+ union. An
+  explicit `case UNION:` now logs before returning, so the next caller to do it is heard, but those
+  paths need their own fixtures.
+- **A NEW FINDING, in `MapFlattener` rather than here.** For a mixed-branch union the flattener
+  emits the columns MISALIGNED: `{"items":[{"meta":{"src":"web"}},{"meta":"plain"}]}` produces
+  `items_meta=["plain",null]` — element 1's value at index 0 — beside a correctly-aligned
+  `items_meta_src=["web",null]`. No reconstructor can undo that. Recorded as
+  `avro-array-element-multi-branch-union-mixed-branches`, which is `DEFECT` and now throws where it
+  used to be silently wrong for both elements.
 
 ---
 

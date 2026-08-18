@@ -40,7 +40,7 @@
     "avroDefaultsMatch" : true,
     "flat" : "{\"payload\":\"S:B64:AAAA\",\"sig\":\"S:ÿ\\u0001\\u0002\\u0003\"}",
     "avroBaseline" : "{\"payload\":\"S:B64:AAAA\",\"sig\":\"S:ÿ\\u0001\\u0002\\u0003\"}",
-    "avroDoc" : "THROWN: IllegalArgumentException: Fixed size mismatch at sig: expected 4, got 5 (value was: ÿ\u0001\u0002\u0003...)",
+    "avroDoc" : "THROWN: IllegalArgumentException: Fixed size mismatch at sig: expected 4, got 5 (value was: ÿ\u0001\u0002\u0003...) [decode strategies: bare-base64:invalid; hex:wrong-length-or-not-hex]",
     "losslessAvro" : false
   },
   "measuredLossless" : false

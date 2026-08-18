@@ -463,7 +463,28 @@ public class FileFinder {
                     }
                 }
             } catch (java.nio.file.InvalidPathException notALocalPath) {
-                // Classpath and HDFS names are not local paths; size is checked on open instead.
+                // THE CATCH IS CORRECT; THE SENTENCE THAT USED TO JUSTIFY IT WAS NOT. It read
+                // "size is checked on open instead". There is no size check on open. `maxFileSize`
+                // appears in this file only as the field, its javadoc, and this block - findFile,
+                // getInputStream, findFileHandle, searchClasspath, searchLocalPaths and searchHdfs
+                // never consult it. A compensating control that does not exist is exactly the kind
+                // of claim this codebase keeps finding, and it was hiding inside a comment.
+                //
+                // WHAT IS ACTUALLY TRUE: this gate is best-effort and applies only to names that
+                // resolve as a regular file RELATIVE TO THE CWD, because Paths.get(fileName) has
+                // no base path while resolution uses config.getAllSearchPaths(). Classpath, HDFS
+                // and search-path-resolved names are not size-checked at all. Filed as its own
+                // backlog entry rather than fixed here.
+                //
+                // ON POSIX THIS CATCH IS UNREACHABLE: UnixPath rejects only an embedded NUL, and
+                // the null-byte check above already turns that into a SecurityException. Only
+                // WindowsPath rejects the colon in "hdfs://nn:8020/...". Any test for it must be
+                // OS-gated or it passes vacuously.
+                // The name itself is deliberately NOT logged: it is caller-supplied and every
+                // other log line in this class that echoes it is a CRLF_INJECTION_LOGS finding.
+                // The exception carries the offending input for anyone who needs it.
+                LOG.debug("maxFileSize gate skipped: the name is not a valid local path on this "
+                        + "platform", notALocalPath);
             }
         }
     }

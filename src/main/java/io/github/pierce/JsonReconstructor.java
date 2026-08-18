@@ -550,8 +550,28 @@ public class JsonReconstructor implements Serializable {
         if (strValue.startsWith("[") && strValue.endsWith("]")) {
             try {
                 return objectMapper.readValue(strValue, LIST_TYPE_REF);
-            } catch (Exception e) {
-                // Fall through to other formats
+            } catch (JsonProcessingException notJson) {
+                // HYBRID SITE. Under BRACKET_LIST, COMMA_SEPARATED and PIPE_SEPARATED this is a
+                // legitimate try-this-then-that cascade and the switch below recovers. Under the
+                // DEFAULT arrayFormat JSON it is not: the switch falls straight through to
+                // `return Collections.singletonList(value)`, so bracket-wrapped text that Jackson
+                // rejects becomes a ONE-ELEMENT ARRAY HOLDING THE RAW UNPARSED STRING, which is
+                // indistinguishable from a legitimate one-element array. That is the laundering
+                // shape, so the JSON arm - and only the JSON arm - says so.
+                //
+                // DELIBERATELY DIAGNOSTIC ONLY. Returning null here instead would be more honest
+                // and all three call sites already handle null, but it changes reconstructed
+                // output on the JSON stack and collides with the vd-array-lookalike /
+                // string-array-lookalikes fixture family. That is corpus-moving work and is filed
+                // separately rather than smuggled into an empty-catch pass.
+                // Only the JSON arm is reported. Under the other three the switch below
+                // recovers, so a decline there is the cascade working and a second log line would
+                // be noise on an ordinary input.
+                if (arrayFormat == ArraySerializationFormat.JSON) {
+                    log.warn("Value at arrayFormat {} looks like a JSON array but is not "
+                            + "parseable JSON; it will be returned as a SINGLE element holding "
+                            + "the raw text: {}", arrayFormat, strValue, notJson);
+                }
             }
         }
 
@@ -677,8 +697,22 @@ public class JsonReconstructor implements Serializable {
                 }
                 return longVal;
             }
-        } catch (NumberFormatException e) {
-            // Not a number, return as string
+        } catch (NumberFormatException expected) {
+            // THE ONE SITE OF THE 25 WHERE NOTHING SHOULD HAPPEN AT RUNTIME, and the only one
+            // where the naming escape hatch is used.
+            //
+            // This is a type-inference PROBE over flattened text: the question is "does this text
+            // parse as a number?", and NumberFormatException is the POSITIVE SIGNAL that the
+            // answer is no. The next line acts on that answer. There is no failure here to
+            // report, no cause to carry and no caller to warn - reporting it would produce a WARN
+            // for every ordinary string in the document.
+            //
+            // The variable is named `expected` because PMD's EmptyCatchBlock exempts
+            // ^(ignored|expected)$ via allowExceptionNameRegex. That is NOT a claim that the
+            // exception is uninteresting - it is the result - and it is stated here so the next
+            // reader does not copy the pattern to a site where something IS being swallowed.
+            // Note also that a commented catch does not satisfy the rule as configured; the
+            // comment you are reading resolves nothing on its own.
         }
 
         return value;

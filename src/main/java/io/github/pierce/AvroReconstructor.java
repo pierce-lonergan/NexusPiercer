@@ -227,7 +227,16 @@ public class AvroReconstructor {
         private ArraySerializationFormat arrayFormat = ArraySerializationFormat.JSON;
         private boolean useArrayBoundarySeparator = false;
         private boolean strictValidation = true;
-        private boolean allowMissingFields = true;
+        /**
+         * DEFAULT FLIPPED to false in 2.1.0, and the OUTCOME at the shipped default is unchanged:
+         * a missing required field failed before and fails now. What changed is that it fails with
+         * our exception naming the flattened path, instead of leaking Avro's own
+         * AvroMissingFieldException from {@code GenericRecordBuilder.build()} with only the field
+         * name. Keeping {@code true} as the default while giving {@code true} a tolerant meaning
+         * would have turned today's loud failure into a silently invented {@code ""} at the
+         * SHIPPED DEFAULT - the exact pathology this pass exists to remove.
+         */
+        private boolean allowMissingFields = false;
         private boolean useSchemaDefaults = true;
         private int maxDepth = DEFAULT_MAX_DEPTH;
         private ObjectMapper customObjectMapper = null;
@@ -243,16 +252,60 @@ public class AvroReconstructor {
             return this;
         }
 
+        /**
+         * Whether a value that contradicts its schema is an error (default {@code true}) or is
+         * quietly replaced by a type default.
+         *
+         * <p>At {@code true} a malformed scalar, an unresolvable union branch and an array-sizing
+         * input that is not parseable all throw. At {@code false} they are logged and substituted.
+         * It has no effect on a well-formed document, which is why an early probe over five
+         * well-formed documents recorded it as inert.</p>
+         */
         public Builder strictValidation(boolean strict) {
             this.strictValidation = strict;
             return this;
         }
 
+        /**
+         * What to do about a required field that has no value in the flattened input and no
+         * schema default. DEFAULT {@code false} since 2.1.0.
+         *
+         * <p>{@code false}: reconstruction fails with a {@link ReconstructionException} naming
+         * every such field by its FLATTENED PATH, thrown before the record is built.</p>
+         *
+         * <p>{@code true}: the Avro TYPE default is substituted - {@code ""}, {@code 0},
+         * {@code 0L}, {@code 0.0}, {@code false}, an empty array, an empty map, empty bytes - and
+         * one aggregated WARN names every path that was filled. ENUM, FIXED, RECORD and a UNION
+         * with no null branch have no type default, and reconstruction fails for those rather than
+         * inventing a symbol or an empty record.</p>
+         *
+         * <p>KNOWN INCONSISTENCY, disclosed rather than discovered: this flag does not yet reach
+         * {@code handleMissingField}, which fills {@code ""} and {@code 0} for a missing required
+         * field one level down inside an ARRAY ELEMENT regardless of the setting. Gating that too
+         * would turn array-of-records reconstructions that succeed today into throws at the
+         * shipped default and is tracked separately.</p>
+         */
         public Builder allowMissingFields(boolean allow) {
             this.allowMissingFields = allow;
             return this;
         }
 
+        /**
+         * Whether a field absent from the flattened input is filled from its schema default
+         * (default {@code true}).
+         *
+         * <p>{@code true} supplies the default decoded to its schema-correct runtime type -
+         * an EnumSymbol for an ENUM default, a GenericData.Fixed for FIXED, a ByteBuffer for
+         * BYTES, a Utf8 for STRING, a real Java null for {@code "default": null}. Before 2.1.0 it
+         * supplied Avro's JSON-shaped {@code Field.defaultVal()} instead, so the datum did not
+         * validate and could not be written.</p>
+         *
+         * <p>{@code false} means "do not consult the schema default": a nullable field becomes
+         * null, and a non-nullable one is treated as MISSING and handed to
+         * {@link #allowMissingFields(boolean)}. Before 2.1.0 it left the slot unset for a
+         * non-nullable field, and {@code GenericRecordBuilder.build()} re-supplied the same value
+         * anyway - so at that arity the knob could not suppress anything.</p>
+         */
         public Builder useSchemaDefaults(boolean use) {
             this.useSchemaDefaults = use;
             return this;
@@ -284,6 +337,15 @@ public class AvroReconstructor {
             return this;
         }
 
+        /**
+         * Gates {@link AvroReconstructor#verifyReconstruction} and nothing else (default
+         * {@code true}).
+         *
+         * <p>Stated plainly because the name suggests more: it does not touch reconstruction, and
+         * {@code compareFlattenedMaps} keeps working at {@code false}. Widening the gate would
+         * turn a currently-working call into a throw for anyone who set the flag, so the
+         * inconsistency is pinned rather than repaired.</p>
+         */
         public Builder enableVerification(boolean enable) {
             this.enableVerification = enable;
             return this;
@@ -321,16 +383,24 @@ public class AvroReconstructor {
             throw new IllegalArgumentException("Root schema must be a RECORD type");
         }
 
-        if (flattenedMap == null || flattenedMap.isEmpty()) {
-            return createEmptyRecord(schema);
-        }
+        // NP-025. There is no early return for an empty or null map any more. An empty map must
+        // behave exactly like a non-empty map with zero matching keys, and an empty root PathNode
+        // gives precisely that: every field runs the same ladder. The old short-circuit called
+        // createEmptyRecord, which consulted neither knob, built no GenericRecord, and silently
+        // OMITTED any field that was neither defaulted nor nullable - so the same schema and the
+        // same missing field produced two different answers depending on whether one unrelated
+        // key happened to be present. null is treated as empty rather than rejected: NP-025's
+        // complaint is the empty-vs-non-empty inconsistency, and argument validation is a separate
+        // question that deserves its own decision rather than being smuggled in here.
+        Map<String, Object> input = flattenedMap == null
+                ? Collections.<String, Object>emptyMap() : flattenedMap;
 
         try {
             // Get schema paths
             SchemaCacheEntry cacheEntry = getOrBuildSchemaCacheEntry(schema);
 
             // Build path tree
-            PathNode root = buildPathTree(flattenedMap, cacheEntry.pathTrie);
+            PathNode root = buildPathTree(input, cacheEntry.pathTrie);
 
             // Reconstruct
             GenericRecord record = reconstructRecord(root, schema, "", 0);
@@ -338,10 +408,70 @@ public class AvroReconstructor {
             // Convert to Map for verification
             return genericRecordToMap(record);
 
+        } catch (ReconstructionException e) {
+            // Already ours, and already carries the field path. Wrapping it a second time buys
+            // the caller two identical frames and buries the specific message - which is the same
+            // muffling this pass exists to remove. Rethrow unchanged, and do not log it either:
+            // the caller is about to receive it, and logging on the way past is how one failure
+            // becomes three lines in an operator's console.
+            throw e;
         } catch (Exception e) {
             log.error("Reconstruction failed for schema: {}", schema.getName(), e);
             throw new ReconstructionException(
-                    "Failed to reconstruct data for schema: " + schema.getName(), e);
+                    "Failed to reconstruct data for schema: " + schema.getName()
+                            + " - " + rootMessage(e), e);
+        }
+    }
+
+    /**
+     * The deepest non-blank message in a cause chain.
+     *
+     * <p>A loud error that gets muffled two frames up is not loud. Measured before this was added:
+     * a caller who hit a specific, named failure deep inside the array machinery saw exactly
+     * {@code "Failed to reconstruct data for schema: O3"} and nothing else.</p>
+     */
+    private static String rootMessage(Throwable t) {
+        String best = t.getMessage();
+        for (Throwable c = t.getCause(); c != null; c = c.getCause()) {
+            if (c.getMessage() != null && !c.getMessage().trim().isEmpty()) {
+                best = c.getMessage();
+            }
+        }
+        return best == null ? t.getClass().getSimpleName() : best;
+    }
+
+    /**
+     * The schema default for a field, decoded to its SCHEMA-CORRECT runtime type.
+     *
+     * <p>NP-023. Every default this class supplied used to come from {@code Field.defaultVal()},
+     * which routes through Avro's {@code JacksonUtils.toObject} and returns the JSON shape rather
+     * than the Avro shape: a {@link String} for an ENUM default, a {@code byte[]} for FIXED and
+     * BYTES, a {@link LinkedHashMap} for a record default, and the
+     * {@code JsonProperties.NULL_VALUE} singleton - a non-null OBJECT - for {@code "default":
+     * null}. {@code GenericRecordBuilder.set} only checks for null, so the record was built
+     * carrying the wrong type, {@code GenericData.validate} returned false, and the failure
+     * surfaced only when somebody tried to write the datum.</p>
+     *
+     * <p>{@code GenericData.getDefaultValue} decodes the default JsonNode through a real datum
+     * reader instead, so ENUM yields an EnumSymbol, FIXED a GenericData.Fixed, BYTES a ByteBuffer,
+     * STRING a Utf8 and a null default a real Java null.</p>
+     *
+     * <p>The {@code deepCopy} is NOT optional. getDefaultValue MEMOISES one instance per Field in
+     * a shared static cache, so two reconstructions of the same schema would otherwise alias one
+     * mutable List, Map, Record or ByteBuffer. {@code defaultVal()} happened to build a fresh
+     * object every call, so omitting the copy would introduce an aliasing bug that does not exist
+     * today. {@code RecordBuilderBase.defaultValue} does exactly this pair.</p>
+     */
+    private static Object schemaDefault(Schema.Field field, String fieldPath) {
+        GenericData data = GenericData.get();
+        try {
+            return data.deepCopy(field.schema(), data.getDefaultValue(field));
+        } catch (RuntimeException e) {
+            // Do NOT fall back to defaultVal(): that is the mistyped path this method exists to
+            // replace, and quietly returning it would re-launder the failure.
+            throw new ReconstructionException(
+                    "Schema default for field '" + fieldPath + "' does not decode against its own "
+                            + "schema " + field.schema().getType() + ": " + field.defaultVal(), e);
         }
     }
 
@@ -353,22 +483,9 @@ public class AvroReconstructor {
         return mapToGenericRecord(reconstructedMap, schema);
     }
 
-    /**
-     * Create empty record with defaults
-     */
-    private Map<String, Object> createEmptyRecord(Schema schema) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
-        for (Schema.Field field : schema.getFields()) {
-            if (field.hasDefaultValue()) {
-                result.put(field.name(), field.defaultVal());
-            } else if (isNullable(field.schema())) {
-                result.put(field.name(), null);
-            }
-        }
-
-        return result;
-    }
+    // createEmptyRecord is DELETED (NP-025). It was the empty-map short-circuit's whole body:
+    // it read neither useSchemaDefaults nor allowMissingFields, never built a GenericRecord, and
+    // omitted required no-default fields without a word. An empty map now takes the ordinary path.
 
     // ========================= VERIFICATION UTILITIES =========================
 
@@ -913,60 +1030,25 @@ public class AvroReconstructor {
             }
         }
 
-        void addArrayFieldValue(String fieldName, Object serializedArray) {
+        /**
+         * Store an array COLUMN, already split by the caller.
+         *
+         * <p>BL-013 (D2). This used to call a {@code static} {@code deserializeArrayStatic}, which
+         * was structurally incapable of reading the instance {@code arrayFormat} field and
+         * therefore SNIFFED - JSON, then comma, then pipe. Measured on a document built to reach
+         * this branch, all four configured formats produced byte-identical output: the knob was a
+         * dead control on the array-of-records path while being live for leaf arrays. Worse,
+         * because comma was tried before pipe, a legal comma inside a PIPE_SEPARATED element was
+         * split as a delimiter and fabricated a row.</p>
+         *
+         * <p>The split now happens in {@link AvroReconstructor#deserializeColumn}, on the instance
+         * side, driven by the configured format.</p>
+         */
+        void addArrayFieldValue(String fieldName, List<Object> columnValues) {
             if (arrayFieldValues == null) {
                 arrayFieldValues = new LinkedHashMap<>();
             }
-            arrayFieldValues.put(fieldName, deserializeArrayStatic(serializedArray));
-        }
-
-        private static List<Object> deserializeArrayStatic(Object value) {
-            if (value == null) {
-                return Collections.singletonList(null);
-            }
-
-            // If it's already a List, return it directly
-            if (value instanceof List) {
-                return (List<Object>) value;
-            }
-
-            String strValue = value.toString().trim();
-
-            // JSON array
-            if (strValue.startsWith("[") && strValue.endsWith("]")) {
-                try {
-                    List<Object> parsed = SHARED_OBJECT_MAPPER.readValue(strValue,
-                            LIST_OF_OBJECT);
-                    return parsed;
-                } catch (Exception e) {
-                    // Log the parsing failure for debugging
-                    System.err.println("WARN: Failed to parse as JSON array: '" + strValue + "' - " + e.getMessage());
-                    // Fall through to other formats
-                }
-            }
-
-            // Comma or pipe separated
-            // Strip surrounding brackets if present (handles List.toString() format)
-            String valueToSplit = strValue;
-            if (strValue.startsWith("[") && strValue.endsWith("]")) {
-                valueToSplit = strValue.substring(1, strValue.length() - 1).trim();
-            }
-
-            if (valueToSplit.contains(",")) {
-                // Use bracket-aware splitting to handle nested arrays like "[[a,b],[c,d]]"
-                List<String> parts = splitRespectingBrackets(valueToSplit, ",");
-                // Trim whitespace from each element
-                return parts.stream()
-                        .map(String::trim)
-                        .collect(java.util.stream.Collectors.toList());
-            } else if (valueToSplit.contains("|")) {
-                List<String> parts = splitRespectingBrackets(valueToSplit, "|");
-                return parts.stream()
-                        .map(String::trim)
-                        .collect(java.util.stream.Collectors.toList());
-            }
-
-            return Collections.singletonList(strValue);
+            arrayFieldValues.put(fieldName, columnValues);
         }
 
         /**
@@ -1068,7 +1150,97 @@ public class AvroReconstructor {
 
         // Add array field value
         String fieldName = parts[parts.length - 1];
-        current.addArrayFieldValue(fieldName, value);
+        current.addArrayFieldValue(fieldName, deserializeColumn(value, FlattenedPath.encode(
+                Arrays.asList(parts), separator)));
+    }
+
+    /**
+     * Split one flattened array COLUMN into one entry per element, using the CONFIGURED format.
+     *
+     * <p>BL-013 (D2). Sniffing IS the bug: it is what turns a legal comma into a delimiter under
+     * PIPE_SEPARATED. The library publishes a knob whose entire purpose is for the producer to
+     * state which delimiter was used; a caller who sets PIPE_SEPARATED has asserted that commas
+     * are data, and second-guessing that assertion is how this class of defect was created.</p>
+     *
+     * <p>The delimited split is BRACKET-AWARE. {@code deserializeArray}'s COMMA and PIPE branches
+     * use a naive {@code content.split(",", -1)}, which would shred a nested-array column such as
+     * {@code [[a,b],[c,d]]} into four entries; reusing them here would break the doubly-nested
+     * array tests. {@link PathNode#splitRespectingBrackets} is used instead.</p>
+     */
+    private List<Object> deserializeColumn(Object value, String columnPath) {
+        if (value == null) {
+            return Collections.singletonList(null);
+        }
+        if (value instanceof List) {
+            return (List<Object>) value;
+        }
+
+        String strValue = value.toString().trim();
+        boolean bracketed = strValue.startsWith("[") && strValue.endsWith("]");
+
+        if (arrayFormat == JSON) {
+            if (bracketed) {
+                try {
+                    return SHARED_OBJECT_MAPPER.readValue(strValue, LIST_OF_OBJECT);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    // A bracketed column that is not JSON, under the JSON format. Falling through
+                    // to a bracket-aware comma split is the only reading left, and it is what the
+                    // previous sniffing path did for the same text - but it is now AUDIBLE.
+                    log.warn("Column {} is bracketed but not parseable JSON under arrayFormat "
+                            + "JSON; splitting it bracket-aware on ',' instead: {}",
+                            columnPath, strValue, e);
+                    return trimmed(PathNode.splitRespectingBrackets(
+                            strValue.substring(1, strValue.length() - 1).trim(), ","));
+                }
+            }
+            return Collections.singletonList(strValue);
+        }
+
+        if (arrayFormat == BRACKET_LIST) {
+            // MEASURED: BRACKET_LIST is not "brackets around raw text". MapFlattener's writer
+            // QUOTES and ESCAPES every string element, and serialises a nested list by recursing,
+            // so a doubly-nested column arrives as ["[\"RAM\", \"Storage\"]"]. A raw bracket-aware
+            // split leaves the backslashes in and DoublyNestedArrayTest fails on "RAM". The class
+            // already owns the matching reader - deserializeBracketList -> splitBracketAware ->
+            // unquoteString - and that is the format's own reader, not a sniff.
+            return deserializeBracketList(strValue);
+        }
+
+        // COMMA_SEPARATED / PIPE_SEPARATED: the two formats MapFlattener writes WITHOUT brackets.
+        if (bracketed && parsesAsJsonArray(strValue)) {
+            throw new ArrayFormatMismatchException(
+                    "Column " + columnPath + " is well-formed JSON array syntax but arrayFormat is "
+                            + arrayFormat + ", whose writer cannot emit a bracketed quoted list. "
+                            + "Splitting it on '" + delimiterChar()
+                            + "' would shred the JSON. Set arrayFormat(JSON) to read this data, or "
+                            + "produce it with the configured format. Value: " + strValue);
+        }
+        String content = bracketed ? strValue.substring(1, strValue.length() - 1).trim() : strValue;
+        return trimmed(PathNode.splitRespectingBrackets(content, delimiterChar()));
+    }
+
+    private String delimiterChar() {
+        return arrayFormat == PIPE_SEPARATED ? "|" : ",";
+    }
+
+    private boolean parsesAsJsonArray(String strValue) {
+        try {
+            SHARED_OBJECT_MAPPER.readValue(strValue, LIST_OF_OBJECT);
+            return true;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException notJson) {
+            // No log: this predicate is asked on every bracketed column under a delimited format
+            // and "not JSON" is the ordinary answer, not a failure. The CALLER reports the one
+            // outcome that matters, and reports it by throwing.
+            return false;
+        }
+    }
+
+    private static List<Object> trimmed(List<String> parts) {
+        List<Object> out = new ArrayList<>(parts.size());
+        for (String p : parts) {
+            out.add(p.trim());
+        }
+        return out;
     }
 
     // ========================= RECONSTRUCTION CORE =========================
@@ -1080,6 +1252,8 @@ public class AvroReconstructor {
         }
 
         GenericRecordBuilder builder = new GenericRecordBuilder(schema);
+        List<String> missing = new ArrayList<>();
+        List<String> filled = new ArrayList<>();
 
         for (Schema.Field field : schema.getFields()) {
             String fieldName = field.name();
@@ -1094,30 +1268,122 @@ public class AvroReconstructor {
                     Object fieldValue = reconstructValue(childNode, fieldSchema,
                             fieldPath, currentDepth + 1);
                     builder.set(fieldName, fieldValue);
-                } else {
-                    // Try to reconstruct array from field values
-                    Object arrayValue = tryReconstructArrayFromFields(node, field,
-                            fieldSchema, fieldPath, currentDepth + 1);
-
-                    if (arrayValue != null) {
-                        builder.set(fieldName, arrayValue);
-                    } else if (useSchemaDefaults && field.hasDefaultValue()) {
-                        builder.set(fieldName, field.defaultVal());
-                    } else if (isNullable(fieldSchema)) {
-                        builder.set(fieldName, null);
-                    } else if (!allowMissingFields) {
-                        throw new IllegalStateException(
-                                "Required field missing and no default: " + fieldPath);
-                    }
+                    continue;
                 }
+
+                // Try to reconstruct array from field values
+                Object arrayValue = tryReconstructArrayFromFields(node, field,
+                        fieldSchema, fieldPath, currentDepth + 1);
+                if (arrayValue != null) {
+                    builder.set(fieldName, arrayValue);
+                    continue;
+                }
+
+                // NP-024 LADDER, restructured so hasDefaultValue() is the discriminator.
+                //
+                // It used to test useSchemaDefaults FIRST, which made the "Required field missing
+                // and no default" branch reachable for a field that HAS a default: measured,
+                // .useSchemaDefaults(false).allowMissingFields(false) on a defaulted non-nullable
+                // field emitted exactly that message about a field with a default. The message was
+                // a lie, masked only because allowMissingFields defaulted to true. Flipping that
+                // default would have detonated it, so the ladder is reordered rather than patched
+                // at the leaves.
+                if (field.hasDefaultValue()) {
+                    if (useSchemaDefaults) {
+                        builder.set(fieldName, schemaDefault(field, fieldPath));
+                        continue;
+                    }
+                    // useSchemaDefaults(false) means "do not consult the schema default".
+                    // MEASURED CORRECTION to BL-012's blanket "the knob cannot suppress a
+                    // default": it always could on a NULLABLE field (it set null and build() never
+                    // saw an empty slot). It could not on a non-nullable one, because leaving the
+                    // slot unset lets GenericRecordBuilder.build() re-supply the same value. So
+                    // the honest reading is that the field is now MISSING, and the missing-field
+                    // policy below decides - which makes the knob mean the same thing at both
+                    // arities instead of quietly depending on nullability.
+                    if (isNullable(fieldSchema)) {
+                        builder.set(fieldName, null);
+                    } else if (allowMissingFields) {
+                        fillOrFail(builder, field, fieldPath, filled);
+                    } else {
+                        missing.add(fieldPath + " (has a schema default, suppressed by "
+                                + "useSchemaDefaults(false))");
+                    }
+                    continue;
+                }
+
+                if (isNullable(fieldSchema)) {
+                    builder.set(fieldName, null);
+                } else if (allowMissingFields) {
+                    fillOrFail(builder, field, fieldPath, filled);
+                } else {
+                    missing.add(fieldPath);
+                }
+            } catch (ReconstructionException e) {
+                // Already carries a path. Re-wrapping buries the specific message.
+                throw e;
             } catch (Exception e) {
                 throw new ReconstructionException(
-                        String.format("Failed to reconstruct field '%s' at path '%s'",
-                                fieldName, fieldPath), e);
+                        String.format("Failed to reconstruct field '%s' at path '%s': %s",
+                                fieldName, fieldPath, rootMessage(e)), e);
             }
         }
 
+        // Thrown BEFORE build(), which is the whole point: build() sits outside the per-field try,
+        // so its AvroMissingFieldException used to escape carrying the field NAME and no
+        // flattened path at all. Aggregated rather than first-wins, because otherwise the caller
+        // fixes one key, re-runs, and discovers the next.
+        if (!missing.isEmpty()) {
+            throw new ReconstructionException("Cannot reconstruct " + schema.getFullName()
+                    + ": no value in the flattened input and no usable schema default for "
+                    + "required field(s) " + String.join(", ", missing)
+                    + ". Supply the key(s), or allowMissingFields(true) to substitute Avro type "
+                    + "defaults.");
+        }
+        if (!filled.isEmpty()) {
+            String owner = schema.getFullName();
+            log.warn("allowMissingFields(true): substituted Avro type defaults for absent "
+                    + "required field(s) {} of {}", filled, owner);
+        }
+
         return builder.build();
+    }
+
+    /**
+     * The {@code allowMissingFields(true)} outcome: substitute the Avro TYPE default, or say why
+     * there is not one.
+     *
+     * <p>The flag's name promised tolerance and at neither value did it tolerate - {@code true}
+     * leaked Avro's own builder exception and {@code false} threw ours. Giving {@code true} a real
+     * outcome is what makes it stop being a lie.</p>
+     *
+     * <p>ENUM, FIXED, RECORD, MAP and a null-free UNION have NO type default. Quietly setting null
+     * there would ship exactly the pathology this pass removes: a schema-valid-looking datum that
+     * is wrong. They fail, naming the field and the reason.</p>
+     */
+    private void fillOrFail(GenericRecordBuilder builder, Schema.Field field,
+                            String fieldPath, List<String> filled) {
+        Schema actual = unwrapNullable(field.schema());
+        Object substitute;
+        switch (actual.getType()) {
+            case STRING:  substitute = ""; break;
+            case INT:     substitute = 0; break;
+            case LONG:    substitute = 0L; break;
+            case FLOAT:   substitute = 0.0f; break;
+            case DOUBLE:  substitute = 0.0d; break;
+            case BOOLEAN: substitute = false; break;
+            case BYTES:   substitute = ByteBuffer.allocate(0); break;
+            case ARRAY:   substitute = new ArrayList<>(); break;
+            case MAP:     substitute = new LinkedHashMap<String, Object>(); break;
+            default:
+                throw new ReconstructionException(
+                        "allowMissingFields(true) cannot substitute a value for required field '"
+                                + fieldPath + "': no Avro type default exists for "
+                                + actual.getType() + ". Supply the key, or give the field a schema "
+                                + "default.");
+        }
+        builder.set(field.name(), substitute);
+        filled.add(fieldPath);
     }
 
     private Object reconstructValue(PathNode node, Schema schema,
@@ -1193,9 +1459,17 @@ public class AvroReconstructor {
             // Look in the child node's arrayFieldValues, not the parent's
             List<Object> nestedValues = childNode.arrayFieldValues.get(nestedFieldName);
 
-            if (nestedValues != null && !nestedValues.isEmpty()) {
-                // Get the value - for JSON arrays, we use the last (or only) element
-                int valueIndex = Math.min(index, nestedValues.size() - 1);
+            if (nestedValues != null && index < nestedValues.size()) {
+                // BL-013 (D3). The clamp that used to live here -
+                //     int valueIndex = Math.min(index, nestedValues.size() - 1);
+                // - is the DUPLICATION mechanism: an index past the end of a short column silently
+                // resolved to that column's LAST value, so sku=S1,S2,S3 beside meta_code=C1,C2
+                // produced a third row whose code repeated the second. With the per-column counts
+                // now guaranteed equal by agreedElementCount it can never legitimately fire, and
+                // leaving it in would preserve a silent-repair path for any future caller that
+                // reaches this method another way. An out-of-range index now falls through to the
+                // ordinary absent-field handling below instead of inventing a repeat.
+                int valueIndex = index;
                 Object rawValue = nestedValues.get(valueIndex);
 
                 // Unwrap nullable schemas to check actual type
@@ -1213,7 +1487,7 @@ public class AvroReconstructor {
                     // This might be an out-of-bounds access in an asymmetric array
                     // Check if we should use a default or skip
                     if (nestedField.hasDefaultValue()) {
-                        value = nestedField.defaultVal();
+                        value = schemaDefault(nestedField, path + "." + nestedFieldName);
                     } else if (!isNullable(nestedField.schema())) {
                         // Required field - try to provide a sensible default
                         log.debug("Providing default for required field {} at index {} (asymmetric array)",
@@ -1268,9 +1542,12 @@ public class AvroReconstructor {
                             if (jsonString.trim().startsWith("[") && jsonString.trim().endsWith("]")) {
                                 try {
                                     parsedArray = objectMapper.readValue(jsonString, List.class);
-                                } catch (Exception jsonEx) {
-                                    // Not valid JSON, try other formats based on arrayFormat
-                                    log.warn("Failed to parse as JSON array: '{}' - {}", jsonString, jsonEx.getMessage());
+                                } catch (com.fasterxml.jackson.core.JsonProcessingException jsonEx) {
+                                    // Not valid JSON, try other formats based on arrayFormat.
+                                    // NARROWED from catch (Exception) - readValue over a String
+                                    // throws only JsonProcessingException, and the wide catch also
+                                    // swallowed programming errors raised further in.
+                                    log.warn("Failed to parse as JSON array: '{}'", jsonString, jsonEx);
                                 }
                             }
 
@@ -1303,7 +1580,9 @@ public class AvroReconstructor {
                                         0);
                             }
                         }
-                    } catch (Exception e) {
+                    } catch (RuntimeException e) {
+                        // NARROWED from catch (Exception). Everything thrown inside this block is
+                        // unchecked; catching Exception added nothing except a SpotBugs finding.
                         if (strictValidation) {
                             throw new IllegalArgumentException(
                                     String.format("Failed to parse nested array JSON in nested record at %s: %s",
@@ -1370,7 +1649,8 @@ public class AvroReconstructor {
                         }
                     }
                 } else if (nestedField.hasDefaultValue()) {
-                    builder.set(nestedFieldName, nestedField.defaultVal());
+                    builder.set(nestedFieldName,
+                            schemaDefault(nestedField, path + "." + nestedFieldName));
                     hasAnyField = true;
                 } else if (isNullable(nestedField.schema())) {
                     builder.set(nestedFieldName, null);
@@ -1397,37 +1677,33 @@ public class AvroReconstructor {
             throw new IllegalStateException("Expected RECORD element type at: " + path);
         }
 
-        // Step 1: Collect all field values, parsing JSON arrays where needed
+        // Step 1: Collect the columns hanging directly off this array node.
+        //
+        // The old Step 1 re-parsed a single-entry column that looked like a JSON array. That is
+        // now redundant AND wrong: deserializeColumn has already split every column by the
+        // CONFIGURED format at insertion time, so a JSON column arrives as a real multi-entry
+        // List and re-parsing a delimited one would silently reintroduce the sniffing this fix
+        // removes. BL-013's filed cause pointed here; measured, this step was a no-op.
         Map<String, List<Object>> parsedFieldValues = new LinkedHashMap<>();
-
         if (node.arrayFieldValues != null) {
             for (Map.Entry<String, List<Object>> entry : node.arrayFieldValues.entrySet()) {
-                String fieldName = entry.getKey();
-                List<Object> rawValues = entry.getValue();
-
-                if (rawValues != null && !rawValues.isEmpty()) {
-                    // Check if values need JSON parsing (they're stored as a single JSON string)
-                    if (rawValues.size() == 1 && rawValues.get(0) instanceof String) {
-                        String strValue = ((String) rawValues.get(0)).trim();
-                        if (strValue.startsWith("[") && strValue.endsWith("]")) {
-                            try {
-                                List<Object> parsed = objectMapper.readValue(strValue, List.class);
-                                parsedFieldValues.put(fieldName, parsed);
-                                continue;
-                            } catch (Exception e) {
-                                log.debug("Could not parse as JSON array: {}", strValue);
-                            }
-                        }
-                    }
-                    parsedFieldValues.put(fieldName, rawValues);
+                if (entry.getValue() != null && !entry.getValue().isEmpty()) {
+                    parsedFieldValues.put(entry.getKey(), entry.getValue());
                 }
             }
         }
 
-        // Step 2: Determine array size from the parsed field values
-        int arraySize = determineArraySize(parsedFieldValues, node, elementSchema);
+        // Step 2: Ask the SCHEMA how many elements there are, per column, and refuse to guess
+        // when the columns disagree.
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        collectElementCounts(node, elementSchema, parsedFieldValues, path, counts);
+        int arraySize = agreedElementCount(counts, path);
 
         if (arraySize == 0) {
+            // REACHABLE since BL-013. determineArraySize ended in `maxSize > 0 ? maxSize : 1`,
+            // which made it incapable of returning 0 and made this branch dead code, so an array
+            // node with no element data produced ONE record of fabricated type-defaults instead
+            // of an empty array.
             return new ArrayList<>();
         }
 
@@ -1444,6 +1720,26 @@ public class AvroReconstructor {
 
                 // Check parsed field values first
                 List<Object> fieldValues = parsedFieldValues.get(fieldName);
+
+                // BL-014. This dispatch had NO UNION ARM. unwrapNullable collapses only [null,T],
+                // so a union of three or more branches arrived here still typed UNION, matched
+                // neither the RECORD test nor the ARRAY test, and fell off the end into
+                // handleMissingField, which saw a NULL branch and wrote a plain null - in total
+                // silence, with the child node holding the real data never read by anything. It is
+                // a never-implemented gap rather than a regression: unwrapUnion had four calls and
+                // zero declarations through ef625f2 and a declaration with zero callers after, so
+                // it never executed and there is nothing to restore.
+                //
+                // Guarded at arity > 2 deliberately. Every currently-passing [null,T] shape keeps
+                // its exact code path, which is why no existing fixture moves; the arity-2
+                // null-free case (where unwrapNullable still returns types.get(0), a first-branch
+                // guess) is filed separately rather than bundled in here.
+                if (fieldSchema.getType() == UNION && fieldSchema.getTypes().size() > 2) {
+                    elementBuilder.set(fieldName, reconstructArrayElementUnion(
+                            node, fieldSchema, field, fieldValues, i,
+                            path + "[" + i + "]." + fieldName, currentDepth + 1));
+                    continue;
+                }
 
                 if (fieldValues != null && i < fieldValues.size()) {
                     Object valueAtIndex = fieldValues.get(i);
@@ -1490,47 +1786,317 @@ public class AvroReconstructor {
         return result;
     }
 
-/**
- * Determine the size of the outer array from parsed field values.
- */
-    private int determineArraySize(Map<String, List<Object>> parsedFieldValues,
-                                   PathNode node, Schema elementSchema) {
-        int maxSize = 0;
+    /**
+     * Resolve a multi-branch union for ONE element of an array of records.
+     *
+     * <p>BL-014. {@code reconstructUnionValue} cannot be called here and that is not a style
+     * preference - it is a precondition failure. It reads {@code node.value}, {@code node.isLeaf},
+     * {@code node.children} and {@code node.arrayFieldValues} as the content of ONE value, and
+     * delegates through {@code reconstructValue}, which takes no index. In the array-element
+     * context no such node exists: the only candidate, {@code node.children.get(fieldName)}, is
+     * COLUMN-WISE - one list of N entries per leaf, one entry per array element, with value and
+     * isLeaf unset. Handing it over would return the same value for every element and would feed
+     * a whole JSON-array column to a scalar field. So the branch-selection RULE is reused; the
+     * method is not.</p>
+     *
+     * <p>Where the flattened form genuinely cannot decide - two record branches sharing the
+     * columns that are present - the repair is impossible and the only correct behaviour is to be
+     * audible. Under the default {@code strictValidation} that is a throw naming both candidates;
+     * under {@code strictValidation(false)} it is a WARN and the first match.</p>
+     */
+    private Object reconstructArrayElementUnion(PathNode arrayNode, Schema unionSchema,
+                                                Schema.Field field, List<Object> flatValues,
+                                                int index, String path, int depth) {
+        String fieldName = field.name();
+        List<Schema> branches = unionSchema.getTypes();
 
-        // Check parsed field values
-        for (List<Object> values : parsedFieldValues.values()) {
-            if (values != null) {
-                maxSize = Math.max(maxSize, values.size());
+        Object scalar = flatValues != null && index < flatValues.size()
+                ? flatValues.get(index) : null;
+        boolean hasScalarValue = scalar != null
+                && !"null".equals(String.valueOf(scalar).trim());
+        boolean looksLikeArrayValue = hasScalarValue && looksLikeArray(scalar);
+
+        PathNode childNode = arrayNode.children.get(fieldName);
+        Set<String> availableChildKeys = new LinkedHashSet<>();
+        if (childNode != null) {
+            if (childNode.arrayFieldValues != null) {
+                availableChildKeys.addAll(childNode.arrayFieldValues.keySet());
+            }
+            availableChildKeys.addAll(childNode.children.keySet());
+        }
+
+        // 1. No content anywhere. Mirrors reconstructUnionValue's leading no-content check.
+        if (!hasScalarValue && availableChildKeys.isEmpty()) {
+            if (isNullable(unionSchema)) {
+                return null;
+            }
+            throw new ReconstructionException("Could not match any union type at: " + path
+                    + " - no value and no columns, and the union " + branchNames(branches)
+                    + " has no null branch");
+        }
+
+        // 2. RECORD branches, in declaration order, that claim at least one available column.
+        List<Schema> recordMatches = matchingRecordBranches(branches, availableChildKeys);
+        if (recordMatches.size() > 1) {
+            String message = "Ambiguous union at " + path + ": record branches "
+                    + branchNames(recordMatches) + " all match the available columns "
+                    + availableChildKeys + ". The flattened form cannot distinguish them - the "
+                    + "column names are identical whichever branch produced them.";
+            if (strictValidation) {
+                throw new ReconstructionException(message);
+            }
+            log.warn("{} Taking the first branch under strictValidation(false).", message);
+        }
+        for (Schema branch : recordMatches) {
+            try {
+                GenericRecord nested = reconstructNestedRecordFromArray(
+                        arrayNode, branch, fieldName, index, path);
+                if (nested != null) {
+                    warnOrphanedColumns(branch, availableChildKeys, path);
+                    return nested;
+                }
+            } catch (RuntimeException e) {
+                logUnionBranchMiss(branch.getType(), path, e);
             }
         }
 
-        // Also check child nodes for nested structures
-        if (node.children != null) {
-            for (PathNode child : node.children.values()) {
-                if (child.arrayFieldValues != null) {
-                    for (List<Object> values : child.arrayFieldValues.values()) {
-                        if (values != null && !values.isEmpty()) {
-                            // Check if first value is a JSON array string
-                            Object first = values.get(0);
-                            if (first instanceof String) {
-                                String strValue = ((String) first).trim();
-                                if (strValue.startsWith("[[")) {
-                                    // Nested array - count outer elements
-                                    try {
-                                        List<Object> parsed = objectMapper.readValue(strValue, List.class);
-                                        maxSize = Math.max(maxSize, parsed.size());
-                                    } catch (Exception e) {
-                                        // Ignore parsing errors
-                                    }
-                                }
-                            }
-                        }
-                    }
+        // 3. ARRAY branch.
+        for (Schema branch : branches) {
+            if (branch.getType() != ARRAY) {
+                continue;
+            }
+            if (childNode != null) {
+                Object fromChild = reconstructNestedArrayFromChildNode(
+                        arrayNode, fieldName, branch, index, path, depth);
+                if (fromChild != null) {
+                    return fromChild;
+                }
+            }
+            if (looksLikeArrayValue) {
+                return reconstructNestedArray(scalar, branch, arrayNode, fieldName, index,
+                        path, depth);
+            }
+        }
+
+        // 4. Primitive, enum and fixed branches, tried in declaration order exactly as
+        //    reconstructUnionValue tries them. The BRANCH schema is passed to convertPrimitive,
+        //    never the union - which is the second, separate fault BL-014 did not name: with the
+        //    union, convertPrimitive's switch has no UNION case, "default: return value" hands
+        //    back a Jackson-boxed Integer for a ["null","long","string"] field, and the datum
+        //    fails GenericData.validate and throws UnresolvedUnionException at write time.
+        if (hasScalarValue) {
+            for (Schema branch : branches) {
+                Schema.Type t = branch.getType();
+                if (t == NULL || t == RECORD || t == ARRAY || t == MAP) {
+                    continue;
+                }
+                try {
+                    return convertPrimitive(scalar, branch, path);
+                } catch (RuntimeException e) {
+                    logUnionBranchMiss(t, path, e);
                 }
             }
         }
 
-        return maxSize > 0 ? maxSize : 1;
+        // 5. Residue: nothing matched. Before this arm existed the field simply became null with
+        //    no log line of any severity, which is the exact "laundering failures into apparent
+        //    successes" shape this pass is about.
+        String names = branchNames(branches);
+        log.warn("Could not match any union type at {}: branches {}, unconsumed columns {}, "
+                + "scalar present={}", path, names, availableChildKeys, hasScalarValue);
+        if (strictValidation) {
+            throw new ReconstructionException("Could not match any union type at: " + path);
+        }
+        if (isNullable(unionSchema)) {
+            return null;
+        }
+        throw new ReconstructionException("Could not match any union type at: " + path
+                + " and the union " + branchNames(branches) + " has no null branch");
+    }
+
+    private List<Schema> matchingRecordBranches(List<Schema> branches,
+                                                Set<String> availableChildKeys) {
+        List<Schema> out = new ArrayList<>();
+        for (Schema branch : branches) {
+            if (branch.getType() != RECORD) {
+                continue;
+            }
+            for (Schema.Field f : branch.getFields()) {
+                if (availableChildKeys.contains(f.name())) {
+                    out.add(branch);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Columns that exist but no field of the chosen branch consumes.
+     *
+     * <p>WARN only in 2.1.0. Making the orphan count DECISIVE would change which branch wins on
+     * shapes no fixture covers, which is a selection change dressed as a reporting change.</p>
+     */
+    private void warnOrphanedColumns(Schema chosen, Set<String> availableChildKeys, String path) {
+        Set<String> orphans = new LinkedHashSet<>(availableChildKeys);
+        for (Schema.Field f : chosen.getFields()) {
+            orphans.remove(f.name());
+        }
+        if (!orphans.isEmpty()) {
+            String chosenName = chosen.getFullName();
+            log.warn("Union branch {} chosen at {} leaves columns {} unconsumed - their data is "
+                    + "not represented in the reconstructed value", chosenName, path, orphans);
+        }
+    }
+
+    private String branchNames(List<Schema> branches) {
+        List<String> names = new ArrayList<>(branches.size());
+        for (Schema b : branches) {
+            names.add(b.getType() == RECORD ? b.getFullName() : b.getType().getName());
+        }
+        return names.toString();
+    }
+
+    /**
+     * Walk the ELEMENT SCHEMA and record how many elements each column says there are.
+     *
+     * <p>BL-013 (D1). This replaces {@code determineArraySize}, which walked the PathNode tree
+     * blindly. Its child-node loop only counted a child's values when the FIRST value was a String
+     * starting with {@code "[["} - but the column had already been parsed into a real List of
+     * plain strings upstream, so that test could never fire for an ordinary column. When every
+     * field of the element lived inside a NESTED RECORD, the array node carried no
+     * arrayFieldValues at all, nothing was counted, and a trailing
+     * {@code return maxSize > 0 ? maxSize : 1} FABRICATED a size of 1. Measured: a three-element
+     * array came back as one under all four formats INCLUDING the JSON default, with no error, no
+     * log above debug, and a datum that validates against its schema. Every one of the 29 AVRO
+     * fixtures puts a scalar at the element root, which is exactly why none of them caught it.</p>
+     *
+     * <p>ARRAY-typed fields are counted at THIS level and not descended into: their column already
+     * holds one entry per OUTER element, and their inner cardinality is a different question -
+     * nested arrays of records are legitimately ragged (three attributes on one product, two on
+     * the next) and comparing inner lengths would turn a feature into a failure.</p>
+     */
+    private void collectElementCounts(PathNode node, Schema elementSchema,
+                                      Map<String, List<Object>> columns,
+                                      String columnPrefix, Map<String, Integer> counts) {
+        for (Schema.Field field : elementSchema.getFields()) {
+            String name = field.name();
+            String columnPath = columnPrefix + separator
+                    + FlattenedPath.escapeSegment(name, separator);
+            Schema resolved = unwrapNullable(field.schema());
+            Schema recordBranch = soleRecordBranch(resolved);
+
+            if (recordBranch != null) {
+                PathNode child = node.children.get(name);
+                if (child != null) {
+                    Map<String, List<Object>> childColumns = child.arrayFieldValues == null
+                            ? Collections.<String, List<Object>>emptyMap()
+                            : child.arrayFieldValues;
+                    collectElementCounts(child, recordBranch, childColumns, columnPath, counts);
+                }
+                continue;
+            }
+
+            if (resolved.getType() == ARRAY) {
+                List<Object> own = columns.get(name);
+                if (own != null && !own.isEmpty()) {
+                    counts.put(columnPath, own.size());
+                    continue;
+                }
+                // An array OF RECORDS hangs its inner columns off a child node. Each of those
+                // columns still holds one entry per OUTER element, so it is a valid signal for
+                // this level even though we never descend into the inner record's own cardinality.
+                PathNode child = node.children.get(name);
+                if (child != null && child.arrayFieldValues != null) {
+                    for (Map.Entry<String, List<Object>> e : child.arrayFieldValues.entrySet()) {
+                        if (e.getValue() != null && !e.getValue().isEmpty()) {
+                            counts.put(columnPath + separator
+                                    + FlattenedPath.escapeSegment(e.getKey(), separator),
+                                    e.getValue().size());
+                        }
+                    }
+                }
+                continue;
+            }
+
+            List<Object> values = columns.get(name);
+            if (values != null && !values.isEmpty()) {
+                counts.put(columnPath, values.size());
+            }
+        }
+    }
+
+    /**
+     * The single element count every column agrees on, or a named failure.
+     *
+     * <p>BL-013 (D3). {@code Math.max} used to pick the longest column and invent the shortfall:
+     * short scalar columns were padded with {@code ""} and {@code 0} by {@code handleMissingField},
+     * and short nested-record columns had their LAST value duplicated by a
+     * {@code Math.min(index, size - 1)} clamp. Measured: {@code sku=S1,S2,S3} beside
+     * {@code meta_code=C1,C2} produced a third row whose code repeated the second; the reverse
+     * direction silently discarded C3. Neither logged anything.</p>
+     *
+     * <p>Deliberately NOT gated on strictValidation or allowMissingFields: BL-012 measured that
+     * allowMissingFields already selects WHICH exception fires rather than whether one does, and
+     * overloading either knob with a third meaning repeats the defect the audit named.</p>
+     */
+    private int agreedElementCount(Map<String, Integer> counts, String path) {
+        Set<Integer> distinct = new LinkedHashSet<>();
+        for (Integer c : counts.values()) {
+            if (c != null && c > 0) {
+                distinct.add(c);
+            }
+        }
+        if (distinct.isEmpty()) {
+            return 0;
+        }
+        if (distinct.size() > 1) {
+            StringBuilder sb = new StringBuilder(path)
+                    .append(": element counts disagree across columns - ");
+            boolean first = true;
+            for (Map.Entry<String, Integer> e : counts.entrySet()) {
+                if (e.getValue() == null || e.getValue() == 0) {
+                    continue;
+                }
+                if (!first) {
+                    sb.append(", ");
+                }
+                sb.append(e.getKey()).append('=').append(e.getValue());
+                first = false;
+            }
+            sb.append(" (arrayFormat=").append(arrayFormat).append("). Padding the short columns "
+                    + "or duplicating their last value would produce a schema-valid record that is "
+                    + "wrong, so this is refused rather than repaired.");
+            throw new ArrayCardinalityException(sb.toString());
+        }
+        return distinct.iterator().next();
+    }
+
+    /**
+     * The one RECORD branch of a schema, if there is exactly one.
+     *
+     * <p>Counting has to see through a multi-branch union or it will fail to descend into the very
+     * field BL-014 says is silently dropped, leaving it silently UNCOUNTED as well. "Exactly one"
+     * is the honest boundary: with two record branches the flattened form cannot say which one the
+     * columns belong to, and guessing here would make the sizing depend on a coin flip.</p>
+     */
+    private Schema soleRecordBranch(Schema schema) {
+        if (schema.getType() == RECORD) {
+            return schema;
+        }
+        if (schema.getType() != UNION) {
+            return null;
+        }
+        Schema found = null;
+        for (Schema branch : schema.getTypes()) {
+            if (branch.getType() == RECORD) {
+                if (found != null) {
+                    return null;
+                }
+                found = branch;
+            }
+        }
+        return found;
     }
 
 /**
@@ -1664,8 +2230,8 @@ public class AvroReconstructor {
                                 innerArraySize = Math.max(innerArraySize, innerList.size());
                             }
                             continue;
-                        } catch (Exception e) {
-                            log.debug("Failed to parse doubly-nested array: {}", strValue);
+                        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                            log.debug("Failed to parse doubly-nested array: {}", strValue, e);
                         }
                     }
 
@@ -1676,8 +2242,8 @@ public class AvroReconstructor {
                             fieldValuesAtIndex.put(fieldName, parsed);
                             innerArraySize = Math.max(innerArraySize, parsed.size());
                             continue;
-                        } catch (Exception e) {
-                            log.debug("Failed to parse nested array: {}", strValue);
+                        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                            log.debug("Failed to parse nested array: {}", strValue, e);
                         }
                     }
 
@@ -1732,7 +2298,7 @@ public class AvroReconstructor {
  */
     private void handleMissingField(GenericRecordBuilder builder, Schema.Field field) {
         if (field.hasDefaultValue()) {
-            builder.set(field.name(), field.defaultVal());
+            builder.set(field.name(), schemaDefault(field, field.name()));
         } else if (isNullable(field.schema())) {
             builder.set(field.name(), null);
         } else {
@@ -1763,7 +2329,19 @@ public class AvroReconstructor {
                 default:
                     log.warn("Cannot provide default for required field {} of type {}",
                             field.name(), actualSchema.getType());
+                    return;
             }
+            // DISCLOSED INCONSISTENCY, not a repair. This invention is hard-wired ON and is NOT
+            // reachable from allowMissingFields, so the library fails loudly for a missing
+            // required field at the root and quietly substitutes "" for the same field one level
+            // down inside an array element. Gating it would turn array-of-records reconstructions
+            // that succeed today into throws at the shipped default and is tracked separately; it
+            // is at least AUDIBLE now.
+            Schema.Type substituted = actualSchema.getType();
+            String named = field.name();
+            log.warn("Substituted the {} type default for required array-element field {} - it "
+                    + "had no value and no schema default. This substitution is not gated by "
+                    + "allowMissingFields.", substituted, named);
         }
     }
 
@@ -1781,8 +2359,11 @@ public class AvroReconstructor {
         // Try JSON parsing first
         try {
             return objectMapper.readValue(trimmed, LIST_OF_OBJECT);
-        } catch (Exception e) {
-            // Fall back to bracket-aware parsing
+        } catch (com.fasterxml.jackson.core.JsonProcessingException notJson) {
+            // NARROWED from catch (Exception). A genuine try-JSON-then-brackets cascade: the
+            // bracket reader on the next line IS the answer when the text is not JSON, so there
+            // is nothing to report and the catch body is real work rather than a comment. The
+            // wide catch also swallowed every unchecked failure raised inside readValue.
             return parseBracketListPreservingNesting(trimmed);
         }
     }
@@ -1990,6 +2571,26 @@ public class AvroReconstructor {
         return result;
     }
 
+    /**
+     * One place where a union branch reports that it did not fit.
+     *
+     * <p>This was FIVE near-identical {@code log.debug} statements - four in
+     * {@code reconstructUnionValue} and one in the new array-element resolver - each formatting
+     * {@code e.getMessage()} eagerly into its arguments. Folding them into one method is the
+     * ordinary reason (they say the same thing) and two measured ones: it takes four
+     * {@code GuardLogStatement} findings off PMD, because the method call in the argument list is
+     * gone, and four {@code CRLF_INJECTION_LOGS} off SpotBugs, because there is now one logging
+     * site instead of five. The ratchets in .github/quality-baseline.json may only go down, and
+     * this pass adds logging, so every new line has to be paid for somewhere.</p>
+     *
+     * <p>DEBUG, not WARN, and deliberately: trying the branches in declaration order IS the
+     * algorithm. A branch declining is the algorithm working. The caller warns once when NONE of
+     * them fits, which is the outcome that actually needs to be heard.</p>
+     */
+    private void logUnionBranchMiss(Schema.Type branch, String path, RuntimeException e) {
+        log.debug("Union branch {} did not match at {}", branch, path, e);
+    }
+
     private Object reconstructUnionValue(PathNode node, Schema unionSchema,
                                          String path, int currentDepth) {
         List<Schema> types = unionSchema.getTypes();
@@ -2101,8 +2702,8 @@ public class AvroReconstructor {
                         if (result != null) {
                             return result;
                         }
-                    } catch (Exception e) {
-                        log.debug("Union RECORD type didn't match at {}: {}", path, e.getMessage());
+                    } catch (RuntimeException e) {
+                        logUnionBranchMiss(type.getType(), path, e);
                     }
                 }
                 continue;
@@ -2113,8 +2714,8 @@ public class AvroReconstructor {
                 if (hasArrayValues || (hasLeafValue && looksLikeArray(node.value))) {
                     try {
                         return reconstructValue(node, type, path, currentDepth);
-                    } catch (Exception e) {
-                        log.debug("Union ARRAY type didn't match at {}: {}", path, e.getMessage());
+                    } catch (RuntimeException e) {
+                        logUnionBranchMiss(type.getType(), path, e);
                         continue;
                     }
                 }
@@ -2126,8 +2727,8 @@ public class AvroReconstructor {
                 if (hasChildren) {
                     try {
                         return reconstructValue(node, type, path, currentDepth);
-                    } catch (Exception e) {
-                        log.debug("Union MAP type didn't match at {}: {}", path, e.getMessage());
+                    } catch (RuntimeException e) {
+                        logUnionBranchMiss(type.getType(), path, e);
                         continue;
                     }
                 }
@@ -2138,8 +2739,8 @@ public class AvroReconstructor {
             if (hasLeafValue) {
                 try {
                     return reconstructValue(node, type, path, currentDepth);
-                } catch (Exception e) {
-                    log.debug("Union type {} didn't match at {}: {}", type.getType(), path, e.getMessage());
+                } catch (RuntimeException e) {
+                    logUnionBranchMiss(type.getType(), path, e);
                     continue;
                 }
             }
@@ -2208,6 +2809,39 @@ public class AvroReconstructor {
 
     // ========================= TYPE CONVERSION =========================
 
+    // Why each FIXED decode strategy declined. A bitmask rather than a StringBuilder: this is a
+    // hot path and the text is only ever needed on the two cold outcomes.
+    private static final int DECODE_B64_PREFIX = 1;
+    private static final int DECODE_BYTE_ARRAY = 2;
+    private static final int DECODE_BARE_BASE64 = 4;
+    private static final int DECODE_BARE_BASE64_WRONG_LENGTH = 8;
+    private static final int DECODE_HEX = 16;
+    private static final int DECODE_HEX_SHAPE = 32;
+
+    private static String decodeTrace(int declined) {
+        if (declined == 0) {
+            return "none attempted";
+        }
+        StringBuilder sb = new StringBuilder();
+        appendIf(sb, declined, DECODE_B64_PREFIX, "B64-prefix:invalid-base64");
+        appendIf(sb, declined, DECODE_BYTE_ARRAY, "byte-array:not-numeric");
+        appendIf(sb, declined, DECODE_BARE_BASE64, "bare-base64:invalid");
+        appendIf(sb, declined, DECODE_BARE_BASE64_WRONG_LENGTH,
+                "bare-base64:decoded-but-wrong-length");
+        appendIf(sb, declined, DECODE_HEX, "hex:not-numeric");
+        appendIf(sb, declined, DECODE_HEX_SHAPE, "hex:wrong-length-or-not-hex");
+        return sb.toString();
+    }
+
+    private static void appendIf(StringBuilder sb, int declined, int bit, String name) {
+        if ((declined & bit) != 0) {
+            if (sb.length() > 0) {
+                sb.append("; ");
+            }
+            sb.append(name);
+        }
+    }
+
     private Object convertPrimitive(Object value, Schema schema, String path) {
         if (value == null) {
             return null;
@@ -2254,8 +2888,12 @@ public class AvroReconstructor {
                             String base64Data = strValue.substring(4);
                             byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
                             return ByteBuffer.wrap(decodedBytes);
-                        } catch (Exception e) {
-                            log.warn("Failed to decode Base64 for BYTES field at " + path + ": " + strValue, e);
+                        } catch (IllegalArgumentException notBase64) {
+                            // NARROWED from catch (Exception): Base64.decode throws only
+                            // IllegalArgumentException. The message was also built by
+                            // concatenation, so it was formatted whether or not WARN was enabled.
+                            log.warn("Failed to decode Base64 for BYTES field at {}: {}",
+                                    path, strValue, notBase64);
                             // Fall through to default handling
                         }
                     }
@@ -2283,15 +2921,29 @@ public class AvroReconstructor {
                         fixedBytes = new byte[bb.remaining()];
                         bb.get(fixedBytes);
                     } else {
-                        // Try various decode strategies
+                        // Try various decode strategies.
+                        //
+                        // THIS STAYS A CASCADE - it is a genuine try-this-then-that chain over
+                        // five mutually exclusive encodings. What changes is that each declining
+                        // strategy now RECORDS why, into a bitmask that costs one int on the
+                        // success path and is rendered to text only when something goes wrong.
+                        // A StringBuilder here would be the obvious implementation and the wrong
+                        // one: this is a hot reconstruction path.
+                        //
+                        // TWO OF THE FIVE DECLINE WITHOUT THROWING AT ALL, and those were the
+                        // truly invisible ones: Strategy 3 can Base64-DECODE SUCCESSFULLY and then
+                        // discard the result for being the wrong length, and Strategy 4's
+                        // pre-check can fail on length or charset class. Neither left a trace, and
+                        // both are how execution reaches Strategy 5.
                         fixedBytes = null;
+                        int declined = 0;
 
                         // Strategy 1: Check for explicit B64: prefix
                         if (strValue.startsWith("B64:")) {
                             try {
                                 fixedBytes = Base64.getDecoder().decode(strValue.substring(4));
-                            } catch (Exception e) {
-                                // Not valid Base64
+                            } catch (IllegalArgumentException notBase64) {
+                                declined |= DECODE_B64_PREFIX;
                             }
                         }
 
@@ -2306,8 +2958,8 @@ public class AvroReconstructor {
                                         fixedBytes[idx] = (byte) Integer.parseInt(parts[idx].trim());
                                     }
                                 }
-                            } catch (Exception e) {
-                                // Not valid array format
+                            } catch (NumberFormatException notByteArray) {
+                                declined |= DECODE_BYTE_ARRAY;
                                 fixedBytes = null;
                             }
                         }
@@ -2318,9 +2970,13 @@ public class AvroReconstructor {
                                 byte[] decoded = Base64.getDecoder().decode(strValue);
                                 if (decoded.length == expectedSize) {
                                     fixedBytes = decoded;
+                                } else {
+                                    // Decoded fine and was thrown away for its length. Silent
+                                    // before this line existed.
+                                    declined |= DECODE_BARE_BASE64_WRONG_LENGTH;
                                 }
-                            } catch (Exception e) {
-                                // Not valid Base64
+                            } catch (IllegalArgumentException notBase64) {
+                                declined |= DECODE_BARE_BASE64;
                             }
                         }
 
@@ -2333,16 +2989,40 @@ public class AvroReconstructor {
                                     for (int idx = 0; idx < expectedSize; idx++) {
                                         fixedBytes[idx] = (byte) Integer.parseInt(hexStr.substring(idx * 2, idx * 2 + 2), 16);
                                     }
+                                } else {
+                                    declined |= DECODE_HEX_SHAPE;
                                 }
-                            } catch (Exception e) {
-                                // Not valid hex
+                            } catch (NumberFormatException notHex) {
+                                declined |= DECODE_HEX;
                             }
                         }
 
                         // Strategy 5: Fallback to raw string bytes (legacy behavior)
                         if (fixedBytes == null) {
                             fixedBytes = strValue.getBytes();
+                            if (fixedBytes.length == expectedSize) {
+                                // THE SILENT SUCCESS. No strategy decoded this value, and the raw
+                                // platform-charset bytes happen to be the right length, so the
+                                // size check below passes and the caller receives fabricated
+                                // bytes with no exception. Measured example: FIXED(size=4) with
+                                // the value "abcd" - Strategy 3 Base64-decodes it to 3 bytes and
+                                // discards that, Strategy 4 declines on length, and 0x61626364
+                                // comes back as though it had been decoded. Charset-dependent
+                                // too, which is separately recorded as a corpus DEFECT.
+                                log.warn("FIXED value at {} was decoded by NO strategy; falling "
+                                        + "back to raw platform-charset bytes [declined: {}]",
+                                        path, decodeTrace(declined));
+                            }
                         }
+
+                        if (fixedBytes.length != expectedSize) {
+                            throw new IllegalArgumentException(
+                                    String.format("Fixed size mismatch at %s: expected %d, got %d "
+                                            + "(value was: %.50s...) [decode strategies: %s]",
+                                            path, expectedSize, fixedBytes.length, strValue,
+                                            decodeTrace(declined)));
+                        }
+                        return new GenericData.Fixed(actualSchema, fixedBytes);
                     }
 
                     if (fixedBytes.length != expectedSize) {
@@ -2365,6 +3045,20 @@ public class AvroReconstructor {
                         enumValue = actualSchema.getEnumSymbols().get(0);
                     }
                     return new GenericData.EnumSymbol(actualSchema, enumValue);
+
+                case UNION:
+                    // Defence, not a repair. unwrapNullable resolves only [null,T], so a union of
+                    // three or more branches arrives here still a UNION, falls to `default` and is
+                    // returned UNCONVERTED - a Jackson-boxed Integer into a ["null","long",...]
+                    // slot, which validates false and throws UnresolvedUnionException at write
+                    // time. The array-element caller is fixed at the CALL SITE (it now passes the
+                    // selected branch, never the union). Any other caller that reaches this line
+                    // is now heard rather than silent.
+                    int arity = actualSchema.getTypes().size();
+                    log.warn("convertPrimitive received a {}-branch UNION at {} and cannot choose "
+                            + "a branch; returning the value unconverted, which may produce a "
+                            + "datum that fails to encode", arity, path);
+                    return value;
 
                 default:
                     return value;
@@ -2764,8 +3458,10 @@ public class AvroReconstructor {
                 if (looksLikeJson) {
                     try {
                         parsedArray = objectMapper.readValue(strValue, List.class);
-                    } catch (Exception e) {
-                        log.debug("Not valid JSON, will try format-specific parsing: {}", strValue);
+                    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                        // NARROWED from catch (Exception).
+                        log.debug("Not valid JSON, will try format-specific parsing: {}",
+                                strValue, e);
                     }
                 }
 
@@ -2942,11 +3638,16 @@ public class AvroReconstructor {
         GenericRecordBuilder builder = new GenericRecordBuilder(schema);
 
         for (Schema.Field field : schema.getFields()) {
-            Object value = map.get(field.name());
-            if (value != null) {
-                builder.set(field.name(), value);
+            // containsKey, not `value != null`. NP-023: reconstructRecord now puts a REAL null in
+            // the map for a null-defaulted field, so `map.get` returns null and the old test put
+            // the JsonProperties.NULL_VALUE sentinel straight back - silently undoing the repair
+            // on the reconstruct() path only. It also conflated two different things: a field
+            // legitimately reconstructed AS null was overwritten by the schema default, so the two
+            // public entry points disagreed about it.
+            if (map.containsKey(field.name())) {
+                builder.set(field.name(), map.get(field.name()));
             } else if (field.hasDefaultValue()) {
-                builder.set(field.name(), field.defaultVal());
+                builder.set(field.name(), schemaDefault(field, field.name()));
             } else if (isNullable(field.schema())) {
                 builder.set(field.name(), null);
             }
@@ -2971,6 +3672,50 @@ public class AvroReconstructor {
     public static class ReconstructionException extends RuntimeException {
         public ReconstructionException(String message, Throwable cause) {
             super(message, cause);
+        }
+
+        /**
+         * Additive since 2.1.0. Several failures this class now reports have no underlying cause
+         * to carry - a missing required field, disagreeing column counts - and wrapping them in a
+         * fabricated cause would be worse than saying so plainly.
+         */
+        public ReconstructionException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * The columns of one array level disagree about how many elements there are.
+     *
+     * <p>Added in 2.1.0. Before it, {@code Math.max} picked the longest column: short scalar
+     * columns were padded with {@code ""} and {@code 0}, and short nested-record columns had their
+     * LAST value duplicated into every remaining row. Both produced a datum that validates against
+     * its schema and is wrong, with no exception and no log line. Measured: {@code sku=S1,S2,S3}
+     * beside {@code meta_code=C1,C2} produced a third row whose code repeated the second, and the
+     * reverse direction discarded C3 with no record of its existence.</p>
+     *
+     * <p>The message names every column and its count and the configured array format, because the
+     * usual cause is a producer and a consumer disagreeing about the delimiter.</p>
+     */
+    public static class ArrayCardinalityException extends ReconstructionException {
+        public ArrayCardinalityException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * The configured {@link ArraySerializationFormat} contradicts the text actually present.
+     *
+     * <p>Added in 2.1.0, and deliberately narrow: it fires only when a delimited format
+     * (COMMA_SEPARATED or PIPE_SEPARATED) is handed text that is well-formed JSON array syntax.
+     * That is a detectable CONTRADICTION rather than a guess - JSON's grammar is self-delimiting
+     * and {@link MapFlattener}'s comma and pipe writers structurally cannot emit a bracketed,
+     * quoted list - so the only two readings are "the config is wrong" or "split the JSON on its
+     * internal commas and produce garbage". Saying so is better than either.</p>
+     */
+    public static class ArrayFormatMismatchException extends ReconstructionException {
+        public ArrayFormatMismatchException(String message) {
+            super(message);
         }
     }
 }

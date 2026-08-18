@@ -1,0 +1,62 @@
+{
+  "id" : "avro-array-of-records-pipe-format-comma-inside-element",
+  "family" : "avro",
+  "title" : "PIPE_SEPARATED array of records with a comma inside an element value",
+  "stack" : "AVRO",
+  "referenceIssue" : "BL-013",
+  "rationale" : "The first fixture in the corpus to set config.avro.reconstructor.arrayFormat, and the first to prove the knob is live on the array-of-records path. It was NOT: measured on a document built to reach that branch, all four settings produced byte-identical output, because the split ran in a static method that structurally could not read the instance field and sniffed JSON-then-comma-then-pipe instead. Comma before pipe meant that under PIPE_SEPARATED a legal comma inside 'Bolt, hex, M8' was treated as a delimiter and FABRICATED a third element. MapFlattener's javadoc warns about delimiter collisions for the delimiter you configured; it promises nothing about the other one, and there is nothing ambiguous about this document - the pipes are exactly where the element boundaries are.",
+  "catchesBugClass" : "A configuration knob that is published, documented and inert on one of the two paths it names, and the row fabrication that inertness caused. It also pins the direction: adding rows is as much a data corruption as losing them, and it is the direction nobody looks for.",
+  "cannotCatch" : "It cannot catch the inverse ambiguity, which is information-theoretically unrecoverable: under COMMA_SEPARATED this same document flattens to text that is byte-identical to four genuine elements, and no reconstructor change can distinguish them. That residue is caught only indirectly, when the resulting column counts disagree and ArrayCardinalityException fires - and a document where EVERY column happened to contain the same number of stray delimiters would split consistently and pass while being silently wrong.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "With the configured format honoured, the pipe is the only delimiter, so the two elements survive with the comma-bearing description intact."
+  },
+  "configDescription" : "assert DATA, mapFlattener.arrayFormat=PIPE_SEPARATED, avro.reconstructor.arrayFormat=PIPE_SEPARATED",
+  "config" : {
+    "mapFlattener" : {
+      "arrayFormat" : "PIPE_SEPARATED"
+    },
+    "avro" : {
+      "assert" : "DATA",
+      "reconstructor" : {
+        "arrayFormat" : "PIPE_SEPARATED"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "O2",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "line_items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "LineItem2",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              }, {
+                "name" : "description",
+                "type" : "string"
+              }, {
+                "name" : "quantity",
+                "type" : "int"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"line_items\":[{\"sku\":\"SKU-311\",\"description\":\"Bolt, hex, M8\",\"quantity\":4},{\"sku\":\"SKU-312\",\"description\":\"Washer\",\"quantity\":8}]}",
+  "measurementNote" : "PRE-FIX BEHAVIOUR, MEASURED VERBATIM AS A JUnit FAILURE BEFORE THE REPAIR. AvroArrayOfRecordsSizingTest.pipeFormatDoesNotSplitOnACommaInsideAnElement, run against the unfixed code: 'flat={line\\_items_sku=SKU-311|SKU-312, line\\_items_description=Bolt, hex, M8|Washer, line\\_items_quantity=4|8} back={line_items=[{sku=SKU-311, description=Bolt, quantity=4}, {sku=SKU-312, description=hex, quantity=8}, {sku=, description=M8|Washer, quantity=0}]} ==> expected: <2> but was: <3>'. Note the third element: it carries sku=\"\" and quantity=0 invented by handleMissingField, and its description STILL CONTAINS THE REAL DELIMITER, which is the clearest possible evidence that the split was done on the wrong character. THE INERTNESS PROOF, same run: AvroArrayOfRecordsSizingTest.arrayFormatIsLiveForArraysOfRecords failed with 'COMMA_SEPARATED must treat a pipe as ordinary data; got [{sku=A}, {sku=B}] ==> expected: <1> but was: <2>' - every one of the four settings returned the same two elements for the column text A|B.",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : false,
+    "flat" : "{\"line\\\\_items_description\":\"S:Bolt, hex, M8|Washer\",\"line\\\\_items_quantity\":\"S:4|8\",\"line\\\\_items_sku\":\"S:SKU-311|SKU-312\"}",
+    "avroBaseline" : "{\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}]}",
+    "avroDoc" : "{\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}]}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

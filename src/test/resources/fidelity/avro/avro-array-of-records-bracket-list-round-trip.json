@@ -1,0 +1,61 @@
+{
+  "id" : "avro-array-of-records-bracket-list-round-trip",
+  "family" : "avro",
+  "title" : "CONTROL: BRACKET_LIST array of records with a comma inside an element value",
+  "stack" : "AVRO",
+  "referenceIssue" : "BL-013",
+  "rationale" : "DECLARED A CONTROL, not evidence of a fix: it is predicted LOSSLESS before and after, and it earns its place only beside avro-array-of-records-pipe-format-comma-inside-element, which can actually fail. Its job is to hold the other half of the format boundary. BRACKET_LIST is the format most likely to be broken by a careless 'honour the configured delimiter' change, because MapFlattener's BRACKET_LIST writer QUOTES and ESCAPES its strings and recurses into nested lists - it is not brackets around raw text. A reader that split it bracket-aware on a comma without unquoting would return a value with literal backslashes in it, which is exactly what happened during this repair and what DoublyNestedArrayTest caught.",
+  "catchesBugClass" : "A format-aware column splitter that uses the wrong reader for BRACKET_LIST, and any change that makes the JSON-contradiction check fire on BRACKET_LIST's own legitimate bracketed output.",
+  "cannotCatch" : "It proves nothing about the delimited formats and nothing about element loss - both are covered by the two rows beside it. Being a control, a green result here is not evidence that anything was repaired.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "BRACKET_LIST quotes each element, so the comma inside the description is inside quotes and the bracket-aware reader keeps the two elements intact. Unchanged by the repair."
+  },
+  "configDescription" : "assert DATA, mapFlattener.arrayFormat=BRACKET_LIST, avro.reconstructor.arrayFormat=BRACKET_LIST",
+  "config" : {
+    "mapFlattener" : {
+      "arrayFormat" : "BRACKET_LIST"
+    },
+    "avro" : {
+      "assert" : "DATA",
+      "reconstructor" : {
+        "arrayFormat" : "BRACKET_LIST"
+      },
+      "avsc" : {
+        "type" : "record",
+        "name" : "O2b",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "line_items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "LineItem2b",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              }, {
+                "name" : "description",
+                "type" : "string"
+              }, {
+                "name" : "quantity",
+                "type" : "int"
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"line_items\":[{\"sku\":\"SKU-311\",\"description\":\"Bolt, hex, M8\",\"quantity\":4},{\"sku\":\"SKU-312\",\"description\":\"Washer\",\"quantity\":8}]}",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"line\\\\_items_description\":\"S:[\\\"Bolt, hex, M8\\\", \\\"Washer\\\"]\",\"line\\\\_items_quantity\":\"S:[4, 8]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-311\\\", \\\"SKU-312\\\"]\"}",
+    "avroBaseline" : "{\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}]}",
+    "avroDoc" : "{\"line_items\":[{\"description\":\"S:Bolt, hex, M8\",\"quantity\":\"I:4\",\"sku\":\"S:SKU-311\"},{\"description\":\"S:Washer\",\"quantity\":\"I:8\",\"sku\":\"S:SKU-312\"}]}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

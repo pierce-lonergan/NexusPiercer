@@ -1,0 +1,63 @@
+{
+  "id" : "avro-array-of-records-nested-only-collapses-to-one",
+  "family" : "avro",
+  "title" : "Array of records whose element fields ALL live inside a nested record",
+  "stack" : "AVRO",
+  "referenceIssue" : "BL-013",
+  "rationale" : "The one shape the 29 existing AVRO rows could not reach. Every array-of-records fixture in the corpus carries at least one scalar column at the ELEMENT ROOT, which is precisely the condition under which the sizing code worked. Remove that scalar - put every element field inside a nested record - and the array node carries no arrayFieldValues at all, so the size had to come from the child nodes, and it did not. Three elements came back as one under all four formats INCLUDING the JSON default. Two elements would have been enough to prove the collapse; three is used so that a fix which repairs only 'the last one' is also caught.",
+  "catchesBugClass" : "Silent element loss in an array of records - the pass theme's headline shape, an array quietly losing N-1 records with no exception, no log above debug, and a datum that validates against its own schema. Also catches a regression in the schema-guided counter: if a future edit goes back to walking the PathNode tree, this row goes red immediately because there is nothing in that tree to walk.",
+  "cannotCatch" : "It cannot catch the disagreeing-column-count case, and no corpus row can: FidelityFixture takes a source DOCUMENT, the harness flattens it, and MapFlattener always emits equal-length columns from a well-formed document. Ragged columns arise only from EXTERNALLY produced flat maps - Athena, Spark, CDC - which the corpus has no way to express. Those are pinned in AvroArrayOfRecordsSizingTest instead. It also does not cover a multi-branch union inside the nested record; unwrapNullable resolves only [null,T] and the counter's soleRecordBranch deliberately declines when two record branches are present.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The element counter walks the ELEMENT SCHEMA, descends into the nested record through the child node and counts meta.code=3 and meta.label=3, so all three elements are rebuilt in order."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "O3",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "order_id",
+          "type" : "string"
+        }, {
+          "name" : "line_items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "LineItem",
+              "fields" : [ {
+                "name" : "meta",
+                "type" : {
+                  "type" : "record",
+                  "name" : "Meta",
+                  "fields" : [ {
+                    "name" : "code",
+                    "type" : "string"
+                  }, {
+                    "name" : "label",
+                    "type" : "string"
+                  } ]
+                }
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"order_id\":\"O1\",\"line_items\":[{\"meta\":{\"code\":\"C1\",\"label\":\"L1\"}},{\"meta\":{\"code\":\"C2\",\"label\":\"L2\"}},{\"meta\":{\"code\":\"C3\",\"label\":\"L3\"}}]}",
+  "measurementNote" : "PRE-FIX BEHAVIOUR, MEASURED VERBATIM AS A JUnit FAILURE BEFORE THE REPAIR AND RECORDED HERE BECAUSE THIS FIXTURE WAS WRITTEN IN THE SAME COMMIT AS THE REPAIR. AvroArrayOfRecordsSizingTest.nestedOnlyElementsKeepEveryElement, run against the unfixed code, failed IDENTICALLY at all four ArraySerializationFormat values: 'three elements must survive; flat={order\\_id=O1, line\\_items_meta_code=[\"C1\",\"C2\",\"C3\"], line\\_items_meta_label=[\"L1\",\"L2\",\"L3\"]} back={order_id=O1, line_items=[{meta={code=C1, label=L1}}]} ==> expected: <3> but was: <1>'. C2, C3, L2 and L3 were gone. THE FILED CAUSE WAS REFUTED: BL-013 said the collapse was format-specific and sited it in reconstructArrayOfRecords Step 1. Measured, Step 1 was a no-op (the column had already been split upstream) and the collapse happened under the JSON default too. The real cause was determineArraySize: its child-node loop only counted a column whose FIRST value was a String starting with '[[', which could never fire for a column already parsed into a List, so maxSize stayed 0 and a trailing 'return maxSize > 0 ? maxSize : 1' fabricated a size of one.",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"line\\\\_items_meta_code\":\"S:[\\\"C1\\\",\\\"C2\\\",\\\"C3\\\"]\",\"line\\\\_items_meta_label\":\"S:[\\\"L1\\\",\\\"L2\\\",\\\"L3\\\"]\",\"order\\\\_id\":\"S:O1\"}",
+    "avroBaseline" : "{\"line_items\":[{\"meta\":{\"code\":\"S:C1\",\"label\":\"S:L1\"}},{\"meta\":{\"code\":\"S:C2\",\"label\":\"S:L2\"}},{\"meta\":{\"code\":\"S:C3\",\"label\":\"S:L3\"}}],\"order_id\":\"S:O1\"}",
+    "avroDoc" : "{\"line_items\":[{\"meta\":{\"code\":\"S:C1\",\"label\":\"S:L1\"}},{\"meta\":{\"code\":\"S:C2\",\"label\":\"S:L2\"}},{\"meta\":{\"code\":\"S:C3\",\"label\":\"S:L3\"}}],\"order_id\":\"S:O1\"}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

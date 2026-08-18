@@ -204,19 +204,20 @@
       "id": "avro-unions",
       "kind": "LOSS",
       "headline": "An Avro union takes the first branch that will accept the value and coerces to it.",
-      "statement": "A string branch listed before int turns every value in that field into text. [long, double] truncates a fractional value to an integer. For a union of records, the first branch sharing any field name wins and the remaining data is dropped. A nullable string whose value is the literal text \"null\" comes back as an actual null.",
+      "statement": "A string branch listed before int turns every value in that field into text. [long, double] truncates a fractional value to an integer. For a union of records, the first branch sharing any field name wins and the remaining data is dropped. A nullable string whose value is the literal text \"null\" comes back as an actual null. NARROWED IN 2.1.0 for one position only: inside an ARRAY ELEMENT, a union of three or more branches used to be dropped entirely - the field became null with no log at any level - and is now resolved by a real index-aware branch selector, or refused by name when two record branches match the same columns. The top-level first-branch-wins behaviour above is UNCHANGED; avro-union-of-records-overlapping-fields is still DEFECT.",
       "fixtures": [
         "avro-union-string-branch-swallows-int",
         "avro-union-long-before-double-truncates",
         "avro-union-of-records-overlapping-fields",
-        "avro-nullable-string-literal-null-collapses"
+        "avro-nullable-string-literal-null-collapses",
+        "avro-array-element-multi-branch-union-mixed-branches"
       ]
     },
     {
       "id": "avro-arrays-of-records",
       "kind": "LOSS",
       "headline": "One null element destroys an entire Avro array of records.",
-      "statement": "A single null inside an array of records annihilates the whole array, and one null nested record erases the nested records of every other element in that array.",
+      "statement": "A single null inside an array of records annihilates the whole array, and one null nested record erases the nested records of every other element in that array. NARROWED IN 2.1.0: a third loss used to sit here unlisted because no fixture reached it - an array whose element fields ALL live inside a nested record silently returned ONE element instead of N, under every array format including the JSON default. That is repaired and pinned by avro-array-of-records-nested-only-collapses-to-one. Disagreeing column lengths, which used to be reconciled by padding the short columns and duplicating the last nested value, now throw ArrayCardinalityException; the corpus cannot express that input, so it is pinned in AvroArrayOfRecordsSizingTest instead.",
       "fixtures": [
         "avro-array-of-records-null-element-annihilates-array",
         "avro-array-of-records-nullable-nested-record-shadowed"
@@ -243,7 +244,7 @@
       "id": "misnamed-controls",
       "kind": "LOSS",
       "headline": "Two controls do not do what their names say.",
-      "statement": "useArrayBoundarySeparator marks no array boundaries; it is a global rename of the separator from _ to __, and switching it on collapses __ inside field names and manufactures collisions that did not exist. strictKeyValidation performs no validation and rejects nothing; it silently rewrites names, and three distinct names can fold into one column.",
+      "statement": "useArrayBoundarySeparator marks no array boundaries; it is a global rename of the separator from _ to __, and switching it on collapses __ inside field names and manufactures collisions that did not exist. strictKeyValidation performs no validation and rejects nothing; it silently rewrites names, and three distinct names can fold into one column. A THIRD LEFT THIS LIST IN 2.1.0: AvroReconstructor.allowMissingFields allowed a missing field at neither value - it only selected which exception you got - and now fails with the flattened path at false and substitutes the Avro type default at true, refusing where no type default exists.",
       "fixtures": [
         "array-boundary-separator-manufactures-a-collision",
         "strict-key-validation-folds-three-names-into-one"
@@ -253,7 +254,7 @@
       "id": "inert-controls",
       "kind": "INERT_CONTROL",
       "headline": "Three settings are wired, documented, readable - and cannot change the output.",
-      "statement": "JsonReconstructor.maxDepth and MapFlattener.preserveBigDecimalPrecision on the JSON stack were the first two, and MapFlattener.detectCircularReferences is the third: it has no effect on a self-referential List, because the visit-stack calls exist only on the object path. Each is proven inert by a probe that measures the two settings producing byte-identical output. A FOURTH was listed here until now - FlattenOptions.inheritDoc, which was read nowhere in src/main - and it has been repaired rather than merely documented: it is now honoured, its probe expects the two settings to DIFFER, and its row is published LOSSLESS as enriched-inheritdoc-false-reports-declared-only-docs.",
+      "statement": "JsonReconstructor.maxDepth and MapFlattener.preserveBigDecimalPrecision on the JSON stack were the first two, and MapFlattener.detectCircularReferences is the third: it has no effect on a self-referential List, because the visit-stack calls exist only on the object path. Each is proven inert by a probe that measures the two settings producing byte-identical output. A FOURTH was listed here until now - FlattenOptions.inheritDoc, which was read nowhere in src/main - and it has been repaired rather than merely documented: it is now honoured, its probe expects the two settings to DIFFER, and its row is published LOSSLESS as enriched-inheritdoc-false-reports-declared-only-docs. A FIFTH was found and repaired in the same breath in 2.1.0 and so never joined this list: AvroReconstructor.arrayFormat was live for leaf arrays and provably DEAD for arrays of records - all four settings produced byte-identical output on a document built to reach that branch - because the split ran in a static method that could not read the instance field. avro-array-of-records-pipe-format-comma-inside-element is the row that would have gone red had it existed, and now holds.",
       "fixtures": [
         "reconstructor-maxdepth-is-a-dead-control",
         "vd-preserve-bigdecimal-flag-inert",
@@ -264,12 +265,11 @@
       "id": "avro-generic-record-unwritable",
       "kind": "LOSS",
       "headline": "reconstruct() returns an Avro record that cannot be written.",
-      "statement": "AvroReconstructor has two data entry points and they do not agree. reconstructToMap returns a Map and is what the LOSSLESS Avro rows are about. reconstruct returns a GenericRecord, and it rebuilds only the ROOT record: every nested record, array element and map value is left as the raw LinkedHashMap the map-building step produced. The builder validates nullability and nothing else, so build() succeeds, the object looks correct in a debugger, GenericData.validate returns false and writing it throws ClassCastException in an executor. An empty flattened map makes the two entry points disagree outright: one returns a partial record, the other throws. A SECOND, INDEPENDENT CAUSE OF THE SAME FAILURE, measured 2026-08-17 and tracked as BL-012 / SECURITY.md recon/NP-023: even the ROOT record fails validate when the schema has a defaulted ENUM field that is absent from the input, at the SHIPPED DEFAULT configuration and with no nesting involved. useSchemaDefaults(true) - the default - sets field.defaultVal() itself, which routes through JacksonUtils.toObject and yields a plain java.lang.String for an enum default (byte[] for FIXED/BYTES, LinkedHashMap for a record-typed default), and GenericRecordBuilder.set does not type-check. useSchemaDefaults(false) reconstructs it correctly, so the default is the broken setting. This is not repaired here because the repair changes default-configuration output and would move Avro fixtures; it is disclosed rather than hidden.",
+      "statement": "AvroReconstructor has two data entry points and they do not agree. reconstructToMap returns a Map and is what the LOSSLESS Avro rows are about. reconstruct returns a GenericRecord, and it rebuilds only the ROOT record: every nested record, array element and map value is left as the raw LinkedHashMap the map-building step produced. The builder validates nullability and nothing else, so build() succeeds, the object looks correct in a debugger, GenericData.validate returns false and writing it throws ClassCastException in an executor. REPAIRED IN 2.1.0 AND NO LONGER PART OF THIS LOSS - the second cause this entry used to describe: the ROOT record itself failed validate whenever the schema had a defaulted ENUM, FIXED, BYTES or null field absent from the input, at the SHIPPED DEFAULT configuration and with no nesting involved, because useSchemaDefaults(true) set Field.defaultVal() and JacksonUtils returns the JSON shape (a String for an enum, byte[] for FIXED/BYTES, the JsonProperties.NULL_VALUE singleton for a null default). Defaults now go through GenericData.getDefaultValue, deep-copied, so the root record validates and encodes. What survives is the NESTING: a RECORD-typed default is correct leaf-by-leaf in reconstructToMap and is still handed back as a LinkedHashMap by reconstruct(), because mapToGenericRecord is one level deep. The empty-flattened-map disagreement is also gone - both entry points now fail identically, naming the field - so that fixture has left this list.",
       "fixtures": [
         "avro-generic-record-is-not-a-valid-datum",
         "avro-array-of-records-datum-unwritable",
-        "avro-map-of-records-datum-unwritable",
-        "avro-empty-datum-cannot-build-a-record"
+        "avro-map-of-records-datum-unwritable"
       ]
     },
     {
@@ -340,20 +340,20 @@
     }
   ],
   "counts": {
-    "total": 156,
-    "lossless": 51,
-    "acceptedLoss": 23,
+    "total": 161,
+    "lossless": 55,
+    "acceptedLoss": 24,
     "defect": 82,
-    "nonDefaultConfig": 50,
-    "losslessNotUnderDefaultReconstruction": 3,
+    "nonDefaultConfig": 52,
+    "losslessNotUnderDefaultReconstruction": 4,
     "losslessNotUnderPublishedRecipe": 1,
     "publishedRecipeNotApplicable": 44,
     "holdsUnderPublishedRecipeNo": 24,
     "families": {
       "avro": {
-        "total": 29,
-        "LOSSLESS": 7,
-        "ACCEPTED_LOSS": 2,
+        "total": 34,
+        "LOSSLESS": 11,
+        "ACCEPTED_LOSS": 3,
         "DEFECT": 20
       },
       "limits": {
@@ -1338,7 +1338,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Union of records: the first branch sharing any field name wins and the rest of the data is dropped",
-      "detail": "The wrong branch is selected and two children go unconsumed. Total silence: no exception, and a structurally valid record of the wrong type.  ||  MEASURED: CONFIRMED, PLUS A NEW FINDING THE PREDICTION MISSED. The wrong branch is selected exactly as traced and routing/account are dropped. But the losing branch's defaulted field does not come back as a Java null: it comes back as org.apache.avro.JsonProperties.NULL_VALUE, a singleton OBJECT. Any consumer testing `value == null` on a defaulted nullable field sees a non-null object of an Avro-internal type. The corpus renders it as AVRO_NULL_DEFAULT so the distinction is visible and so the fixture does not depend on an identity hash code. Filed as a new defect for triage: useSchemaDefaults should materialise Avro's null default as a real null.",
+      "detail": "The wrong branch is selected and two children go unconsumed. Total silence: no exception, and a structurally valid record of the wrong type. STILL DEFECT - the branch-selection fault is untouched by 2.1.0, because BL-014's repair is confined to the ARRAY-ELEMENT path and this field is on the top-level record, which goes through reconstructUnionValue.  ||  RE-RECORDED IN 2.1.0: the losing branch's defaulted field now comes back as a real Java null. It used to come back as org.apache.avro.JsonProperties.NULL_VALUE, a singleton OBJECT, so a consumer testing `value == null` on a defaulted nullable field saw a non-null object of an Avro-internal type; the corpus rendered that as the AVRO_NULL_DEFAULT token and this row is where it was first measured. That half was filed here for triage as 'useSchemaDefaults should materialise Avro's null default as a real null' and is the NP-023 repair: every schema default now goes through GenericData.getDefaultValue rather than Field.defaultVal(). The avroDoc moved from {\"payment\":{\"brand\":\"AVRO_NULL_DEFAULT\",\"id\":\"S:p-1\"}} to {\"payment\":{\"brand\":null,\"id\":\"S:p-1\"}}; routing and account are still dropped.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1394,7 +1394,7 @@
       "classification": "DEFECT",
       "referenceIssue": "NP-022",
       "title": "A bytes payload literally starting with a Base64 marker is decoded; a fixed value with a high byte fails on platform charset",
-      "detail": "The literal ASCII payload is replaced by decoded bytes with no diagnostic, and the fixed value throws a size mismatch on a UTF-8-default JVM while the same fixture would PASS on an ISO-8859-1-default JVM. A fixture whose outcome depends on file.encoding is exactly what a corpus must pin.  ||  MEASURED: PARTIAL CORRECTION. The fixed/charset half reproduces exactly: reconstruction throws \"Fixed size mismatch at sig: expected 4, got 5\" because the high byte encodes to two bytes under the JVM default charset (UTF-8 on JDK 18+). The B64 half is NOT observable in this datum: reconstructRecord processes fields in schema order and aborts on sig, so payload is never converted and the sentinel misinterpretation cannot be seen in the output. The fixture pins one of the two defects it was designed to pin; the B64 sentinel needs its own datum with no fixed field beside it.",
+      "detail": "The literal ASCII payload is replaced by decoded bytes with no diagnostic, and the fixed value throws a size mismatch on a UTF-8-default JVM while the same fixture would PASS on an ISO-8859-1-default JVM. A fixture whose outcome depends on file.encoding is exactly what a corpus must pin.  ||  MEASURED: PARTIAL CORRECTION. The fixed/charset half reproduces exactly: reconstruction throws \"Fixed size mismatch at sig: expected 4, got 5\" because the high byte encodes to two bytes under the JVM default charset (UTF-8 on JDK 18+). The B64 half is NOT observable in this datum: reconstructRecord processes fields in schema order and aborts on sig, so payload is never converted and the sentinel misinterpretation cannot be seen in the output. The fixture pins one of the two defects it was designed to pin; the B64 sentinel needs its own datum with no fixed field beside it.  ||  RE-RECORDED IN 2.1.0, STILL DEFECT. The charset-dependent Fixed reconstruction is NOT repaired - only better described. The size-mismatch message now ends '[decode strategies: bare-base64:invalid; hex:wrong-length-or-not-hex]', which names which of the five decode strategies were attempted and why each declined. Two of those five decline WITHOUT throwing - Strategy 3 can Base64-decode successfully and then discard the result for being the wrong length, and Strategy 4's pre-check can fail on length or charset class - and neither used to leave any trace at all, which is how execution reached the raw-platform-bytes fallback unobserved. This row's own cannotCatch asks for a datum where that fallback SUCCEEDS with the right length and returns fabricated bytes in silence; that case now emits a WARN naming the declined strategies, and still needs its own fixture.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -2049,10 +2049,10 @@
       "family": "avro",
       "file": "avro/avro-empty-datum-cannot-build-a-record.json",
       "stack": "AVRO",
-      "classification": "DEFECT",
-      "referenceIssue": "",
-      "title": "An empty flattened map: reconstructToMap returns a partial map, reconstruct() disagrees",
-      "detail": "The two sibling entry points give the same input different answers about whether it is representable. An empty flattened map makes reconstructToMap early-return createEmptyRecord, which populates only defaulted and nullable fields; feeding that partial map to mapToGenericRecord makes build() throw AvroMissingFieldException on the required id. Same shape as avro-flattened-name-collision-guard-fires, and filed DEFECT rather than ACCEPTED_LOSS because the disagreement itself is the fault - either answer alone would be defensible.",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "NP-025",
+      "title": "An empty flattened map: both entry points now agree that it is not representable",
+      "detail": "MOVED DEFECT -> ACCEPTED_LOSS in 2.1.0, and the fixture is doing exactly what its own catchesBugClass promised - it said it would catch 'the empty-map early return being deleted or widened', and the early return was deleted. The bug it named was the DISAGREEMENT: reconstructToMap short-circuited an empty flattened map into createEmptyRecord, which consulted neither knob, built no GenericRecord and populated only defaulted and nullable fields, while reconstruct() fed that partial map to mapToGenericRecord and build() threw AvroMissingFieldException on the required id. Same input, two answers about whether it is representable. Both now give the same answer, and it names the field and the flattened path: 'Cannot reconstruct com.example.Req: no value in the flattened input and no usable schema default for required field(s) id.' It is ACCEPTED_LOSS and not LOSSLESS because an empty map genuinely cannot produce a record for a schema with a required no-default field - the loss is in the input, not in the library - and datumChecks are still all false.",
       "configDescription": "assert DATUM",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -2113,6 +2113,76 @@
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "NOT_APPLICABLE",
       "holdsUnderPublishedRecipe": "NOT_APPLICABLE"
+    },
+    {
+      "id": "avro-array-of-records-nested-only-collapses-to-one",
+      "family": "avro",
+      "file": "avro/avro-array-of-records-nested-only-collapses-to-one.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "BL-013",
+      "title": "Array of records whose element fields ALL live inside a nested record",
+      "detail": "The shape none of the 29 pre-existing AVRO rows could reach, and the headline repair of 2.1.0. Every other array-of-records fixture carries a scalar column at the ELEMENT ROOT, which is exactly the condition under which the old sizing code worked. Take that scalar away and the array node has no columns of its own, so the count had to come from the child nodes - and determineArraySize only counted a child column whose FIRST value was a String beginning '[[', a test that could never fire for a column already parsed into a List. maxSize stayed 0 and a trailing 'maxSize > 0 ? maxSize : 1' fabricated a size of one. MEASURED BEFORE THE REPAIR, identically at all four ArraySerializationFormat values including the JSON default: three elements came back as one, with C2, C3, L2 and L3 gone, no exception, no log above debug, and a datum that validates against its own schema. Now LOSSLESS: the counter walks the ELEMENT SCHEMA, descends through the child node into the nested record and counts meta.code=3 and meta.label=3.",
+      "configDescription": "assert DATA",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "avro-array-of-records-pipe-format-comma-inside-element",
+      "family": "avro",
+      "file": "avro/avro-array-of-records-pipe-format-comma-inside-element.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "BL-013",
+      "title": "PIPE_SEPARATED array of records with a comma inside an element value",
+      "detail": "The first row in the corpus to set config.avro.reconstructor.arrayFormat, and it exists because that knob was provably INERT on the array-of-records path: measured on a document built to reach the branch, all four settings produced byte-identical output. The split ran in a static method that structurally could not read the instance field, so it sniffed JSON, then comma, then pipe - and because comma came first, a legal comma inside 'Bolt, hex, M8' was treated as a delimiter under PIPE_SEPARATED. MEASURED BEFORE THE REPAIR: two elements became three, the fabricated third carrying sku=\"\" and quantity=0 invented by handleMissingField and a description of 'M8|Washer' that still contained the real delimiter. MapFlattener's javadoc warns about collisions with the delimiter you CONFIGURED; it promises nothing about the other one. Now LOSSLESS: the configured format is honoured and the split is bracket-aware.",
+      "configDescription": "assert DATA, mapFlattener.arrayFormat=PIPE_SEPARATED, avro.reconstructor.arrayFormat=PIPE_SEPARATED",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "NO",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "avro-array-of-records-bracket-list-round-trip",
+      "family": "avro",
+      "file": "avro/avro-array-of-records-bracket-list-round-trip.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "BL-013",
+      "title": "CONTROL: BRACKET_LIST array of records with a comma inside an element value",
+      "detail": "DECLARED A CONTROL: predicted LOSSLESS before the repair and measured LOSSLESS after, so a green result here is not evidence that anything was fixed. It earns its place beside the PIPE_SEPARATED row by holding the other half of the format boundary. BRACKET_LIST is the format most easily broken by a careless 'honour the configured delimiter' change, because MapFlattener's BRACKET_LIST writer QUOTES and ESCAPES every string and recurses into nested lists - it is not brackets around raw text. During this repair a bracket-aware split without unquoting was tried and returned values with literal backslashes in them; DoublyNestedArrayTest caught it, and this row now covers the same boundary from inside the corpus.",
+      "configDescription": "assert DATA, mapFlattener.arrayFormat=BRACKET_LIST, avro.reconstructor.arrayFormat=BRACKET_LIST",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "avro-array-element-multi-branch-union-dropped",
+      "family": "avro",
+      "file": "avro/avro-array-element-multi-branch-union-dropped.json",
+      "stack": "AVRO",
+      "classification": "LOSSLESS",
+      "referenceIssue": "BL-014",
+      "title": "A three-branch union inside an array element, with its data in a child column",
+      "detail": "reconstructArrayOfRecords had never had a UNION arm at all. Its field dispatch knew three shapes - flat column present, RECORD, ARRAY - and unwrapNullable, its only union handling, collapses only [null,T], so a union of arity three arrived still typed UNION, matched nothing and fell into handleMissingField, which saw a NULL branch and wrote a plain null. MEASURED BEFORE THE REPAIR, both as a JUnit failure and by disabling the new arm and re-recording this very fixture (pre-fix avroDoc: {\"items\":[{\"meta\":null,\"sku\":\"S:a\"},{\"meta\":null,\"sku\":\"S:b\"}]}): items came back as [{sku=a, meta=null}, {sku=b, meta=null}] while items_meta_src=[\"web\",\"pos\"] sat in the tree unread by anything. A NEVER-IMPLEMENTED GAP, NOT A REGRESSION: unwrapUnion, whose 'first non-null branch at any arity' behaviour looks like the missing piece, had four calls and zero declarations through ef625f2 and a declaration with zero callers after, so it never executed. Now LOSSLESS via a real index-aware branch selector. HONEST NARROWING of the filing, also measured: the SILENT drop needs a null branch in the union; a null-free 3+ union was already loud, because the builder threw on the unset field.",
+      "configDescription": "assert DATA",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "avro-array-element-multi-branch-union-mixed-branches",
+      "family": "avro",
+      "file": "avro/avro-array-element-multi-branch-union-mixed-branches.json",
+      "stack": "AVRO",
+      "classification": "DEFECT",
+      "referenceIssue": "BL-014",
+      "title": "A three-branch union whose two array elements take DIFFERENT branches",
+      "detail": "The shape a three-branch union exists FOR, and the half BL-014's repair could not fix - because the damage is done before the reconstructor is reached. Element 0 takes the record branch and element 1 the string branch, so the flattener emits BOTH a bare items_meta column and an items_meta_src child column. It emits them MISALIGNED: items_meta=[\"plain\",null] puts element 1's value at index 0, while items_meta_src=[\"web\",null] correctly puts element 0's at index 0. No reconstructor can undo that. What DID change is which kind of wrong you get. Element 0 now reconstructs correctly as the record branch; element 1 throws ReconstructionException 'Could not match any union type at: items[1].meta' under the default strictValidation, where before the repair both elements were silently wrong. MEASURED VERBATIM by disabling the new union arm and re-recording: pre-fix avroDoc was {\"items\":[{\"meta\":\"S:plain\",\"sku\":\"S:a\"},{\"meta\":null,\"sku\":\"S:b\"}]} - element 0 got element 1's string and element 1 got nothing, with no exception and no log. That is the pass theme working: the recoverable half is recovered and the unrecoverable half became audible. Filed DEFECT because the round trip still does not hold, and the root cause - MapFlattener's column alignment for a mixed-branch union - is a new, separate finding.",
+      "configDescription": "assert DATA",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
     },
     {
       "id": "enriched-keyset-diverges-from-map-rows",

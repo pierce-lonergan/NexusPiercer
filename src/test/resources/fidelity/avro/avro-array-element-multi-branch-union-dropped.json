@@ -1,0 +1,60 @@
+{
+  "id" : "avro-array-element-multi-branch-union-dropped",
+  "family" : "avro",
+  "title" : "A three-branch union inside an array element, with its data in a child column",
+  "stack" : "AVRO",
+  "referenceIssue" : "BL-014",
+  "rationale" : "The shape reconstructArrayOfRecords had never had an arm for. Its Step 3 field dispatch recognised exactly three things - flat column present, RECORD, ARRAY - and unwrapNullable, its only union handling, collapses only [null,T]. A union of arity three therefore arrived still typed UNION, matched nothing, and fell off the end into handleMissingField, which saw a NULL branch and wrote a plain null. The union field's default is deliberately OMITTED so the null is a real Java null and this row does not entangle with the JsonProperties.NULL_VALUE finding recorded on avro-union-of-records-overlapping-fields. Two elements rather than one, so a repair that fixes only element 0 is caught.",
+  "catchesBugClass" : "A whole branch of a type dispatch that was never written, producing total silence: no exception, no log at any level, and a structurally valid record whose field is simply empty. It is the array-element mirror of the union defect the corpus already records at the top level, and it re-arms if anyone narrows the arity guard.",
+  "cannotCatch" : "It cannot catch the MIXED-branch case, where the flattener emits BOTH a bare items_meta column and an items_meta_src child column and the flat-column arm wins for both elements - that needs its own document and has one beside this. It says nothing about a union with TWO record branches, which is information-theoretically unresolvable from column names and is pinned as a throw in AvroReconstructorArrayElementUnionTest rather than here. And it does not cover a multi-branch union at the TOP level, which goes through reconstructUnionValue and is untouched by this repair.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "The new array-element union arm computes the available child columns, finds exactly one record branch whose fields intersect them, and dispatches to the index-aware nested-record helper, so meta.src comes back for both elements."
+  },
+  "configDescription" : "assert DATA",
+  "config" : {
+    "avro" : {
+      "assert" : "DATA",
+      "avsc" : {
+        "type" : "record",
+        "name" : "OrderU",
+        "namespace" : "com.example",
+        "fields" : [ {
+          "name" : "items",
+          "type" : {
+            "type" : "array",
+            "items" : {
+              "type" : "record",
+              "name" : "ItemU",
+              "fields" : [ {
+                "name" : "sku",
+                "type" : "string"
+              }, {
+                "name" : "meta",
+                "type" : [ "null", {
+                  "type" : "record",
+                  "name" : "MetaU",
+                  "fields" : [ {
+                    "name" : "src",
+                    "type" : "string"
+                  } ]
+                }, "string" ]
+              } ]
+            }
+          }
+        } ]
+      }
+    }
+  },
+  "input" : "{\"items\":[{\"sku\":\"a\",\"meta\":{\"src\":\"web\"}},{\"sku\":\"b\",\"meta\":{\"src\":\"pos\"}}]}",
+  "measurementNote" : "PRE-FIX BEHAVIOUR, MEASURED VERBATIM AS A JUnit FAILURE BEFORE THE REPAIR. AvroReconstructorArrayElementUnionTest.threeBranchUnionInsideArrayElementKeepsItsRecordBranch, run against the unfixed code: 'flat={items_sku=[\"a\",\"b\"], items_meta_src=[\"web\",\"pos\"]} back={items=[{sku=a, meta=null}, {sku=b, meta=null}]} ==> expected: not <null>'. NEVER-IMPLEMENTED GAP, NOT A REGRESSION - and this matters because the obvious repair is the wrong one. unwrapUnion, whose 'first non-null branch at any arity' behaviour looks like the missing piece, had FOUR calls and ZERO declarations through ef625f2 and a declaration with zero callers from cad816b, so it never executed in any revision and nothing was lost. NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest forbids re-adding it by name. HONEST NARROWING OF THE FILING, also measured: the SILENT drop is specific to unions that CONTAIN a null branch. With no null branch, handleMissingField falls to its switch default, log.warns, never sets the field, and GenericRecordBuilder.build() throws AvroRuntimeException - already loud, just uselessly so.",
+  "expected" : {
+    "avroAssert" : "DATA",
+    "avroDefaultsMatch" : true,
+    "flat" : "{\"items_meta_src\":\"S:[\\\"web\\\",\\\"pos\\\"]\",\"items_sku\":\"S:[\\\"a\\\",\\\"b\\\"]\"}",
+    "avroBaseline" : "{\"items\":[{\"meta\":{\"src\":\"S:web\"},\"sku\":\"S:a\"},{\"meta\":{\"src\":\"S:pos\"},\"sku\":\"S:b\"}]}",
+    "avroDoc" : "{\"items\":[{\"meta\":{\"src\":\"S:web\"},\"sku\":\"S:a\"},{\"meta\":{\"src\":\"S:pos\"},\"sku\":\"S:b\"}]}",
+    "losslessAvro" : true
+  },
+  "measuredLossless" : true
+}

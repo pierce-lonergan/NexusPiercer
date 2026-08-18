@@ -13,7 +13,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,12 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       the same VALUE as different JAVA TYPES.</li>
  * </ul>
  *
- * <p><b>THESE ARE PINS ON MEASURED BEHAVIOUR, NOT CLAIMS THAT THE BEHAVIOUR IS CORRECT.</b>
- * Three of the four knobs do not do what their names say, and one of them produces an invalid
- * datum at the SHIPPED DEFAULT configuration. Each test below states which it is. The repairs are
- * behaviour changes on released API and are tracked in docs/BACKLOG.md; the job of these tests is
- * to make the current behaviour impossible to re-discover by accident, and to fail loudly the
- * moment someone changes it without moving the paperwork.
+ * <p><b>THREE OF THE FOUR PINS WERE REPAIRED IN 2.1.0 AND THIS FILE MOVED WITH THEM.</b> The
+ * file's own header used to say "when this is repaired, this assertion flips to assertTrue and the
+ * corpus rows must be re-recorded in the same commit". That is what happened: NP-023 (a defaulted
+ * ENUM arriving as a raw String, so the datum did not validate at the SHIPPED DEFAULT), NP-024
+ * (allowMissingFields selecting WHICH exception fires rather than whether one does) and NP-025
+ * (an empty flattened map bypassing both knobs) are fixed, and the assertions below are rewritten
+ * to the repaired behaviour rather than deleted or weakened. Each one records what it used to
+ * measure, so the measurement is not erased by the repair.
+ *
+ * <p>What is still pinned and NOT repaired: {@code enableVerification} gates one method only, and
+ * {@code compareFlattenedMaps} is unaffected by it.</p>
  */
 @DisplayName("BL-012 the four AvroReconstructor knobs, measured against branch-reaching documents")
 class AvroReconstructorKnobEffectTest {
@@ -128,115 +132,168 @@ class AvroReconstructorKnobEffectTest {
     // ===================== allowMissingFields: does NOT allow missing fields =====================
 
     @Nested
-    @DisplayName("allowMissingFields selects an exception, not an outcome - PINNED DEFECT")
+    @DisplayName("allowMissingFields now means FAIL vs FILL - repaired in 2.1.0")
     class AllowMissingFields {
 
         @Test
-        @DisplayName("BOTH values fail on a missing required field; only the exception differs")
-        void bothValuesFail() {
-            // PINNED KNOWN DEFECT, not a claim of correctness. The flag is named
-            // "allowMissingFields" and at neither value does it allow a missing field.
-            //
-            // true : AvroMissingFieldException("Field id type:STRING pos:0 not set and has no
-            //        default value") escaping from GenericRecordBuilder.build(), which sits
-            //        OUTSIDE the per-field try - so the caller also loses the field path.
-            // false: IllegalStateException("Required field missing and no default: id"), which
-            //        does carry the path.
-            Throwable permissive = rootOf(assertThrows(RuntimeException.class,
-                    () -> AvroReconstructor.builder().allowMissingFields(true).build()
-                            .reconstructToMap(flat("other", "x"), TWO_REQUIRED)));
-            Throwable strict = rootOf(assertThrows(RuntimeException.class,
+        @DisplayName("false fails with the flattened path; true substitutes the Avro type default")
+        void oneValueFailsAndTheOtherFills() {
+            // WHAT THIS USED TO MEASURE, kept so the repair does not erase it: BOTH values threw.
+            //   true  -> org.apache.avro.AvroMissingFieldException("Field id type:STRING pos:0
+            //            not set and has no default value"), leaking from GenericRecordBuilder
+            //            .build(), which sits OUTSIDE the per-field try, so the caller lost the
+            //            flattened path entirely.
+            //   false -> IllegalStateException("Required field missing and no default: id").
+            // A flag named allowMissingFields that at neither value allows a missing field is a
+            // control satisfied without being met. Now each value has a real, different outcome.
+            Throwable strict = assertThrows(RuntimeException.class,
                     () -> AvroReconstructor.builder().allowMissingFields(false).build()
-                            .reconstructToMap(flat("other", "x"), TWO_REQUIRED)));
-
-            assertEquals("org.apache.avro.AvroMissingFieldException",
-                    permissive.getClass().getName(),
-                    "allowMissingFields(true) currently leaks Avro's own exception from build()");
-            assertInstanceOf(IllegalStateException.class, strict);
+                            .reconstructToMap(flat("other", "x"), TWO_REQUIRED));
+            assertInstanceOf(AvroReconstructor.ReconstructionException.class, strict);
             assertTrue(strict.getMessage().contains("id"),
-                    "the strict path names the field path; the permissive path does not, which "
-                            + "is the second half of this defect");
-            assertNotEquals(permissive.getClass(), strict.getClass(),
-                    "the flag DOES have an observable effect - it picks which failure you get. "
-                            + "That is why 'no observed effect' was the wrong conclusion, and "
-                            + "'it works' would be equally wrong.");
+                    "the failure must name the field; got " + strict.getMessage());
+            assertFalse(chainOf(strict).contains("AvroMissingFieldException"),
+                    "Avro's own builder exception must no longer escape; chain was "
+                            + chainOf(strict));
+
+            Map<String, Object> filled = AvroReconstructor.builder().allowMissingFields(true)
+                    .build().reconstructToMap(flat("other", "x"), TWO_REQUIRED);
+            assertEquals("", String.valueOf(filled.get("id")),
+                    "allowMissingFields(true) substitutes the Avro STRING type default; got "
+                            + filled);
         }
 
-        private Throwable rootOf(Throwable t) {
-            Throwable r = t;
-            while (r.getCause() != null) {
-                r = r.getCause();
+        @Test
+        @DisplayName("the SHIPPED DEFAULT is the failing one, and it still fails")
+        void theShippedDefaultStillFails() {
+            // The default flipped from true to false, and the OUTCOME at the shipped default is
+            // unchanged - it failed before and it fails now. Keeping true as the default while
+            // giving true a tolerant meaning would have turned a loud failure into a silently
+            // invented "" at the shipped configuration.
+            assertThrows(AvroReconstructor.ReconstructionException.class,
+                    () -> AvroReconstructor.builder().build()
+                            .reconstructToMap(flat("other", "x"), TWO_REQUIRED));
+        }
+
+        @Test
+        @DisplayName("true refuses to invent a value where Avro has no type default")
+        void trueRefusesToInventAnEnum() {
+            Schema requiredEnum = parse(
+                    "{\"type\":\"record\",\"name\":\"REk\",\"fields\":["
+                            + "{\"name\":\"id\",\"type\":\"string\"},"
+                            + "{\"name\":\"color\",\"type\":{\"type\":\"enum\","
+                            + "\"name\":\"ColorK\",\"symbols\":[\"RED\",\"BLUE\"]}}]}");
+            Throwable t = assertThrows(RuntimeException.class,
+                    () -> AvroReconstructor.builder().allowMissingFields(true).build()
+                            .reconstructToMap(flat("id", "x"), requiredEnum));
+            assertTrue(t.getMessage().contains("ENUM"),
+                    "quietly picking the first symbol would ship the pathology the repair "
+                            + "removes; got " + t.getMessage());
+        }
+
+        private String chainOf(Throwable t) {
+            StringBuilder sb = new StringBuilder();
+            for (Throwable c = t; c != null; c = c.getCause()) {
+                sb.append(c.getClass().getName()).append(": ").append(c.getMessage()).append(" | ");
             }
-            return r;
+            return sb.toString();
         }
     }
 
     // ===================== the empty-map bypass: the reason the probe found nothing ==============
 
     @Nested
-    @DisplayName("An EMPTY flattened map bypasses both knobs entirely - PINNED DEFECT")
+    @DisplayName("An EMPTY flattened map now takes the same path as any other - repaired in 2.1.0")
     class EmptyMapBypass {
 
         @Test
-        @DisplayName("a required no-default field is silently omitted at BOTH settings")
-        void emptyMapSilentlyOmitsRequiredField() {
-            // PINNED KNOWN DEFECT. reconstructToMap short-circuits an empty flattened map into
-            // createEmptyRecord, which consults NEITHER useSchemaDefaults NOR allowMissingFields,
-            // never builds a GenericRecord, and returns a partial map with no error.
-            //
-            // THIS IS THE FINDING THAT EXPLAINS THE WHOLE ORIGINAL NULL RESULT: the one document
-            // the earlier probe chose to reach the missing-field branches is the one document
-            // that provably cannot reach them.
+        @DisplayName("empty and one-unrelated-key give the SAME answer at each setting")
+        void emptyMapNoLongerBypassesTheKnobs() {
+            // WHAT THIS USED TO MEASURE: at BOTH settings an empty map returned {} - the required
+            // field silently dropped - while the SAME schema with one unrelated key present threw.
+            // reconstructToMap short-circuited an empty map into createEmptyRecord, which
+            // consulted neither knob and never built a GenericRecord. That is the finding that
+            // explained the whole original null result: the one document the earlier probe chose
+            // to reach the missing-field branches was the one document that provably could not.
+            // createEmptyRecord is now deleted and the short-circuit with it.
             for (boolean allow : new boolean[]{true, false}) {
-                Map<String, Object> out = AvroReconstructor.builder()
-                        .allowMissingFields(allow).build()
-                        .reconstructToMap(new LinkedHashMap<>(), TWO_REQUIRED);
-                assertTrue(out.isEmpty(),
-                        "allowMissingFields(" + allow + ") on an empty map returns a partial map "
-                                + "with the required field silently dropped; got " + out);
-            }
+                AvroReconstructor r = AvroReconstructor.builder()
+                        .allowMissingFields(allow).build();
 
-            // CONTRAST, and this is what makes the above a defect rather than a design: the SAME
-            // schema with a single unrelated key present does fail loudly.
-            assertThrows(RuntimeException.class,
-                    () -> AvroReconstructor.builder().build()
-                            .reconstructToMap(flat("other", "x"), TWO_REQUIRED),
-                    "a non-empty map reaches the real path and fails; only the empty map is "
-                            + "silently tolerated. Same schema, same missing field, two outcomes.");
+                String fromEmpty = outcome(() -> r.reconstructToMap(
+                        new LinkedHashMap<>(), TWO_REQUIRED));
+                String fromOneKey = outcome(() -> r.reconstructToMap(
+                        flat("other", "x"), TWO_REQUIRED));
+
+                if (allow) {
+                    assertTrue(fromEmpty.contains("id="),
+                            "allowMissingFields(true) must fill, not drop; got " + fromEmpty);
+                } else {
+                    assertTrue(fromEmpty.startsWith("THREW") && fromEmpty.contains("id"),
+                            "allowMissingFields(false) on an empty map must fail naming the "
+                                    + "field; got " + fromEmpty);
+                }
+                // The parity that matters is what happens to `id` - the field that is missing in
+                // both inputs. `other` legitimately differs (absent vs "x") and comparing whole
+                // renderings would only measure that.
+                assertEquals(fromOneKey.startsWith("THREW"), fromEmpty.startsWith("THREW"),
+                        "empty and one-unrelated-key must agree at allowMissingFields(" + allow
+                                + "): empty=" + fromEmpty + " oneKey=" + fromOneKey);
+            }
+        }
+
+        private String outcome(java.util.function.Supplier<Map<String, Object>> call) {
+            try {
+                return String.valueOf(call.get());
+            } catch (RuntimeException e) {
+                return "THREW " + e.getClass().getSimpleName() + ": " + e.getMessage();
+            }
         }
     }
 
     // ===================== useSchemaDefaults: cannot suppress, and the default is wrong =========
 
     @Nested
-    @DisplayName("useSchemaDefaults cannot suppress a default - PINNED DEFECT")
+    @DisplayName("useSchemaDefaults means something at both values - repaired in 2.1.0")
     class UseSchemaDefaults {
 
         @Test
-        @DisplayName("both settings supply the default; they differ only in the Java type")
+        @DisplayName("true supplies a schema-correct default; false genuinely suppresses it")
         void bothSettingsSupplyTheDefault() {
-            // PINNED KNOWN DEFECT. At true the reconstructor sets field.defaultVal() itself;
-            // at false it leaves the field unset and GenericRecordBuilder.build() re-supplies
-            // the default anyway via RecordBuilderBase.defaultValue -> GenericData.getDefaultValue.
-            // There is no way to tell GenericRecordBuilder not to.
+            // WHAT THIS USED TO MEASURE, and it is a MEASURED CORRECTION to BL-012's blanket
+            // claim. It recorded that BOTH settings supplied "unknown", differing only in the
+            // Java type (String at true from field.defaultVal(), Utf8 at false from Avro's own
+            // path re-supplying it inside build()) - and concluded the knob could not suppress a
+            // default. Measured while repairing this: it always COULD on a NULLABLE field, where
+            // the ladder set null explicitly. It could not on a NON-nullable one, because leaving
+            // the slot unset lets GenericRecordBuilder.build() fill it in. The knob's behaviour
+            // therefore depended silently on nullability. It now means the same thing at both:
+            // "do not consult the schema default", after which the field is simply MISSING and
+            // allowMissingFields decides.
             Map<String, Object> on = AvroReconstructor.builder().useSchemaDefaults(true).build()
                     .reconstructToMap(flat("n", "1"), STRING_DEFAULT);
-            Map<String, Object> off = AvroReconstructor.builder().useSchemaDefaults(false).build()
-                    .reconstructToMap(flat("n", "1"), STRING_DEFAULT);
-
             assertEquals("unknown", on.get("s").toString(),
                     "useSchemaDefaults(true) supplies the default");
-            assertEquals("unknown", off.get("s").toString(),
-                    "useSchemaDefaults(FALSE) supplies it too - the knob does not suppress it");
+            assertInstanceOf(org.apache.avro.util.Utf8.class, on.get("s"),
+                    "and it is now the SCHEMA-CORRECT type - Avro's Utf8, decoded through "
+                            + "GenericData.getDefaultValue, not JacksonUtils' plain String");
 
-            // The difference the renderer could not see, and which is why the original probe
-            // recorded "byte-identical output": same text, different runtime type.
-            assertInstanceOf(String.class, on.get("s"),
-                    "true takes field.defaultVal(), which JacksonUtils returns as a plain String");
-            assertInstanceOf(org.apache.avro.util.Utf8.class, off.get("s"),
-                    "false goes through Avro's own default path, which yields the schema-correct "
-                            + "Utf8. 'Byte-identical output' was a true observation of a real "
-                            + "difference the renderer cannot see.");
+            Throwable suppressed = assertThrows(RuntimeException.class,
+                    () -> AvroReconstructor.builder().useSchemaDefaults(false).build()
+                            .reconstructToMap(flat("n", "1"), STRING_DEFAULT),
+                    "useSchemaDefaults(false) on a NON-nullable defaulted field now genuinely "
+                            + "suppresses the default, which leaves the field missing");
+            assertTrue(suppressed.getMessage().contains("useSchemaDefaults(false)"),
+                    "and it must say WHY rather than claiming there is no default - the old "
+                            + "message was 'Required field missing and no default: s' about a "
+                            + "field that has one. Got: " + suppressed.getMessage());
+
+            Map<String, Object> lenient = AvroReconstructor.builder()
+                    .useSchemaDefaults(false).allowMissingFields(true).build()
+                    .reconstructToMap(flat("n", "1"), STRING_DEFAULT);
+            assertEquals("", String.valueOf(lenient.get("s")),
+                    "with tolerance asked for, the TYPE default is used instead of the SCHEMA "
+                            + "default - which is the distinction the knob exists to draw");
         }
 
         @Test
@@ -257,14 +314,15 @@ class AvroReconstructorKnobEffectTest {
                     .reconstruct(flat("id", "x"), ENUM_DEFAULT);
 
             Object color = rec.get("color");
-            assertInstanceOf(String.class, color,
-                    "measured: the enum default lands as a raw String, not a GenericData.EnumSymbol");
-            assertFalse(GenericData.get().validate(ENUM_DEFAULT, rec),
-                    "PINNED DEFECT: the reconstructed record does NOT validate against its own "
-                            + "schema at the shipped default configuration, so it cannot be "
-                            + "binary-encoded. When this is repaired, this assertion flips to "
-                            + "assertTrue and the corpus rows for defaulted enum/fixed/record "
-                            + "fields must be re-recorded in the same commit.");
+            assertInstanceOf(GenericData.EnumSymbol.class, color,
+                    "REPAIRED: it used to land as a raw java.lang.String, because "
+                            + "field.defaultVal() routes through JacksonUtils.toObject and "
+                            + "GenericRecordBuilder.set does not type-check");
+            assertTrue(GenericData.get().validate(ENUM_DEFAULT, rec),
+                    "THE FLIP THIS FILE ASKED FOR. The old assertion was assertFalse with the "
+                            + "note 'when this is repaired, this assertion flips to assertTrue "
+                            + "and the corpus rows must be re-recorded in the same commit'. Both "
+                            + "halves happened in 2.1.0.");
         }
     }
 

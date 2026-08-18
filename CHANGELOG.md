@@ -7,10 +7,152 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Version on `main` is `2.1.0-SNAPSHOT`. Everything below is additive; `2.0.0` is released and
-staged on Maven Central and `main` must not sit on a released coordinate.
+Version on `main` is `2.1.0-SNAPSHOT`. `2.0.0` is released and staged on Maven Central and `main`
+must not sit on a released coordinate.
+
+The public API surface is additive-only and enforced by
+`PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
+BEHAVIOUR IS NOT.** The section immediately below lists twelve places where a `2.0.0` caller gets
+a different answer, several of them at the default configuration. Read it before upgrading.
+
+### Behaviour changes
+
+**These change what `AvroReconstructor` returns, at the SHIPPED DEFAULT configuration.** They are
+listed here rather than under *Fixed* because a caller pinning a snapshot of today's output will
+see a diff, and two previously-successful calls now throw. No public signature, return type,
+parameter list or visibility changes — the new exception types and the added
+`ReconstructionException(String)` constructor are additive and clear the 2.0.0 additive-only gate.
+
+1. **A schema default absent from the input now arrives as its schema-correct Avro type.**
+   ENUM: `java.lang.String` → `GenericData.EnumSymbol`. FIXED: `byte[]` → `GenericData.Fixed`.
+   BYTES: `byte[]` → `ByteBuffer`. STRING: `java.lang.String` → `org.apache.avro.util.Utf8`.
+   A `"default": null` on a nullable field: the `org.apache.avro.JsonProperties.NULL_VALUE`
+   singleton → a **real Java null**, so `value == null` starts being true where it was false.
+   Numeric and boolean defaults are unchanged. The point of the change is that
+   `GenericData.validate` now returns true and the datum binary-encodes, where before it returned
+   false and the write threw `AvroTypeException` or `ClassCastException` in an executor,
+   downstream of an apparently successful reconstruction. Every default now goes through
+   `GenericData.getDefaultValue`, deep-copied — the copy is not optional, because getDefaultValue
+   memoises one shared mutable instance per field. A caller who worked around this with
+   `useSchemaDefaults(false)` no longer needs to. (`recon/NP-023`)
+
+   TWO LIMITS, stated so nobody reads more into this than it carries. A RECORD-typed default is
+   repaired leaf-by-leaf in `reconstructToMap`, but `reconstruct()` still hands it back as a
+   `LinkedHashMap` and still fails validate, because `mapToGenericRecord` rebuilds only the root
+   record — that is the separate `avro-generic-record-unwritable` defect. And a defaulted
+   LOGICAL-TYPE field arrives as its raw underlying type (a `ByteBuffer` for a decimal) while the
+   same field supplied in the input arrives converted: a new, smaller inconsistency created by
+   this fix and disclosed rather than left to be discovered.
+
+2. **An array of records whose element fields all live inside a nested record now returns N
+   elements.** It returned exactly one, and the other N-1 were gone — with no exception, no log
+   above debug, and a datum that validates against its own schema. Measured identically under all
+   four array formats including the JSON default, so this was not confined to an exotic
+   configuration. (`BL-013`)
+
+3. **`AvroReconstructor.arrayFormat` now changes the result for arrays of records.** It was
+   provably inert there — all four settings produced byte-identical output on a document built to
+   reach the branch — because the split ran in a `static` method that could not read the instance
+   field and inferred the delimiter from the data, comma before pipe. A caller who set
+   `PIPE_SEPARATED` and has commas in their values now gets fewer, correct elements instead of
+   more, corrupted ones. A caller who set a delimited format but is feeding it JSON-shaped text
+   now gets `ArrayFormatMismatchException` where they previously got a correct answer by luck;
+   that is the one regression risk here, and it is deliberate — JSON's grammar is self-delimiting
+   and the comma/pipe writers cannot emit a bracketed quoted list, so it is a detectable
+   contradiction rather than a guess. (`BL-013`)
+
+4. **Columns of unequal length now throw `ArrayCardinalityException`**, naming every column, its
+   count and the configured format. The longest column used to win: short scalar columns were
+   padded with `""` and `0`, and short nested-record columns had their LAST value duplicated into
+   every remaining row. Measured: `sku=S1,S2,S3` beside `meta_code=C1,C2` produced a third row
+   whose code repeated the second, and the reverse direction silently discarded `C3`. A
+   previously-successful call becomes a failure — deliberately, because the success was fictional.
+   Not gated on `strictValidation` or `allowMissingFields`: those knobs already select *which*
+   exception fires rather than whether one does, and overloading them again would repeat the
+   defect. (`BL-013`)
+
+5. **An array node with no element data returns `[]`** instead of one record of type-defaults.
+   The old sizing routine ended in `maxSize > 0 ? maxSize : 1` and so could never return zero,
+   which made the existing empty-array branch dead code. (`BL-013`)
+
+6. **A union of three or more branches inside an array element is now resolved instead of being
+   dropped.** `reconstructArrayOfRecords` never had a UNION arm: `unwrapNullable` collapses only
+   `[null, T]`, so a wider union matched neither the RECORD nor the ARRAY test and fell through to
+   `handleMissingField`, which saw a null branch and wrote a plain null — in total silence, with
+   the child node holding the real data never read. A consumer that has been null-checking that
+   field and skipping it now receives data. On the flat-column side of the same field the value
+   changes from unconverted pass-through to a value converted against the SELECTED BRANCH, so a
+   datum that `GenericData.validate` rejected and a binary encode threw `UnresolvedUnionException`
+   on becomes writable. And where the flattened form genuinely cannot disambiguate — two record
+   branches in the same union sharing the columns that are present — the result changes from a
+   silent null to a thrown exception naming both candidates under the default
+   `strictValidation`, or to a null plus a WARN under `strictValidation(false)`. That half will
+   break a pipeline that today merely loses data, and it is intended: a failure that cannot be
+   repaired must at least stop being invisible. `unwrapNullable`'s `[null, T]` contract is
+   unchanged, so every two-branch union anywhere in the codebase behaves exactly as before.
+   (`BL-014`)
+
+7. **`allowMissingFields` now defaults to `false` and means something at both values.** The
+   OUTCOME at the shipped default is unchanged — a missing required field failed before and fails
+   now — but it fails with a `ReconstructionException` naming every such field by its FLATTENED
+   PATH, aggregated, instead of letting `org.apache.avro.AvroMissingFieldException` escape from
+   `GenericRecordBuilder.build()` with only the field name. Anyone catching
+   `AvroMissingFieldException` by class must change. At `true` the Avro TYPE default is
+   substituted (`""`, `0`, `false`, `[]`, `{}`, empty bytes) with one aggregated WARN naming every
+   path filled — except ENUM, FIXED, RECORD and a null-free UNION, where no type default exists
+   and reconstruction fails saying exactly that. Keeping `true` as the default while giving it a
+   tolerant meaning would have turned today's loud failure into a silently invented `""` at the
+   shipped configuration. (`recon/NP-024`)
+
+   KNOWN INCONSISTENCY, disclosed rather than discovered: the flag still does not reach
+   `handleMissingField`, which fills `""` and `0` for a missing required field one level down
+   inside an array element regardless of the setting. It is at least audible now — it logs a WARN
+   — and gating it would turn array-of-records reconstructions that succeed today into throws.
+
+8. **`useSchemaDefaults(false)` now genuinely suppresses a schema default.** It could always do so
+   on a NULLABLE field; on a non-nullable one it left the slot unset and `build()` re-supplied the
+   same value, so the knob's behaviour depended silently on nullability. The field is now treated
+   as MISSING and handed to `allowMissingFields`. This also removes a lie: because
+   `useSchemaDefaults` was tested BEFORE `hasDefaultValue`, the combination
+   `.useSchemaDefaults(false).allowMissingFields(false)` used to report `"Required field missing
+   and no default: color"` about a field that HAS a default.
+
+9. **An empty or null flattened map is no longer special-cased.** `reconstructToMap({}, schema)`
+   for a schema with a required no-default field now throws, naming the field, where it previously
+   returned a partial map with that field silently dropped — while the same schema with one
+   unrelated key present failed loudly. For an all-optional schema it still returns a populated
+   map, with the corrected types from (1). `reconstructToMap` and `reconstruct` now agree about
+   empty input; they did not before. `null` is treated exactly as empty. (`recon/NP-025`)
+
+10. **Unparseable date, time and timestamp strings throw a different message and now carry a
+    cause.** `new DateConverter().convert("not a date")` threw
+    `Cannot convert not a date (String) to date: Cannot parse date from string: 'not a date'`
+    with `getCause() == null`; the message now appends
+    `. Tried: ISO date (yyyy-MM-dd), ISO datetime, ISO instant, M/d/yyyy, epoch millis` and the
+    cause is the first `DateTimeParseException` the cascade discarded. The exception TYPE and the
+    `Cannot parse X from string: '…'` prefix are unchanged, so anyone matching on either is
+    unaffected; anyone equality-matching the whole message, or asserting the cause is null, sees a
+    diff.
+
+11. **The Avro FIXED size-mismatch message gains a decode trace**, naming which of the five decode
+    strategies were attempted and why each declined — including the two that decline WITHOUT
+    throwing and therefore used to leave no trace at all. Separately, a FIXED value that no
+    strategy decodes but whose raw platform-charset bytes happen to be the right length — until
+    now an entirely silent success returning fabricated bytes — logs a WARN. The returned value is
+    unchanged; only its visibility is.
+
+12. **New log output on previously silent paths, with no value change.** `JsonReconstructor` warns
+    when bracket-wrapped text is not parseable JSON and is about to be returned as a one-element
+    array holding the raw text. `AvroReconstructor` warns when a column is bracketed but not JSON
+    under the JSON format. For anyone with log-volume alerting that is itself a visible change,
+    and for anyone who has been silently losing array elements it is the first notice they have
+    ever had.
 
 ### Added
+
+- **`AvroReconstructor.ArrayCardinalityException` and `AvroReconstructor.ArrayFormatMismatchException`**,
+  both nested public classes extending `ReconstructionException`, plus a
+  `ReconstructionException(String)` constructor. Additive; the 2.0.0 baseline gate is unaffected.
 
 - **`JsonFlattener.Builder.buildFlattener()` and `JsonFlattener.newOperation()`** — the reusable
   engine. Before this, no consumer could obtain a `JsonFlattener` at all: the constructor is

@@ -24,9 +24,7 @@
     "then set the new counts here in the same commit. Raising a ceiling requires a written",
     "justification in the commit message and CODEOWNERS approval."
   ],
-
-  "recorded": "2026-08-17",
-
+  "recorded": "2026-08-18",
   "_scope_2026_08_17": [
     "THE FIVE-CLASS SPOTBUGS EXCLUDE BLOCK IS GONE, AND THE FOLLOW-UP IT OWED IS DISCHARGED.",
     "",
@@ -71,7 +69,6 @@
     "the surefire-XML sum reads 1840 and undercounts by 532 because @Nested classes emit a",
     "separate report each while the outer class reports tests=0)."
   ],
-
   "_scope_2026_08_11": [
     "WHY THE GROOVY REMOVAL LOWERED NOTHING HERE, measured rather than assumed.",
     "",
@@ -92,35 +89,112 @@
     "Recorded so the next reader does not spend the same hour rediscovering that a src/test",
     "change cannot move a src/main metric."
   ],
-
   "checkstyle": {
     "ceiling": 0,
     "mode": "zero-tolerance",
     "note": "All 9 original violations were unused imports and are fixed. Re-measured 0 on 2026-08-11 after the Groovy removal. Note this gate never saw the ported test sources: includeTestSourceDirectory is false, so the default-package AvroReconstructorTest that was moved into io.github.pierce during the port was moved for Java-tooling reasons, not because Checkstyle would have rejected it — Checkstyle was never going to look."
   },
-
   "pmd": {
-    "ceiling": 351,
+    "ceiling": 323,
     "mode": "ratchet",
     "topRules": {
-      "AvoidLiteralsInIfCondition": 62,
-      "GuardLogStatement": 44,
-      "UnusedFormalParameter": 38,
+      "AvoidLiteralsInIfCondition": 64,
+      "GuardLogStatement": 39,
+      "UnusedFormalParameter": 37,
       "NullAssignment": 37,
-      "EmptyCatchBlock": 25,
-      "AvoidDuplicateLiterals": 24,
+      "AvoidDuplicateLiterals": 25,
       "ReturnEmptyCollectionRatherThanNull": 16,
-      "SystemPrintln": 15,
-      "UseLocaleWithCaseConversions": 14
+      "UseLocaleWithCaseConversions": 14,
+      "SystemPrintln": 14,
+      "LiteralsFirstInComparisons": 13,
+      "EmptyCatchBlock": 0
     },
-    "note": "361 -> 351 on 2026-08-17, all of it from deleting the five dead private methods the SpotBugs exclude block used to hide. This is where the ratchet actually moved: pmd-ruleset.xml pulls in category/java/bestpractices.xml whole, which contains UnusedPrivateMethod, and PMD has no per-class exclusions at all, so it had been counting all five inside its total the entire time the SpotBugs block was hiding them. Rules that fell: UnusedPrivateMethod 5 -> 0, UnusedFormalParameter 40 -> 38, EmptyCatchBlock 26 -> 25, AvoidDuplicateLiterals 25 -> 24, SwitchStmtsShouldHaveDefault 2 -> 1. The topRules figures above are re-measured; the previous entry recorded AvoidLiteralsInIfCondition as 58 and EmptyCatchBlock as 25 when the true pre-change values were 62 and 26. EARLIER: 449 -> 361 on 2026-08-10, AvoidFieldNameMatchingMethodName (88) excluded project-wide in pmd-ruleset.xml because it fires on the record-style accessor convention the language itself generates. EmptyCatchBlock (25) is still the one to attack next — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
+    "note": "351 -> 323 on 2026-08-18, driven by EmptyCatchBlock 25 -> 0 and GuardLogStatement 44 -> 39. See _scope_2026_08_18 for why a commented catch does not satisfy the rule as configured, and why the two obvious one-line ways to clear it were rejected. EmptyCatchBlock is now listed at 0 in topRules deliberately: it is the entry a future reader will want, and a zero that is written down is harder to let drift back. 361 -> 351 on 2026-08-17, all of it from deleting the five dead private methods the SpotBugs exclude block used to hide. This is where the ratchet actually moved: pmd-ruleset.xml pulls in category/java/bestpractices.xml whole, which contains UnusedPrivateMethod, and PMD has no per-class exclusions at all, so it had been counting all five inside its total the entire time the SpotBugs block was hiding them. Rules that fell: UnusedPrivateMethod 5 -> 0, UnusedFormalParameter 40 -> 38, EmptyCatchBlock 26 -> 25, AvoidDuplicateLiterals 25 -> 24, SwitchStmtsShouldHaveDefault 2 -> 1. The topRules figures above are re-measured; the previous entry recorded AvoidLiteralsInIfCondition as 58 and EmptyCatchBlock as 25 when the true pre-change values were 62 and 26. EARLIER: 449 -> 361 on 2026-08-10, AvoidFieldNameMatchingMethodName (88) excluded project-wide in pmd-ruleset.xml because it fires on the record-style accessor convention the language itself generates. EmptyCatchBlock (25) is still the one to attack next — it is the same swallowed-exception class the audit flagged as laundering failures into apparent successes."
   },
-
   "spotbugs": {
-    "ceiling": 237,
+    "ceiling": 236,
     "mode": "ratchet",
     "note_2026_08_17": "FOLLOW-UP DISCHARGED, block deleted, 241 -> 237. The five-class x three-pattern exclude <Match> is gone from src/main/spotbugs/spotbugs-exclude.xml and all ten findings it masked are fixed. TWO CORRECTIONS TO THE FIRST VERSION OF THIS NOTE, both made after measuring rather than re-reading it. (1) THE COUNT. This note first said '241 -> 238' and 'THE COUNT FELL BY 3, NOT BY 0 AS PREDICTED'. Both numbers were wrong and both contradicted the ceiling stored a few lines above them in this same object. Measured with the CI command (grep -o '<BugInstance ' target/spotbugsXml.xml | wc -l): 237. The walk is 241 with the block, 251 without it, 237 after the fixes - it fell by FOUR. Three of the four lived in the body of calculateArraySize and went with the deletion (DE_MIGHT_IGNORE and REC_CATCH_EXCEPTION on its empty catch, SF_SWITCH_NO_DEFAULT on its default-less switch); the fourth is the NP_NULL_ON_SOME_PATH on the JsonFlattener constructor, repaired in the same commit and carried in its own changelog bullet. (2) THE unwrapUnion VERDICT, restated below. VERDICT ON THE FIVE DEAD PRIVATE METHODS, each established from the occurrence count of the symbol in every historical revision of its file following renames - not from reading the code and guessing: THREE WERE BORN DEAD, never called in any revision - AvroReconstructor.reconstructNestedArrayOfRecords (count 0 before cad816b, 1 in cad816b and every revision since; the live variant reconstructNestedArrayOfRecordsAtIndex was added by the SAME commit), MapFlattener.flattenSingleValue (count 1 in all 8 revisions of the file), and AvroReconstructor.unwrapUnion - which this note previously mis-filed as 'caller replaced'. unwrapUnion is born dead in the STRONGEST sense of the three: through ef625f2 the file contains FOUR occurrences of the symbol and all four are CALLS, with no declaration in any revision where a call exists; the declaration first appears at cad816b, the very commit that deleted all four calls, and never acquired a caller. The class has no superclass and the repo-wide count equals the per-file count at every revision, so it was not inherited; the file was Groovy-compiled then, so the four calls compiled and would have thrown MissingMethodException if reached. The claim 'its 3 call sites became unwrapNullable' was false twice over - there were four, and unwrapNullable's own count rose only 7 -> 8 at cad816b, so at most one site was replaced one-for-one while the branch structure was rewritten wholesale. TWO HAD CALLERS THAT A SPECIFIC COMMIT REMOVED, and in both the commit installed a named replacement at the same decision point, so nothing stopped running and no behaviour was owed restoration - AvroReconstructor.calculateArraySize (declaration at ef625f2:2018 plus one call at ef625f2:1192, which became determineArraySize, introduced by the same commit) and GAvroSchemaFlattener.isNullable(Schema), whose caller was still LIVE at 5df36e2:317 and at 1ba32af:317 and became a comment at 4a49041 - NOT at 5df36e2 as this note first said. The 4a49041 diff shows the replacement was deliberate: it adds a nullable field to SchemaNode, threads it through the constructor, and swaps the local isNullable(currentSchema) call for node.nullable. NO caller was lost, so NO corpus DEFECT is explained by any of the five, and the fidelity corpus stayed green through the change - 156 fixtures, 51/23/82 unmoved, verified rather than assumed. ONE LOSSY SUBSTITUTION IS NOW UNDOCUMENTED IN CODE and is tracked in docs/BACKLOG.md instead: determineArraySize has no BRACKET_LIST/COMMA_SEPARATED/PIPE_SEPARATED fallback where calculateArraySize did. The unwrapNullable arity-3+ gap tracked as BL-014 is NOT a lost behaviour - since unwrapUnion never executed, no arity-3+ handling was ever in service, so that entry is a never-implemented gap in the array-element path rather than a regression. CORRECTION TO THE PREVIOUS NOTE'S WORDING: it said 'deleting it would RAISE the ceiling, which is forbidden'. Deleting the block raises the measured COUNT to 251; the ceiling is a recorded number that only ever moves by hand. The ratchet would have rejected 251 against the 241 ceiling - that is the accurate statement, and it is why the ten had to be fixed in the same change as the deletion.",
     "note_2026_08_11": "SUPERSEDED by note_2026_08_17, retained for the measurement it records. UNCHANGED at 241 by the Groovy-toolchain removal, and that is itself the finding. RE-MEASURED INDEPENDENTLY on 2026-08-11 during adversarial-review follow-up, because the review task asserted the exclude block 'named five now-deleted classes' and that SpotBugs should therefore fall. Both halves are false. (1) All five classes are present as ordinary Java: src/main/java/io/github/pierce/{AvroReconstructor,GAvroSchemaFlattener,JsonFlattener,JsonReconstructor,MapFlattener}.java. None was deleted, and src/main went Groovy-free well before this change, so nothing about porting src/test/groovy could have retired the block. Its old 'Groovy-compiled classes' label was already false when written. (2) Deleting the block and re-running spotbugs:spotbugs gives 251 <BugInstance> entries against 241 with it - 10 masked findings in hand-written Java, none a compiler artefact: UPM_UNCALLED_PRIVATE_METHOD x5, SIC_INNER_SHOULD_BE_STATIC_ANON x3, RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE x2. No SpotBugs ceiling reduction was earned by the Groovy removal.",
-    "note": "242 -> 241 on 2026-08-10: the io.github.pierce.schema package added 6 findings and now contributes 0. Four were fixed (SE_BAD_FIELD x2 - FlattenOptions declared Serializable while holding non-serializable TypeMapper and LeafInterceptor fields, so it could not serialize at all, not even with defaults; UC_USELESS_OBJECT; SE_NO_SERIALVERSIONID). Two EI_EXPOSE_REP on FlattenedField are suppressed by named method in spotbugs-exclude.xml with reasoning. Still includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization."
-  }
+    "note": "242 -> 241 on 2026-08-10: the io.github.pierce.schema package added 6 findings and now contributes 0. Four were fixed (SE_BAD_FIELD x2 - FlattenOptions declared Serializable while holding non-serializable TypeMapper and LeafInterceptor fields, so it could not serialize at all, not even with defaults; UC_USELESS_OBJECT; SE_NO_SERIALVERSIONID). Two EI_EXPOSE_REP on FlattenedField are suppressed by named method in spotbugs-exclude.xml with reasoning. Still includes EI_EXPOSE_REP on the Spark result types and SE_BAD_FIELD on NexusPiercerSparkPipeline, which corroborates the audit's finding that a non-transient SparkSession is captured into task serialization.",
+    "note_2026_08_18": "237 -> 236, and the single-finding margin is the whole story. This pass adds diagnostic logging on paths that used to fail in silence, and find-sec-bugs counts every log statement that echoes caller-supplied text as CRLF_INJECTION_LOGS - so an intermediate measurement read 250, thirteen ABOVE the ceiling, before any of it was paid for. It was paid for by narrowing six catch(Exception) blocks to the exception actually thrown (REC_CATCH_EXCEPTION 20 -> 14), by the FIXED-decode empty catches taking DE_MIGHT_IGNORE 1 -> 0, and by folding five near-identical union-miss debug statements into one helper. Recorded because the shape of this is going to recur: a gate that counts log statements is in tension with a pass whose purpose is to make silent failures audible, and the tension was resolved by making the surrounding code genuinely better rather than by raising the number."
+  },
+  "_scope_2026_08_18": [
+    "THE 25 EmptyCatchBlock FINDINGS ARE GONE, AND SO IS THE ADVICE THAT WOULD HAVE FAKED IT.",
+    "",
+    "The 2026-08-17 note below said EmptyCatchBlock (25) 'is still the one to attack next - it is",
+    "the same swallowed-exception class the audit flagged as laundering failures into apparent",
+    "successes.' It was attacked. It is 0. But the obvious route was measured first and rejected:",
+    "",
+    "  PMD'S RULE DOES NOT ACCEPT A COMMENTED CATCH, AS CONFIGURED. The rule body in",
+    "  category/java/errorprone.xml (unzipped from pmd-java-6.55.0.jar) gates its XPath on",
+    "  [$allowCommentedBlocks != true()] and declares the property value=\"false\";",
+    "  src/main/pmd/pmd-ruleset.xml pulls errorprone.xml in wholesale and sets no properties.",
+    "  ALL 25 SITES ALREADY CARRIED COMMENTS - 'Continue trying other formats', 'Not valid",
+    "  Base64', 'Fall through to other formats' - and all 25 still counted. Adding a better",
+    "  comment would have resolved exactly zero. Flipping allowCommentedBlocks to true would have",
+    "  cleared all 25 in one line with no thought applied to any of them, and the comments it",
+    "  would bless include nine occurrences of '// Continue'. That is a ratchet ceiling raised by",
+    "  other means. Renaming all 25 variables to 'ignored' - the rule's own escape hatch - was",
+    "  rejected for 24 of them on the same grounds: at 21 sites the exception is not ignored, it",
+    "  is the signal that advances the cascade. The hatch is used at exactly ONE site,",
+    "  JsonReconstructor.parseAtomicValue, where a NumberFormatException genuinely IS the answer.",
+    "",
+    "PER-SITE OUTCOMES, classified before being touched:",
+    "  (a) 18 FORMAT-CASCADE sites in the four date/time converters. Each catch now records the",
+    "      FIRST failure through ConversionFailure.first, and each terminal names the formats it",
+    "      tried and carries that cause. Two intermediate shapes were measured and discarded: an",
+    "      unconditional 'lastFailure = e' cost 18 PMD UnusedAssignment (correctly - each is",
+    "      overwritten unread), and an inline 'if (firstFailure == null)' cost 12 SpotBugs",
+    "      NP_LOAD_OF_KNOWN_NULL_VALUE / RCN_REDUNDANT_NULLCHECK_* instead.",
+    "  (b) 3 FIXED-decode sites in AvroReconstructor. Each now records why that strategy declined,",
+    "      into a bitmask rather than a StringBuilder because this is a hot path. Two of the five",
+    "      strategies decline WITHOUT throwing and left no trace at all; those are recorded too,",
+    "      and the raw-platform-bytes fallback that they lead to now warns when it silently",
+    "      succeeds.",
+    "  (c) 2 in JsonReconstructor and 1 in FileFinder. The JsonReconstructor array site is a",
+    "      HYBRID - a legitimate cascade under three formats and a genuine laundering under the",
+    "      JSON default, where the switch falls through and returns the raw text as a one-element",
+    "      array - so only the JSON arm reports. FileFinder's catch was correct and its COMMENT",
+    "      was not: it claimed 'size is checked on open instead' and there is no size check on",
+    "      open anywhere in the file. That false compensating-control claim is now corrected in",
+    "      place and filed as files/NP-027.",
+    "",
+    "MEASURED, AND THE PREDICTION WAS WRONG IN BOTH DIRECTIONS BEFORE IT WAS RIGHT.",
+    "",
+    "  PMD       351 -> 323.  Predicted 326, honest band 326-331.",
+    "    EmptyCatchBlock          25 -> 0",
+    "    GuardLogStatement        44 -> 39   NOT predicted. This pass ADDS logging, which should",
+    "                                       have raised it, and an intermediate measurement did:",
+    "                                       360 total with GuardLogStatement at 52. Every new log",
+    "                                       call that had a method invocation in its argument list",
+    "                                       was rewritten to hoist it, and five near-identical",
+    "                                       union-miss debug lines were folded into one helper.",
+    "    UnusedAssignment          9 -> 9   after the firstFailure rework; it was 27 before.",
+    "    UnusedFormalParameter    38 -> 37",
+    "    AvoidLiteralsInIfCondition 62 -> 64  ROSE. The new format-mismatch and cardinality checks",
+    "                                       compare against literals.",
+    "    AvoidDuplicateLiterals   24 -> 25   ROSE, by one, in AvroReconstructor.",
+    "",
+    "  SpotBugs  237 -> 236.  Predicted 'may also fall; do not bank it.' It nearly did not.",
+    "    An intermediate measurement read 250 - THIRTEEN ABOVE THE CEILING - because every new",
+    "    log.warn that echoes caller-supplied text is a CRLF_INJECTION_LOGS finding and this pass",
+    "    exists to add log.warn calls. Getting back under it was real work, not bookkeeping:",
+    "    REC_CATCH_EXCEPTION      20 -> 14   six catch(Exception) narrowed to the type actually",
+    "                                       thrown - JsonProcessingException over a String parse,",
+    "                                       IllegalArgumentException from Base64, RuntimeException",
+    "                                       where nothing checked can be thrown at all",
+    "    DE_MIGHT_IGNORE           1 -> 0   the FIXED-decode empty catches",
+    "    CRLF_INJECTION_LOGS      91 -> 92  ROSE by one NET, after folding five union-miss log",
+    "                                       sites into one and dropping four marginal new ones",
+    "  The margin is ONE finding. The next agent to add a log line that echoes user data will",
+    "  break this gate, and that is the correct outcome rather than an inconvenience.",
+    "",
+    "  Checkstyle unmoved at 0. Test count 2389 -> 2470 (Maven summary line, authoritative; the",
+    "  surefire-XML sum reads 1929 and undercounts by 541 because @Nested classes emit a separate",
+    "  report each while the outer class reports tests=0).",
+    "",
+    "  Fidelity corpus 156 -> 161 fixtures, 51/23/82 -> 55/24/82. Three rows moved and five were",
+    "  added; see CHANGELOG.md and src/test/resources/fidelity/manifest.json."
+  ]
 }

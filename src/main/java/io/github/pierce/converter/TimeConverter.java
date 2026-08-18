@@ -94,13 +94,36 @@ public class TimeConverter extends AbstractTypeConverter<Long> {
         }
     }
 
+    /**
+     * The formats parseTimeString tries, in order, named so the failure can say what it attempted.
+     *
+     * <p>THE CASCADE STAYS A CASCADE. The five (or three) branches are not homogeneous -
+     * they produce different intermediate types and two of them consult config - so folding
+     * them into a formatter array plus a loop would need a lambda per branch and would risk
+     * silently reordering which format wins for ambiguous input. Each catch body records the
+     * failure into {@code firstFailure} instead of discarding it: that is real work rather
+     * than a comment, it costs nothing on the success path, and it finally hands the
+     * discarded exception to the terminal.</p>
+     *
+     * <p>PMD's EmptyCatchBlock does NOT accept a commented catch as configured -
+     * allowCommentedBlocks defaults to false and src/main/pmd/pmd-ruleset.xml sets no
+     * properties - so all of these counted while carrying comments like "// Continue trying
+     * other formats". Flipping that property would have cleared twenty-five findings without
+     * a thought applied to any of them.</p>
+     */
+    private static final String TRIED_FORMATS = "ISO time (HH:mm:ss[.SSS]), H:mm, numeric epoch time";
+
     private Long parseTimeString(String str, Object original) {
+        // See ConversionFailure for why this is a method call and not two obvious lines, and
+        // for why it is the FIRST failure rather than the last.
+        RuntimeException firstFailure = null;
         // Try ISO time format (HH:mm:ss or HH:mm:ss.SSS)
         try {
             LocalTime lt = LocalTime.parse(str);
             return localTimeToMicros(lt);
         } catch (DateTimeParseException e) {
             // Continue trying other formats
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
         // Try HH:mm format
@@ -109,6 +132,7 @@ public class TimeConverter extends AbstractTypeConverter<Long> {
             return localTimeToMicros(lt);
         } catch (DateTimeParseException e) {
             // Continue
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
         // Try parsing as numeric microseconds
@@ -117,9 +141,11 @@ public class TimeConverter extends AbstractTypeConverter<Long> {
             return convertLong(l, original);
         } catch (NumberFormatException e) {
             // Not a number
+            firstFailure = ConversionFailure.first(firstFailure, e);
         }
 
-        throw conversionError(original, "Cannot parse time from string: '" + str + "'");
+        throw conversionError(original, "Cannot parse time from string: '" + str + "'"
+                + ". Tried: " + TRIED_FORMATS, firstFailure);
     }
 
     /**

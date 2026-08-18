@@ -45,12 +45,12 @@ Four things ship in the box:
 Most flatteners will tell you what they produce. This one tells you **what you lose**.
 
 Every release ships a [round-trip fidelity guarantee](docs/ROUND_TRIP_FIDELITY.md) generated from a
-corpus of **156 fixtures** that are executed on every build:
+corpus of **161 fixtures** that are executed on every build:
 
 | Classification | Count | Meaning |
 |---|---:|---|
-| `LOSSLESS` | 51 | Round-trips exactly, and that is correct |
-| `ACCEPTED_LOSS` | 23 | Does not round-trip; the reason is stated and defensible |
+| `LOSSLESS` | 55 | Round-trips exactly, and that is correct |
+| `ACCEPTED_LOSS` | 24 | Does not round-trip; the reason is stated and defensible |
 | `DEFECT` | 82 | Does not round-trip, and that is a bug we have not fixed |
 
 A `DEFECT` fixture asserts the defect is **still present**, so repairing one turns the build red and
@@ -297,6 +297,16 @@ suite on JDK 17 and 21 across Linux and Windows.
 ([docs/audit/FINDINGS.md](docs/audit/FINDINGS.md)) is complete and remediation is phased in
 [docs/audit/ROADMAP.md](docs/audit/ROADMAP.md).
 
+**Repaired in 2.1.0**, and each one changes what a 2.0.0 caller gets back — see
+[CHANGELOG.md](CHANGELOG.md) for the behaviour-change list:
+
+- An Avro array of records whose element fields all live inside a nested record returned **one**
+  element instead of N, under every array format including the default
+- `AvroReconstructor.arrayFormat` was inert for arrays of records; it is now honoured, and columns
+  whose lengths disagree raise `ArrayCardinalityException` instead of being padded or duplicated
+- A missing required field fails with the flattened path instead of leaking Avro's own exception,
+  and an empty flattened map is no longer special-cased
+
 **Fixed and released in 2.0.0**, all previously listed here as limitations:
 
 - Flattened keys are now injectively encoded, so `user_id` and `user.id` are distinct and the
@@ -321,11 +331,17 @@ reproducible fixtures is in [docs/ROUND_TRIP_FIDELITY.md](docs/ROUND_TRIP_FIDELI
 - **Anything whose serialised text starts with a bracket is turned into an array**
 - **Recursive schemas still exhaust the stack on the legacy `AvroSchemaFlattener`** — use the
   enriched API if you accept untrusted schemas
-- **`AvroReconstructor.reconstruct()` returns a datum that fails `GenericData.validate`** — nested
-  values come back as `LinkedHashMap`. Use `reconstructToMap` unless you need a writable record.
-  A **defaulted enum field absent from the input breaks even a flat record, at the shipped default
-  configuration**; `useSchemaDefaults(false)` reconstructs it correctly
+- **`AvroReconstructor.reconstruct()` returns a datum that fails `GenericData.validate`** when the
+  record has nesting — nested values come back as `LinkedHashMap`. Use `reconstructToMap` unless
+  you need a writable record. The **flat** case is repaired in 2.1.0: a defaulted enum, fixed,
+  bytes or `null` field absent from the input used to break even a flat record at the shipped
+  default configuration, and now arrives as its schema-correct Avro type
   ([`recon/NP-023`](SECURITY.md))
+- **An Avro union still takes the first branch that will accept the value**, and for a union of
+  records the first branch sharing any field name wins with the rest of the data dropped. Repaired
+  in 2.1.0 for one position only: inside an *array element*, a union of three or more branches used
+  to be dropped to `null` in complete silence and is now resolved, or refused by name when two
+  record branches match the same columns
 
 Use the Avro path where fidelity matters. Treat the JSON round trip as lossy unless a fixture says
 otherwise for your shape.
