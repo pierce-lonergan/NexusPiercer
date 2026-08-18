@@ -21,10 +21,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>WHY BOTH HALVES. The negative half discharges the five
  * {@code UPM_UNCALLED_PRIVATE_METHOD} findings. The positive half is the more important one:
- * in three of the five cases a real caller WAS removed by a specific commit, which replaced it
+ * in two of the five cases a real caller WAS removed by a specific commit, which replaced it
  * with a differently-named method at the same decision point. A future agent reading only
  * "delete the dead twin" could delete the live one instead. Each supersessor is therefore
  * pinned by name.
+ *
+ * <p>CORRECTED 2026-08-17. This table and the messages below previously said THREE methods had
+ * their callers replaced, counting {@code unwrapUnion} among them. That was wrong, and it is
+ * corrected in its row. Re-measured per revision with {@code git grep -n unwrapUnion <rev>}:
+ * the method had NO declaration in any revision in which a call to it existed, so it never
+ * coexisted with a caller and cannot have had one "replaced". The deletion verdict is unchanged
+ * and is in fact stronger than the original argument for it.
  *
  * <p>VERDICTS, each established from the occurrence count of the symbol in every historical
  * revision of its file, following renames:
@@ -40,19 +47,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       <td>count 1 in all 8 revisions of the file since 5df36e2. Never called. Also strictly
  *           worse than the live path: it never reaches serializeValue, which exists to
  *           Base64-encode a ByteBuffer instead of letting toString() destroy it.</td></tr>
- *   <tr><td>AvroReconstructor.unwrapUnion</td><td>CALLER REPLACED</td>
- *       <td>count 4 (declaration + 3 call sites) through ef625f2, then 1 from cad816b onward.
- *           cad816b rewrote reconstructArrayOfRecords wholesale; the same decisions are made
- *           today by unwrapNullable. Nothing stopped running.</td></tr>
+ *   <tr><td>AvroReconstructor.unwrapUnion</td><td>BORN DEAD, most strongly of the three</td>
+ *       <td>count 4 through ef625f2 and all four are CALLS - there is no declaration in ANY
+ *           revision where a call exists. The declaration first appears at cad816b, the same
+ *           commit that deleted all four calls, and never acquired a caller. No superclass, and
+ *           the repo-wide count equals the per-file count at every revision, so it was not
+ *           inherited; the file was Groovy-compiled then, so the calls compiled and would have
+ *           thrown MissingMethodException if reached. It never executed, in any revision.</td></tr>
  *   <tr><td>AvroReconstructor.calculateArraySize</td><td>CALLER REPLACED</td>
- *       <td>count 2 (declaration + 1 call) through ef625f2, then 1 from cad816b onward.
- *           ef625f2:1192 {@code calculateArraySize(node, node.arrayFieldValues, elementSchema)}
+ *       <td>count 2 (declaration at ef625f2:2018 + 1 call at ef625f2:1192) through ef625f2, then
+ *           1 from cad816b onward. ef625f2:1192
+ *           {@code calculateArraySize(node, node.arrayFieldValues, elementSchema)}
  *           became {@code determineArraySize(...)}, introduced by the same commit.</td></tr>
  *   <tr><td>GAvroSchemaFlattener.isNullable(Schema)</td><td>CALLER REPLACED</td>
- *       <td>at 5df36e2:317 the caller was {@code boolean nullable = isNullable(currentSchema);}.
- *           Today that line is a COMMENT. node.nullable is computed by analyzeUnion during
- *           traversal and carries ancestor nullability the local check cannot see, because
- *           currentSchema has already been union-unwrapped by that point.</td></tr>
+ *       <td>the caller {@code boolean nullable = isNullable(currentSchema);} was still LIVE at
+ *           5df36e2:317 and at 1ba32af:317, and became a COMMENT at 4a49041 - the fourth
+ *           revision of the file, not the first. That the swap was deliberate is visible in the
+ *           4a49041 diff, which adds a {@code nullable} field to SchemaNode and threads it
+ *           through the constructor rather than merely dropping the call. node.nullable is
+ *           computed by analyzeUnion during traversal and carries ancestor nullability the local
+ *           check cannot see, because currentSchema has already been union-unwrapped by that
+ *           point.</td></tr>
  * </table>
  *
  * <p>NOT one of the five: {@code FlattenedFieldType.isNullable()}, the public no-arg accessor,
@@ -100,11 +115,20 @@ class NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest {
         }
 
         @Test
-        @DisplayName("AvroReconstructor.unwrapUnion - caller replaced by unwrapNullable at cad816b")
+        @DisplayName("AvroReconstructor.unwrapUnion - born dead: four calls to a method that was never declared")
         void unwrapUnionIsGone() {
             assertNoDeclaredMethodNamed(AvroReconstructor.class, "unwrapUnion",
-                    "CALLER REPLACED: its 3 call sites became unwrapNullable when cad816b "
-                            + "rewrote reconstructArrayOfRecords.");
+                    "BORN DEAD, and in the strongest sense of the three born-dead verdicts here. "
+                            + "Through ef625f2 the symbol occurs FOUR times and every one is a "
+                            + "CALL: there is no declaration in any revision in which a call "
+                            + "exists. The declaration first appears at cad816b, the same commit "
+                            + "that deleted all four calls, and it never acquired a caller. The "
+                            + "file was Groovy-compiled then, so those calls compiled and would "
+                            + "have thrown MissingMethodException had they been reached. "
+                            + "This test previously said 'its 3 call sites became unwrapNullable' "
+                            + "- false twice: there were four, and unwrapNullable's own count rose "
+                            + "only 7 -> 8 at cad816b. Do not restore it to recover behaviour; it "
+                            + "never had any.");
         }
 
         @Test
@@ -116,7 +140,7 @@ class NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest {
         }
 
         @Test
-        @DisplayName("GAvroSchemaFlattener.isNullable(Schema) - caller replaced by node.nullable in the first commit")
+        @DisplayName("GAvroSchemaFlattener.isNullable(Schema) - caller replaced by node.nullable at 4a49041")
         void privateIsNullableSchemaIsGone() {
             List<Method> singleSchemaArg = new ArrayList<>();
             for (Method m : declaredNamed(GAvroSchemaFlattener.class, "isNullable")) {
@@ -126,8 +150,13 @@ class NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest {
             }
             assertTrue(singleSchemaArg.isEmpty(),
                     "Expected no declared isNullable(Schema) on GAvroSchemaFlattener "
-                            + "(CALLER REPLACED: 5df36e2:317's call became node.nullable, which "
-                            + "carries ancestor nullability a local check cannot see) but found "
+                            + "(CALLER REPLACED at 4a49041, NOT at 5df36e2 as this message "
+                            + "previously said: the call was still live at 5df36e2:317 and at "
+                            + "1ba32af:317, and 4a49041 turned it into a comment. The 4a49041 "
+                            + "diff adds a nullable field to SchemaNode and threads it through "
+                            + "the constructor, so the replacement was deliberate rather than "
+                            + "incidental; node.nullable carries ancestor nullability a local "
+                            + "check cannot see) but found "
                             + singleSchemaArg);
         }
 
@@ -161,16 +190,23 @@ class NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest {
         }
 
         @Test
-        @DisplayName("unwrapNullable replaced unwrapUnion")
+        @DisplayName("unwrapNullable is the live branch-unwrapper")
         void unwrapNullableSurvives() {
             assertDeclaresMethodNamed(AvroReconstructor.class, "unwrapNullable",
-                    "This is the live branch-unwrapper that unwrapUnion was replaced by. NOTE: "
-                            + "unwrapNullable returns the union UNCHANGED unless it has exactly "
-                            + "two branches, where unwrapUnion returned the first non-null branch "
-                            + "at any arity, so the substitution was lossy for 3+ branch unions. "
-                            + "Restoring unwrapUnion is NOT the fix - 'first non-null branch' is "
-                            + "a different wrong answer, and the class already owns a real branch "
-                            + "resolver in reconstructUnionValue.");
+                    "This is the live branch-unwrapper at the decision point where the dead "
+                            + "unwrapUnion was declared. NOTE, and this message previously stated "
+                            + "it wrongly: unwrapNullable returns the union UNCHANGED unless it "
+                            + "has exactly two branches, so a 3+ branch union inside an array "
+                            + "element matches neither the RECORD nor the ARRAY branch and falls "
+                            + "through to handleMissingField. That is a gap that has ALWAYS been "
+                            + "present, not a regression from a lossy substitution: unwrapUnion "
+                            + "was never declared in any revision where it was called, so its "
+                            + "'first non-null branch at any arity' behaviour never executed and "
+                            + "no arity-3+ handling was ever lost. Tracked as BL-014. Restoring "
+                            + "unwrapUnion is NOT the fix - 'first non-null branch' is a different "
+                            + "wrong answer, and the class already owns a real branch resolver in "
+                            + "reconstructUnionValue that the array-element path does not "
+                            + "consult.");
         }
 
         @Test

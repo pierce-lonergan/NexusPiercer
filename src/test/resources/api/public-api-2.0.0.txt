@@ -1,0 +1,1272 @@
+# PUBLIC API SURFACE OF THE RELEASED 2.0.0 ARTIFACT.
+#
+# Extracted from nexus-piercer-2.0.0.jar - the artifact staged on Maven Central, not a rebuild of
+# the tag - by io.github.pierce.gates.PublicApiSurface, using a classloader whose parent is the
+# PLATFORM loader so that no class resolves from the current build.
+#
+# THIS FILE IS A CONTRACT, NOT A SNAPSHOT OF NOW. Every line is a member a consumer compiling
+# against 2.0.0 can bind to. Work on main must be ADDITIVE: lines may be added to the current
+# surface, never removed from this one. PublicApiIsAdditiveOnlySinceReleaseTest fails the build if
+# any line here disappears from target/classes.
+#
+# DO NOT "fix" a failure by deleting the offending line. A missing line means a released member was
+# removed or its signature changed, which breaks consumers at link time. Either restore the member
+# (adding the new form alongside it) or, if the break is genuinely intended, that is a 3.0.0 and
+# this baseline is replaced wholesale with the 3.0.0 surface as part of that release.
+#
+# Generated 2026-08-17. 1255 members. Regenerate only when a new MAJOR is released.
+CTOR protected io.github.pierce.converter.AbstractTypeConverter(io.github.pierce.converter.ConversionConfig,java.lang.String)
+CTOR public io.github.pierce.AvroReconstructor.Builder()
+CTOR public io.github.pierce.AvroReconstructor.ReconstructionException(java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.AvroReconstructor.SchemaCacheStats(long,long,int,int)
+CTOR public io.github.pierce.AvroSchemaFlattener()
+CTOR public io.github.pierce.AvroSchemaFlattener(boolean)
+CTOR public io.github.pierce.AvroSchemaFlattener(boolean,boolean)
+CTOR public io.github.pierce.AvroSchemaFlattener.ArrayDefinition(java.lang.String,java.lang.String,int,java.lang.String,boolean,boolean)
+CTOR public io.github.pierce.AvroSchemaFlattener.FieldHierarchy(java.lang.String,java.lang.String,int,java.lang.String,boolean)
+CTOR public io.github.pierce.AvroSchemaFlattener.FieldMetadata(java.lang.String,java.lang.String,int,org.apache.avro.Schema.Type,org.apache.avro.Schema.Type,java.lang.String,boolean,boolean,boolean,boolean)
+CTOR public io.github.pierce.AvroSchemaFlattener.FieldReference(java.lang.String,java.lang.String,java.lang.String)
+CTOR public io.github.pierce.AvroSchemaFlattener.RecordDefinition(java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.util.List)
+CTOR public io.github.pierce.AvroSchemaFlattener.SchemaStatistics()
+CTOR public io.github.pierce.AvroSchemaFlattener.TypeTransformation(java.lang.String,org.apache.avro.Schema.Type,org.apache.avro.Schema.Type,java.lang.String)
+CTOR public io.github.pierce.AvroSchemaLoader.Builder()
+CTOR public io.github.pierce.AvroSchemaLoader.SchemaLoadResult(java.util.Map,java.util.Map)
+CTOR public io.github.pierce.AvroSchemaLoader.SchemaLocation(java.lang.String,java.lang.String,io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType,java.lang.String)
+CTOR public io.github.pierce.CreateSparkStructFromAvroSchema()
+CTOR public io.github.pierce.GAvroSchemaFlattener()
+CTOR public io.github.pierce.GAvroSchemaFlattener(io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig)
+CTOR public io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder()
+CTOR public io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType(java.lang.String,io.github.pierce.GAvroSchemaFlattener.DataType,boolean,io.github.pierce.GAvroSchemaFlattener.DataType,org.apache.avro.Schema.Type,boolean)
+CTOR public io.github.pierce.JsonFlattener.Builder()
+CTOR public io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder()
+CTOR public io.github.pierce.JsonFlattener.JsonFlattenException(java.lang.String)
+CTOR public io.github.pierce.JsonFlattener.JsonFlattenException(java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder()
+CTOR public io.github.pierce.JsonFlattener.JsonValidationException(io.github.pierce.JsonFlattener.ValidationResult)
+CTOR public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder()
+CTOR public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder()
+CTOR public io.github.pierce.JsonFlattenerConsolidator(java.lang.String,java.lang.String,int,int,boolean)
+CTOR public io.github.pierce.JsonFlattenerConsolidator(java.lang.String,java.lang.String,int,int,boolean,boolean)
+CTOR public io.github.pierce.JsonFlattenerConsolidator(java.lang.String,java.lang.String,int,int,boolean,boolean,java.lang.String[])
+CTOR public io.github.pierce.JsonReconstructor.Builder()
+CTOR public io.github.pierce.JsonReconstructor.ReconstructionException(java.lang.String)
+CTOR public io.github.pierce.JsonReconstructor.ReconstructionException(java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.MapFlattener()
+CTOR public io.github.pierce.MapFlattener(boolean,int,int)
+CTOR public io.github.pierce.MapFlattener.Builder()
+CTOR public io.github.pierce.converter.BinaryConverter()
+CTOR public io.github.pierce.converter.BinaryConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.BinaryConverter(io.github.pierce.converter.ConversionConfig,java.lang.Integer)
+CTOR public io.github.pierce.converter.BooleanConverter()
+CTOR public io.github.pierce.converter.BooleanConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.ConversionConfig.Builder()
+CTOR public io.github.pierce.converter.ConversionResult.ConversionError(java.lang.String,java.lang.String)
+CTOR public io.github.pierce.converter.ConversionResult.ConversionError(java.lang.String,java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.converter.DateConverter()
+CTOR public io.github.pierce.converter.DateConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.DecimalConverter(io.github.pierce.converter.ConversionConfig,int,int)
+CTOR public io.github.pierce.converter.DoubleConverter()
+CTOR public io.github.pierce.converter.DoubleConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.FloatConverter()
+CTOR public io.github.pierce.converter.FloatConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.IntegerConverter()
+CTOR public io.github.pierce.converter.IntegerConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.ListConverter(io.github.pierce.converter.ConversionConfig,io.github.pierce.converter.TypeConverter)
+CTOR public io.github.pierce.converter.LongConverter()
+CTOR public io.github.pierce.converter.LongConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.MapConverter(io.github.pierce.converter.ConversionConfig,io.github.pierce.converter.TypeConverter,io.github.pierce.converter.TypeConverter)
+CTOR public io.github.pierce.converter.Notification()
+CTOR public io.github.pierce.converter.NullValueException(java.lang.String)
+CTOR public io.github.pierce.converter.NullValueException(java.lang.String,java.lang.String)
+CTOR public io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType(java.lang.String,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType,boolean)
+CTOR public io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType(java.lang.String,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType,boolean,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType,boolean)
+CTOR public io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType(java.lang.String,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType,boolean,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType,boolean,java.lang.Integer,java.lang.Integer)
+CTOR public io.github.pierce.converter.SchemaConversionException(java.lang.String)
+CTOR public io.github.pierce.converter.SchemaConversionException(java.lang.String,java.lang.String)
+CTOR public io.github.pierce.converter.SchemaConversionException(java.lang.String,java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.converter.SchemaConversionException(java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.converter.SchemaConversionUtil.FieldDefinition(java.lang.String,io.github.pierce.converter.SchemaConversionUtil.FieldType,boolean)
+CTOR public io.github.pierce.converter.SchemaConversionUtil.FieldDefinition(java.lang.String,io.github.pierce.converter.SchemaConversionUtil.FieldType,boolean,java.lang.Object[])
+CTOR public io.github.pierce.converter.SchemaConversionUtil.FieldInfo(java.lang.String,java.lang.String,java.lang.String,boolean,boolean)
+CTOR public io.github.pierce.converter.StringConverter()
+CTOR public io.github.pierce.converter.StringConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.StringConverter(io.github.pierce.converter.ConversionConfig,java.lang.Integer)
+CTOR public io.github.pierce.converter.StructConverter(io.github.pierce.converter.ConversionConfig,java.util.List)
+CTOR public io.github.pierce.converter.StructConverter.Builder(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.StructConverter.FieldInfo(java.lang.String,io.github.pierce.converter.TypeConverter,boolean,java.lang.Object)
+CTOR public io.github.pierce.converter.TimeConverter()
+CTOR public io.github.pierce.converter.TimeConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.TimestampConverter(io.github.pierce.converter.ConversionConfig,boolean)
+CTOR public io.github.pierce.converter.TimestampNanoConverter(io.github.pierce.converter.ConversionConfig,boolean)
+CTOR public io.github.pierce.converter.TypeConversionException(java.lang.Object,java.lang.String,java.lang.String)
+CTOR public io.github.pierce.converter.TypeConversionException(java.lang.Object,java.lang.String,java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.converter.TypeConversionException(java.lang.String)
+CTOR public io.github.pierce.converter.TypeConversionException(java.lang.String,java.lang.Object,java.lang.String,java.lang.String)
+CTOR public io.github.pierce.converter.TypeConversionException(java.lang.String,java.lang.Object,java.lang.String,java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.converter.TypeConversionException(java.lang.String,java.lang.Throwable)
+CTOR public io.github.pierce.converter.TypeConverterRegistry(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.converter.UUIDConverter()
+CTOR public io.github.pierce.converter.UUIDConverter(io.github.pierce.converter.ConversionConfig)
+CTOR public io.github.pierce.files.FileFinder.Config()
+CTOR public io.github.pierce.files.FileFinder.FileFinderException(java.lang.String,java.util.List,java.util.List,java.util.List)
+CTOR public io.github.pierce.files.FileFinder.FileLocation(java.lang.String,java.lang.String,java.lang.String,io.github.pierce.files.FileFinder.FileLocation.Type,java.lang.String)
+CTOR public io.github.pierce.files.FileFinder.Util()
+CTOR public io.github.pierce.schema.EnrichedSchemaFlattener()
+CTOR public io.github.pierce.schema.EnrichedSchemaFlattener(io.github.pierce.schema.FlattenOptions)
+CTOR public io.github.pierce.schema.FlattenOptions.Builder()
+CTOR public io.github.pierce.schema.FlattenedField.Builder()
+CTOR public io.github.pierce.schema.PathSegment(java.lang.String,io.github.pierce.schema.PathSegment.Kind,java.lang.String)
+CTOR public io.github.pierce.schema.RecursiveSchemaException(java.lang.String,java.lang.String,java.lang.String)
+CTOR public io.github.pierce.schema.SchemaFlattenException(java.lang.String,java.lang.String,java.lang.String)
+CTOR public io.github.pierce.schema.SchemaLimitExceededException(java.lang.String,long,long,java.lang.String,java.lang.String)
+CTOR public io.github.pierce.spark.NexusPiercerFunctions()
+CTOR public io.github.pierce.spark.NexusPiercerPatterns()
+CTOR public io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineConfig()
+CTOR public io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics()
+FIELD protected final io.github.pierce.converter.ConversionConfig io.github.pierce.converter.AbstractTypeConverter.config
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.ArrayDefinition.isTerminal
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.ArrayDefinition.isWithinArray
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.FieldHierarchy.isWithinArray
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.FieldMetadata.isArray
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.FieldMetadata.isNullable
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.FieldMetadata.isTerminalArray
+FIELD public final boolean io.github.pierce.AvroSchemaFlattener.FieldMetadata.isWithinArray
+FIELD public final boolean io.github.pierce.files.FileFinder.FileMetadata.isCompressed
+FIELD public final int io.github.pierce.AvroSchemaFlattener.ArrayDefinition.depth
+FIELD public final int io.github.pierce.AvroSchemaFlattener.FieldHierarchy.depth
+FIELD public final int io.github.pierce.AvroSchemaFlattener.FieldMetadata.nestingDepth
+FIELD public final io.github.pierce.files.FileFinder.FileLocation io.github.pierce.files.FileFinder.FileMetadata.location
+FIELD public final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.type
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.ArrayDefinition.elementType
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.ArrayDefinition.fieldName
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.ArrayDefinition.originalPath
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldHierarchy.flattenedName
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldHierarchy.originalPath
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldHierarchy.originalSchemaString
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldMetadata.documentation
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldMetadata.flattenedName
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldMetadata.originalPath
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldReference.documentation
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldReference.name
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.FieldReference.schemaString
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.RecordDefinition.documentation
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.RecordDefinition.fullName
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.RecordDefinition.name
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.RecordDefinition.path
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.TypeTransformation.fieldName
+FIELD public final java.lang.String io.github.pierce.AvroSchemaFlattener.TypeTransformation.reason
+FIELD public final java.lang.String io.github.pierce.files.FileFinder.FileLocation.absolutePath
+FIELD public final java.lang.String io.github.pierce.files.FileFinder.FileLocation.container
+FIELD public final java.lang.String io.github.pierce.files.FileFinder.FileLocation.fileName
+FIELD public final java.lang.String io.github.pierce.files.FileFinder.FileLocation.relativePath
+FIELD public final java.lang.String io.github.pierce.files.FileFinder.FileMetadata.path
+FIELD public final java.util.List io.github.pierce.AvroSchemaFlattener.RecordDefinition.fieldReferences
+FIELD public final long io.github.pierce.files.FileFinder.FileMetadata.lastModified
+FIELD public final long io.github.pierce.files.FileFinder.FileMetadata.size
+FIELD public final long io.github.pierce.files.FileFinder.Statistics.cacheHits
+FIELD public final long io.github.pierce.files.FileFinder.Statistics.cacheMisses
+FIELD public final long io.github.pierce.files.FileFinder.Statistics.contentCacheSize
+FIELD public final long io.github.pierce.files.FileFinder.Statistics.fileCacheSize
+FIELD public final long io.github.pierce.files.FileFinder.Statistics.locationCacheSize
+FIELD public final long io.github.pierce.files.FileFinder.Statistics.searchAttempts
+FIELD public final org.apache.avro.Schema.Type io.github.pierce.AvroSchemaFlattener.FieldMetadata.flattenedType
+FIELD public final org.apache.avro.Schema.Type io.github.pierce.AvroSchemaFlattener.FieldMetadata.originalType
+FIELD public final org.apache.avro.Schema.Type io.github.pierce.AvroSchemaFlattener.TypeTransformation.originalType
+FIELD public final org.apache.avro.Schema.Type io.github.pierce.AvroSchemaFlattener.TypeTransformation.transformedType
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.arrayFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.enumFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.fieldsWithinArraysCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.flattenedFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.mapFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.maxNestingDepth
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.nonTerminalArrayFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.originalFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.recordFieldCount
+FIELD public int io.github.pierce.AvroSchemaFlattener.SchemaStatistics.terminalArrayFieldCount
+FIELD public java.lang.String io.github.pierce.AvroSchemaFlattener.SchemaStatistics.originalSchemaName
+FIELD public static final int io.github.pierce.spark.NexusPiercerFunctions.DEFAULT_MAX_ARRAY_SIZE
+FIELD public static final int io.github.pierce.spark.NexusPiercerFunctions.DEFAULT_MAX_NESTING
+FIELD public static final io.github.pierce.AvroReconstructor.ArraySerializationFormat io.github.pierce.AvroReconstructor.ArraySerializationFormat.BRACKET_LIST
+FIELD public static final io.github.pierce.AvroReconstructor.ArraySerializationFormat io.github.pierce.AvroReconstructor.ArraySerializationFormat.COMMA_SEPARATED
+FIELD public static final io.github.pierce.AvroReconstructor.ArraySerializationFormat io.github.pierce.AvroReconstructor.ArraySerializationFormat.JSON
+FIELD public static final io.github.pierce.AvroReconstructor.ArraySerializationFormat io.github.pierce.AvroReconstructor.ArraySerializationFormat.PIPE_SEPARATED
+FIELD public static final io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType.CLASSPATH
+FIELD public static final io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType.FILEFINDER
+FIELD public static final io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType.HDFS
+FIELD public static final io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType.LOCAL_FILE
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.BIGINT
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.BOOLEAN
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.BYTES
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.DATE
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.DECIMAL
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.DOUBLE
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.FLOAT
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.INT
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.LONG
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.STRING
+FIELD public static final io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.TIMESTAMP
+FIELD public static final io.github.pierce.JsonReconstructor.ArraySerializationFormat io.github.pierce.JsonReconstructor.ArraySerializationFormat.BRACKET_LIST
+FIELD public static final io.github.pierce.JsonReconstructor.ArraySerializationFormat io.github.pierce.JsonReconstructor.ArraySerializationFormat.COMMA_SEPARATED
+FIELD public static final io.github.pierce.JsonReconstructor.ArraySerializationFormat io.github.pierce.JsonReconstructor.ArraySerializationFormat.JSON
+FIELD public static final io.github.pierce.JsonReconstructor.ArraySerializationFormat io.github.pierce.JsonReconstructor.ArraySerializationFormat.PIPE_SEPARATED
+FIELD public static final io.github.pierce.MapFlattener.ArraySerializationFormat io.github.pierce.MapFlattener.ArraySerializationFormat.BRACKET_LIST
+FIELD public static final io.github.pierce.MapFlattener.ArraySerializationFormat io.github.pierce.MapFlattener.ArraySerializationFormat.COMMA_SEPARATED
+FIELD public static final io.github.pierce.MapFlattener.ArraySerializationFormat io.github.pierce.MapFlattener.ArraySerializationFormat.JSON
+FIELD public static final io.github.pierce.MapFlattener.ArraySerializationFormat io.github.pierce.MapFlattener.ArraySerializationFormat.PIPE_SEPARATED
+FIELD public static final io.github.pierce.MapFlattener.FieldNamingStrategy io.github.pierce.MapFlattener.FieldNamingStrategy.AS_IS
+FIELD public static final io.github.pierce.MapFlattener.FieldNamingStrategy io.github.pierce.MapFlattener.FieldNamingStrategy.LOWER_CASE
+FIELD public static final io.github.pierce.MapFlattener.FieldNamingStrategy io.github.pierce.MapFlattener.FieldNamingStrategy.SNAKE_CASE
+FIELD public static final io.github.pierce.MapFlattener.FieldNamingStrategy io.github.pierce.MapFlattener.FieldNamingStrategy.UPPER_CASE
+FIELD public static final io.github.pierce.converter.ConversionConfig.ErrorHandlingMode io.github.pierce.converter.ConversionConfig.ErrorHandlingMode.COLLECT_ERRORS
+FIELD public static final io.github.pierce.converter.ConversionConfig.ErrorHandlingMode io.github.pierce.converter.ConversionConfig.ErrorHandlingMode.FAIL_FAST
+FIELD public static final io.github.pierce.converter.ConversionConfig.ErrorHandlingMode io.github.pierce.converter.ConversionConfig.ErrorHandlingMode.SKIP_ON_ERROR
+FIELD public static final io.github.pierce.converter.ConversionConfig.NullHandlingMode io.github.pierce.converter.ConversionConfig.NullHandlingMode.PASS_THROUGH
+FIELD public static final io.github.pierce.converter.ConversionConfig.NullHandlingMode io.github.pierce.converter.ConversionConfig.NullHandlingMode.STRICT
+FIELD public static final io.github.pierce.converter.ConversionConfig.NullHandlingMode io.github.pierce.converter.ConversionConfig.NullHandlingMode.USE_DEFAULTS
+FIELD public static final io.github.pierce.converter.ConversionConfig.OutputFormat io.github.pierce.converter.ConversionConfig.OutputFormat.GENERIC_RECORD
+FIELD public static final io.github.pierce.converter.ConversionConfig.OutputFormat io.github.pierce.converter.ConversionConfig.OutputFormat.MAP
+FIELD public static final io.github.pierce.converter.ConversionConfig.StringTruncationMode io.github.pierce.converter.ConversionConfig.StringTruncationMode.ERROR
+FIELD public static final io.github.pierce.converter.ConversionConfig.StringTruncationMode io.github.pierce.converter.ConversionConfig.StringTruncationMode.TRUNCATE
+FIELD public static final io.github.pierce.converter.ConversionConfig.StringTruncationMode io.github.pierce.converter.ConversionConfig.StringTruncationMode.TRUNCATE_WITH_WARNING
+FIELD public static final io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.TimestampPrecision.AUTO_DETECT
+FIELD public static final io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.TimestampPrecision.MICROSECONDS
+FIELD public static final io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.TimestampPrecision.MILLISECONDS
+FIELD public static final io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.TimestampPrecision.NANOSECONDS
+FIELD public static final io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.TimestampPrecision.SECONDS
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.BIGINT
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.BOOLEAN
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.BYTES
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.DATE
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.DECIMAL
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.DOUBLE
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.FLOAT
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.INT
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.LONG
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.STRING
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.TIMESTAMP
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.UUID
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.SchemaType io.github.pierce.converter.SchemaBasedMapConverter.SchemaType.AVRO
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.SchemaType io.github.pierce.converter.SchemaBasedMapConverter.SchemaType.FLATTENED
+FIELD public static final io.github.pierce.converter.SchemaBasedMapConverter.SchemaType io.github.pierce.converter.SchemaBasedMapConverter.SchemaType.ICEBERG
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.BINARY
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.BOOLEAN
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.DATE
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.DECIMAL
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.DOUBLE
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.FIXED
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.FLOAT
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.INTEGER
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.LIST
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.LONG
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.MAP
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.STRING
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.STRUCT
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.TIME
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.TIMESTAMP
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.TIMESTAMPTZ
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.TIMESTAMP_NANO
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.TIMESTAMP_NANOTZ
+FIELD public static final io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.UUID
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.CLASSPATH
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.HDFS
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.JAR
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.LOCAL_FILE
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.S3
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.UNKNOWN
+FIELD public static final io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.URL
+FIELD public static final io.github.pierce.schema.LeafInterceptor io.github.pierce.schema.LeafInterceptor.NOOP
+FIELD public static final io.github.pierce.schema.NameCollisionPolicy io.github.pierce.schema.NameCollisionPolicy.ESCAPE
+FIELD public static final io.github.pierce.schema.NameCollisionPolicy io.github.pierce.schema.NameCollisionPolicy.FAIL
+FIELD public static final io.github.pierce.schema.PathSegment.Kind io.github.pierce.schema.PathSegment.Kind.ARRAY
+FIELD public static final io.github.pierce.schema.PathSegment.Kind io.github.pierce.schema.PathSegment.Kind.FIELD
+FIELD public static final io.github.pierce.schema.PathSegment.Kind io.github.pierce.schema.PathSegment.Kind.MAP
+FIELD public static final io.github.pierce.schema.PathSegment.Kind io.github.pierce.schema.PathSegment.Kind.UNION_BRANCH
+FIELD public static final io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling.FAIL_FAST
+FIELD public static final io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling.PERMISSIVE
+FIELD public static final io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE
+FIELD public static final io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling.SKIP_MALFORMED
+FIELD public static final io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode.BATCH
+FIELD public static final io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode.STREAMING
+FIELD public static final java.lang.String io.github.pierce.spark.NexusPiercerFunctions.DEFAULT_DELIMITER
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.explodeJsonArray
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.extractJsonArray
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.extractNestedField
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.flattenJson
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.flattenJsonWithDelimiter
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.flattenJsonWithStats
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.getJsonError
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.isValidJson
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.jsonArrayCount
+FIELD public static org.apache.spark.sql.expressions.UserDefinedFunction io.github.pierce.spark.NexusPiercerFunctions.jsonArrayDistinctCount
+METH protected abstract java.lang.Object io.github.pierce.converter.AbstractTypeConverter.doConvert(java.lang.Object)
+METH protected io.github.pierce.converter.TypeConversionException io.github.pierce.converter.AbstractTypeConverter.conversionError(java.lang.Object,java.lang.String)
+METH protected io.github.pierce.converter.TypeConversionException io.github.pierce.converter.AbstractTypeConverter.conversionError(java.lang.Object,java.lang.String,java.lang.Throwable)
+METH protected io.github.pierce.converter.TypeConversionException io.github.pierce.converter.AbstractTypeConverter.unsupportedType(java.lang.Object)
+METH protected java.lang.Boolean io.github.pierce.converter.BooleanConverter.doConvert(java.lang.Object)
+METH protected java.lang.Double io.github.pierce.converter.DoubleConverter.doConvert(java.lang.Object)
+METH protected java.lang.Float io.github.pierce.converter.FloatConverter.doConvert(java.lang.Object)
+METH protected java.lang.Integer io.github.pierce.converter.DateConverter.doConvert(java.lang.Object)
+METH protected java.lang.Integer io.github.pierce.converter.IntegerConverter.doConvert(java.lang.Object)
+METH protected java.lang.Long io.github.pierce.converter.LongConverter.doConvert(java.lang.Object)
+METH protected java.lang.Long io.github.pierce.converter.TimeConverter.doConvert(java.lang.Object)
+METH protected java.lang.Long io.github.pierce.converter.TimestampConverter.doConvert(java.lang.Object)
+METH protected java.lang.Long io.github.pierce.converter.TimestampNanoConverter.doConvert(java.lang.Object)
+METH protected java.lang.Number io.github.pierce.converter.AbstractTypeConverter.parseNumber(java.lang.Object)
+METH protected java.lang.Object io.github.pierce.converter.AbstractTypeConverter.handleNull()
+METH protected java.lang.String io.github.pierce.converter.AbstractTypeConverter.charSequenceToString(java.lang.Object)
+METH protected java.lang.String io.github.pierce.converter.StringConverter.doConvert(java.lang.Object)
+METH protected java.math.BigDecimal io.github.pierce.converter.DecimalConverter.doConvert(java.lang.Object)
+METH protected java.nio.ByteBuffer io.github.pierce.converter.BinaryConverter.doConvert(java.lang.Object)
+METH protected java.util.List io.github.pierce.converter.ListConverter.doConvert(java.lang.Object)
+METH protected java.util.List io.github.pierce.converter.ListConverter.handleNull()
+METH protected java.util.Map io.github.pierce.converter.MapConverter.doConvert(java.lang.Object)
+METH protected java.util.Map io.github.pierce.converter.MapConverter.handleNull()
+METH protected java.util.Map io.github.pierce.converter.StructConverter.doConvert(java.lang.Object)
+METH protected java.util.Map io.github.pierce.converter.StructConverter.handleNull()
+METH protected java.util.UUID io.github.pierce.converter.UUIDConverter.doConvert(java.lang.Object)
+METH public abstract java.lang.Object io.github.pierce.converter.TypeConverter.convert(java.lang.Object)
+METH public abstract java.lang.String io.github.pierce.converter.TypeConverter.getTargetTypeName()
+METH public abstract java.lang.String io.github.pierce.schema.TypeMapper.map(io.github.pierce.schema.FlattenedField)
+METH public abstract void io.github.pierce.schema.LeafInterceptor.onLeaf(io.github.pierce.schema.FlattenedField)
+METH public boolean io.github.pierce.AvroReconstructor.ComparisonResult.isIdentical()
+METH public boolean io.github.pierce.AvroReconstructor.ReconstructionVerification.isPerfect()
+METH public boolean io.github.pierce.AvroSchemaLoader.SchemaLoadResult.hasFailures()
+METH public boolean io.github.pierce.AvroSchemaLoader.SchemaLoadResult.isCompleteSuccess()
+METH public boolean io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.isArraySerialized()
+METH public boolean io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.isNullable()
+METH public boolean io.github.pierce.JsonFlattener.BatchResult.isSuccess()
+METH public boolean io.github.pierce.JsonFlattener.InputOptions.isGzipped()
+METH public boolean io.github.pierce.JsonFlattener.InputOptions.isLenient()
+METH public boolean io.github.pierce.JsonFlattener.InputOptions.isSkipInvalid()
+METH public boolean io.github.pierce.JsonFlattener.JsonFlattenerConfig.isFailOnError()
+METH public boolean io.github.pierce.JsonFlattener.JsonFlattenerConfig.isPreserveNulls()
+METH public boolean io.github.pierce.JsonFlattener.JsonFlattenerConfig.isSortKeys()
+METH public boolean io.github.pierce.JsonFlattener.JsonFlattenerConfig.isUsePrettyPrint()
+METH public boolean io.github.pierce.JsonFlattener.OutputOptions.isGzipped()
+METH public boolean io.github.pierce.JsonFlattener.OutputOptions.isIncludeNulls()
+METH public boolean io.github.pierce.JsonFlattener.OutputOptions.isPretty()
+METH public boolean io.github.pierce.JsonFlattener.OutputOptions.isSortKeys()
+METH public boolean io.github.pierce.JsonFlattener.ValidationResult.isValid()
+METH public boolean io.github.pierce.JsonReconstructor.ReconstructionVerification.isPerfect()
+METH public boolean io.github.pierce.converter.AvroSchemaConverter.isFieldNullable(java.lang.String)
+METH public boolean io.github.pierce.converter.BinaryConverter.isFixed()
+METH public boolean io.github.pierce.converter.ConversionConfig.isAllowExtraFields()
+METH public boolean io.github.pierce.converter.ConversionConfig.isAllowMissingOptionalFields()
+METH public boolean io.github.pierce.converter.ConversionConfig.isAllowNumericOverflow()
+METH public boolean io.github.pierce.converter.ConversionConfig.isAllowPrecisionLoss()
+METH public boolean io.github.pierce.converter.ConversionConfig.isAssumeUtcForNaiveTimestamps()
+METH public boolean io.github.pierce.converter.ConversionConfig.isCacheConverters()
+METH public boolean io.github.pierce.converter.ConversionConfig.isCoerceEmptyStringsToNull()
+METH public boolean io.github.pierce.converter.ConversionConfig.isEnableTypePromotion()
+METH public boolean io.github.pierce.converter.ConversionConfig.isStrictTypeChecking()
+METH public boolean io.github.pierce.converter.ConversionConfig.isTrimStrings()
+METH public boolean io.github.pierce.converter.ConversionConfig.isUseSchemaDefaults()
+METH public boolean io.github.pierce.converter.ConversionResult.hasErrors()
+METH public boolean io.github.pierce.converter.ConversionResult.isSuccess()
+METH public boolean io.github.pierce.converter.GenericRecord.equals(java.lang.Object)
+METH public boolean io.github.pierce.converter.Notification.hasErrors()
+METH public boolean io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.isArraySerialized()
+METH public boolean io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.isNullable()
+METH public boolean io.github.pierce.converter.SchemaBasedMapConverter.hasField(java.lang.String)
+METH public boolean io.github.pierce.converter.SchemaBasedMapConverter.isCaseInsensitive()
+METH public boolean io.github.pierce.converter.SchemaBasedMapConverter.isFieldNullable(java.lang.String)
+METH public boolean io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.required()
+METH public boolean io.github.pierce.converter.SchemaConversionUtil.FieldInfo.hasDefault()
+METH public boolean io.github.pierce.converter.SchemaConversionUtil.FieldInfo.nullable()
+METH public boolean io.github.pierce.converter.StructConverter.FieldInfo.hasDefault()
+METH public boolean io.github.pierce.converter.StructConverter.FieldInfo.isRequired()
+METH public boolean io.github.pierce.converter.TimestampConverter.isAdjustToUtc()
+METH public boolean io.github.pierce.converter.TimestampNanoConverter.isAdjustToUtc()
+METH public boolean io.github.pierce.path.FlattenedPath.equals(java.lang.Object)
+METH public boolean io.github.pierce.schema.FlattenOptions.hasLeafInterceptor()
+METH public boolean io.github.pierce.schema.FlattenOptions.inheritDoc()
+METH public boolean io.github.pierce.schema.FlattenOptions.inheritRecordProperties()
+METH public boolean io.github.pierce.schema.FlattenOptions.unwrapNullableUnions()
+METH public boolean io.github.pierce.schema.FlattenedField.isDocInherited()
+METH public boolean io.github.pierce.schema.FlattenedField.isNullable()
+METH public boolean io.github.pierce.schema.FlattenedField.isPrimaryKeyEligible()
+METH public boolean io.github.pierce.schema.FlattenedField.isSynthetic()
+METH public boolean io.github.pierce.schema.FlattenedField.isWithinArray()
+METH public boolean io.github.pierce.schema.PathSegment.isArrayBoundary()
+METH public byte[] io.github.pierce.JsonFlattener.FluentOperation.toBytes()
+METH public byte[] io.github.pierce.JsonFlattener.FluentOperation.toBytes(io.github.pierce.JsonFlattener.OutputOptions)
+METH public com.fasterxml.jackson.databind.JsonNode io.github.pierce.JsonFlattener.FluentOperation.toJsonNode()
+METH public double io.github.pierce.AvroReconstructor.SchemaCacheStats.hitRate()
+METH public double io.github.pierce.files.FileFinder.Statistics.getHitRate()
+METH public double io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getSuccessRate()
+METH public final boolean io.github.pierce.AvroReconstructor.SchemaCacheStats.equals(java.lang.Object)
+METH public final boolean io.github.pierce.converter.ConversionResult.ConversionError.equals(java.lang.Object)
+METH public final boolean io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.equals(java.lang.Object)
+METH public final boolean io.github.pierce.converter.SchemaConversionUtil.FieldInfo.equals(java.lang.Object)
+METH public final boolean io.github.pierce.converter.StructConverter.FieldInfo.equals(java.lang.Object)
+METH public final boolean io.github.pierce.schema.PathSegment.equals(java.lang.Object)
+METH public final int io.github.pierce.AvroReconstructor.SchemaCacheStats.hashCode()
+METH public final int io.github.pierce.converter.ConversionResult.ConversionError.hashCode()
+METH public final int io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.hashCode()
+METH public final int io.github.pierce.converter.SchemaConversionUtil.FieldInfo.hashCode()
+METH public final int io.github.pierce.converter.StructConverter.FieldInfo.hashCode()
+METH public final int io.github.pierce.schema.PathSegment.hashCode()
+METH public final java.lang.String io.github.pierce.AvroReconstructor.SchemaCacheStats.toString()
+METH public final java.lang.String io.github.pierce.converter.ConversionResult.ConversionError.toString()
+METH public final java.lang.String io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.toString()
+METH public final java.lang.String io.github.pierce.converter.SchemaConversionUtil.FieldInfo.toString()
+METH public final java.lang.String io.github.pierce.converter.StructConverter.FieldInfo.toString()
+METH public int io.github.pierce.AvroReconstructor.SchemaCacheStats.maxSize()
+METH public int io.github.pierce.AvroReconstructor.SchemaCacheStats.size()
+METH public int io.github.pierce.AvroReconstructor.getSchemaCacheSize()
+METH public int io.github.pierce.AvroSchemaLoader.SchemaLoadResult.getFailureCount()
+METH public int io.github.pierce.AvroSchemaLoader.SchemaLoadResult.getSuccessCount()
+METH public int io.github.pierce.JsonFlattener.BatchError.getIndex()
+METH public int io.github.pierce.JsonFlattener.BatchResult.getErrorCount()
+METH public int io.github.pierce.JsonFlattener.BatchResult.getSuccessCount()
+METH public int io.github.pierce.JsonFlattener.JsonFlattenerConfig.getBufferSize()
+METH public int io.github.pierce.converter.ConversionConfig.getInitialCacheCapacity()
+METH public int io.github.pierce.converter.DecimalConverter.getPrecision()
+METH public int io.github.pierce.converter.DecimalConverter.getScale()
+METH public int io.github.pierce.converter.GenericRecord.hashCode()
+METH public int io.github.pierce.converter.GenericRecord.size()
+METH public int io.github.pierce.converter.TypeConverterRegistry.cacheSize()
+METH public int io.github.pierce.path.FlattenedPath.depth()
+METH public int io.github.pierce.path.FlattenedPath.hashCode()
+METH public int io.github.pierce.schema.FlattenOptions.maxDepth()
+METH public int io.github.pierce.schema.FlattenOptions.maxFields()
+METH public int io.github.pierce.schema.FlattenedField.position()
+METH public io.github.pierce.AvroReconstructor io.github.pierce.AvroReconstructor.Builder.build()
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.allowMissingFields(boolean)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.arrayFormat(io.github.pierce.AvroReconstructor.ArraySerializationFormat)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.enableVerification(boolean)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.maxDepth(int)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.maxSchemaCacheSize(int)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.objectMapper(com.fasterxml.jackson.databind.ObjectMapper)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.strictValidation(boolean)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.useArrayBoundarySeparator(boolean)
+METH public io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.Builder.useSchemaDefaults(boolean)
+METH public io.github.pierce.AvroReconstructor.ComparisonResult io.github.pierce.AvroReconstructor.compareFlattenedMaps(java.util.Map,java.util.Map)
+METH public io.github.pierce.AvroReconstructor.ReconstructionVerification io.github.pierce.AvroReconstructor.verifyReconstruction(java.util.Map,java.util.Map,org.apache.avro.Schema)
+METH public io.github.pierce.AvroReconstructor.SchemaCacheStats io.github.pierce.AvroReconstructor.getSchemaCacheStats()
+METH public io.github.pierce.AvroSchemaFlattener.SchemaStatistics io.github.pierce.AvroSchemaFlattener.SchemaStatistics.copy()
+METH public io.github.pierce.AvroSchemaFlattener.SchemaStatistics io.github.pierce.AvroSchemaFlattener.getSchemaStatistics()
+METH public io.github.pierce.AvroSchemaLoader io.github.pierce.AvroSchemaLoader.Builder.build()
+METH public io.github.pierce.AvroSchemaLoader.Builder io.github.pierce.AvroSchemaLoader.Builder.addSearchPath(java.lang.String)
+METH public io.github.pierce.AvroSchemaLoader.Builder io.github.pierce.AvroSchemaLoader.Builder.addSearchPaths(java.util.List)
+METH public io.github.pierce.AvroSchemaLoader.Builder io.github.pierce.AvroSchemaLoader.Builder.withArrayStatistics(boolean)
+METH public io.github.pierce.AvroSchemaLoader.Builder io.github.pierce.AvroSchemaLoader.Builder.withCaching(boolean)
+METH public io.github.pierce.AvroSchemaLoader.Builder io.github.pierce.AvroSchemaLoader.Builder.withHadoopConfiguration(org.apache.hadoop.conf.Configuration)
+METH public io.github.pierce.AvroSchemaLoader.Builder io.github.pierce.AvroSchemaLoader.Builder.withTargetDirectory(java.lang.String)
+METH public io.github.pierce.AvroSchemaLoader.SchemaLoadResult io.github.pierce.AvroSchemaLoader.loadFlattenedSchemas(java.lang.String[])
+METH public io.github.pierce.AvroSchemaLoader.SchemaLoadResult io.github.pierce.AvroSchemaLoader.loadFlattenedSchemas(java.util.List)
+METH public io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType io.github.pierce.AvroSchemaLoader.SchemaLocation.getLocationType()
+METH public io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder.build()
+METH public io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder.handleUnions(boolean)
+METH public io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder.maxDepth(int)
+METH public io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder.strictTypeEnforcement(boolean)
+METH public io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder.useArrayBoundarySeparator(boolean)
+METH public io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.getArrayElementType()
+METH public io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.getDataType()
+METH public io.github.pierce.JsonFlattener.BatchOperation io.github.pierce.JsonFlattener.BatchOperation.batchSize(int)
+METH public io.github.pierce.JsonFlattener.BatchOperation io.github.pierce.JsonFlattener.BatchOperation.failFast(boolean)
+METH public io.github.pierce.JsonFlattener.BatchOperation io.github.pierce.JsonFlattener.BatchOperation.parallel(int)
+METH public io.github.pierce.JsonFlattener.BatchOperation io.github.pierce.JsonFlattener.BatchOperation.parallelAuto()
+METH public io.github.pierce.JsonFlattener.BatchOperation io.github.pierce.JsonFlattener.BatchOperation.transform(java.util.function.Function)
+METH public io.github.pierce.JsonFlattener.BatchOperation io.github.pierce.JsonFlattener.FluentOperation.batch()
+METH public io.github.pierce.JsonFlattener.BatchResult io.github.pierce.JsonFlattener.BatchOperation.fromJsonArray(java.lang.String)
+METH public io.github.pierce.JsonFlattener.BatchResult io.github.pierce.JsonFlattener.BatchOperation.fromJsonArrayFile(java.nio.file.Path)
+METH public io.github.pierce.JsonFlattener.BatchResult io.github.pierce.JsonFlattener.BatchOperation.fromMaps(java.util.List)
+METH public io.github.pierce.JsonFlattener.BatchResult io.github.pierce.JsonFlattener.BatchOperation.fromStrings(java.util.List)
+METH public io.github.pierce.JsonFlattener.BatchResult io.github.pierce.JsonFlattener.BatchResult.filter(java.util.function.Predicate)
+METH public io.github.pierce.JsonFlattener.BatchResult io.github.pierce.JsonFlattener.BatchResult.transform(java.util.function.Function)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.arrayFormat(io.github.pierce.MapFlattener.ArraySerializationFormat)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.bufferSize(int)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.charset(java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.detectCircularReferences(boolean)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.failOnError(boolean)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.mapFlattener(io.github.pierce.MapFlattener)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.maxArraySize(int)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.maxDepth(int)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.namingStrategy(io.github.pierce.MapFlattener.FieldNamingStrategy)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.prettyPrint(boolean)
+METH public io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.Builder.useArrayBoundarySeparator(boolean)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.Builder.build()
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.addField(java.lang.String,java.lang.Object)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.exclude(java.lang.String[])
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.filter(java.util.function.Predicate)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(byte[])
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(byte[],java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(com.fasterxml.jackson.databind.JsonNode)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.io.File)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.io.File,io.github.pierce.JsonFlattener.InputOptions)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.io.InputStream)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.io.InputStream,java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.io.Reader)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.lang.String)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.nio.file.Path)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.nio.file.Path,io.github.pierce.JsonFlattener.InputOptions)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.from(java.util.Map)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.includeOnly(java.lang.String[])
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.prefixKeys(java.lang.String)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.removeField(java.lang.String)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.removeFieldsWhere(java.util.function.Predicate)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.renameField(java.lang.String,java.lang.String)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.suffixKeys(java.lang.String)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.transform(java.util.function.Function)
+METH public io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.FluentOperation.validate(io.github.pierce.JsonFlattener.ValidationRules)
+METH public io.github.pierce.JsonFlattener.InputOptions io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder.build()
+METH public io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder.charset(java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder.gzipped(boolean)
+METH public io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder.lenient(boolean)
+METH public io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder.skipInvalid(boolean)
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.build()
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.bufferSize(int)
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.charset(java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.failOnError(boolean)
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.preserveNulls(boolean)
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.sortKeys(boolean)
+METH public io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder.usePrettyPrint(boolean)
+METH public io.github.pierce.JsonFlattener.OutputOptions io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.build()
+METH public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.charset(java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.gzipped(boolean)
+METH public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.includeNulls(boolean)
+METH public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.lineSeparator(java.lang.String)
+METH public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.pretty(boolean)
+METH public io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder.sortKeys(boolean)
+METH public io.github.pierce.JsonFlattener.StreamOperation io.github.pierce.JsonFlattener.FluentOperation.stream()
+METH public io.github.pierce.JsonFlattener.StreamOperation io.github.pierce.JsonFlattener.StreamOperation.filter(java.util.function.Predicate)
+METH public io.github.pierce.JsonFlattener.StreamOperation io.github.pierce.JsonFlattener.StreamOperation.onError(java.util.function.Consumer)
+METH public io.github.pierce.JsonFlattener.StreamOperation io.github.pierce.JsonFlattener.StreamOperation.skipErrors(boolean)
+METH public io.github.pierce.JsonFlattener.StreamOperation io.github.pierce.JsonFlattener.StreamOperation.transform(java.util.function.Function)
+METH public io.github.pierce.JsonFlattener.StreamResult io.github.pierce.JsonFlattener.StreamOperation.fromNdjsonFile(java.nio.file.Path)
+METH public io.github.pierce.JsonFlattener.StreamResult io.github.pierce.JsonFlattener.StreamOperation.fromNdjsonFile(java.nio.file.Path,io.github.pierce.JsonFlattener.InputOptions)
+METH public io.github.pierce.JsonFlattener.StreamResult io.github.pierce.JsonFlattener.StreamOperation.fromNdjsonStream(java.io.InputStream,java.nio.charset.Charset)
+METH public io.github.pierce.JsonFlattener.StreamResult io.github.pierce.JsonFlattener.StreamOperation.fromStrings(java.lang.Iterable)
+METH public io.github.pierce.JsonFlattener.ValidationResult io.github.pierce.JsonFlattener.JsonValidationException.getValidationResult()
+METH public io.github.pierce.JsonFlattener.ValidationResult io.github.pierce.JsonFlattener.ValidationRules.validate(java.util.Map)
+METH public io.github.pierce.JsonFlattener.ValidationRules io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.build()
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.customValidator(java.util.function.Predicate)
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.forbidFields(java.lang.String[])
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.maxFields(int)
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.maxKeyLength(int)
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.maxValueLength(int)
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.requireFields(java.lang.String[])
+METH public io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder.validateField(java.lang.String,java.util.function.Predicate)
+METH public io.github.pierce.JsonReconstructor io.github.pierce.JsonReconstructor.Builder.build()
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.addArrayPath(java.lang.String)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.arrayFormat(io.github.pierce.JsonReconstructor.ArraySerializationFormat)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.arrayPaths(java.lang.String[])
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.inferArraysFromValues(boolean)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.maxDepth(int)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.objectMapper(com.fasterxml.jackson.databind.ObjectMapper)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.preserveNulls(boolean)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.separator(java.lang.String)
+METH public io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.Builder.useArrayBoundarySeparator(boolean)
+METH public io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.Builder.buildFluent()
+METH public io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.FluentOperation.from(java.util.Map)
+METH public io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.FluentOperation.fromFile(java.io.File)
+METH public io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.FluentOperation.fromFile(java.nio.file.Path)
+METH public io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.FluentOperation.fromJson(java.lang.String)
+METH public io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.FluentOperation.transform(java.util.function.Function)
+METH public io.github.pierce.JsonReconstructor.ReconstructionVerification io.github.pierce.JsonReconstructor.verify(java.util.Map,java.util.Map)
+METH public io.github.pierce.JsonReconstructor.ReconstructionVerification io.github.pierce.JsonReconstructor.verifyRoundTrip(java.util.Map,io.github.pierce.MapFlattener)
+METH public io.github.pierce.MapFlattener io.github.pierce.MapFlattener.Builder.build()
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.arrayFormat(io.github.pierce.MapFlattener.ArraySerializationFormat)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.detectCircularReferences(boolean)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.excludePaths(java.lang.String[])
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.maxArraySize(int)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.maxDepth(int)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.maxJsonStringLength(int)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.maxMapSize(int)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.namingStrategy(io.github.pierce.MapFlattener.FieldNamingStrategy)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.parseNestedJsonStrings(boolean)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.preserveBigDecimalPrecision(boolean)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.strictKeyValidation(boolean)
+METH public io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.Builder.useArrayBoundarySeparator(boolean)
+METH public io.github.pierce.converter.BinaryConverter io.github.pierce.converter.TypeConverterRegistry.getBinary()
+METH public io.github.pierce.converter.BinaryConverter io.github.pierce.converter.TypeConverterRegistry.getFixed(int)
+METH public io.github.pierce.converter.BooleanConverter io.github.pierce.converter.TypeConverterRegistry.getBoolean()
+METH public io.github.pierce.converter.ConversionConfig io.github.pierce.converter.AvroSchemaConverter.getConfig()
+METH public io.github.pierce.converter.ConversionConfig io.github.pierce.converter.ConversionConfig.Builder.build()
+METH public io.github.pierce.converter.ConversionConfig io.github.pierce.converter.IcebergSchemaConverter.getConfig()
+METH public io.github.pierce.converter.ConversionConfig io.github.pierce.converter.SchemaBasedMapConverter.getConfig()
+METH public io.github.pierce.converter.ConversionConfig io.github.pierce.converter.TypeConverterRegistry.getConfig()
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.allowExtraFields(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.allowMissingOptionalFields(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.allowNumericOverflow(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.allowPrecisionLoss(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.assumeUtcForNaiveTimestamps(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.cacheConverters(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.coerceEmptyStringsToNull(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.decimalRoundingMode(java.math.RoundingMode)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.defaultTimezone(java.time.ZoneId)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.enableTypePromotion(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.errorHandlingMode(io.github.pierce.converter.ConversionConfig.ErrorHandlingMode)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.initialCacheCapacity(int)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.inputTimestampPrecision(io.github.pierce.converter.ConversionConfig.TimestampPrecision)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.nullHandlingMode(io.github.pierce.converter.ConversionConfig.NullHandlingMode)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.outputFormat(io.github.pierce.converter.ConversionConfig.OutputFormat)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.strictTypeChecking(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.stringTruncationMode(io.github.pierce.converter.ConversionConfig.StringTruncationMode)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.trimStrings(boolean)
+METH public io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.Builder.useSchemaDefaults(boolean)
+METH public io.github.pierce.converter.ConversionConfig.ErrorHandlingMode io.github.pierce.converter.ConversionConfig.getErrorHandlingMode()
+METH public io.github.pierce.converter.ConversionConfig.NullHandlingMode io.github.pierce.converter.ConversionConfig.getNullHandlingMode()
+METH public io.github.pierce.converter.ConversionConfig.OutputFormat io.github.pierce.converter.ConversionConfig.getOutputFormat()
+METH public io.github.pierce.converter.ConversionConfig.StringTruncationMode io.github.pierce.converter.ConversionConfig.getStringTruncationMode()
+METH public io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.getInputTimestampPrecision()
+METH public io.github.pierce.converter.ConversionResult io.github.pierce.converter.AvroSchemaConverter.convertWithErrors(java.util.Map)
+METH public io.github.pierce.converter.ConversionResult io.github.pierce.converter.IcebergSchemaConverter.convertWithErrors(java.util.Map)
+METH public io.github.pierce.converter.ConversionResult io.github.pierce.converter.Notification.toResult(java.lang.Object)
+METH public io.github.pierce.converter.ConversionResult io.github.pierce.converter.SchemaBasedMapConverter.convertWithErrors(java.util.Map)
+METH public io.github.pierce.converter.DateConverter io.github.pierce.converter.TypeConverterRegistry.getDate()
+METH public io.github.pierce.converter.DecimalConverter io.github.pierce.converter.TypeConverterRegistry.getDecimal(int,int)
+METH public io.github.pierce.converter.DoubleConverter io.github.pierce.converter.TypeConverterRegistry.getDouble()
+METH public io.github.pierce.converter.FloatConverter io.github.pierce.converter.TypeConverterRegistry.getFloat()
+METH public io.github.pierce.converter.GenericRecord io.github.pierce.converter.GenericRecord.copy(java.util.Map)
+METH public io.github.pierce.converter.GenericRecord io.github.pierce.converter.GenericRecord.setField(java.lang.String,java.lang.Object)
+METH public io.github.pierce.converter.GenericRecord io.github.pierce.converter.IcebergSchemaConverter.convert(java.util.Map)
+METH public io.github.pierce.converter.IntegerConverter io.github.pierce.converter.TypeConverterRegistry.getInteger()
+METH public io.github.pierce.converter.LongConverter io.github.pierce.converter.TypeConverterRegistry.getLong()
+METH public io.github.pierce.converter.Notification.FieldContext io.github.pierce.converter.Notification.pushField(java.lang.String)
+METH public io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.getArrayElementType()
+METH public io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.getDataType()
+METH public io.github.pierce.converter.SchemaBasedMapConverter.SchemaType io.github.pierce.converter.SchemaBasedMapConverter.getSchemaType()
+METH public io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.type()
+METH public io.github.pierce.converter.StringConverter io.github.pierce.converter.TypeConverterRegistry.getString()
+METH public io.github.pierce.converter.StructConverter io.github.pierce.converter.StructConverter.Builder.build()
+METH public io.github.pierce.converter.StructConverter.Builder io.github.pierce.converter.StructConverter.Builder.addField(io.github.pierce.converter.StructConverter.FieldInfo)
+METH public io.github.pierce.converter.StructConverter.Builder io.github.pierce.converter.StructConverter.Builder.addField(java.lang.String,io.github.pierce.converter.TypeConverter,boolean)
+METH public io.github.pierce.converter.StructConverter.Builder io.github.pierce.converter.StructConverter.Builder.addField(java.lang.String,io.github.pierce.converter.TypeConverter,boolean,java.lang.Object)
+METH public io.github.pierce.converter.TimeConverter io.github.pierce.converter.TypeConverterRegistry.getTime()
+METH public io.github.pierce.converter.TimestampConverter io.github.pierce.converter.TypeConverterRegistry.getTimestamp(boolean)
+METH public io.github.pierce.converter.TimestampNanoConverter io.github.pierce.converter.TypeConverterRegistry.getTimestampNano(boolean)
+METH public io.github.pierce.converter.TypeConverter io.github.pierce.converter.AvroSchemaConverter.getFieldConverter(java.lang.String)
+METH public io.github.pierce.converter.TypeConverter io.github.pierce.converter.IcebergSchemaConverter.getFieldConverter(java.lang.String)
+METH public io.github.pierce.converter.TypeConverter io.github.pierce.converter.ListConverter.getElementConverter()
+METH public io.github.pierce.converter.TypeConverter io.github.pierce.converter.MapConverter.getKeyConverter()
+METH public io.github.pierce.converter.TypeConverter io.github.pierce.converter.MapConverter.getValueConverter()
+METH public io.github.pierce.converter.TypeConverter io.github.pierce.converter.StructConverter.FieldInfo.converter()
+METH public io.github.pierce.converter.UUIDConverter io.github.pierce.converter.TypeConverterRegistry.getUuid()
+METH public io.github.pierce.path.FlattenedPath io.github.pierce.path.FlattenedPath.child(java.lang.String)
+METH public io.github.pierce.schema.FlattenOptions io.github.pierce.schema.EnrichedSchemaFlattener.options()
+METH public io.github.pierce.schema.FlattenOptions io.github.pierce.schema.FlattenOptions.Builder.build()
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.arrayBoundarySeparator(java.lang.String)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.collisionPolicy(io.github.pierce.schema.NameCollisionPolicy)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.inheritDoc(boolean)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.inheritRecordProperties(boolean)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.injectField(int,io.github.pierce.schema.FlattenedField)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.leafInterceptor(io.github.pierce.schema.LeafInterceptor)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.maxDepth(int)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.maxFields(int)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.separator(java.lang.String)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.typeMapper(io.github.pierce.schema.TypeMapper)
+METH public io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.Builder.unwrapNullableUnions(boolean)
+METH public io.github.pierce.schema.FlattenedField io.github.pierce.schema.FlattenedField.Builder.build()
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.avroType(org.apache.avro.Schema.Type)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.doc(java.lang.String)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.docInherited(boolean)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.flattenedName(java.lang.String)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.mappedType(java.lang.String)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.name(java.lang.String)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.nullable(boolean)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.path(java.util.List)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.position(int)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.properties(java.util.Map)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.property(java.lang.String,java.lang.Object)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.schema(org.apache.avro.Schema)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.synthetic(boolean)
+METH public io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.Builder.withinArray(boolean)
+METH public io.github.pierce.schema.LeafInterceptor io.github.pierce.schema.FlattenOptions.leafInterceptor()
+METH public io.github.pierce.schema.LeafInterceptor io.github.pierce.schema.LeafInterceptor.andThen(io.github.pierce.schema.LeafInterceptor)
+METH public io.github.pierce.schema.NameCollisionPolicy io.github.pierce.schema.FlattenOptions.collisionPolicy()
+METH public io.github.pierce.schema.PathSegment.Kind io.github.pierce.schema.PathSegment.kind()
+METH public io.github.pierce.schema.TypeMapper io.github.pierce.schema.FlattenOptions.typeMapper()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.allowSchemaErrors()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.disableArrayStatistics()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.disableSchemaCache()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.enableArrayStatistics()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.enableMatrixDenotors()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.enableMetrics()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.explodeArrays(java.lang.String[])
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.includeMetadata()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.includeNonTerminalArrays()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.includeRawJson()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.preserveDots()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.quarantineSchemaErrors()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withArrayDelimiter(java.lang.String)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withErrorHandling(io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withMaxArraySize(int)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withMaxNestingDepth(int)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withNullPlaceholder(java.lang.String)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withRepartition(int)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withSchema(java.lang.String)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.withSchema(org.apache.avro.Schema)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineConfig io.github.pierce.spark.NexusPiercerSparkPipeline.getConfig()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult.getMetrics()
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult io.github.pierce.spark.NexusPiercerSparkPipeline.process(java.lang.String[])
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult io.github.pierce.spark.NexusPiercerSparkPipeline.processDataset(org.apache.spark.sql.Dataset)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult io.github.pierce.spark.NexusPiercerSparkPipeline.processJsonColumn(org.apache.spark.sql.Dataset,java.lang.String)
+METH public io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult io.github.pierce.spark.NexusPiercerSparkPipeline.processStream(java.lang.String,java.util.Map)
+METH public java.lang.Exception io.github.pierce.JsonFlattener.BatchError.getException()
+METH public java.lang.Exception io.github.pierce.JsonFlattener.StreamError.getException()
+METH public java.lang.Integer io.github.pierce.converter.BinaryConverter.getFixedLength()
+METH public java.lang.Integer io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.getPrecision()
+METH public java.lang.Integer io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.getScale()
+METH public java.lang.Object io.github.pierce.converter.AbstractTypeConverter.convert(java.lang.Object)
+METH public java.lang.Object io.github.pierce.converter.AvroSchemaConverter.convertAuto(java.util.Map)
+METH public java.lang.Object io.github.pierce.converter.ConversionResult.getValue()
+METH public java.lang.Object io.github.pierce.converter.ConversionResult.getValueOrThrow()
+METH public java.lang.Object io.github.pierce.converter.GenericRecord.get(int)
+METH public java.lang.Object io.github.pierce.converter.GenericRecord.getField(java.lang.String)
+METH public java.lang.Object io.github.pierce.converter.IcebergSchemaConverter.convertAuto(java.util.Map)
+METH public java.lang.Object io.github.pierce.converter.SchemaBasedMapConverter.convertField(java.lang.String,java.lang.Object)
+METH public java.lang.Object io.github.pierce.converter.SchemaBasedMapConverter.getSchema()
+METH public java.lang.Object io.github.pierce.converter.StructConverter.FieldInfo.defaultValue()
+METH public java.lang.Object io.github.pierce.converter.TypeConversionException.getValue()
+METH public java.lang.Object io.github.pierce.converter.TypeConverter.convert(java.lang.Object,java.lang.String)
+METH public java.lang.Object[] io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.typeParams()
+METH public java.lang.String io.github.pierce.AvroReconstructor.ComparisonResult.toString()
+METH public java.lang.String io.github.pierce.AvroReconstructor.ReconstructionVerification.getReport()
+METH public java.lang.String io.github.pierce.AvroReconstructor.ReconstructionVerification.toString()
+METH public java.lang.String io.github.pierce.AvroSchemaLoader.SchemaLocation.getBasePath()
+METH public java.lang.String io.github.pierce.AvroSchemaLoader.SchemaLocation.getFullPath()
+METH public java.lang.String io.github.pierce.AvroSchemaLoader.SchemaLocation.getSchemaName()
+METH public java.lang.String io.github.pierce.AvroSchemaLoader.SchemaLocation.toString()
+METH public java.lang.String io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.getSeparator()
+METH public java.lang.String io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.getFlattenedName()
+METH public java.lang.String io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.toString()
+METH public java.lang.String io.github.pierce.JsonFlattener.BatchError.getMessage()
+METH public java.lang.String io.github.pierce.JsonFlattener.BatchError.toString()
+METH public java.lang.String io.github.pierce.JsonFlattener.BatchResult.toJsonArray()
+METH public java.lang.String io.github.pierce.JsonFlattener.BatchResult.toJsonArray(io.github.pierce.JsonFlattener.OutputOptions)
+METH public java.lang.String io.github.pierce.JsonFlattener.FluentOperation.toJson()
+METH public java.lang.String io.github.pierce.JsonFlattener.FluentOperation.toJson(io.github.pierce.JsonFlattener.OutputOptions)
+METH public java.lang.String io.github.pierce.JsonFlattener.FluentOperation.toPrettyJson()
+METH public java.lang.String io.github.pierce.JsonFlattener.OutputOptions.getLineSeparator()
+METH public java.lang.String io.github.pierce.JsonFlattener.StreamError.getLine()
+METH public java.lang.String io.github.pierce.JsonFlattener.StreamError.toString()
+METH public java.lang.String io.github.pierce.JsonFlattener.ValidationResult.toString()
+METH public java.lang.String io.github.pierce.JsonFlattener.flattenMapToJson(java.util.Map,boolean)
+METH public java.lang.String io.github.pierce.JsonFlattener.flattenToJson(java.lang.String,boolean)
+METH public java.lang.String io.github.pierce.JsonFlattenerConsolidator.flattenAndConsolidateJson(java.lang.String)
+METH public java.lang.String io.github.pierce.JsonReconstructor.FluentOperation.toJson()
+METH public java.lang.String io.github.pierce.JsonReconstructor.FluentOperation.toPrettyJson()
+METH public java.lang.String io.github.pierce.JsonReconstructor.ReconstructionVerification.getReport()
+METH public java.lang.String io.github.pierce.JsonReconstructor.ReconstructionVerification.toString()
+METH public java.lang.String io.github.pierce.JsonReconstructor.reconstructToJson(java.util.Map)
+METH public java.lang.String io.github.pierce.JsonReconstructor.reconstructToPrettyJson(java.util.Map)
+METH public java.lang.String io.github.pierce.converter.AbstractTypeConverter.getTargetTypeName()
+METH public java.lang.String io.github.pierce.converter.ConversionResult.ConversionError.fieldPath()
+METH public java.lang.String io.github.pierce.converter.ConversionResult.ConversionError.message()
+METH public java.lang.String io.github.pierce.converter.ConversionResult.formatErrors()
+METH public java.lang.String io.github.pierce.converter.GenericRecord.toString()
+METH public java.lang.String io.github.pierce.converter.Notification.formatErrors()
+METH public java.lang.String io.github.pierce.converter.Notification.getCurrentPath()
+METH public java.lang.String io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.getFlattenedName()
+METH public java.lang.String io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.toString()
+METH public java.lang.String io.github.pierce.converter.SchemaConversionException.getFieldPath()
+METH public java.lang.String io.github.pierce.converter.SchemaConversionException.getMessage()
+METH public java.lang.String io.github.pierce.converter.SchemaConversionUtil.FieldDefinition.name()
+METH public java.lang.String io.github.pierce.converter.SchemaConversionUtil.FieldInfo.logicalType()
+METH public java.lang.String io.github.pierce.converter.SchemaConversionUtil.FieldInfo.name()
+METH public java.lang.String io.github.pierce.converter.SchemaConversionUtil.FieldInfo.type()
+METH public java.lang.String io.github.pierce.converter.StructConverter.FieldInfo.name()
+METH public java.lang.String io.github.pierce.converter.TypeConversionException.getTargetType()
+METH public java.lang.String io.github.pierce.files.FileFinder.FileFinderException.getFileName()
+METH public java.lang.String io.github.pierce.files.FileFinder.FileLocation.Type.getDisplayName()
+METH public java.lang.String io.github.pierce.files.FileFinder.FileLocation.toString()
+METH public java.lang.String io.github.pierce.files.FileFinder.FileMetadata.getFormattedLastModified()
+METH public java.lang.String io.github.pierce.files.FileFinder.FileMetadata.getFormattedSize()
+METH public java.lang.String io.github.pierce.files.FileFinder.Statistics.toString()
+METH public java.lang.String io.github.pierce.path.FlattenedPath.encode(java.lang.String)
+METH public java.lang.String io.github.pierce.path.FlattenedPath.toString()
+METH public java.lang.String io.github.pierce.schema.FlattenOptions.arrayBoundarySeparator()
+METH public java.lang.String io.github.pierce.schema.FlattenOptions.separator()
+METH public java.lang.String io.github.pierce.schema.FlattenedField.flattenedName()
+METH public java.lang.String io.github.pierce.schema.FlattenedField.name()
+METH public java.lang.String io.github.pierce.schema.FlattenedField.sourcePath()
+METH public java.lang.String io.github.pierce.schema.FlattenedField.toString()
+METH public java.lang.String io.github.pierce.schema.PathSegment.name()
+METH public java.lang.String io.github.pierce.schema.PathSegment.recordName()
+METH public java.lang.String io.github.pierce.schema.PathSegment.toString()
+METH public java.lang.String io.github.pierce.schema.RecursiveSchemaException.getRecursiveType()
+METH public java.lang.String io.github.pierce.schema.SchemaFlattenException.getPath()
+METH public java.lang.String io.github.pierce.schema.SchemaFlattenException.getSchemaName()
+METH public java.lang.String io.github.pierce.schema.SchemaLimitExceededException.getLimitName()
+METH public java.lang.String io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.toString()
+METH public java.lang.Throwable io.github.pierce.converter.ConversionResult.ConversionError.cause()
+METH public java.math.RoundingMode io.github.pierce.converter.ConversionConfig.getDecimalRoundingMode()
+METH public java.nio.charset.Charset io.github.pierce.JsonFlattener.InputOptions.getCharset()
+METH public java.nio.charset.Charset io.github.pierce.JsonFlattener.JsonFlattenerConfig.getCharset()
+METH public java.nio.charset.Charset io.github.pierce.JsonFlattener.OutputOptions.getCharset()
+METH public java.time.ZoneId io.github.pierce.converter.ConversionConfig.getDefaultTimezone()
+METH public java.util.List io.github.pierce.AvroReconstructor.ComparisonResult.getDifferences()
+METH public java.util.List io.github.pierce.AvroReconstructor.ReconstructionVerification.getDifferences()
+METH public java.util.List io.github.pierce.AvroSchemaFlattener.getArrayDefinitions()
+METH public java.util.List io.github.pierce.AvroSchemaFlattener.getFieldMetadata()
+METH public java.util.List io.github.pierce.AvroSchemaFlattener.getRecordDefinitions()
+METH public java.util.List io.github.pierce.AvroSchemaLoader.discoverAvailableSchemas()
+METH public java.util.List io.github.pierce.JsonFlattener.BatchResult.getErrors()
+METH public java.util.List io.github.pierce.JsonFlattener.BatchResult.toJsonStrings()
+METH public java.util.List io.github.pierce.JsonFlattener.BatchResult.toJsonStrings(io.github.pierce.JsonFlattener.OutputOptions)
+METH public java.util.List io.github.pierce.JsonFlattener.BatchResult.toMaps()
+METH public java.util.List io.github.pierce.JsonFlattener.JsonValidationException.getViolations()
+METH public java.util.List io.github.pierce.JsonFlattener.StreamResult.toList()
+METH public java.util.List io.github.pierce.JsonFlattener.ValidationResult.getViolations()
+METH public java.util.List io.github.pierce.JsonFlattenerConsolidator.flattenAndExplodeJson(java.lang.String)
+METH public java.util.List io.github.pierce.JsonReconstructor.ReconstructionVerification.getDifferences()
+METH public java.util.List io.github.pierce.converter.AvroSchemaConverter.convertBatch(java.util.List)
+METH public java.util.List io.github.pierce.converter.AvroSchemaConverter.convertBatchAuto(java.util.List)
+METH public java.util.List io.github.pierce.converter.AvroSchemaConverter.convertBatchToMap(java.util.List)
+METH public java.util.List io.github.pierce.converter.ConversionResult.getErrors()
+METH public java.util.List io.github.pierce.converter.IcebergSchemaConverter.convertBatch(java.util.List)
+METH public java.util.List io.github.pierce.converter.IcebergSchemaConverter.convertBatchAuto(java.util.List)
+METH public java.util.List io.github.pierce.converter.IcebergSchemaConverter.convertBatchToMap(java.util.List)
+METH public java.util.List io.github.pierce.converter.Notification.getErrors()
+METH public java.util.List io.github.pierce.converter.SchemaBasedMapConverter.convertBatch(java.util.List)
+METH public java.util.List io.github.pierce.files.FileFinder.Config.getAllSearchPaths()
+METH public java.util.List io.github.pierce.files.FileFinder.FileFinderException.getAvailableFiles()
+METH public java.util.List io.github.pierce.files.FileFinder.FileFinderException.getSearchedLocations()
+METH public java.util.List io.github.pierce.files.FileFinder.FileFinderException.getSuggestions()
+METH public java.util.List io.github.pierce.path.FlattenedPath.segments()
+METH public java.util.List io.github.pierce.schema.EnrichedSchemaFlattener.flatten(org.apache.avro.Schema)
+METH public java.util.List io.github.pierce.schema.FlattenedField.arrayBoundaries()
+METH public java.util.List io.github.pierce.schema.FlattenedField.pathSegments()
+METH public java.util.Map io.github.pierce.AvroReconstructor.ReconstructionVerification.getOriginalData()
+METH public java.util.Map io.github.pierce.AvroReconstructor.ReconstructionVerification.getReconstructedData()
+METH public java.util.Map io.github.pierce.AvroReconstructor.reconstructToMap(java.util.Map,org.apache.avro.Schema)
+METH public java.util.Map io.github.pierce.AvroSchemaFlattener.getTypeTransformations()
+METH public java.util.Map io.github.pierce.AvroSchemaLoader.SchemaLoadResult.getFailedSchemas()
+METH public java.util.Map io.github.pierce.AvroSchemaLoader.SchemaLoadResult.getSuccessfulSchemas()
+METH public java.util.Map io.github.pierce.AvroSchemaLoader.getSchemaLocations(java.util.List)
+METH public java.util.Map io.github.pierce.GAvroSchemaFlattener.applyTypes(java.util.Map,java.util.Map)
+METH public java.util.Map io.github.pierce.GAvroSchemaFlattener.flattenSchema(org.apache.avro.Schema)
+METH public java.util.Map io.github.pierce.JsonFlattener.FluentOperation.toMap()
+METH public java.util.Map io.github.pierce.JsonFlattener.flattenToMap(java.lang.String)
+METH public java.util.Map io.github.pierce.JsonReconstructor.FluentOperation.toMap()
+METH public java.util.Map io.github.pierce.JsonReconstructor.ReconstructionVerification.getOriginalData()
+METH public java.util.Map io.github.pierce.JsonReconstructor.ReconstructionVerification.getReconstructedData()
+METH public java.util.Map io.github.pierce.JsonReconstructor.reconstruct(java.util.Map)
+METH public java.util.Map io.github.pierce.JsonReconstructor.reconstructFromJson(java.lang.String)
+METH public java.util.Map io.github.pierce.MapFlattener.flatten(java.util.Map)
+METH public java.util.Map io.github.pierce.converter.AvroSchemaConverter.convertToMap(java.util.Map)
+METH public java.util.Map io.github.pierce.converter.GenericRecord.toMap()
+METH public java.util.Map io.github.pierce.converter.IcebergSchemaConverter.convertToMap(java.util.Map)
+METH public java.util.Map io.github.pierce.converter.SchemaBasedMapConverter.convert(java.util.Map)
+METH public java.util.Map io.github.pierce.converter.SchemaBasedMapConverter.convertStrict(java.util.Map)
+METH public java.util.Map io.github.pierce.converter.StructConverter.getFields()
+METH public java.util.Map io.github.pierce.schema.FlattenOptions.injectedFields()
+METH public java.util.Map io.github.pierce.schema.FlattenedField.properties()
+METH public java.util.Map io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getCustomMetrics()
+METH public java.util.Optional io.github.pierce.converter.SchemaBasedMapConverter.getAvroSchema()
+METH public java.util.Optional io.github.pierce.converter.SchemaBasedMapConverter.getFlattenedFieldType(java.lang.String)
+METH public java.util.Optional io.github.pierce.converter.SchemaBasedMapConverter.getFlattenedSchema()
+METH public java.util.Optional io.github.pierce.converter.SchemaBasedMapConverter.getIcebergSchema()
+METH public java.util.Optional io.github.pierce.schema.FlattenedField.doc()
+METH public java.util.Optional io.github.pierce.schema.FlattenedField.mappedType()
+METH public java.util.Optional io.github.pierce.schema.FlattenedField.property(java.lang.String)
+METH public java.util.Set io.github.pierce.AvroSchemaFlattener.getArrayFieldNames()
+METH public java.util.Set io.github.pierce.AvroSchemaFlattener.getFieldsWithinArrays()
+METH public java.util.Set io.github.pierce.AvroSchemaFlattener.getMapFieldPaths()
+METH public java.util.Set io.github.pierce.AvroSchemaFlattener.getNonTerminalArrayFieldNames()
+METH public java.util.Set io.github.pierce.AvroSchemaFlattener.getTerminalArrayFieldNames()
+METH public java.util.Set io.github.pierce.converter.AvroSchemaConverter.getFieldNames()
+METH public java.util.Set io.github.pierce.converter.IcebergSchemaConverter.getFieldNames()
+METH public java.util.Set io.github.pierce.converter.SchemaBasedMapConverter.getFieldNames()
+METH public java.util.stream.Stream io.github.pierce.JsonFlattener.StreamResult.toJsonStream()
+METH public java.util.stream.Stream io.github.pierce.JsonFlattener.StreamResult.toMapStream()
+METH public long io.github.pierce.AvroReconstructor.ReconstructionVerification.getVerificationTimeMs()
+METH public long io.github.pierce.AvroReconstructor.SchemaCacheStats.hits()
+METH public long io.github.pierce.AvroReconstructor.SchemaCacheStats.misses()
+METH public long io.github.pierce.JsonFlattener.BatchResult.getProcessedCount()
+METH public long io.github.pierce.JsonFlattener.StreamError.getLineNumber()
+METH public long io.github.pierce.JsonFlattener.StreamResult.count()
+METH public long io.github.pierce.JsonFlattener.StreamResult.getLinesRead()
+METH public long io.github.pierce.JsonFlattener.StreamResult.toNdjsonFile(java.nio.file.Path)
+METH public long io.github.pierce.JsonFlattener.StreamResult.toNdjsonFile(java.nio.file.Path,io.github.pierce.JsonFlattener.OutputOptions)
+METH public long io.github.pierce.JsonReconstructor.ReconstructionVerification.getVerificationTimeMs()
+METH public long io.github.pierce.schema.SchemaLimitExceededException.getActual()
+METH public long io.github.pierce.schema.SchemaLimitExceededException.getLimit()
+METH public long io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getExplosionRecords()
+METH public long io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getMalformedRecords()
+METH public long io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getProcessingTimeMs()
+METH public long io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getSchemaValidationFailures()
+METH public long io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getSuccessfulRecords()
+METH public long io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics.getTotalRecords()
+METH public org.apache.avro.Schema io.github.pierce.AvroSchemaFlattener.getFlattenedSchema(java.lang.String)
+METH public org.apache.avro.Schema io.github.pierce.AvroSchemaFlattener.getFlattenedSchema(org.apache.avro.Schema)
+METH public org.apache.avro.Schema io.github.pierce.AvroSchemaFlattener.getFlattenedSchemaNoCache(org.apache.avro.Schema)
+METH public org.apache.avro.Schema io.github.pierce.AvroSchemaFlattener.reconstructOriginalSchema(org.apache.avro.Schema)
+METH public org.apache.avro.Schema io.github.pierce.AvroSchemaLoader.loadAvroSchema(java.lang.String)
+METH public org.apache.avro.Schema io.github.pierce.converter.AvroSchemaConverter.getSchema()
+METH public org.apache.avro.Schema io.github.pierce.schema.FlattenedField.schema()
+METH public org.apache.avro.Schema.Type io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType.getOriginalAvroType()
+METH public org.apache.avro.Schema.Type io.github.pierce.schema.FlattenedField.avroType()
+METH public org.apache.avro.generic.GenericRecord io.github.pierce.AvroReconstructor.reconstruct(java.util.Map,org.apache.avro.Schema)
+METH public org.apache.avro.generic.GenericRecord io.github.pierce.converter.AvroSchemaConverter.convert(java.util.Map)
+METH public org.apache.iceberg.Schema io.github.pierce.converter.GenericRecord.getSchema()
+METH public org.apache.iceberg.Schema io.github.pierce.converter.IcebergSchemaConverter.getSchema()
+METH public org.apache.spark.sql.DataFrameWriter io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult.write()
+METH public org.apache.spark.sql.Dataset io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult.getDataset()
+METH public org.apache.spark.sql.Dataset io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult.getErrorDataset()
+METH public org.apache.spark.sql.streaming.DataStreamWriter io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult.writeStream()
+METH public org.apache.spark.sql.types.StructType io.github.pierce.AvroSchemaLoader.loadFlattenedSchema(java.lang.String)
+METH public static boolean io.github.pierce.converter.AvroSchemaUtilWrapper.isNullable(org.apache.avro.Schema)
+METH public static boolean io.github.pierce.files.FileFinder.fileExists(java.lang.String)
+METH public static byte[] io.github.pierce.converter.BinaryConverter.toByteArray(java.nio.ByteBuffer)
+METH public static byte[] io.github.pierce.converter.DecimalConverter.toBytes(java.math.BigDecimal)
+METH public static byte[] io.github.pierce.converter.UUIDConverter.toBytes(java.util.UUID)
+METH public static byte[] io.github.pierce.files.FileFinder.getFileContent(java.lang.String)
+METH public static com.fasterxml.jackson.databind.JsonNode io.github.pierce.files.FileFinder.Util.readJson(java.lang.String)
+METH public static int io.github.pierce.converter.DateConverter.localDateToDays(java.time.LocalDate)
+METH public static int io.github.pierce.spark.NexusPiercerSparkPipeline.getSchemaCacheSize()
+METH public static io.github.pierce.AvroReconstructor.ArraySerializationFormat io.github.pierce.AvroReconstructor.ArraySerializationFormat.valueOf(java.lang.String)
+METH public static io.github.pierce.AvroReconstructor.ArraySerializationFormat[] io.github.pierce.AvroReconstructor.ArraySerializationFormat.values()
+METH public static io.github.pierce.AvroReconstructor.Builder io.github.pierce.AvroReconstructor.builder()
+METH public static io.github.pierce.AvroSchemaLoader io.github.pierce.AvroSchemaLoader.createDefault()
+METH public static io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType.valueOf(java.lang.String)
+METH public static io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType[] io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType.values()
+METH public static io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.builder()
+METH public static io.github.pierce.GAvroSchemaFlattener.DataType io.github.pierce.GAvroSchemaFlattener.DataType.valueOf(java.lang.String)
+METH public static io.github.pierce.GAvroSchemaFlattener.DataType[] io.github.pierce.GAvroSchemaFlattener.DataType.values()
+METH public static io.github.pierce.JsonFlattener.Builder io.github.pierce.JsonFlattener.builder()
+METH public static io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.create()
+METH public static io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.with(io.github.pierce.MapFlattener)
+METH public static io.github.pierce.JsonFlattener.FluentOperation io.github.pierce.JsonFlattener.with(io.github.pierce.MapFlattener,io.github.pierce.JsonFlattener.JsonFlattenerConfig)
+METH public static io.github.pierce.JsonFlattener.InputOptions io.github.pierce.JsonFlattener.InputOptions.defaults()
+METH public static io.github.pierce.JsonFlattener.InputOptions io.github.pierce.JsonFlattener.InputOptions.gzipped()
+METH public static io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder io.github.pierce.JsonFlattener.InputOptions.builder()
+METH public static io.github.pierce.JsonFlattener.JsonFlattenerConfig io.github.pierce.JsonFlattener.JsonFlattenerConfig.defaults()
+METH public static io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder io.github.pierce.JsonFlattener.JsonFlattenerConfig.builder()
+METH public static io.github.pierce.JsonFlattener.OutputOptions io.github.pierce.JsonFlattener.OutputOptions.compact()
+METH public static io.github.pierce.JsonFlattener.OutputOptions io.github.pierce.JsonFlattener.OutputOptions.defaults()
+METH public static io.github.pierce.JsonFlattener.OutputOptions io.github.pierce.JsonFlattener.OutputOptions.gzipped()
+METH public static io.github.pierce.JsonFlattener.OutputOptions io.github.pierce.JsonFlattener.OutputOptions.pretty()
+METH public static io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder io.github.pierce.JsonFlattener.OutputOptions.builder()
+METH public static io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder io.github.pierce.JsonFlattener.ValidationRules.builder()
+METH public static io.github.pierce.JsonReconstructor.ArraySerializationFormat io.github.pierce.JsonReconstructor.ArraySerializationFormat.valueOf(java.lang.String)
+METH public static io.github.pierce.JsonReconstructor.ArraySerializationFormat[] io.github.pierce.JsonReconstructor.ArraySerializationFormat.values()
+METH public static io.github.pierce.JsonReconstructor.Builder io.github.pierce.JsonReconstructor.builder()
+METH public static io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.create()
+METH public static io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.withArrayBoundarySeparator()
+METH public static io.github.pierce.JsonReconstructor.FluentOperation io.github.pierce.JsonReconstructor.withSeparator(java.lang.String)
+METH public static io.github.pierce.MapFlattener.ArraySerializationFormat io.github.pierce.MapFlattener.ArraySerializationFormat.valueOf(java.lang.String)
+METH public static io.github.pierce.MapFlattener.ArraySerializationFormat[] io.github.pierce.MapFlattener.ArraySerializationFormat.values()
+METH public static io.github.pierce.MapFlattener.Builder io.github.pierce.MapFlattener.builder()
+METH public static io.github.pierce.MapFlattener.FieldNamingStrategy io.github.pierce.MapFlattener.FieldNamingStrategy.valueOf(java.lang.String)
+METH public static io.github.pierce.MapFlattener.FieldNamingStrategy[] io.github.pierce.MapFlattener.FieldNamingStrategy.values()
+METH public static io.github.pierce.converter.AvroSchemaConverter io.github.pierce.converter.AvroSchemaConverter.cached(org.apache.avro.Schema)
+METH public static io.github.pierce.converter.AvroSchemaConverter io.github.pierce.converter.AvroSchemaConverter.cached(org.apache.avro.Schema,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.AvroSchemaConverter io.github.pierce.converter.AvroSchemaConverter.create(org.apache.avro.Schema)
+METH public static io.github.pierce.converter.AvroSchemaConverter io.github.pierce.converter.AvroSchemaConverter.create(org.apache.avro.Schema,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.BinaryConverter io.github.pierce.converter.BinaryConverter.forFixed(io.github.pierce.converter.ConversionConfig,int)
+METH public static io.github.pierce.converter.ConversionConfig io.github.pierce.converter.ConversionConfig.defaults()
+METH public static io.github.pierce.converter.ConversionConfig io.github.pierce.converter.ConversionConfig.lenient()
+METH public static io.github.pierce.converter.ConversionConfig io.github.pierce.converter.ConversionConfig.strict()
+METH public static io.github.pierce.converter.ConversionConfig.Builder io.github.pierce.converter.ConversionConfig.builder()
+METH public static io.github.pierce.converter.ConversionConfig.ErrorHandlingMode io.github.pierce.converter.ConversionConfig.ErrorHandlingMode.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.ConversionConfig.ErrorHandlingMode[] io.github.pierce.converter.ConversionConfig.ErrorHandlingMode.values()
+METH public static io.github.pierce.converter.ConversionConfig.NullHandlingMode io.github.pierce.converter.ConversionConfig.NullHandlingMode.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.ConversionConfig.NullHandlingMode[] io.github.pierce.converter.ConversionConfig.NullHandlingMode.values()
+METH public static io.github.pierce.converter.ConversionConfig.OutputFormat io.github.pierce.converter.ConversionConfig.OutputFormat.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.ConversionConfig.OutputFormat[] io.github.pierce.converter.ConversionConfig.OutputFormat.values()
+METH public static io.github.pierce.converter.ConversionConfig.StringTruncationMode io.github.pierce.converter.ConversionConfig.StringTruncationMode.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.ConversionConfig.StringTruncationMode[] io.github.pierce.converter.ConversionConfig.StringTruncationMode.values()
+METH public static io.github.pierce.converter.ConversionConfig.TimestampPrecision io.github.pierce.converter.ConversionConfig.TimestampPrecision.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.ConversionConfig.TimestampPrecision[] io.github.pierce.converter.ConversionConfig.TimestampPrecision.values()
+METH public static io.github.pierce.converter.ConversionResult io.github.pierce.converter.ConversionResult.failure(io.github.pierce.converter.ConversionResult.ConversionError)
+METH public static io.github.pierce.converter.ConversionResult io.github.pierce.converter.ConversionResult.failure(java.util.List)
+METH public static io.github.pierce.converter.ConversionResult io.github.pierce.converter.ConversionResult.partial(java.lang.Object,java.util.List)
+METH public static io.github.pierce.converter.ConversionResult io.github.pierce.converter.ConversionResult.success(java.lang.Object)
+METH public static io.github.pierce.converter.GenericRecord io.github.pierce.converter.GenericRecord.create(org.apache.iceberg.Schema)
+METH public static io.github.pierce.converter.IcebergSchemaConverter io.github.pierce.converter.IcebergSchemaConverter.cached(org.apache.iceberg.Schema)
+METH public static io.github.pierce.converter.IcebergSchemaConverter io.github.pierce.converter.IcebergSchemaConverter.cached(org.apache.iceberg.Schema,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.IcebergSchemaConverter io.github.pierce.converter.IcebergSchemaConverter.create(org.apache.iceberg.Schema)
+METH public static io.github.pierce.converter.IcebergSchemaConverter io.github.pierce.converter.IcebergSchemaConverter.create(org.apache.iceberg.Schema,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.cached(java.util.Map)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.cached(org.apache.avro.Schema)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.cached(org.apache.iceberg.Schema)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forAvro(org.apache.avro.Schema)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forAvro(org.apache.avro.Schema,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forAvro(org.apache.avro.Schema,io.github.pierce.converter.ConversionConfig,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattened(java.util.Map)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattened(java.util.Map,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattened(java.util.Map,io.github.pierce.converter.ConversionConfig,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattenedAvro(org.apache.avro.Schema)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattenedAvro(org.apache.avro.Schema,java.lang.String)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattenedAvro(org.apache.avro.Schema,java.lang.String,io.github.pierce.converter.ConversionConfig,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattenedIceberg(org.apache.iceberg.Schema)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forFlattenedIceberg(org.apache.iceberg.Schema,java.lang.String,io.github.pierce.converter.ConversionConfig,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forIceberg(org.apache.iceberg.Schema)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forIceberg(org.apache.iceberg.Schema,io.github.pierce.converter.ConversionConfig)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter io.github.pierce.converter.SchemaBasedMapConverter.forIceberg(org.apache.iceberg.Schema,io.github.pierce.converter.ConversionConfig,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType[] io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType.values()
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.array(java.lang.String,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.decimal(java.lang.String,int,int,boolean)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.of(java.lang.String,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType.required(java.lang.String,io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.SchemaType io.github.pierce.converter.SchemaBasedMapConverter.SchemaType.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.SchemaBasedMapConverter.SchemaType[] io.github.pierce.converter.SchemaBasedMapConverter.SchemaType.values()
+METH public static io.github.pierce.converter.SchemaConversionUtil.FieldType io.github.pierce.converter.SchemaConversionUtil.FieldType.valueOf(java.lang.String)
+METH public static io.github.pierce.converter.SchemaConversionUtil.FieldType[] io.github.pierce.converter.SchemaConversionUtil.FieldType.values()
+METH public static io.github.pierce.converter.StringConverter io.github.pierce.converter.StringConverter.withMaxLength(io.github.pierce.converter.ConversionConfig,int)
+METH public static io.github.pierce.converter.StructConverter.FieldInfo io.github.pierce.converter.StructConverter.FieldInfo.of(java.lang.String,io.github.pierce.converter.TypeConverter,boolean)
+METH public static io.github.pierce.converter.StructConverter.FieldInfo io.github.pierce.converter.StructConverter.FieldInfo.of(java.lang.String,io.github.pierce.converter.TypeConverter,boolean,java.lang.Object)
+METH public static io.github.pierce.files.FileFinder.FileLocation.Type io.github.pierce.files.FileFinder.FileLocation.Type.valueOf(java.lang.String)
+METH public static io.github.pierce.files.FileFinder.FileLocation.Type[] io.github.pierce.files.FileFinder.FileLocation.Type.values()
+METH public static io.github.pierce.files.FileFinder.FileMetadata io.github.pierce.files.FileFinder.getFileMetadata(java.lang.String)
+METH public static io.github.pierce.files.FileFinder.Statistics io.github.pierce.files.FileFinder.getStatistics()
+METH public static io.github.pierce.path.FlattenedPath io.github.pierce.path.FlattenedPath.decode(java.lang.String,java.lang.String)
+METH public static io.github.pierce.path.FlattenedPath io.github.pierce.path.FlattenedPath.of(java.lang.String[])
+METH public static io.github.pierce.path.FlattenedPath io.github.pierce.path.FlattenedPath.of(java.util.List)
+METH public static io.github.pierce.schema.FlattenOptions io.github.pierce.schema.FlattenOptions.defaults()
+METH public static io.github.pierce.schema.FlattenOptions io.github.pierce.schema.FlattenOptions.gAvroParity()
+METH public static io.github.pierce.schema.FlattenOptions.Builder io.github.pierce.schema.FlattenOptions.builder()
+METH public static io.github.pierce.schema.FlattenedField.Builder io.github.pierce.schema.FlattenedField.builder()
+METH public static io.github.pierce.schema.LeafInterceptor io.github.pierce.schema.LeafInterceptor.noop()
+METH public static io.github.pierce.schema.NameCollisionPolicy io.github.pierce.schema.NameCollisionPolicy.valueOf(java.lang.String)
+METH public static io.github.pierce.schema.NameCollisionPolicy[] io.github.pierce.schema.NameCollisionPolicy.values()
+METH public static io.github.pierce.schema.PathSegment io.github.pierce.schema.PathSegment.array(java.lang.String,java.lang.String)
+METH public static io.github.pierce.schema.PathSegment io.github.pierce.schema.PathSegment.field(java.lang.String,java.lang.String)
+METH public static io.github.pierce.schema.PathSegment io.github.pierce.schema.PathSegment.map(java.lang.String,java.lang.String)
+METH public static io.github.pierce.schema.PathSegment.Kind io.github.pierce.schema.PathSegment.Kind.valueOf(java.lang.String)
+METH public static io.github.pierce.schema.PathSegment.Kind[] io.github.pierce.schema.PathSegment.Kind.values()
+METH public static io.github.pierce.schema.TypeMapper io.github.pierce.schema.TypeMapper.defaultMapper()
+METH public static io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.forBatch(org.apache.spark.sql.SparkSession)
+METH public static io.github.pierce.spark.NexusPiercerSparkPipeline io.github.pierce.spark.NexusPiercerSparkPipeline.forStreaming(org.apache.spark.sql.SparkSession)
+METH public static io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling.valueOf(java.lang.String)
+METH public static io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling[] io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling.values()
+METH public static io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode.valueOf(java.lang.String)
+METH public static io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode[] io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode.values()
+METH public static java.io.InputStream io.github.pierce.files.FileFinder.findFile(java.lang.String)
+METH public static java.lang.Object io.github.pierce.files.FileFinder.Util.readYaml(java.lang.String)
+METH public static java.lang.String io.github.pierce.JsonFlattener.quickFlattenMapToJson(java.util.Map)
+METH public static java.lang.String io.github.pierce.JsonFlattener.quickFlattenToJson(java.lang.String)
+METH public static java.lang.String io.github.pierce.JsonFlattener.quickFlattenToPrettyJson(java.lang.String)
+METH public static java.lang.String io.github.pierce.JsonReconstructor.quickReconstructToJson(java.util.Map)
+METH public static java.lang.String io.github.pierce.JsonReconstructor.quickReconstructToPrettyJson(java.util.Map)
+METH public static java.lang.String io.github.pierce.converter.BinaryConverter.toBase64(java.nio.ByteBuffer)
+METH public static java.lang.String io.github.pierce.files.FileFinder.Util.readAsString(java.lang.String)
+METH public static java.lang.String io.github.pierce.files.FileFinder.Util.readAsString(java.lang.String,java.nio.charset.Charset)
+METH public static java.lang.String io.github.pierce.path.FlattenedPath.encode(java.util.List,java.lang.String)
+METH public static java.lang.String io.github.pierce.path.FlattenedPath.encodeLegacy(java.util.List,java.lang.String)
+METH public static java.lang.String io.github.pierce.path.FlattenedPath.escapeSegment(java.lang.String,java.lang.String)
+METH public static java.math.BigDecimal io.github.pierce.converter.DecimalConverter.fromBytes(byte[],int)
+METH public static java.time.Instant io.github.pierce.converter.TimestampConverter.microsToInstant(long)
+METH public static java.time.Instant io.github.pierce.converter.TimestampNanoConverter.nanosToInstant(long)
+METH public static java.time.LocalDate io.github.pierce.converter.DateConverter.daysToLocalDate(int)
+METH public static java.time.LocalDateTime io.github.pierce.converter.TimestampConverter.microsToLocalDateTime(long,java.time.ZoneId)
+METH public static java.time.LocalDateTime io.github.pierce.converter.TimestampNanoConverter.nanosToLocalDateTime(long,java.time.ZoneId)
+METH public static java.time.LocalTime io.github.pierce.converter.TimeConverter.microsToLocalTime(long)
+METH public static java.util.List io.github.pierce.converter.SchemaConversionUtil.analyzeAvroSchema(org.apache.avro.Schema)
+METH public static java.util.List io.github.pierce.converter.SchemaConversionUtil.analyzeIcebergSchema(org.apache.iceberg.Schema)
+METH public static java.util.List io.github.pierce.files.FileFinder.Util.readLines(java.lang.String)
+METH public static java.util.List io.github.pierce.files.FileFinder.discoverAvroSchemas()
+METH public static java.util.List io.github.pierce.files.FileFinder.discoverFiles(java.lang.String)
+METH public static java.util.List io.github.pierce.path.FlattenedPath.decodeSegments(java.lang.String,java.lang.String)
+METH public static java.util.Map io.github.pierce.JsonFlattener.quickFlatten(java.lang.String)
+METH public static java.util.Map io.github.pierce.JsonReconstructor.quickReconstruct(java.util.Map)
+METH public static java.util.Map io.github.pierce.JsonReconstructor.quickReconstruct(java.util.Map,java.lang.String)
+METH public static java.util.Map io.github.pierce.converter.SchemaBasedMapConverter.flattenAvroSchema(org.apache.avro.Schema,java.lang.String)
+METH public static java.util.Map io.github.pierce.converter.SchemaBasedMapConverter.flattenIcebergSchema(org.apache.iceberg.Schema,java.lang.String)
+METH public static java.util.Map io.github.pierce.schema.FlattenedField.noProperties()
+METH public static java.util.Properties io.github.pierce.files.FileFinder.Util.readProperties(java.lang.String)
+METH public static java.util.UUID io.github.pierce.converter.UUIDConverter.fromBytes(byte[])
+METH public static long io.github.pierce.converter.TimeConverter.localTimeToMicros(java.time.LocalTime)
+METH public static long io.github.pierce.converter.TimestampConverter.instantToMicros(java.time.Instant)
+METH public static long io.github.pierce.converter.TimestampNanoConverter.instantToNanos(java.time.Instant)
+METH public static long io.github.pierce.files.FileFinder.Util.copyTo(java.lang.String,java.io.OutputStream)
+METH public static org.apache.avro.Schema io.github.pierce.converter.AvroSchemaUtilWrapper.convert(org.apache.iceberg.Schema,java.lang.String)
+METH public static org.apache.avro.Schema io.github.pierce.converter.AvroSchemaUtilWrapper.nullable(org.apache.avro.Schema)
+METH public static org.apache.avro.Schema io.github.pierce.converter.AvroSchemaUtilWrapper.typeToAvro(org.apache.iceberg.types.Type,java.lang.String)
+METH public static org.apache.avro.Schema io.github.pierce.converter.AvroSchemaUtilWrapper.unwrapNullable(org.apache.avro.Schema)
+METH public static org.apache.avro.Schema io.github.pierce.converter.SchemaConversionUtil.icebergToAvro(org.apache.iceberg.Schema,java.lang.String)
+METH public static org.apache.iceberg.Schema io.github.pierce.converter.AvroSchemaUtilWrapper.toIceberg(org.apache.avro.Schema)
+METH public static org.apache.iceberg.Schema io.github.pierce.converter.SchemaConversionUtil.avroToIceberg(org.apache.avro.Schema)
+METH public static org.apache.iceberg.Schema io.github.pierce.converter.SchemaConversionUtil.createIcebergSchema(java.util.List)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.arrayCount(org.apache.spark.sql.Column,java.lang.String)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.arrayDistinctCount(org.apache.spark.sql.Column,java.lang.String)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.extractArray(org.apache.spark.sql.Column,java.lang.String)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.extractField(org.apache.spark.sql.Column,java.lang.String)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.flattenJson(org.apache.spark.sql.Column)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.flattenJson(org.apache.spark.sql.Column,java.lang.String)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.flattenJsonWithStatistics(org.apache.spark.sql.Column)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.isValid(org.apache.spark.sql.Column)
+METH public static org.apache.spark.sql.Column io.github.pierce.spark.NexusPiercerFunctions.jsonError(org.apache.spark.sql.Column)
+METH public static org.apache.spark.sql.Dataset io.github.pierce.spark.NexusPiercerPatterns.generateDataQualityReport(org.apache.spark.sql.SparkSession,java.lang.String,java.lang.String)
+METH public static org.apache.spark.sql.Dataset io.github.pierce.spark.NexusPiercerPatterns.profileJsonStructure(org.apache.spark.sql.SparkSession,java.lang.String,int)
+METH public static org.apache.spark.sql.types.StructType io.github.pierce.CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchema(org.apache.avro.Schema)
+METH public static org.apache.spark.sql.types.StructType io.github.pierce.CreateSparkStructFromAvroSchema.convertNestedAvroSchemaToSparkSchemaNoCache(org.apache.avro.Schema)
+METH public static void io.github.pierce.AvroSchemaFlattener.clearCache()
+METH public static void io.github.pierce.AvroSchemaLoader.clearCaches()
+METH public static void io.github.pierce.CreateSparkStructFromAvroSchema.clearCache()
+METH public static void io.github.pierce.GAvroSchemaFlattener.clearCaches()
+METH public static void io.github.pierce.converter.AvroSchemaConverter.clearCache()
+METH public static void io.github.pierce.converter.IcebergSchemaConverter.clearCache()
+METH public static void io.github.pierce.converter.SchemaBasedMapConverter.clearCache()
+METH public static void io.github.pierce.files.FileFinder.Util.saveToFile(java.lang.String,java.nio.file.Path)
+METH public static void io.github.pierce.files.FileFinder.clearCaches()
+METH public static void io.github.pierce.spark.NexusPiercerFunctions.register(org.apache.spark.sql.SparkSession,java.lang.String[])
+METH public static void io.github.pierce.spark.NexusPiercerFunctions.registerAll(org.apache.spark.sql.SparkSession)
+METH public static void io.github.pierce.spark.NexusPiercerSparkPipeline.clearSchemaCache()
+METH public void io.github.pierce.AvroReconstructor.clearSchemaCache()
+METH public void io.github.pierce.AvroSchemaFlattener.SchemaStatistics.reset()
+METH public void io.github.pierce.AvroSchemaFlattener.exportToExcel(java.lang.String)
+METH public void io.github.pierce.AvroSchemaLoader.SchemaLoadResult.logSummary()
+METH public void io.github.pierce.JsonFlattener.BatchResult.toFile(java.nio.file.Path)
+METH public void io.github.pierce.JsonFlattener.BatchResult.toFile(java.nio.file.Path,io.github.pierce.JsonFlattener.OutputOptions)
+METH public void io.github.pierce.JsonFlattener.BatchResult.toNdjsonFile(java.nio.file.Path)
+METH public void io.github.pierce.JsonFlattener.BatchResult.toNdjsonFile(java.nio.file.Path,io.github.pierce.JsonFlattener.OutputOptions)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toFile(java.io.File)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toFile(java.io.File,io.github.pierce.JsonFlattener.OutputOptions)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toFile(java.nio.file.Path)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toFile(java.nio.file.Path,io.github.pierce.JsonFlattener.OutputOptions)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toStream(java.io.OutputStream)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toStream(java.io.OutputStream,io.github.pierce.JsonFlattener.OutputOptions)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toWriter(java.io.Writer)
+METH public void io.github.pierce.JsonFlattener.FluentOperation.toWriter(java.io.Writer,io.github.pierce.JsonFlattener.OutputOptions)
+METH public void io.github.pierce.JsonFlattener.StreamResult.forEach(java.util.function.Consumer)
+METH public void io.github.pierce.JsonReconstructor.FluentOperation.toFile(java.io.File)
+METH public void io.github.pierce.JsonReconstructor.FluentOperation.toFile(java.nio.file.Path)
+METH public void io.github.pierce.MapFlattener.flattenAndReplace(java.util.Map)
+METH public void io.github.pierce.converter.GenericRecord.set(int,java.lang.Object)
+METH public void io.github.pierce.converter.Notification.FieldContext.close()
+METH public void io.github.pierce.converter.Notification.addError(java.lang.String)
+METH public void io.github.pierce.converter.Notification.addError(java.lang.String,java.lang.String,java.lang.Throwable)
+METH public void io.github.pierce.converter.Notification.addError(java.lang.String,java.lang.Throwable)
+METH public void io.github.pierce.converter.Notification.clear()
+METH public void io.github.pierce.converter.TypeConverterRegistry.clearCache()
+METH public void io.github.pierce.schema.EnrichedSchemaFlattener.stream(org.apache.avro.Schema,java.util.function.Consumer)
+METH public void io.github.pierce.spark.NexusPiercerSparkPipeline.validateConfiguration()
+TYPE public abstract class io.github.pierce.converter.AbstractTypeConverter
+TYPE public abstract interface io.github.pierce.converter.TypeConverter
+TYPE public abstract interface io.github.pierce.schema.LeafInterceptor
+TYPE public abstract interface io.github.pierce.schema.TypeMapper
+TYPE public class io.github.pierce.AvroReconstructor
+TYPE public class io.github.pierce.AvroSchemaFlattener
+TYPE public class io.github.pierce.AvroSchemaLoader
+TYPE public class io.github.pierce.CreateSparkStructFromAvroSchema
+TYPE public class io.github.pierce.GAvroSchemaFlattener
+TYPE public class io.github.pierce.JsonFlattener
+TYPE public class io.github.pierce.JsonFlattenerConsolidator
+TYPE public class io.github.pierce.JsonReconstructor
+TYPE public class io.github.pierce.MapFlattener
+TYPE public class io.github.pierce.converter.AvroSchemaConverter
+TYPE public class io.github.pierce.converter.BinaryConverter
+TYPE public class io.github.pierce.converter.BooleanConverter
+TYPE public class io.github.pierce.converter.DateConverter
+TYPE public class io.github.pierce.converter.DecimalConverter
+TYPE public class io.github.pierce.converter.DoubleConverter
+TYPE public class io.github.pierce.converter.FloatConverter
+TYPE public class io.github.pierce.converter.GenericRecord
+TYPE public class io.github.pierce.converter.IcebergSchemaConverter
+TYPE public class io.github.pierce.converter.IntegerConverter
+TYPE public class io.github.pierce.converter.ListConverter
+TYPE public class io.github.pierce.converter.LongConverter
+TYPE public class io.github.pierce.converter.MapConverter
+TYPE public class io.github.pierce.converter.Notification
+TYPE public class io.github.pierce.converter.NullValueException
+TYPE public class io.github.pierce.converter.SchemaBasedMapConverter
+TYPE public class io.github.pierce.converter.SchemaConversionException
+TYPE public class io.github.pierce.converter.StringConverter
+TYPE public class io.github.pierce.converter.StructConverter
+TYPE public class io.github.pierce.converter.TimeConverter
+TYPE public class io.github.pierce.converter.TimestampConverter
+TYPE public class io.github.pierce.converter.TimestampNanoConverter
+TYPE public class io.github.pierce.converter.TypeConversionException
+TYPE public class io.github.pierce.converter.TypeConverterRegistry
+TYPE public class io.github.pierce.converter.UUIDConverter
+TYPE public class io.github.pierce.files.FileFinder
+TYPE public class io.github.pierce.schema.RecursiveSchemaException
+TYPE public class io.github.pierce.schema.SchemaFlattenException
+TYPE public class io.github.pierce.schema.SchemaLimitExceededException
+TYPE public class io.github.pierce.spark.NexusPiercerFunctions
+TYPE public class io.github.pierce.spark.NexusPiercerPatterns
+TYPE public class io.github.pierce.spark.NexusPiercerSparkPipeline
+TYPE public final class io.github.pierce.converter.AvroSchemaUtilWrapper
+TYPE public final class io.github.pierce.converter.ConversionConfig
+TYPE public final class io.github.pierce.converter.ConversionResult
+TYPE public final class io.github.pierce.converter.SchemaConversionUtil
+TYPE public final class io.github.pierce.path.FlattenedPath
+TYPE public final class io.github.pierce.schema.EnrichedSchemaFlattener
+TYPE public final class io.github.pierce.schema.FlattenOptions
+TYPE public final class io.github.pierce.schema.FlattenedField
+TYPE public final class io.github.pierce.schema.PathSegment
+TYPE public final enum io.github.pierce.schema.NameCollisionPolicy
+TYPE public static class io.github.pierce.AvroReconstructor.Builder
+TYPE public static class io.github.pierce.AvroReconstructor.ComparisonResult
+TYPE public static class io.github.pierce.AvroReconstructor.ReconstructionException
+TYPE public static class io.github.pierce.AvroReconstructor.ReconstructionVerification
+TYPE public static class io.github.pierce.AvroSchemaFlattener.ArrayDefinition
+TYPE public static class io.github.pierce.AvroSchemaFlattener.FieldHierarchy
+TYPE public static class io.github.pierce.AvroSchemaFlattener.FieldMetadata
+TYPE public static class io.github.pierce.AvroSchemaFlattener.FieldReference
+TYPE public static class io.github.pierce.AvroSchemaFlattener.RecordDefinition
+TYPE public static class io.github.pierce.AvroSchemaFlattener.SchemaStatistics
+TYPE public static class io.github.pierce.AvroSchemaFlattener.TypeTransformation
+TYPE public static class io.github.pierce.AvroSchemaLoader.Builder
+TYPE public static class io.github.pierce.AvroSchemaLoader.SchemaLoadResult
+TYPE public static class io.github.pierce.AvroSchemaLoader.SchemaLocation
+TYPE public static class io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig
+TYPE public static class io.github.pierce.GAvroSchemaFlattener.AvroFlatteningConfig.Builder
+TYPE public static class io.github.pierce.GAvroSchemaFlattener.FlattenedFieldType
+TYPE public static class io.github.pierce.JsonFlattener.BatchError
+TYPE public static class io.github.pierce.JsonFlattener.BatchOperation
+TYPE public static class io.github.pierce.JsonFlattener.BatchResult
+TYPE public static class io.github.pierce.JsonFlattener.Builder
+TYPE public static class io.github.pierce.JsonFlattener.FluentOperation
+TYPE public static class io.github.pierce.JsonFlattener.InputOptions
+TYPE public static class io.github.pierce.JsonFlattener.InputOptions.InputOptionsBuilder
+TYPE public static class io.github.pierce.JsonFlattener.JsonFlattenException
+TYPE public static class io.github.pierce.JsonFlattener.JsonFlattenerConfig
+TYPE public static class io.github.pierce.JsonFlattener.JsonFlattenerConfig.ConfigBuilder
+TYPE public static class io.github.pierce.JsonFlattener.JsonValidationException
+TYPE public static class io.github.pierce.JsonFlattener.OutputOptions
+TYPE public static class io.github.pierce.JsonFlattener.OutputOptions.OutputOptionsBuilder
+TYPE public static class io.github.pierce.JsonFlattener.StreamError
+TYPE public static class io.github.pierce.JsonFlattener.StreamOperation
+TYPE public static class io.github.pierce.JsonFlattener.StreamResult
+TYPE public static class io.github.pierce.JsonFlattener.ValidationResult
+TYPE public static class io.github.pierce.JsonFlattener.ValidationRules
+TYPE public static class io.github.pierce.JsonFlattener.ValidationRules.ValidationRulesBuilder
+TYPE public static class io.github.pierce.JsonReconstructor.Builder
+TYPE public static class io.github.pierce.JsonReconstructor.FluentOperation
+TYPE public static class io.github.pierce.JsonReconstructor.ReconstructionException
+TYPE public static class io.github.pierce.JsonReconstructor.ReconstructionVerification
+TYPE public static class io.github.pierce.MapFlattener.Builder
+TYPE public static class io.github.pierce.converter.Notification.FieldContext
+TYPE public static class io.github.pierce.converter.SchemaBasedMapConverter.FlattenedFieldType
+TYPE public static class io.github.pierce.converter.StructConverter.Builder
+TYPE public static class io.github.pierce.files.FileFinder.Config
+TYPE public static class io.github.pierce.files.FileFinder.FileFinderException
+TYPE public static class io.github.pierce.files.FileFinder.FileLocation
+TYPE public static class io.github.pierce.files.FileFinder.FileMetadata
+TYPE public static class io.github.pierce.files.FileFinder.Statistics
+TYPE public static class io.github.pierce.files.FileFinder.Util
+TYPE public static class io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineConfig
+TYPE public static class io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingMetrics
+TYPE public static class io.github.pierce.spark.NexusPiercerSparkPipeline.ProcessingResult
+TYPE public static final class io.github.pierce.AvroReconstructor.SchemaCacheStats
+TYPE public static final class io.github.pierce.converter.ConversionConfig.Builder
+TYPE public static final class io.github.pierce.converter.ConversionResult.ConversionError
+TYPE public static final class io.github.pierce.converter.SchemaConversionUtil.FieldDefinition
+TYPE public static final class io.github.pierce.converter.SchemaConversionUtil.FieldInfo
+TYPE public static final class io.github.pierce.converter.StructConverter.FieldInfo
+TYPE public static final class io.github.pierce.schema.FlattenOptions.Builder
+TYPE public static final class io.github.pierce.schema.FlattenedField.Builder
+TYPE public static final enum io.github.pierce.AvroReconstructor.ArraySerializationFormat
+TYPE public static final enum io.github.pierce.AvroSchemaLoader.SchemaLocation.LocationType
+TYPE public static final enum io.github.pierce.GAvroSchemaFlattener.DataType
+TYPE public static final enum io.github.pierce.JsonReconstructor.ArraySerializationFormat
+TYPE public static final enum io.github.pierce.MapFlattener.ArraySerializationFormat
+TYPE public static final enum io.github.pierce.MapFlattener.FieldNamingStrategy
+TYPE public static final enum io.github.pierce.converter.ConversionConfig.ErrorHandlingMode
+TYPE public static final enum io.github.pierce.converter.ConversionConfig.NullHandlingMode
+TYPE public static final enum io.github.pierce.converter.ConversionConfig.OutputFormat
+TYPE public static final enum io.github.pierce.converter.ConversionConfig.StringTruncationMode
+TYPE public static final enum io.github.pierce.converter.ConversionConfig.TimestampPrecision
+TYPE public static final enum io.github.pierce.converter.SchemaBasedMapConverter.FlattenedDataType
+TYPE public static final enum io.github.pierce.converter.SchemaBasedMapConverter.SchemaType
+TYPE public static final enum io.github.pierce.converter.SchemaConversionUtil.FieldType
+TYPE public static final enum io.github.pierce.files.FileFinder.FileLocation.Type
+TYPE public static final enum io.github.pierce.schema.PathSegment.Kind
+TYPE public static final enum io.github.pierce.spark.NexusPiercerSparkPipeline.ErrorHandling
+TYPE public static final enum io.github.pierce.spark.NexusPiercerSparkPipeline.PipelineMode

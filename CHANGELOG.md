@@ -45,7 +45,11 @@ staged on Maven Central and `main` must not sit on a released coordinate.
   not narrowed, and all ten are fixed: five dead private methods removed, three anonymous
   `TypeReference` instances hoisted into shared `private static final` constants, and two
   unreachable null checks removed. No behaviour change — the 156-fixture fidelity corpus was
-  re-run and no row moved. SpotBugs 241 → 238, PMD 361 → 351.
+  re-run and no row moved. SpotBugs 241 → 238 from these ten, and **237 once the constructor
+  repair above is counted**; PMD 361 → 351. The end state is 237, which is the ceiling recorded
+  in `.github/quality-baseline.json`. (The walk: 241 with the block, 251 without it, 237 after
+  the fixes. An earlier version of this bullet and of the baseline note both stated the final
+  figure as 238 and never printed 237, so the public record disagreed with the repository.)
 
 ### Changed
 
@@ -64,6 +68,40 @@ staged on Maven Central and `main` must not sit on a released coordinate.
   repository" was also false when written: `src/test/groovy/JsonFlattenerTest.groovy` existed at
   the commit where the entry was filed and is now
   `src/test/java/io/github/pierce/JsonFlattenerTest.java`, 63 tests in 12 nested classes.
+- `docs/INSTALL.md` still told consumers "the 2.0 line is not published there yet" and pinned a
+  `2.0.0-SNAPSHOT` coordinate that has never existed on any repository, while `SECURITY.md` and
+  `README.md` in the same tree correctly published 2.0.0 from Central. Route 1 now publishes the
+  released coordinate, locally built artifact filenames use a `${nexus.version}` placeholder so a
+  version bump cannot invalidate them again, and the test count is corrected from "~1,400".
+- The `unwrapUnion` dead-code verdict is corrected wherever it was recorded — see **Known issues**
+  below for why the correction matters rather than being cosmetic.
+
+### Known issues
+
+Confirmed present in the released **2.0.0** and still open on `main`. Recorded here so that a
+consumer reading release notes on upgrade learns of them without opening the backlog. Full detail
+in [docs/BACKLOG.md](docs/BACKLOG.md); consumer-facing rows in [SECURITY.md](SECURITY.md).
+
+- **`AvroReconstructor.reconstruct()` produces an unwritable datum at the shipped default
+  configuration** (`recon/NP-023`, BL-012). A schema with a defaulted **enum** field absent from
+  the input reconstructs with a `java.lang.String` in that position, and
+  `GenericData.get().validate(schema, record)` returns `false`, so the record cannot be
+  binary-encoded. No unusual configuration is required — the default is the broken setting.
+  **Workaround: `useSchemaDefaults(false)`.** The same shape affects FIXED/BYTES (`byte[]`) and
+  record-typed (`LinkedHashMap`) defaults.
+- **`allowMissingFields` does not allow missing fields at either value** (`recon/NP-024`,
+  BL-012). It selects which exception you get, not whether reconstruction succeeds.
+- **An empty flattened map silently returns `{}`** (`recon/NP-025`, BL-012) even against a schema
+  with a required no-default field, because the empty-map short-circuit consults neither knob.
+- **Five `JsonFlattenerConfig` knobs are inert** (BL-015): `charset`, `bufferSize`, `failOnError`,
+  `preserveNulls` and `sortKeys` are read nowhere in `src/main`. `failOnError(false)` in
+  particular does **not** make parsing lenient. They are documented rather than repaired because
+  making them live would silently change behaviour for released callers; they are now pinned as
+  inert by a test so that wiring one up cannot happen unnoticed.
+- **3+ branch unions inside Avro array elements are silently dropped** (BL-014). Corrected framing:
+  this is a gap that has **always** been present, not a regression — the `unwrapUnion` method it
+  was originally attributed to never had a declaration in any revision where it was called, so it
+  never executed and no behaviour was lost when it was deleted.
 
 ---
 

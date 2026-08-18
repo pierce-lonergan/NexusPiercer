@@ -35,11 +35,28 @@
           count of each symbol in every historical revision of its file:
             AvroReconstructor.reconstructNestedArrayOfRecords  BORN DEAD (never called, ever)
             MapFlattener.flattenSingleValue                    BORN DEAD (never called, ever)
-            AvroReconstructor.unwrapUnion                      caller replaced by unwrapNullable
+            AvroReconstructor.unwrapUnion                      BORN DEAD (never declared while
+                                                               called; never called once declared)
             AvroReconstructor.calculateArraySize               caller replaced by determineArraySize
             GAvroSchemaFlattener.isNullable(Schema)            caller replaced by node.nullable
-          In all three "replaced" cases the substitute was installed at the same decision point
-          by the same commit, so nothing stopped running and no behaviour was restored.
+
+          CORRECTED 2026-08-17, one revision after the above was first written: unwrapUnion was
+          filed as "caller replaced by unwrapNullable" and that is FALSE. Measured with
+          `git grep -n unwrapUnion <rev>` at every revision of the file: through ef625f2 there are
+          FOUR occurrences and all four are CALLS - there is no declaration in any revision where
+          a call exists. The declaration appears for the first time at cad816b, the same commit
+          that deleted all four calls, and it never acquired a caller afterwards. The class has no
+          superclass and the repo-wide count equals the per-file count at every revision, so it was
+          not inherited either. The file was Groovy-compiled at the time (gmavenplus in ef625f2's
+          pom), so those four calls compiled and would have thrown MissingMethodException had they
+          ever been reached. unwrapUnion is therefore BORN DEAD in the strongest sense of the three
+          - it never coexisted with a caller in any revision of the project. The deletion verdict is
+          unchanged and in fact safer than originally argued; only the narrative was wrong.
+
+          In the two genuine "replaced" cases - calculateArraySize (declaration at ef625f2:2018 plus
+          one call at ef625f2:1192) and isNullable(Schema) - the substitute was installed at the
+          same decision point by the same commit, so nothing stopped running and no behaviour was
+          restored.
 
         SIC x3 - three `new TypeReference<List<Object>>() {}` expressions in instance methods
           hoisted into private static final constants, clearing the synthetic this$0 and
@@ -52,13 +69,20 @@
       JsonFlattener and JsonReconstructor never contributed a single finding to this block; they
       were pure collateral and are simply gone from it.
 
-      ON THE COUNT, because it looks like nothing was earned: SpotBugs stays at 241. That is the
-      expected result, not a disappointment. 241 was the count WITH the block and 251 the count
-      WITHOUT it; the ten ARE the difference, so fixing them returns the number to 241. The gain
-      is that a standing exemption over five of the largest classes in the library no longer
-      exists, so the ELEVENTH instance of any of these three patterns gets counted instead of
-      vanishing. The ratchet win landed on PMD, which had been counting the five dead methods
-      inside its total all along.
+      ON THE COUNT - and this paragraph predicted the wrong number, so read the measurement and
+      not the prediction. It said "SpotBugs stays at 241 ... fixing them returns the number to
+      241". MEASURED on the committed tree with the CI invocation
+      (`grep -o '<BugInstance ' target/spotbugsXml.xml | wc -l`): 237, and 237 is the ceiling
+      recorded in .github/quality-baseline.json. The walk is 241 with the block, 251 without it,
+      237 after the fixes. It fell by 4 rather than staying flat because four findings that were
+      already INSIDE the 241 were carried off by the repairs rather than merely unmasked by them:
+      three lived in the body of calculateArraySize and went with the deletion
+      (DE_MIGHT_IGNORE and REC_CATCH_EXCEPTION on its empty catch, SF_SWITCH_NO_DEFAULT on its
+      default-less switch), and the fourth was the NP_NULL_ON_SOME_PATH on the JsonFlattener
+      constructor, fixed in the same commit. The standing gain is unchanged and is the real point:
+      a blanket exemption over five of the largest classes in the library no longer exists, so the
+      ELEVENTH instance of any of these three patterns gets counted instead of vanishing. PMD
+      moved 361 -> 351, having counted the five dead methods inside its total all along.
 
       Guarded by src/test/java/io/github/pierce/gates/SpotBugsExcludeHasNoBlanketClassBlockTest,
       which fails if a multi-class Match without a Method returns, in either literal or regex

@@ -9,6 +9,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -230,6 +231,149 @@ class JsonFlattenerReusableEngineTest {
             assertEquals(1, out.get("a_b"),
                     "flattenToMap is the engine's core operation and the reason the reusable "
                             + "handle exists; it was public-but-unreachable before this change");
+        }
+    }
+
+    // ===================== BL-015: what buildFlattener() does NOT carry =====================
+
+    /**
+     * BL-015. {@code buildFlattener()} hands consumers an engine carrying a
+     * {@link JsonFlattener.JsonFlattenerConfig}, and five of that config's six knobs are read
+     * <b>nowhere</b> in {@code src/main}. Shipping the engine without pinning that would ratify
+     * the inertness silently.
+     *
+     * <p>WHY PIN INERTNESS RATHER THAN FIX IT. Making these live is a semantic change to released
+     * 2.0.0 settings — a caller who set {@code failOnError(false)} and depends on today's throwing
+     * would silently change behaviour — so honour-or-remove is a 3.0.0 decision. Until then these
+     * assertions are the alarm: <b>if one of them fails, someone has wired a knob up, and that is
+     * a behaviour change on shipped API that must be deliberate, changelogged, and checked against
+     * the fidelity corpus.</b> Do not "fix" a failure here by relaxing the assertion.
+     *
+     * <p>THE VACUITY CONTROL IS THE IMPORTANT TEST. An assertion that two outputs are equal is
+     * exactly the shape that passes when the comparison is broken, the documents are trivial, or
+     * the builder was never applied — the repository's signature pathology. So
+     * {@link #theProbeCanSeeADifferenceWhenThereIsOne()} runs the SAME comparison over a knob that
+     * IS live and requires it to report a DIFFERENCE. Without that leg, every assertion below is
+     * unfalsifiable.
+     */
+    @Nested
+    @DisplayName("BL-015: the five inert JsonFlattenerConfig knobs are pinned as inert")
+    class InertConfigKnobsArePinned {
+
+        private static final String DOC = "{\"z\":1,\"a\":{\"b\":null,\"c\":\"x\"}}";
+
+        /** Every JsonFlattenerConfig knob turned away from its default, in one config. */
+        private JsonFlattener.JsonFlattenerConfig loudConfig() {
+            return JsonFlattener.JsonFlattenerConfig.builder()
+                    .charset(java.nio.charset.StandardCharsets.US_ASCII)
+                    .bufferSize(1)
+                    .failOnError(false)
+                    .preserveNulls(false)
+                    .sortKeys(true)
+                    .build();
+        }
+
+        // ---------------- 1. good input passes: the knobs change nothing ----------------
+
+        @Test
+        @DisplayName("GOOD INPUT: every non-prettyPrint config knob is byte-identical to defaults")
+        void allFiveKnobsAreInertThroughTheConfigDoor() {
+            String loud = JsonFlattener.with(MapFlattener.builder().build(), loudConfig())
+                    .from(DOC).toJson();
+            String dflt = JsonFlattener.with(MapFlattener.builder().build(),
+                            JsonFlattener.JsonFlattenerConfig.defaults())
+                    .from(DOC).toJson();
+
+            assertEquals(dflt, loud,
+                    "BL-015 PINNED INERTNESS: charset, bufferSize, failOnError, preserveNulls and "
+                            + "sortKeys are read nowhere in src/main, so turning all five away "
+                            + "from their defaults must change nothing. If this FAILED, a knob was "
+                            + "wired up - that is a behaviour change on released 2.0.0 API. "
+                            + "Changelog it and re-run the fidelity corpus; do not delete this "
+                            + "assertion. Note sortKeys(true) leaves key order unsorted here: the "
+                            + "live sort lives on OutputOptions, a different class with an "
+                            + "identically named getter.");
+        }
+
+        @Test
+        @DisplayName("GOOD INPUT: the engine's own methods ignore prettyPrint entirely")
+        void prettyPrintIsInertOnTheEngineSurface() {
+            String yes = JsonFlattener.builder().prettyPrint(true)
+                    .buildFlattener().flattenToJson(DOC, false);
+            String no = JsonFlattener.builder().prettyPrint(false)
+                    .buildFlattener().flattenToJson(DOC, false);
+
+            assertEquals(no, yes,
+                    "flattenToJson takes an explicit `pretty` argument and selects its mapper from "
+                            + "THAT, so config.usePrettyPrint cannot reach it. The mapper the "
+                            + "config selects is used only to READ input, where pretty-printing "
+                            + "has no effect. This is why buildFlattener()'s javadoc names the "
+                            + "MapFlattener half specifically rather than promising 'the "
+                            + "configured engine' outright.");
+        }
+
+        @Test
+        @DisplayName("GOOD INPUT: failOnError(false) does not make parsing lenient")
+        void failOnErrorDoesNotSuppressTheParseFailure() {
+            JsonFlattener engine = JsonFlattener.builder().failOnError(false).buildFlattener();
+
+            assertThrows(JsonFlattener.JsonFlattenException.class,
+                    () -> engine.flattenToMap("{not json"),
+                    "failOnError(false) is the most misleading of the five: it reads as 'do not "
+                            + "throw' and JsonFlattenerConfig.isFailOnError() is consulted by "
+                            + "nothing, so malformed input still throws. Pinned so that making it "
+                            + "live cannot happen silently.");
+        }
+
+        // -------- 2. synthetic violation blocks: the probe is not vacuous --------
+
+        @Test
+        @DisplayName("SYNTHETIC VIOLATION: the same comparison DOES report a difference for a live knob")
+        void theProbeCanSeeADifferenceWhenThereIsOne() {
+            // A MapFlattener-side knob, which IS honoured on the engine surface.
+            String shallow = JsonFlattener.builder().maxDepth(2)
+                    .buildFlattener().flattenToJson("{\"l1\":{\"l2\":{\"l3\":{\"l4\":\"v\"}}}}", false);
+            String deep = JsonFlattener.builder().maxDepth(99)
+                    .buildFlattener().flattenToJson("{\"l1\":{\"l2\":{\"l3\":{\"l4\":\"v\"}}}}", false);
+
+            assertNotEquals(deep, shallow,
+                    "THE VACUITY CONTROL. If this fails, every inertness assertion in this class "
+                            + "is worthless, because it would mean the comparison cannot detect a "
+                            + "difference that definitely exists - the builder is not being "
+                            + "applied, or the engine is not being reconfigured at all. maxDepth "
+                            + "is honoured, so the two MUST differ.");
+
+            // And prettyPrint IS live through newOperation(), unlike on the engine's own methods.
+            String p = JsonFlattener.builder().prettyPrint(true)
+                    .buildFlattener().newOperation().from(DOC).toJson();
+            String c = JsonFlattener.builder().prettyPrint(false)
+                    .buildFlattener().newOperation().from(DOC).toJson();
+
+            assertNotEquals(c, p,
+                    "SECOND VACUITY CONTROL, and it pins the asymmetry that matters: prettyPrint "
+                            + "reaches FluentOperation.toJson() but NOT the engine's own "
+                            + "flattenToJson. The two terminals buildFlattener() and build() are "
+                            + "therefore not interchangeable on this setting.");
+        }
+
+        // -------- 3. missing / empty input blocks rather than passing vacuously --------
+
+        @Test
+        @DisplayName("MISSING / EMPTY INPUT: a null config defaults, and empty input still yields empty")
+        void nullAndEmptyInputsDoNotPassVacuously() {
+            assertDoesNotThrow(
+                    () -> JsonFlattener.with(MapFlattener.builder().build(), null).from(DOC).toJson(),
+                    "a null config must default rather than NPE - the sibling guard pinned above");
+
+            JsonFlattener engine = JsonFlattener.builder().failOnError(false).buildFlattener();
+            assertTrue(engine.flattenToMap("").isEmpty(),
+                    "empty input yields an empty map at every config; asserted so the inertness "
+                            + "checks above cannot be satisfied by an engine that silently returns "
+                            + "nothing for everything");
+            assertFalse(engine.flattenToMap(DOC).isEmpty(),
+                    "and the SAME engine must return something for real input - otherwise 'both "
+                            + "configs produce identical output' would be true because both "
+                            + "produce nothing");
         }
     }
 }

@@ -29,7 +29,7 @@
 
     <groupId>io.github.pierce-lonergan</groupId>
     <artifactId>nexus-piercer-benchmarks</artifactId>
-    <version>2.0.0-SNAPSHOT</version>
+    <version>2.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>NexusPiercer Benchmarks</name>
@@ -47,10 +47,17 @@
     </properties>
 
     <dependencies>
+        <!--
+          MUST track the root pom's <version> exactly. benchmark.yml installs the root artifact and
+          then builds this module against it, so that the harness measures the bytecode that ships
+          rather than a stale jar. If this drifts, a fresh CI runner cannot resolve it and a local
+          run silently measures whatever old snapshot survives in ~/.m2 - which is worse, because
+          it still produces numbers. The workflow asserts the two agree; see benchmark.yml.
+        -->
         <dependency>
             <groupId>io.github.pierce-lonergan</groupId>
             <artifactId>nexus-piercer</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
+            <version>2.1.0-SNAPSHOT</version>
         </dependency>
 
         <dependency>

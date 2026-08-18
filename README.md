@@ -72,7 +72,8 @@ summary is that structural flattening is reliable and full JSON round-tripping i
 
 Requires **Java 17+**. Spark integration is built against **Spark 3.5.x / Scala 2.12**.
 
-No Maven Central access? Four verified offline install routes are documented in
+No Maven Central access? Three verified routes that need no Central at all — a release jar, a
+source build, and a fully air-gapped install — are documented in
 [docs/INSTALL.md](docs/INSTALL.md), including a self-contained shaded jar.
 
 ## Quick start
@@ -321,7 +322,10 @@ reproducible fixtures is in [docs/ROUND_TRIP_FIDELITY.md](docs/ROUND_TRIP_FIDELI
 - **Recursive schemas still exhaust the stack on the legacy `AvroSchemaFlattener`** — use the
   enriched API if you accept untrusted schemas
 - **`AvroReconstructor.reconstruct()` returns a datum that fails `GenericData.validate`** — nested
-  values come back as `LinkedHashMap`. Use `reconstructToMap` unless you need a writable record
+  values come back as `LinkedHashMap`. Use `reconstructToMap` unless you need a writable record.
+  A **defaulted enum field absent from the input breaks even a flat record, at the shipped default
+  configuration**; `useSchemaDefaults(false)` reconstructs it correctly
+  ([`recon/NP-023`](SECURITY.md))
 
 Use the Avro path where fidelity matters. Treat the JSON round trip as lossy unless a fixture says
 otherwise for your shape.

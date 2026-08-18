@@ -304,21 +304,35 @@ NOT satisfied by the deletion. This entry is where it now lives.
 
 **Filed 2026-08-17, same reason as [BL-013]** — the dead method that recorded the gap is gone.
 
-`AvroReconstructor.unwrapUnion` was deleted as uncalled. Its three call sites were replaced by
-`unwrapNullable` when `cad816b` rewrote `reconstructArrayOfRecords`, so nothing stopped running.
-**But the substitution is lossy at arity 3+.** `unwrapNullable` returns the union UNCHANGED unless
-`types.size() == 2`; `unwrapUnion` returned the first non-null branch at any arity.
+**PREMISE CORRECTED 2026-08-17, one revision after filing.** This entry was filed as a *regression*:
+"unwrapUnion's three call sites were replaced by `unwrapNullable`, and the substitution is lossy at
+arity 3+". That framing is false and it mattered, because it implied a working predecessor whose
+behaviour was owed restoration. Measured per revision with `git grep -n unwrapUnion <rev>`:
+`unwrapUnion` had **no declaration in any revision in which a call to it existed** — four calls and
+zero declarations through `ef625f2`; the declaration appears at `cad816b`, the same commit that
+deleted all four calls, and never acquired a caller. It never executed. **No arity-3+ behaviour was
+ever lost, because none was ever in service.** This is a gap that has always been present in the
+array-element path, not a regression.
 
-**Consequence:** a field typed `["null","SomeRecord","string"]` inside an array element matches
-neither the `RECORD` nor the `ARRAY` branch and falls through silently to `handleMissingField`.
+The technical defect is real and independently verified at HEAD:
 
-**Restoring `unwrapUnion` is NOT the fix.** "First non-null branch" is a different wrong answer,
-and the class already owns a real branch resolver in `reconstructUnionValue` — which the
-array-element path simply does not consult.
+- `unwrapNullable` (`AvroReconstructor.java:2712`) returns the union UNCHANGED unless
+  `types.size() == 2`.
+- In `reconstructArrayOfRecords`, `actualFieldSchema = unwrapNullable(fieldSchema)` is then tested
+  against `RECORD` (line 1463) and `ARRAY` (line 1471). A 3+ branch union is still a `UNION` at
+  that point, so it matches neither and falls to `handleMissingField` at line 1481.
+
+**Consequence:** a field typed `["null","SomeRecord","string"]` inside an array element is silently
+dropped.
+
+**Restoring `unwrapUnion` is NOT the fix** — and now doubly so, since there is nothing to restore.
+"First non-null branch" is a different wrong answer, and the class already owns a real branch
+resolver in `reconstructUnionValue` — which the array-element path simply does not consult.
 
 **Corpus:** `avro-union-of-records-overlapping-fields` is already published as `DEFECT` with
 almost this rationale, but it goes through `reconstructUnionValue`, not the array-element path. A
-distinct fixture is owed for the array-element case.
+distinct fixture is owed for the array-element case — as a **never-implemented gap**, which is how
+its `detail` must read, not as a lost behaviour.
 
 ---
 
@@ -337,6 +351,30 @@ buffer size is hardcoded at each use.
 **Deliberately NOT `@Deprecated` in 2.1.0.** Unlike genuinely unreachable members, these three ARE
 callable today, and a downstream consumer compiling with `-Werror` on deprecation would newly fail
 to build. Javadoc now, `@Deprecated` at 3.0.0.
+
+**DISCHARGED IN PART, 2026-08-17.** The two things that could be done without changing behaviour
+are done:
+
+1. **Javadoc.** Every one of the five setters on both `Builder` and `ConfigBuilder` now states
+   plainly that it is inert and names the live equivalent. `buildFlattener()`'s javadoc no longer
+   promises "the configured, shareable engine" outright — it names the `MapFlattener` half as
+   honoured in full and lists the `JsonFlattenerConfig` caveats.
+2. **A pin, so this cannot change unnoticed.** `JsonFlattenerReusableEngineTest`'s
+   `InertConfigKnobsArePinned` asserts byte-identical output across all five knobs, plus the
+   engine-surface inertness of `prettyPrint` and the fact that `failOnError(false)` still throws.
+   Drilled three ways, including a **vacuity control** — the same comparison is run over `maxDepth`
+   and over `prettyPrint`-through-`newOperation()`, both of which are live, and is required to
+   report a DIFFERENCE. Without that leg the inertness assertions would be unfalsifiable. Verified
+   by wiring `sortKeys` live temporarily; the pin failed with
+   `expected: <{"z":1,"a_b":null,"a_c":"x"}> but was: <{"a_b":null,"a_c":"x","z":1}>`.
+
+A measurement correction worth carrying: an adversarial review described these knobs as inert "on
+the engine surface" while working "through `newOperation()`". That is true only of `prettyPrint`.
+The other five are read nowhere in `src/main` on **any** path — the reads that a naive grep finds
+at `JsonFlattener.java:1021` and `:1057` are `OutputOptions.isSortKeys()` and
+`InputOptions.getCharset()`, different classes with identically named getters.
+
+**Still open:** honour-or-remove, which is [BL-016] / 3.0.0.
 
 **Do not simply make them live either** — that is a semantic change to released settings. A caller
 who set `failOnError(false)` and relies on today's throwing behaviour would silently change

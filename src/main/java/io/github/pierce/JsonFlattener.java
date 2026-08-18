@@ -399,21 +399,74 @@ public class JsonFlattener implements Serializable {
             return this;
         }
 
+        /**
+         * Request pretty-printed output.
+         *
+         * <p>WHICH PATHS READ THIS, because it is not all of them. It is honoured by
+         * {@link FluentOperation#toJson()} — that is, by the {@link #build()} and
+         * {@link JsonFlattener#newOperation()} pipelines. It is NOT honoured by the engine's own
+         * {@link JsonFlattener#flattenToJson(String, boolean)} and
+         * {@link JsonFlattener#flattenMapToJson(Map, boolean)}, which take an explicit
+         * {@code pretty} argument and select a mapper from that instead. The mapper this setting
+         * selects in the constructor is the one used to <em>read</em> input, where pretty-printing
+         * has no observable effect.
+         *
+         * @param pretty whether {@code toJson()} should pretty-print
+         * @return this builder
+         */
         public Builder prettyPrint(boolean pretty) {
             configBuilder.usePrettyPrint(pretty);
             return this;
         }
 
+        /**
+         * Set the charset on the {@link JsonFlattenerConfig} this builder carries.
+         *
+         * <p>INERT — measured, not inferred. {@link JsonFlattenerConfig#getCharset()} is read
+         * nowhere in {@code src/main}: every charset actually consulted at runtime comes from
+         * {@link InputOptions} or {@link OutputOptions}, which are passed per call. Setting this
+         * changes no output on any path. It is retained because it is released 2.0.0 API and
+         * removing it would break compilation for existing callers; see BL-015 in
+         * {@code docs/BACKLOG.md}. Use {@code InputOptions}/{@code OutputOptions} instead.
+         *
+         * @param charset stored on the config and read by nothing
+         * @return this builder
+         */
         public Builder charset(Charset charset) {
             configBuilder.charset(charset);
             return this;
         }
 
+        /**
+         * Set the buffer size on the {@link JsonFlattenerConfig} this builder carries.
+         *
+         * <p>INERT — measured, not inferred. {@link JsonFlattenerConfig#getBufferSize()} is read
+         * nowhere in {@code src/main}; every buffered path hardcodes its own size. Setting this
+         * changes no output and no allocation on any path. Retained as released 2.0.0 API; see
+         * BL-015 in {@code docs/BACKLOG.md}.
+         *
+         * @param size stored on the config and read by nothing
+         * @return this builder
+         */
         public Builder bufferSize(int size) {
             configBuilder.bufferSize(size);
             return this;
         }
 
+        /**
+         * Set the fail-on-error flag on the {@link JsonFlattenerConfig} this builder carries.
+         *
+         * <p>INERT, AND THE MOST MISLEADING OF THE THREE — measured, not inferred.
+         * {@link JsonFlattenerConfig#isFailOnError()} is read nowhere in {@code src/main}, so
+         * {@code failOnError(false)} does NOT make parsing lenient: malformed input still throws
+         * {@link JsonFlattenException} from {@link JsonFlattener#flattenToMap(String)}. Retained as
+         * released 2.0.0 API — making it live would silently change behaviour for any caller who
+         * set it and relies on today's throwing — see BL-015 in {@code docs/BACKLOG.md}. For
+         * lenient parsing use {@link InputOptions.InputOptionsBuilder#lenient(boolean)}.
+         *
+         * @param fail stored on the config and read by nothing
+         * @return this builder
+         */
         public Builder failOnError(boolean fail) {
             configBuilder.failOnError(fail);
             return this;
@@ -465,7 +518,23 @@ public class JsonFlattener implements Serializable {
          * {@link JsonFlattener#newOperation()} per document. It is configured identically to
          * what {@link #build()} would have wrapped.
          *
-         * @return the configured, shareable engine
+         * <p>WHAT "CONFIGURED" MEANS HERE, stated precisely because the two terminals this class
+         * now offers are NOT interchangeable on every setting. The {@link MapFlattener} half is
+         * fully honoured on all three of the engine's own methods — {@code maxDepth},
+         * {@code maxArraySize}, {@code arrayFormat}, {@code useArrayBoundarySeparator},
+         * {@code detectCircularReferences} and {@code namingStrategy} all take effect. The
+         * {@link JsonFlattenerConfig} half largely does not: {@code charset}, {@code bufferSize},
+         * {@code failOnError}, {@code preserveNulls} and {@code sortKeys} are read nowhere in
+         * {@code src/main} at all, and {@code prettyPrint} reaches
+         * {@link FluentOperation#toJson()} but not
+         * {@link JsonFlattener#flattenToJson(String, boolean)} or
+         * {@link JsonFlattener#flattenMapToJson(Map, boolean)}, which take their own explicit
+         * {@code pretty} argument. This is pre-existing 2.0.0 behaviour that {@code buildFlattener()}
+         * makes reachable rather than introduces; it is pinned by the inertness probe in
+         * {@code JsonFlattenerReusableEngineTest} and tracked as BL-015.
+         *
+         * @return the shareable engine, with the {@code MapFlattener} configuration honoured in
+         *         full and the {@code JsonFlattenerConfig} caveats above
          * @since 2.1.0
          */
         public JsonFlattener buildFlattener() {
@@ -525,26 +594,64 @@ public class JsonFlattener implements Serializable {
                 return this;
             }
 
+            /**
+             * INERT. {@link JsonFlattenerConfig#getCharset()} is read nowhere in {@code src/main};
+             * the live charsets are on {@link InputOptions} and {@link OutputOptions}. See BL-015.
+             *
+             * @param charset stored and read by nothing
+             * @return this builder
+             */
             public ConfigBuilder charset(Charset charset) {
                 this.charset = charset != null ? charset : DEFAULT_CHARSET;
                 return this;
             }
 
+            /**
+             * INERT. {@link JsonFlattenerConfig#getBufferSize()} is read nowhere in
+             * {@code src/main}; buffered paths hardcode their own size. See BL-015.
+             *
+             * @param size stored and read by nothing
+             * @return this builder
+             */
             public ConfigBuilder bufferSize(int size) {
                 this.bufferSize = size > 0 ? size : DEFAULT_BUFFER_SIZE;
                 return this;
             }
 
+            /**
+             * INERT. {@link JsonFlattenerConfig#isFailOnError()} is read nowhere in
+             * {@code src/main}; malformed input throws at both settings. See BL-015, and use
+             * {@link InputOptions.InputOptionsBuilder#lenient(boolean)} for lenient parsing.
+             *
+             * @param fail stored and read by nothing
+             * @return this builder
+             */
             public ConfigBuilder failOnError(boolean fail) {
                 this.failOnError = fail;
                 return this;
             }
 
+            /**
+             * INERT. {@link JsonFlattenerConfig#isPreserveNulls()} is read nowhere in
+             * {@code src/main}; present nulls survive at both settings. The live control is
+             * {@link OutputOptions#isIncludeNulls()}. See BL-015.
+             *
+             * @param preserve stored and read by nothing
+             * @return this builder
+             */
             public ConfigBuilder preserveNulls(boolean preserve) {
                 this.preserveNulls = preserve;
                 return this;
             }
 
+            /**
+             * INERT. {@link JsonFlattenerConfig#isSortKeys()} is read nowhere in {@code src/main};
+             * key order is unchanged at both settings. The identically-named live control is
+             * {@link OutputOptions#isSortKeys()}, which is a different class. See BL-015.
+             *
+             * @param sort stored and read by nothing
+             * @return this builder
+             */
             public ConfigBuilder sortKeys(boolean sort) {
                 this.sortKeys = sort;
                 return this;

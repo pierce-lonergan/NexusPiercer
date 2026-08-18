@@ -64,6 +64,27 @@ jobs:
         # measures exactly the bytecode that ships, not a recompilation under different flags.
         run: ./mvnw -B -ntp install -DskipTests -Dmaven.javadoc.skip=true -Dgpg.skip=true
 
+      - name: Assert the benchmarks resolve the version that was just installed
+        # The step above installs the ROOT pom's version; the step below resolves whatever
+        # benchmarks/pom.xml asks for. When those drift, a fresh runner fails to resolve - but a
+        # warm local repository does something worse: it silently satisfies the request from a
+        # stale jar left over from a previous release, so the harness reports real-looking numbers
+        # for bytecode that is no longer what ships. That is precisely the promise the comment on
+        # the install step makes, so it is asserted rather than assumed. This drifted once already,
+        # across the 2.0.0 -> 2.1.0-SNAPSHOT bump.
+        run: |
+          ROOT=$(./mvnw -B -ntp -q help:evaluate -Dexpression=project.version -DforceStdout)
+          BENCH=$(mvn -B -ntp -q -f benchmarks/pom.xml help:evaluate \
+                    -Dexpression=nexus.piercer.version -DforceStdout 2>/dev/null \
+                  || grep -A2 '<artifactId>nexus-piercer</artifactId>' benchmarks/pom.xml \
+                     | sed -n 's|.*<version>\(.*\)</version>.*|\1|p' | head -1)
+          echo "root pom: ${ROOT}"
+          echo "benchmarks depend on: ${BENCH}"
+          if [[ "${ROOT}" != "${BENCH}" ]]; then
+            echo "::error::benchmarks/pom.xml depends on nexus-piercer:${BENCH} but the root pom is ${ROOT}. Bump benchmarks/pom.xml (both its own <version> and the nexus-piercer dependency) so the harness measures the bytecode that ships."
+            exit 1
+          fi
+
       - name: Build the benchmark jar
         run: mvn -B -ntp -f benchmarks/pom.xml clean package
 
