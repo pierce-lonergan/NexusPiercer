@@ -94,7 +94,25 @@ proof-of-concept.
 
 ## Our security process
 
-Every pull request runs CodeQL, GitHub dependency review (blocking on high-severity advisories in
-newly-added dependencies), and an OWASP dependency-check CVE scan. A CycloneDX SBOM is published
-with each release. Dependabot proposes updates weekly, with security updates ungrouped so they
-arrive as individually reviewable PRs.
+Every pull request runs CodeQL and an OWASP dependency-check CVE scan. A CycloneDX SBOM is
+published with each release. Dependabot proposes updates weekly, with security updates ungrouped
+so they arrive as individually reviewable PRs.
+
+**GitHub dependency review is configured but has never actually run, and this paragraph used to
+claim otherwise.** It previously said every pull request runs "GitHub dependency review (blocking
+on high-severity advisories in newly-added dependencies)". Measured on the most recent pull-request
+run of `quality.yml`: the `actions/dependency-review-action` step is **skipped**, the fallback
+"Report that dependency review is unavailable" step runs in its place, and the job's conclusion is
+nonetheless **success** — a green check on an analysis that did not happen. The cause is that this
+repository's **Dependency graph** is disabled, which both `dependency-graph/snapshots` and
+`dependency-graph/sbom` confirm by returning 404. The workflow already detects this and writes a
+`::warning::` plus a step summary rather than pretending, so no code change will fix it: it needs
+the repository owner to enable Dependency graph under *Settings → Code security and analysis*.
+Until then, treat newly-added dependencies as unscreened by this control and rely on the OWASP CVE
+scan, which does run.
+
+**Releases cannot be signed or published from CI.** No Actions secrets are configured, so
+`release.yml`'s GPG and Maven Central steps have no `MAVEN_GPG_PRIVATE_KEY`,
+`MAVEN_CENTRAL_USERNAME` or `MAVEN_CENTRAL_TOKEN` to use. The workflow guards on their presence
+rather than failing obscurely, but the effect is that a release must be cut by hand. This is also
+a repository-settings item for the owner.

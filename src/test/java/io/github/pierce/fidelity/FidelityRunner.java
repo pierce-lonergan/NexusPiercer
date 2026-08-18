@@ -395,14 +395,19 @@ final class FidelityRunner {
                 // all, so they record no key here and the published table prints NOT_APPLICABLE
                 // rather than a verdict nobody measured.
                 //
-                // HONEST LIMIT, stated so nobody reads more into the YES than it carries: no
-                // fixture in DATA mode sets avro.reconstructor, so avroReconstructor(avro) above
-                // builds the same default instance this line does and the comparison cannot
-                // presently fail on any of the eleven DATA rows. The sibling DATUM branch is no
-                // longer in that position - avro-boundary-separator-datum-does-not-hold-under-
-                // defaults tunes the reconstructor and records FALSE - which proves the mechanism
-                // works and leaves this arm a tripwire for the first DATA fixture that tunes it,
-                // not present-tense evidence. The MAP and JSON arms carry real signal today.
+                // THIS ARM IS LIVE ON THIS BRANCH TOO, and the comment that used to sit here was
+                // false in both of its factual claims. It said "no fixture in DATA mode sets
+                // avro.reconstructor ... the comparison cannot presently fail on any of the
+                // eleven DATA rows", which left the arm published as a dormant tripwire. Measured
+                // over the fixtures on disk: there are SIXTEEN DATA rows, and TWO of them tune
+                // the reconstructor -
+                //   avro-array-of-records-bracket-list-round-trip   {arrayFormat: BRACKET_LIST}
+                //       records avroDefaultsMatch TRUE  (it agrees with the default anyway)
+                //   avro-array-of-records-pipe-format-comma-inside-element {PIPE_SEPARATED}
+                //       records avroDefaultsMatch FALSE (the row that makes this present-tense)
+                // avroReconstructor() reads arrayFormat, so the two calls are genuinely different
+                // instances on those rows. Keep at least one FALSE row: delete it and this line
+                // silently reverts to a tautology, exactly as the DATUM sibling below warns.
                 m.recorded.put("avroDefaultsMatch", avroDefaultsArm(flattened, schema).equals(doc));
             }
             default -> throw new IllegalStateException("unknown avro assert mode '" + mode

@@ -354,6 +354,37 @@ bracket split returns values with literal backslashes in them. Under `COMMA_SEPA
 `ArrayFormatMismatchException`: those two writers structurally cannot emit a bracketed quoted list,
 so it is a detectable contradiction rather than a sniff.
 
+**THE FIRST VERSION OF THAT SPLIT REINTRODUCED THIS ENTRY'S OWN DEFECT, in the other direction and
+at the SHIPPED DEFAULT. Caught in adversarial review, before release, and recorded here rather than
+quietly patched.** The contradiction check above was written for one direction only. Under
+`arrayFormat=JSON` an UNBRACKETED delimited column fell to a bare
+`Collections.singletonList(strValue)` with no exception and no log of any level, so N array
+elements became one element whose fields held the raw concatenated text. Measured with a single
+probe binary against both commits:
+
+```
+{items_sku=S1,S2,S3, items_name=N1,N2,N3}  vs  Order{id, items: array<Item{sku,name}>}
+  before the split : items size = 3   [{sku=S1,name=N1},{sku=S2,name=N2},{sku=S3,name=N3}]
+  after  the split : items size = 1   [{sku=S1,S2,S3, name=N1,N2,N3}]
+```
+
+Identical for pipe text. This is D1 and D2 of this very entry, recreated by the repair for them,
+which is why it is written up at length: the split's justification — "the configured writer could
+not have produced this text" — applies symmetrically, and `MapFlattener`'s JSON writer always
+brackets a column, including a single-element one (`["a"]`). The guard is now symmetric, and
+narrowed to the case where the two readings DISAGREE: an unbracketed column containing no
+delimiter reads as one element under every rule, so it is left alone rather than refused.
+`AvroArrayOfRecordsSizingTest` pins all three of those: the comma direction, the pipe direction,
+and the no-delimiter control.
+
+**THE EMPTY-ARRAY BRANCH NOW HAS A TEST, and shipped without one.** The claim that
+`if (arraySize == 0) return new ArrayList<>()` had become reachable was correct but ungated.
+Drilled by reinstating the exact pre-fix floor — `agreedElementCount`'s
+`if (distinct.isEmpty()) { return 0; }` patched to `return 1;` — which leaves the entire suite
+green, so this was a coverage gap and not an unreachable branch. Against that drill build the new
+`arrayNodeWithNoElementDataReturnsAnEmptyList` fails with `expected: <0> but was: <1>` and prints
+the fabricated row `line_items=[{sku=, qty=0}]`.
+
 **CORPUS PREMISE ALSO REFUTED.** This entry said `order-line-items-comma-separated` is
 `ACCEPTED_LOSS` and would move. It was already `DEFECT`, and it **cannot** move on an
 `AvroReconstructor` change: its stack is `BOTH`, and `FidelityRunner` routes `config.reconstructor`
@@ -420,6 +451,35 @@ and feed a whole JSON-array column to a scalar field.
 
 Guarded at **arity > 2 deliberately**: every currently-passing `[null, T]` shape keeps its exact
 code path, which is why no existing fixture moved.
+
+**THE FIRST VERSION OF THE SCALAR ARM DESTROYED VALUES, and the review that caught it was right.**
+Reusing `reconstructUnionValue`'s ordering meant trying the branches in DECLARATION ORDER and
+returning the first whose `convertPrimitive` did not throw. At the top level that is unavoidable —
+the flat map holds `meta=0007` as a bare unquoted scalar, so the type really has been erased. At
+the ARRAY-ELEMENT position it is not: the JSON column keeps the quotes, `items_meta=["0007"]`, and
+Jackson boxes the element as a `String`. Declaration order was therefore discarding information
+that was present in the input. Measured against a real `MapFlattener` at the shipped default:
+
+| union | document value | first version | HEAD~1 (pass-through) | now |
+|---|---|---|---|---|
+| `["null","int","long","string"]` | `"0007"` | `Integer 7` | `String "0007"` | `String "0007"` |
+| `["null","long","string"]` | `"123"` | `Long 123` | `String "123"` | `String "123"` |
+| `["null","boolean","string"]` | `"hello"` | `Boolean false` | `String "hello"` | `String "hello"` |
+| `["null","double","string"]` | `"1e999"` | `Double Infinity` | `String "1e999"` | `String "1e999"` |
+| `["null","string","long"]` | `123` | `String "123"` | `Integer 123` | `Long 123` |
+
+The BOOLEAN row is worse than the review filed and is the reason this is a general reorder rather
+than a numeric special case: `Boolean.parseBoolean` **never throws**, so a boolean branch declared
+before a string branch accepts anything at all and the string branch is unreachable. `""` became
+`Boolean false` too.
+
+Branch selection is now **type-directed first, declaration order second**: a `CharSequence` tries
+STRING/ENUM/BYTES/FIXED first, a `Number` tries the numeric branches first, a `Boolean` tries
+BOOLEAN first, and a branch carrying a logical type is never demoted. It is a REORDER and not a
+FILTER — when the value's Java type has no native branch (`"0007"` under `["null","int","long"]`)
+every branch stays in declaration order and the answer is unchanged, which is pinned by its own
+control test. That residual coercion is unavoidable and is now audible: it logs a WARN naming the
+before and after text whenever the lexical form changes.
 
 **WHERE THE REPAIR IS IMPOSSIBLE IT IS LOUD INSTEAD.** Two record branches matching the same child
 columns are information-theoretically unresolvable from column names — the existing fixture's own

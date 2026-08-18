@@ -219,6 +219,131 @@ class AvroReconstructorArrayElementUnionTest {
         assertNotNull(lenient, "lenient must not throw");
     }
 
+    /** ["null","int","long","string"]: three scalar branches, string LAST in declaration order. */
+    private static final Schema WIDE_UNION = parse(
+            "{\"type\":\"record\",\"name\":\"OrderW\",\"fields\":["
+                    + "{\"name\":\"items\",\"type\":{\"type\":\"array\",\"items\":"
+                    + "{\"type\":\"record\",\"name\":\"ItemW\",\"fields\":["
+                    + "{\"name\":\"sku\",\"type\":\"string\"},"
+                    + "{\"name\":\"meta\",\"type\":[\"null\",\"int\",\"long\",\"string\"]}]}}}]}");
+
+    /** ["null","boolean","string"]: Boolean.parseBoolean accepts everything and never throws. */
+    private static final Schema BOOL_UNION = parse(
+            "{\"type\":\"record\",\"name\":\"OrderB\",\"fields\":["
+                    + "{\"name\":\"items\",\"type\":{\"type\":\"array\",\"items\":"
+                    + "{\"type\":\"record\",\"name\":\"ItemB\",\"fields\":["
+                    + "{\"name\":\"sku\",\"type\":\"string\"},"
+                    + "{\"name\":\"meta\",\"type\":[\"null\",\"boolean\",\"string\"]}]}}}]}");
+
+    /** ["null","int","long"]: NO string branch, so a String value has nowhere native to go. */
+    private static final Schema NO_STRING_BRANCH = parse(
+            "{\"type\":\"record\",\"name\":\"OrderX\",\"fields\":["
+                    + "{\"name\":\"items\",\"type\":{\"type\":\"array\",\"items\":"
+                    + "{\"type\":\"record\",\"name\":\"ItemX\",\"fields\":["
+                    + "{\"name\":\"sku\",\"type\":\"string\"},"
+                    + "{\"name\":\"meta\",\"type\":[\"null\",\"int\",\"long\"]}]}}}]}");
+
+    /** ["null","string","long"]: the reverse direction - a NUMBER with string declared first. */
+    private static final Schema STRING_FIRST = parse(
+            "{\"type\":\"record\",\"name\":\"OrderR\",\"fields\":["
+                    + "{\"name\":\"items\",\"type\":{\"type\":\"array\",\"items\":"
+                    + "{\"type\":\"record\",\"name\":\"ItemR\",\"fields\":["
+                    + "{\"name\":\"sku\",\"type\":\"string\"},"
+                    + "{\"name\":\"meta\",\"type\":[\"null\",\"string\",\"long\"]}]}}}]}");
+
+    private static Object metaOf(Schema schema, String json) throws Exception {
+        Map<String, Object> back = AvroReconstructor.builder().build()
+                .reconstructToMap(flattenJson(json), schema);
+        return items(back).get(0).get("meta");
+    }
+
+    @Test
+    @DisplayName("a numeric-looking STRING keeps its string branch instead of being coerced")
+    void numericLookingStringKeepsItsStringBranchRatherThanBeingCoerced() throws Exception {
+        // ADVERSARIAL REVIEW, CONFIRMED BY MEASUREMENT. The first version of step 4 tried the
+        // branches in DECLARATION ORDER and returned the first whose convertPrimitive did not
+        // throw, so a value that was a STRING in the source document was silently converted into
+        // an earlier numeric branch. This is NOT the unavoidable top-level ambiguity: the JSON
+        // column keeps the quotes and Jackson boxes the element as a String, so the string-ness
+        // is information PRESENT IN THE INPUT that was being discarded.
+        //
+        // Measured against the unfixed build, this exact case:
+        //   ["null","int","long","string"] doc meta="0007" -> Integer = 7   leading zeros gone
+        // and it was correct at HEAD~1 before the BL-014 arm was added, so the arm regressed it.
+        //
+        // Drilled by restoring the declaration-order loop. Verbatim, all three new tests:
+        //   numericLookingStringKeepsItsStringBranchRatherThanBeingCoerced: a String in the
+        //     document must take the STRING branch even though int and long are declared first;
+        //     got java.lang.Integer = 7 ==> Unexpected type, expected: <java.lang.String> but
+        //     was: <java.lang.Integer>
+        //   booleanBranchDeclaredBeforeStringNoLongerEatsEveryString: an arbitrary string must
+        //     not be laundered into Boolean.FALSE ==> expected: <hello> but was: <false>
+        //   aNumberIsNotStringifiedByAStringFirstUnion: a JSON number must take the LONG branch
+        //     even though string is declared first; got java.lang.String ==> Unexpected type,
+        //     expected: <java.lang.Long> but was: <java.lang.String>
+        Object meta = metaOf(WIDE_UNION, "{\"items\":[{\"sku\":\"a\",\"meta\":\"0007\"}]}");
+        assertInstanceOf(String.class, meta,
+                "a String in the document must take the STRING branch even though int and long "
+                        + "are declared first; got "
+                        + (meta == null ? "null" : meta.getClass().getName() + " = " + meta));
+        assertEquals("0007", meta, "the leading zeros are the whole point of this test");
+    }
+
+    @Test
+    @DisplayName("a BOOLEAN branch declared before string no longer eats every string")
+    void booleanBranchDeclaredBeforeStringNoLongerEatsEveryString() throws Exception {
+        // WORSE THAN THE REVIEW FILED, and the reason this is a reorder rather than a numeric
+        // special case: Boolean.parseBoolean NEVER throws. Under declaration order the BOOLEAN
+        // branch therefore accepted absolutely anything and the string branch was unreachable.
+        // Measured against the unfixed build: meta="hello" -> Boolean false, meta="" -> Boolean
+        // false. No exception, no log, and a datum that validates against its own schema.
+        assertEquals("hello", metaOf(BOOL_UNION, "{\"items\":[{\"sku\":\"a\",\"meta\":\"hello\"}]}"),
+                "an arbitrary string must not be laundered into Boolean.FALSE");
+        assertEquals("true", metaOf(BOOL_UNION, "{\"items\":[{\"sku\":\"a\",\"meta\":\"true\"}]}"),
+                "even the string \"true\" is a String in the document, not a boolean");
+        assertInstanceOf(Boolean.class,
+                metaOf(BOOL_UNION, "{\"items\":[{\"sku\":\"a\",\"meta\":true}]}"),
+                "CONTROL: a real JSON boolean still takes the BOOLEAN branch");
+    }
+
+    @Test
+    @DisplayName("the reverse direction too: a NUMBER is not stringified by a string-first union")
+    void aNumberIsNotStringifiedByAStringFirstUnion() throws Exception {
+        // The same fault pointing the other way, and it was ALSO introduced by the BL-014 arm:
+        // ["null","string","long"] with a JSON number 123 gave String "123" at HEAD and
+        // Integer 123 at HEAD~1. Neither is right - the schema says long.
+        Object meta = metaOf(STRING_FIRST, "{\"items\":[{\"sku\":\"a\",\"meta\":123}]}");
+        assertInstanceOf(Long.class, meta,
+                "a JSON number must take the LONG branch even though string is declared first; "
+                        + "got " + (meta == null ? "null" : meta.getClass().getName()));
+    }
+
+    @Test
+    @DisplayName("with NO native branch the declaration-order fallback still applies")
+    void withNoNativeBranchTheDeclarationOrderFallbackStillApplies() throws Exception {
+        // THE CONTROL THAT KEEPS THE FIX HONEST. The preference is a REORDER, not a filter: a
+        // String under ["null","int","long"] has no string, enum, bytes or fixed branch to
+        // prefer, so every branch stays in the fallback group in declaration order and the
+        // answer is unchanged from before the fix. Without this, "prefer the native branch"
+        // could have been implemented as "fail when there is none", which would turn working
+        // reconstructions into throws.
+        Object meta = metaOf(NO_STRING_BRANCH, "{\"items\":[{\"sku\":\"a\",\"meta\":\"123\"}]}");
+        assertInstanceOf(Integer.class, meta,
+                "int is declared first and there is nothing native to prefer; got "
+                        + (meta == null ? "null" : meta.getClass().getName()));
+        assertEquals(123, meta);
+
+        // The LOSSY corner of the same fallback: no string branch exists, so "0007" must still be
+        // coerced, and 7 is the only answer available. What changed is that it is no longer
+        // SILENT - warnCoercedAcrossJavaType compares the lexical form and logs a WARN naming the
+        // before and after. This asserts the value and exercises that path; the WARN TEXT itself
+        // is not asserted, because Spark's log4j-slf4j-impl wins SLF4J provider resolution in
+        // this module and a logback ListAppender would capture nothing. Stated rather than
+        // faked with a capture that silently observes the wrong provider.
+        Object lossy = metaOf(NO_STRING_BRANCH, "{\"items\":[{\"sku\":\"a\",\"meta\":\"0007\"}]}");
+        assertEquals(7, lossy, "with no string branch the coercion is unavoidable, only audible");
+    }
+
     @Test
     @DisplayName("REGRESSION PIN: nullable two-branch unions inside array elements are unchanged")
     void nullableTwoBranchUnionsInsideArrayElementsAreUnchangedByThisFix() throws Exception {

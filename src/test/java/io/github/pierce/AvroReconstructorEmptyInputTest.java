@@ -82,6 +82,42 @@ class AvroReconstructorEmptyInputTest {
     }
 
     @Test
+    @DisplayName("reconstructToMap and reconstruct give the SAME answer for an empty map")
+    void reconstructToMapAndReconstructGiveTheSameAnswerForAnEmptyMap() {
+        // THE CLAIM NOBODY WAS MEASURING, found while correcting a fixture that claimed to
+        // measure it. CHANGELOG behaviour change 9 says "reconstructToMap and reconstruct now
+        // agree about empty input; they did not before", and the corpus row
+        // avro-empty-datum-cannot-build-a-record published the same sentence in its title, its
+        // detail and — worst of all — its cannotCatch. That row is `assert DATUM`, and
+        // FidelityRunner's DATUM arm calls only reconstruct(). The other two tests in this class
+        // compare empty against one-unrelated-key, both through reconstructToMap. So the
+        // DISAGREEMENT the defect was filed about — same input, two entry points, two answers —
+        // was asserted in three documents and tested in none.
+        //
+        // Before the repair the two answers were: reconstructToMap returned a partial map with
+        // the required field silently dropped, and reconstruct threw AvroMissingFieldException
+        // out of GenericRecordBuilder.build() naming only the field. Now both throw the same
+        // class, and this pins that.
+        AvroReconstructor r = AvroReconstructor.builder().build();
+
+        Throwable fromMap = assertThrows(RuntimeException.class,
+                () -> r.reconstructToMap(new LinkedHashMap<>(), TWO_REQUIRED),
+                "reconstructToMap must refuse an empty map against a required no-default field");
+        Throwable fromDatum = assertThrows(RuntimeException.class,
+                () -> r.reconstruct(new LinkedHashMap<>(), TWO_REQUIRED),
+                "reconstruct must refuse it too - a partial map reaching mapToGenericRecord is "
+                        + "how the two entry points used to disagree");
+
+        assertEquals(fromMap.getClass(), fromDatum.getClass(),
+                "the two entry points must fail the same way; map=" + fromMap
+                        + " datum=" + fromDatum);
+        assertEquals(fromMap.getMessage(), fromDatum.getMessage(),
+                "and with the same message, naming the field");
+        assertTrue(fromDatum.getMessage().contains("id"),
+                "the datum path must name the missing field too; got " + fromDatum.getMessage());
+    }
+
+    @Test
     @DisplayName("a null flattened map behaves exactly like an empty one")
     void aNullFlattenedMapBehavesExactlyLikeAnEmptyOne() {
         // Passes before AND after. It pins the decision that null is treated as empty rather

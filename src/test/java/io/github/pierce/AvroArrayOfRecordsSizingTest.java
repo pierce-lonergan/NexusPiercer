@@ -91,6 +91,20 @@ class AvroArrayOfRecordsSizingTest {
                     + "{\"name\":\"meta\",\"type\":{\"type\":\"record\",\"name\":\"Meta4\",\"fields\":["
                     + "{\"name\":\"code\",\"type\":\"string\"}]}}]}}}]}");
 
+    /**
+     * Order{order_id, line_items: array&lt;LineItem{sku:string, qty:int}&gt;}.
+     *
+     * <p>Both element fields are REQUIRED and of different types, so the pre-fix floor of 1 had
+     * to fabricate both an empty string and a zero to fill the row it invented.</p>
+     */
+    private static final Schema SKU_AND_QTY = parse(
+            "{\"type\":\"record\",\"name\":\"O5\",\"fields\":["
+                    + "{\"name\":\"order_id\",\"type\":\"string\"},"
+                    + "{\"name\":\"line_items\",\"type\":{\"type\":\"array\",\"items\":"
+                    + "{\"type\":\"record\",\"name\":\"LineItem5\",\"fields\":["
+                    + "{\"name\":\"sku\",\"type\":\"string\"},"
+                    + "{\"name\":\"qty\",\"type\":\"int\"}]}}}]}");
+
     /** Leaf array of string, for the one-configuration-two-answers drill. */
     private static final Schema LEAF_STRINGS = parse(
             "{\"type\":\"record\",\"name\":\"OL\",\"fields\":["
@@ -363,6 +377,88 @@ class AvroArrayOfRecordsSizingTest {
         List<Map<String, Object>> got = items(back, "line_items");
         assertEquals(2, got.size(), "got " + got);
         assertNotEquals("A, B", String.valueOf(got.get(0).get("sku")));
+    }
+
+    @Test
+    @DisplayName("the JSON default fed unbracketed delimited text is a contradiction TOO")
+    void unbracketedDelimitedTextUnderTheJsonDefaultIsRefusedRatherThanConcatenated() {
+        // ADVERSARIAL REVIEW, BLOCKING, CONFIRMED BY MEASUREMENT AGAINST BOTH COMMITS. The
+        // "trust the configured format" split introduced a NEW silent N-to-1 collapse at the
+        // SHIPPED DEFAULT - the exact defect class it was written to remove - and it was
+        // undisclosed and untested. Measured with the same probe binary against both builds:
+        //
+        //   {items_sku=S1,S2,S3, items_name=N1,N2,N3} against Order{id, items:array<Item>}
+        //     HEAD~1 : items size = 3  -> [{sku=S1,name=N1},{sku=S2,name=N2},{sku=S3,name=N3}]
+        //     HEAD   : items size = 1  -> [{sku=S1,S2,S3, name=N1,N2,N3}]
+        //
+        // with no exception and no log of any level, because the JSON branch's non-bracketed
+        // return was a bare Collections.singletonList(strValue). The opposite misconfiguration
+        // - bracketed JSON under COMMA/PIPE - already threw, so the guard was asymmetric.
+        //
+        // Drilled by deleting the guard call again. Verbatim, this test and its pipe sibling:
+        //   an unbracketed comma-delimited column under arrayFormat JSON must not silently
+        //   collapse to one element holding the concatenation ==> Expected
+        //   java.lang.RuntimeException to be thrown, but nothing was thrown.
+        Throwable t = assertThrows(RuntimeException.class,
+                () -> AvroReconstructor.builder().build()
+                        .reconstructToMap(flat(LI + "_sku", "S1,S2,S3"), SKU_ONLY),
+                "an unbracketed comma-delimited column under arrayFormat JSON must not silently "
+                        + "collapse to one element holding the concatenation");
+        String all = chain(t);
+        assertTrue(all.contains("ArrayFormatMismatchException"), "chain was " + all);
+        assertTrue(all.contains("JSON"), "the message must name the configured format; " + all);
+        assertTrue(all.contains("COMMA_SEPARATED"),
+                "the message must name the format that WOULD read this data; " + all);
+        assertTrue(all.contains("3"),
+                "the message must say how many records the other reading finds; " + all);
+    }
+
+    @Test
+    @DisplayName("the same contradiction for PIPE text, naming PIPE_SEPARATED")
+    void unbracketedPipeTextUnderTheJsonDefaultNamesPipeSeparated() {
+        Throwable t = assertThrows(RuntimeException.class,
+                () -> AvroReconstructor.builder().build()
+                        .reconstructToMap(flat(LI + "_sku", "S1|S2|S3"), SKU_ONLY));
+        assertTrue(chain(t).contains("PIPE_SEPARATED"), "chain was " + chain(t));
+    }
+
+    @Test
+    @DisplayName("CONTROL: an unbracketed column with NO delimiter is left alone")
+    void unbracketedColumnWithNoDelimiterIsLeftAlone() {
+        // THE NARROWING, and it is what stops this guard being a blanket refusal of every
+        // hand-built flat map. The two readings only DISAGREE when a delimiter is present; with
+        // none, JSON and comma and pipe all read one element and nothing is at stake. If this
+        // test ever goes red the guard has been widened past the contradiction it detects.
+        Map<String, Object> back = AvroReconstructor.builder().build()
+                .reconstructToMap(flat(LI + "_sku", "S1"), SKU_ONLY);
+        List<Map<String, Object>> got = items(back, "line_items");
+        assertEquals(1, got.size(), "back=" + back);
+        assertEquals("S1", String.valueOf(got.get(0).get("sku")));
+    }
+
+    @Test
+    @DisplayName("an array node with NO element data returns an EMPTY list, not a fabricated row")
+    void arrayNodeWithNoElementDataReturnsAnEmptyList() {
+        // ADVERSARIAL REVIEW, MAJOR: CHANGELOG behaviour change 5 shipped with NO test anywhere
+        // in the suite, and the claim that reachability "was proven, not assumed" had nothing
+        // failing-before/passing-after behind it. Drilled by reinstating the exact pre-fix floor
+        // - agreedElementCount's `if (distinct.isEmpty()) { return 0; }` patched to `return 1;` -
+        // which leaves the whole 2470-test suite green, so this was a coverage gap rather than
+        // an unreachable branch. Against that drill build this test fails with:
+        //   expected: <0> but was: <1> ==> back={order_id=O, line_items=[{sku=, qty=0}]}
+        // The fabricated row is the defect: "" and 0 are not data, they are inventions that
+        // validate against their own schema.
+        //
+        // The order_id key is written escaped for the same reason LI is: FlattenedPath decodes an
+        // unescaped underscore as a separator, so a raw "order_id" key names a two-segment path
+        // and the required root field reads as missing.
+        Map<String, Object> back = AvroReconstructor.builder().build().reconstructToMap(
+                flat("order\\_id", "O", LI + "_sku", "[]", LI + "_qty", "[]"), SKU_AND_QTY);
+        List<Map<String, Object>> got = items(back, "line_items");
+        assertEquals(0, got.size(),
+                "empty columns describe an empty array, not one row of type-defaults; back="
+                        + back);
+        assertTrue(got.isEmpty(), "back=" + back);
     }
 
     private static String chain(Throwable t) {

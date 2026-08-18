@@ -545,21 +545,31 @@ public class AvroSchemaConverter {
             }
         }
 
+        /**
+         * SIBLING OF THE 26th EMPTY CATCH, and the same laundering by a different route. This
+         * catch was not empty - it appended to a {@code List<Exception> errors} that nothing ever
+         * read, so every branch failure was collected and then dropped on the floor, and the
+         * terminal still went out with {@code getCause() == null}. A catch that files its
+         * exception in a bin nobody empties is an empty catch that PMD cannot see.
+         *
+         * <p>{@code Exception} narrowed to {@code RuntimeException} for the reason given on
+         * {@code SchemaBasedMapConverter.AvroUnionConverter}: no branch converter can throw a
+         * checked exception. The message is UNCHANGED - it already named the branches - so this
+         * adds the cause and removes the dead list, nothing else.</p>
+         */
         @Override
         protected Object doConvert(Object value) {
-            // Try each branch converter until one succeeds
-            List<Exception> errors = new ArrayList<>();
-
+            RuntimeException firstFailure = null;
             for (int i = 0; i < branchConverters.size(); i++) {
                 try {
                     return branchConverters.get(i).convert(value);
-                } catch (Exception e) {
-                    errors.add(e);
+                } catch (RuntimeException e) {
+                    firstFailure = ConversionFailure.first(firstFailure, e);
                 }
             }
 
             throw conversionError(value,
-                    "Value does not match any union branch. Tried: " + nonNullTypes);
+                    "Value does not match any union branch. Tried: " + nonNullTypes, firstFailure);
         }
     }
 

@@ -100,13 +100,18 @@ public class DateConverter extends AbstractTypeConverter<Integer> {
     /**
      * The formats parseDateString tries, in order, named so the failure can say what it attempted.
      *
-     * <p>THE CASCADE STAYS A CASCADE. The five (or three) branches are not homogeneous -
-     * they produce different intermediate types and two of them consult config - so folding
-     * them into a formatter array plus a loop would need a lambda per branch and would risk
-     * silently reordering which format wins for ambiguous input. Each catch body records the
-     * failure into {@code firstFailure} instead of discarding it: that is real work rather
-     * than a comment, it costs nothing on the success path, and it finally hands the
-     * discarded exception to the terminal.</p>
+     * <p>THE CASCADE STAYS A CASCADE. The branches are not homogeneous - they produce
+     * different intermediate types - so folding them into a formatter array plus a loop would
+     * need a lambda per branch and would risk silently reordering which format wins for
+     * ambiguous input. Each catch body records the failure into {@code firstFailure} instead
+     * of discarding it: that is real work rather than a comment, it costs nothing on the
+     * success path, and it finally hands the discarded exception to the terminal.</p>
+     *
+     * <p>THIS CLASS: FIVE branches, and exactly ONE of them consults config - the ISO-instant
+     * branch, through {@code config.getDefaultTimezone()}. The three sibling converters differ
+     * on both counts, which is why this sentence is stated per class. Review found the earlier
+     * shared wording ("five (or three) branches ... two of them consult config") pasted
+     * verbatim into all four and false in three of them.</p>
      *
      * <p>PMD's EmptyCatchBlock does NOT accept a commented catch as configured -
      * allowCommentedBlocks defaults to false and src/main/pmd/pmd-ruleset.xml sets no

@@ -189,13 +189,68 @@ class AvroReconstructorDefaultValueTypeTest {
     }
 
     @Test
-    @DisplayName("mutating one reconstruction's array default does not affect the next")
+    @DisplayName("GUARD: two reconstructions must not share one defaulted ByteBuffer or Fixed")
+    void twoReconstructionsMustNotShareOneDefaultedByteBufferOrFixed() {
+        // THIS IS THE REAL deepCopy GUARD, and it replaces a claim that was false.
+        //
+        // The array-default test below was published as "what makes the deepCopy non-negotiable".
+        // Adversarial review measured that dropping the deepCopy leaves the ENTIRE suite green,
+        // and drilling it here confirms why: ARRAY is the one shape that provably does NOT alias
+        // through the public API. Measured with deepCopy patched out of schemaDefault, two
+        // reconstructions of the same schema by the same reconstructor:
+        //
+        //   BYTES  same instance? true   <- and consuming one byte from #1 left #2 remaining=1
+        //   FIXED  same instance? true
+        //   MAP    same instance? false     reconstructToMap rebuilds it as a LinkedHashMap
+        //   RECORD same instance? false     likewise
+        //   ARRAY  same instance? false     rebuilt as an ArrayList
+        //
+        // At the RAW GenericData.getDefaultValue level all five memoise - so the old test's
+        // premise was right about Avro and wrong about this library, because the reconstructor
+        // copies three of the five downstream for unrelated reasons. Only BYTES and FIXED reach
+        // the caller as the memoised instance itself.
+        //
+        // Against the drop-deepCopy drill build this test fails with, verbatim:
+        //   two reconstructions must not share one defaulted ByteBuffer - getDefaultValue
+        //   memoises one instance per Field ==> expected: not same but was:
+        //   <java.nio.HeapByteBuffer[pos=0 lim=2 cap=2]>
+        AvroReconstructor r = AvroReconstructor.builder().build();
+        Map<String, Object> first = r.reconstructToMap(flat("id", "a"), FIXED_AND_BYTES_DEFAULT);
+        Map<String, Object> second = r.reconstructToMap(flat("id", "b"), FIXED_AND_BYTES_DEFAULT);
+
+        ByteBuffer firstBlob = assertInstanceOf(ByteBuffer.class, first.get("blob"));
+        ByteBuffer secondBlob = assertInstanceOf(ByteBuffer.class, second.get("blob"));
+        assertNotSame(firstBlob, secondBlob,
+                "two reconstructions must not share one defaulted ByteBuffer - getDefaultValue "
+                        + "memoises one instance per Field");
+
+        // A ByteBuffer carries a POSITION, so sharing is not merely untidy: reading the first
+        // record's bytes consumes the second record's bytes. That is a cross-record data fault
+        // that no exception announces, which is this pass's subject exactly.
+        int before = secondBlob.remaining();
+        firstBlob.get();
+        assertEquals(before, secondBlob.remaining(),
+                "consuming a byte from one record's defaulted BYTES must not move another "
+                        + "record's position");
+
+        Object firstSig = first.get("sig");
+        Object secondSig = second.get("sig");
+        assertInstanceOf(GenericData.Fixed.class, firstSig);
+        assertNotSame(firstSig, secondSig,
+                "two reconstructions must not share one defaulted GenericData.Fixed - it wraps a "
+                        + "mutable byte[] that either caller can write through");
+    }
+
+    @Test
+    @DisplayName("CONTROL: an array default is not shared either - but it never was")
     void mutatingOneReconstructionsArrayDefaultDoesNotAffectTheNext() {
-        // DECLARED HONESTLY: this PASSES against the unfixed code. It is not a reproduction.
-        // JacksonUtils.toObject builds a fresh ArrayList per call so no aliasing exists today.
-        // It exists because GenericData.getDefaultValue MEMOISES one shared instance per Field in
-        // a static cache, so the naive one-line fix INTRODUCES aliasing. This test is what makes
-        // the deepCopy non-negotiable rather than a matter of taste.
+        // A CONTROL THAT PASSES EITHER WAY, relabelled after being measured. Its previous comment
+        // claimed it "is what makes the deepCopy non-negotiable"; it is not, and by project
+        // doctrine a test that can only ever pass is a disabled test. Dropping the deepCopy
+        // leaves this one green because reconstructToMap rebuilds an array default into a fresh
+        // ArrayList regardless. Kept, because it pins that the rebuild keeps happening - if the
+        // reconstructor ever starts handing the raw default list through, this becomes live and
+        // the BYTES/FIXED guard above is what will already have caught the same class.
         AvroReconstructor r = AvroReconstructor.builder().build();
         Map<String, Object> first = r.reconstructToMap(flat("id", "a"), ARRAY_DEFAULT);
         Map<String, Object> second = r.reconstructToMap(flat("id", "b"), ARRAY_DEFAULT);

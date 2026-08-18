@@ -1166,6 +1166,23 @@ public class AvroReconstructor {
      * use a naive {@code content.split(",", -1)}, which would shred a nested-array column such as
      * {@code [[a,b],[c,d]]} into four entries; reusing them here would break the doubly-nested
      * array tests. {@link PathNode#splitRespectingBrackets} is used instead.</p>
+     *
+     * <p>THE CONTRADICTION IS CHECKED IN BOTH DIRECTIONS, and it was not. Review measured that
+     * the first version of this method introduced a NEW silent N-to-1 collapse at the SHIPPED
+     * DEFAULT: under {@code arrayFormat=JSON} an UNBRACKETED delimited column returned one
+     * element holding the whole concatenated text, with no exception and no log of any level -
+     * the exact defect class BL-013 exists to remove, reintroduced by the fix for it.
+     * Reproduced independently: {@code {items_sku=S1,S2,S3, items_name=N1,N2,N3}} against
+     * {@code Order{id, items: array<Item{sku,name}>}} gave 3 elements before the split and
+     * {@code [{sku=S1,S2,S3, name=N1,N2,N3}]} after it. Same for pipe text.</p>
+     *
+     * <p>It is now as loud as the opposite direction, and for the identical reason. MapFlattener's
+     * JSON writer ALWAYS brackets a column - measured, including a single-element one, which
+     * arrives as {@code ["a"]} - so an unbracketed column cannot have been produced by the JSON
+     * writer, exactly as a bracketed quoted list cannot have been produced by the comma or pipe
+     * writer. The guard is narrowed to the case where the two readings DISAGREE: an unbracketed
+     * column with no delimiter in it reads as one element whichever rule you apply, nothing is at
+     * stake, and it is left alone.</p>
      */
     private List<Object> deserializeColumn(Object value, String columnPath) {
         if (value == null) {
@@ -1193,6 +1210,7 @@ public class AvroReconstructor {
                             strValue.substring(1, strValue.length() - 1).trim(), ","));
                 }
             }
+            rejectUnbracketedDelimitedColumnUnderJson(strValue, columnPath);
             return Collections.singletonList(strValue);
         }
 
@@ -1217,6 +1235,48 @@ public class AvroReconstructor {
         }
         String content = bracketed ? strValue.substring(1, strValue.length() - 1).trim() : strValue;
         return trimmed(PathNode.splitRespectingBrackets(content, delimiterChar()));
+    }
+
+    /**
+     * The count an undelimited column reads as under every rule this class applies. Named because
+     * the whole point of the guard below is that it fires only when two readings DISAGREE, and
+     * {@code > 1} buried in a condition does not say that.
+     */
+    private static final int ONE_ELEMENT = 1;
+
+    /**
+     * Refuse an unbracketed column that a delimited format would have split, under JSON.
+     *
+     * <p>The mirror of the {@link ArrayFormatMismatchException} thrown for a bracketed JSON array
+     * under a delimited format, and thrown for the same reason: the configured writer could not
+     * have produced this text, so reading it as one element is a guess that silently destroys
+     * N-1 records. Returning the concatenation is the worse answer of the two, because it is
+     * indistinguishable from success.</p>
+     *
+     * <p>Deliberately NOT a WARN. A warning here would be read and ignored by exactly the caller
+     * it is aimed at - a Spark job whose logs nobody tails - and the data would still be wrong.
+     * The opposite direction throws; a caller who has misconfigured the format deserves the same
+     * answer whichever way they misconfigured it.</p>
+     */
+    private void rejectUnbracketedDelimitedColumnUnderJson(String strValue, String columnPath) {
+        int asComma = PathNode.splitRespectingBrackets(strValue, ",").size();
+        int asPipe = PathNode.splitRespectingBrackets(strValue, "|").size();
+        int wouldSplitInto = Math.max(asComma, asPipe);
+        if (wouldSplitInto <= ONE_ELEMENT) {
+            // No delimiter outside brackets: one element under every rule, nothing at stake.
+            return;
+        }
+        String delimiter = asComma > ONE_ELEMENT ? "," : "|";
+        String suggested = asComma > ONE_ELEMENT ? "COMMA_SEPARATED" : "PIPE_SEPARATED";
+        throw new ArrayFormatMismatchException(
+                "Column " + columnPath + " is not bracketed but arrayFormat is JSON, whose writer "
+                        + "always brackets a column - a single-element one arrives as [\"a\"]. "
+                        + "Reading it as JSON yields ONE element holding the whole text; splitting "
+                        + "it on '" + delimiter + "' yields " + wouldSplitInto + ". The column "
+                        + "cannot have been produced by the JSON writer, so returning one element "
+                        + "would silently discard " + (wouldSplitInto - ONE_ELEMENT) + " record(s)."
+                        + " Set arrayFormat(" + suggested + ") to read this data, or produce it "
+                        + "with the configured format. Value: " + strValue);
     }
 
     private String delimiterChar() {
@@ -1878,20 +1938,24 @@ public class AvroReconstructor {
             }
         }
 
-        // 4. Primitive, enum and fixed branches, tried in declaration order exactly as
-        //    reconstructUnionValue tries them. The BRANCH schema is passed to convertPrimitive,
+        // 4. Primitive, enum and fixed branches. The BRANCH schema is passed to convertPrimitive,
         //    never the union - which is the second, separate fault BL-014 did not name: with the
         //    union, convertPrimitive's switch has no UNION case, "default: return value" hands
         //    back a Jackson-boxed Integer for a ["null","long","string"] field, and the datum
         //    fails GenericData.validate and throws UnresolvedUnionException at write time.
+        //
+        //    TYPE-DIRECTED FIRST, DECLARATION ORDER SECOND. Pure declaration order was measured to
+        //    destroy values that the flattener had NOT made ambiguous - see branchesPreferringJava
+        //    Type. Whatever survives to the declaration-order fallback is reported.
         if (hasScalarValue) {
-            for (Schema branch : branches) {
+            for (Schema branch : branchesPreferringJavaType(branches, scalar)) {
                 Schema.Type t = branch.getType();
-                if (t == NULL || t == RECORD || t == ARRAY || t == MAP) {
-                    continue;
-                }
                 try {
-                    return convertPrimitive(scalar, branch, path);
+                    Object converted = convertPrimitive(scalar, branch, path);
+                    if (!isNativeCarrier(branch, scalar)) {
+                        warnCoercedAcrossJavaType(scalar, converted, t, path);
+                    }
+                    return converted;
                 } catch (RuntimeException e) {
                     logUnionBranchMiss(t, path, e);
                 }
@@ -1912,6 +1976,130 @@ public class AvroReconstructor {
         }
         throw new ReconstructionException("Could not match any union type at: " + path
                 + " and the union " + branchNames(branches) + " has no null branch");
+    }
+
+    /**
+     * The scalar branches of an array-element union, NATIVE CARRIERS FIRST, declaration order kept
+     * inside each group.
+     *
+     * <p>WHY THIS EXISTS, measured rather than reasoned. The first version of step 4 tried the
+     * branches in pure declaration order and returned the first whose {@code convertPrimitive}
+     * did not throw. Review measured that this DESTROYS values, and destroys them at a position
+     * where the flattener has not made them ambiguous - the JSON column keeps the quotes and
+     * Jackson boxes the element as a {@link String}, so the string-ness is information present in
+     * the input:</p>
+     *
+     * <pre>
+     *   schema O{items: array&lt;I{sku, meta: union}&gt;}, real MapFlattener, shipped default
+     *   ["null","int","long","string"]  doc meta="0007"  -&gt; Integer 7      leading zeros gone
+     *   ["null","long","string"]        doc meta="123"   -&gt; Long 123
+     *   ["null","string","long"]        doc meta=123     -&gt; String "123"   the reverse fault
+     * </pre>
+     *
+     * <p>AND IT IS WORSE THAN THE FILING SAID, which is the reason this is a reorder and not a
+     * numeric special case. {@code Boolean.parseBoolean} never throws, so under
+     * {@code ["null","boolean","string"]} the BOOLEAN branch accepts absolutely anything and the
+     * string branch is unreachable: {@code meta="hello"} became {@code Boolean false} and
+     * {@code meta=""} became {@code Boolean false}. {@code Double.parseDouble} accepts
+     * {@code "1e999"} and returns {@code Infinity}. None of it logged.</p>
+     *
+     * <p>This is NOT the same situation as the top-level union, and the distinction is why the
+     * top-level path is left alone. Measured: at the top level the flat map holds
+     * {@code meta=0007} as a bare unquoted scalar, so the flattener really has erased the type and
+     * any choice is a guess. At the array-element position it holds {@code items_meta=["0007"]}.
+     * Guessing where the answer is written down is not the same defect as guessing where it is
+     * not.</p>
+     *
+     * <p>A branch carrying a LOGICAL TYPE is never demoted, whatever the boxed type is. Logical
+     * types arrive through this path as text ({@code "2020-01-01"}, a uuid) or as a number
+     * (epoch millis), and pushing them behind a raw STRING branch would undo conversions that
+     * work today.</p>
+     */
+    private List<Schema> branchesPreferringJavaType(List<Schema> branches, Object scalar) {
+        List<Schema> nativeCarriers = new ArrayList<>();
+        List<Schema> fallback = new ArrayList<>();
+        for (Schema branch : branches) {
+            Schema.Type t = branch.getType();
+            if (t == NULL || t == RECORD || t == ARRAY || t == MAP) {
+                continue;
+            }
+            if (isNativeCarrier(branch, scalar)) {
+                nativeCarriers.add(branch);
+            } else {
+                fallback.add(branch);
+            }
+        }
+        nativeCarriers.addAll(fallback);
+        return nativeCarriers;
+    }
+
+    /**
+     * Whether this branch is the natural Avro carrier for the value's boxed Java type.
+     *
+     * <p>A value whose boxed type has NO native branch in the union leaves every branch in the
+     * fallback group, so the ordering is unchanged and the caller's declaration-order behaviour
+     * is preserved exactly - which is what keeps {@code ["null","int","long"]} with a
+     * {@code "123"} String reading as {@code Integer 123} rather than failing.</p>
+     */
+    private boolean isNativeCarrier(Schema branch, Object scalar) {
+        if (branch.getLogicalType() != null) {
+            return true;
+        }
+        Schema.Type t = branch.getType();
+        if (scalar instanceof CharSequence) {
+            return t == Schema.Type.STRING || t == Schema.Type.ENUM
+                    || t == Schema.Type.BYTES || t == Schema.Type.FIXED;
+        }
+        if (scalar instanceof Boolean) {
+            return t == Schema.Type.BOOLEAN;
+        }
+        if (scalar instanceof Number) {
+            return t == Schema.Type.INT || t == Schema.Type.LONG
+                    || t == Schema.Type.FLOAT || t == Schema.Type.DOUBLE;
+        }
+        return false;
+    }
+
+    /**
+     * Report a value that reached a branch outside its own Java type AND changed shape doing so.
+     *
+     * <p>The fallback is legitimate - {@code ["null","int","long"]} holding {@code "123"} has no
+     * string branch to prefer and {@code Integer 123} is the right answer. What is not legitimate
+     * is doing that SILENTLY when the text does not survive the trip, which is how {@code "0007"}
+     * became {@code 7}. The lexical comparison is the whole test: no change, no line.</p>
+     */
+    private void warnCoercedAcrossJavaType(Object scalar, Object converted, Schema.Type branch,
+                                           String path) {
+        String before = String.valueOf(scalar);
+        String after = String.valueOf(converted);
+        if (before.equals(after)) {
+            return;
+        }
+        // Every argument is hoisted into a local rather than computed in the call: a method
+        // invocation inside a log statement's argument list is a PMD GuardLogStatement finding,
+        // and this pass may not raise a ratchet to add a log line. The two data-derived arguments
+        // additionally go through oneLine, which is not bookkeeping - a caller's value reaching a
+        // log line unescaped is a log-forging vector, and the value being logged here is by
+        // definition one the caller wrote.
+        String sourceType = scalar.getClass().getSimpleName();
+        String safeBefore = oneLine(before);
+        String safeAfter = oneLine(after);
+        log.warn("Union at {} has no {} branch, so the value was coerced into its {} branch and "
+                        + "its text changed: '{}' -> '{}'. Add a matching branch to the union if "
+                        + "the original form is significant.",
+                path, sourceType, branch, safeBefore, safeAfter);
+    }
+
+    /**
+     * Flatten CR and LF out of a value that is about to be logged.
+     *
+     * <p>A caller-supplied string containing {@code \n} can forge a whole extra log record, which
+     * is what {@code CRLF_INJECTION_LOGS} describes. Kept to exactly the two characters that
+     * split a log line - this is not a sanitiser for anything else, and pretending otherwise
+     * would be its own false compensating control.</p>
+     */
+    private static String oneLine(String s) {
+        return s.replace('\r', ' ').replace('\n', ' ');
     }
 
     private List<Schema> matchingRecordBranches(List<Schema> branches,

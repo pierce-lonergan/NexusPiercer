@@ -15,6 +15,14 @@ The public API surface is additive-only and enforced by
 BEHAVIOUR IS NOT.** The section immediately below lists twelve places where a `2.0.0` caller gets
 a different answer, several of them at the default configuration. Read it before upgrading.
 
+Three of those twelve turn a previously-successful call into a throw: disagreeing column counts
+(item 4), a bracketed JSON array read under a delimited format and its newly-guarded mirror, an
+unbracketed delimited column read under the JSON default (item 3). Items 3 and 6 each carry a
+sub-entry recording a defect that the first version of this release's own repair INTRODUCED and
+that was caught in adversarial review before release — both are stated in full rather than
+quietly folded into the surrounding text, because a repair that creates the fault it removes is
+the single most useful thing this changelog can tell a reader.
+
 ### Behaviour changes
 
 **These change what `AvroReconstructor` returns, at the SHIPPED DEFAULT configuration.** They are
@@ -61,6 +69,27 @@ parameter list or visibility changes — the new exception types and the added
    and the comma/pipe writers cannot emit a bracketed quoted list, so it is a detectable
    contradiction rather than a guess. (`BL-013`)
 
+   **THE CONTRADICTION IS NOW CHECKED IN BOTH DIRECTIONS, and for one release it was not.** The
+   first version of this split guarded only the direction above. In the other direction — an
+   UNBRACKETED delimited column read under `arrayFormat=JSON`, which is the SHIPPED DEFAULT — it
+   introduced a new silent N-to-1 collapse, the exact defect class this item exists to remove.
+   Measured with one probe against both builds:
+
+   ```
+   {items_sku=S1,S2,S3, items_name=N1,N2,N3}  against  Order{id, items: array<Item{sku,name}>}
+     before this split : 3 elements  [{sku=S1,name=N1},{sku=S2,name=N2},{sku=S3,name=N3}]
+     first version     : 1 element   [{sku=S1,S2,S3, name=N1,N2,N3}]        no throw, no log
+   ```
+
+   `MapFlattener`'s JSON writer always brackets a column — a single-element one arrives as
+   `["a"]` — so an unbracketed column cannot have been produced by it, which is precisely the
+   reasoning that justifies throwing in the opposite direction. Such a column now raises
+   `ArrayFormatMismatchException` naming the configured format, the format that WOULD read the
+   data, and how many records the other reading finds. **A caller feeding unbracketed delimited
+   text at the default configuration therefore moves from a wrong answer to a thrown exception.**
+   The guard is narrowed to the case where the two readings DISAGREE: an unbracketed column with
+   no delimiter in it reads as one element under every rule and is left alone.
+
 4. **Columns of unequal length now throw `ArrayCardinalityException`**, naming every column, its
    count and the configured format. The longest column used to win: short scalar columns were
    padded with `""` and `0`, and short nested-record columns had their LAST value duplicated into
@@ -81,9 +110,44 @@ parameter list or visibility changes — the new exception types and the added
    `handleMissingField`, which saw a null branch and wrote a plain null — in total silence, with
    the child node holding the real data never read. A consumer that has been null-checking that
    field and skipping it now receives data. On the flat-column side of the same field the value
-   changes from unconverted pass-through to a value converted against the SELECTED BRANCH, so a
-   datum that `GenericData.validate` rejected and a binary encode threw `UnresolvedUnionException`
-   on becomes writable. And where the flattened form genuinely cannot disambiguate — two record
+   changes from unconverted pass-through to a value converted against the SELECTED BRANCH, so
+   `GenericData.validate` against the FIELD's union schema returns true where it returned false —
+   a Jackson-boxed `Integer` in a `["null","long","string"]` slot resolves to no branch at all,
+   and a `Long` resolves to one.
+
+   **This does NOT make the enclosing datum writable, and an earlier version of this bullet said
+   it did.** Measured at the public `reconstruct()` entry point: the record still fails
+   `GenericData.validate` and a real `GenericDatumWriter` still throws — with a
+   `ClassCastException` naming the array element as a `java.util.LinkedHashMap`, not an
+   `UnresolvedUnionException`. A different blocker sits in front of the union one and is untouched
+   here: `mapToGenericRecord` rebuilds only the ROOT record, so array elements remain
+   `LinkedHashMap`. That is the same `avro-generic-record-unwritable` limit already disclosed
+   under item 1, and `AvroReconstructorArrayElementUnionTest` has asserted it as a pinned limit
+   all along — the test was honest and this bullet was not. The VALUE is repaired; the datum is
+   not.
+
+   **The branch is chosen by Java type first, declaration order second, and the first version of
+   this arm got that wrong.** Trying the branches in pure declaration order and taking the first
+   that did not throw destroyed values the flattener had NOT made ambiguous, because at the
+   array-element position the JSON column keeps the quotes and Jackson boxes the element as a
+   `String`. Measured against the shipped default with a real `MapFlattener`:
+
+   | union | document value | before | now |
+   |---|---|---|---|
+   | `["null","int","long","string"]` | `"0007"` | `Integer 7` | `String "0007"` |
+   | `["null","long","string"]` | `"123"` | `Long 123` | `String "123"` |
+   | `["null","boolean","string"]` | `"hello"` | `Boolean false` | `String "hello"` |
+   | `["null","string","long"]` | `123` | `String "123"` | `Long 123` |
+
+   The BOOLEAN row is the worst of them and was not in the original filing: `Boolean.parseBoolean`
+   never throws, so a boolean branch declared before a string branch accepted *anything* and made
+   the string branch unreachable. A branch carrying a logical type is never demoted, and where the
+   value's Java type has no native branch — `"0007"` under `["null","int","long"]` — the coercion
+   is unavoidable and still happens, but now logs a WARN naming the before and after text. This is
+   distinct from the TOP-LEVEL union, which is untouched: there the flat map holds `meta=0007` as
+   a bare unquoted scalar, so the type really has been erased and any choice is a guess.
+
+   Where the flattened form genuinely cannot disambiguate — two record
    branches in the same union sharing the columns that are present — the result changes from a
    silent null to a thrown exception naming both candidates under the default
    `strictValidation`, or to a null plus a WARN under `strictValidation(false)`. That half will
@@ -193,6 +257,26 @@ parameter list or visibility changes — the new exception types and the added
   the fixes. An earlier version of this bullet and of the baseline note both stated the final
   figure as 238 and never printed 237, so the public record disagreed with the repository.)
 
+- **A 26th empty catch that PMD was exempting by variable name.** The audit that took PMD's
+  `EmptyCatchBlock` from 25 to 0 cleared PMD's list; a regex over `src/main` finds **26** genuinely
+  empty catch blocks at that commit. The delta is `SchemaBasedMapConverter.AvroUnionConverter`,
+  written `catch (Exception ignored)` — and `^(ignored|expected)$` is exactly the rule's own escape
+  hatch, which the audit recorded as *rejected* at 24 of the 25 sites it did classify. The one site
+  already using the hatch was never classified, because the gate never reported it. It carried the
+  identical defect the four date/time cascades were repaired for: the terminal named no branch and
+  `getCause()` was null. It now holds the first branch failure and throws `Value does not match any
+  union branch. Tried: <types>` with that failure as the cause. A caller catching
+  `TypeConversionException` and reading `getMessage()` sees a longer message; `getCause()` becomes
+  non-null where it was null.
+
+- **A sibling that laundered failures without an empty catch at all.**
+  `AvroSchemaConverter.AvroUnionConverter` appended every branch failure to a
+  `List<Exception> errors` that nothing ever read, then threw with `getCause() == null` — an empty
+  catch that PMD cannot see, because the bin is not empty, it is merely never emptied. The dead
+  list is gone and the cause is attached. The message is unchanged; it already named the branches.
+  Both sites also narrow `catch (Exception)` to `catch (RuntimeException)`: no branch converter can
+  throw a checked exception, so the wider catch could only ever have caught something unreachable.
+
 ### Changed
 
 - `JsonFlattener`'s class javadoc no longer claims "thread-safe for concurrent use" without
@@ -215,35 +299,134 @@ parameter list or visibility changes — the new exception types and the added
   `README.md` in the same tree correctly published 2.0.0 from Central. Route 1 now publishes the
   released coordinate, locally built artifact filenames use a `${nexus.version}` placeholder so a
   version bump cannot invalidate them again, and the test count is corrected from "~1,400".
+- **The round-trip fidelity corpus moved: 156 → 161 fixtures, `LOSSLESS`/`ACCEPTED_LOSS`/`DEFECT`
+  51/23/82 → 55/24/82.** Five fixtures added and three rows reclassified as the defects above were
+  repaired; `DEFECT` is unchanged at 82 because the added rows are `LOSSLESS` controls and the
+  reclassified rows moved out of `DEFECT` as new ones arrived to replace them. Every number in this
+  changelog, in `README.md` and in `docs/ROUND_TRIP_FIDELITY.md` is taken from
+  `src/test/resources/fidelity/manifest.json`, which is the contract; the document is generated
+  from it and the README is now gated against it (see below). The `156` figures elsewhere in this
+  file are inside the released **2.0.0** section and are correct as history.
+
 - The `unwrapUnion` dead-code verdict is corrected wherever it was recorded — see **Known issues**
   below for why the correction matters rather than being cosmetic.
 
+- **`SECURITY.md`'s process section claimed a control that has never run.** It stated that every
+  pull request runs "GitHub dependency review (blocking on high-severity advisories in newly-added
+  dependencies)". Measured against the most recent pull-request run of `quality.yml`: the
+  `actions/dependency-review-action` step is **skipped**, the workflow's own fallback step runs in
+  its place, and the job's conclusion is still **success** — a green check on an analysis that did
+  not happen. Both `dependency-graph/snapshots` and `dependency-graph/sbom` return 404 for this
+  repository, so the Dependency graph is disabled. The workflow was already honest about it in a
+  step summary; `SECURITY.md` was not. Corrected, together with the fact that no Actions secrets
+  exist, so `release.yml` cannot sign or publish. Both are repository-settings items for the
+  owner, not code.
+
+- **A fidelity fixture published a claim its own assert mode cannot measure.**
+  `avro-empty-datum-cannot-build-a-record` was titled "both entry points now agree that it is not
+  representable", and its `detail` and `cannotCatch` said the same. The row is `assert DATUM`, and
+  `FidelityRunner`'s DATUM arm calls only `reconstruct()` — `reconstructToMap` appears in the DATA
+  branch and the recipe arm, neither of which a DATUM row executes. `cannotCatch` is the one field
+  whose entire job is to be honest about what a row does not measure, so this was the worst
+  possible place for it. The row now says what it actually pins — `reconstruct()`'s answer and its
+  exact message. Classification and measurement are unchanged; only the published claim moved.
+
+  **And checking where that claim really lived turned up that it lived nowhere.** The corrected
+  row pointed at `AvroReconstructorEmptyInputTest`, whose three tests all compare an empty map
+  against a one-unrelated-key map — **both through `reconstructToMap`**. So the two-entry-point
+  disagreement, which is the whole of `recon/NP-025` and of behaviour change 9 above, was asserted
+  in the fixture title, in the fixture's `cannotCatch`, and in this changelog, and tested in none
+  of them. `AvroReconstructorEmptyInputTest.reconstructToMapAndReconstructGiveTheSameAnswerForAnEmptyMap`
+  is added and asserts that both entry points throw the same class with the same message, naming
+  the field. This is the second untested behaviour-change claim found in this pass; the other was
+  behaviour change 5.
+
+- **`FidelityRunner`'s "HONEST LIMIT" comment on the Avro DATA defaults arm was false in both of
+  its factual claims.** It said no DATA fixture sets `avro.reconstructor` and that the comparison
+  "cannot presently fail on any of the eleven DATA rows". Measured: there are **sixteen** DATA
+  rows and **two** of them tune the reconstructor, one of which
+  (`avro-array-of-records-pipe-format-comma-inside-element`) records `avroDefaultsMatch: false`.
+  The arm was published as a dormant tripwire while it was carrying present-tense evidence.
+
+- **A drift guard now covers `README.md`'s fidelity counts.** `RoundTripFidelityDocTest` guarded
+  `docs/ROUND_TRIP_FIDELITY.md`, which is generated from the manifest and therefore the one file
+  that could not go stale by hand; `README.md` hand-carries the same four numbers, is the first
+  thing a prospective consumer reads, and had no gate at all. `ReadmeFidelityCountsTest` asserts
+  the front-page total and the three classification rows against `manifest.json`, checks they sum,
+  and drills its own anchors so a reworded headline fails rather than silently matching nothing.
+
+- **The `TRIED_FORMATS` javadoc paragraph was pasted verbatim into four converters and was false
+  in three of them.** It claimed "five (or three) branches ... two of them consult config".
+  Measured: `DateConverter` has five branches and exactly ONE consults config;
+  `TimeConverter` has three and NONE do; the two timestamp converters have five each and reach
+  config only indirectly, through the shared local-datetime helper. Each class now states its own
+  branch count and its own config dependency; only the part that is true everywhere is shared.
+
 ### Known issues
 
-Confirmed present in the released **2.0.0** and still open on `main`. Recorded here so that a
-consumer reading release notes on upgrade learns of them without opening the backlog. Full detail
-in [docs/BACKLOG.md](docs/BACKLOG.md); consumer-facing rows in [SECURITY.md](SECURITY.md).
+Confirmed present in the released **2.0.0**. Recorded here so that a consumer reading release
+notes on upgrade learns of them without opening the backlog. Full detail in
+[docs/BACKLOG.md](docs/BACKLOG.md); consumer-facing rows in [SECURITY.md](SECURITY.md).
 
-- **`AvroReconstructor.reconstruct()` produces an unwritable datum at the shipped default
-  configuration** (`recon/NP-023`, BL-012). A schema with a defaulted **enum** field absent from
-  the input reconstructs with a `java.lang.String` in that position, and
-  `GenericData.get().validate(schema, record)` returns `false`, so the record cannot be
-  binary-encoded. No unusual configuration is required — the default is the broken setting.
-  **Workaround: `useSchemaDefaults(false)`.** The same shape affects FIXED/BYTES (`byte[]`) and
-  record-typed (`LinkedHashMap`) defaults.
-- **`allowMissingFields` does not allow missing fields at either value** (`recon/NP-024`,
-  BL-012). It selects which exception you get, not whether reconstruction succeeds.
-- **An empty flattened map silently returns `{}`** (`recon/NP-025`, BL-012) even against a schema
-  with a required no-default field, because the empty-map short-circuit consults neither knob.
+**This block was wrong and is corrected.** It was headed "still open on `main`" and published four
+defects as open that this same release repairs — `recon/NP-023`, `recon/NP-024`, `recon/NP-025`
+and `BL-014` — contradicting the *Behaviour changes* section a hundred lines above it,
+`SECURITY.md`, `docs/BACKLOG.md` and the corpus manifest, all of which had been updated. The
+NP-023 row was the damaging one: it told an upgrading consumer to set `useSchemaDefaults(false)`
+as a workaround for a defect that is gone and whose behaviour *at that setting* also changed in
+this release. Struck-through rows are kept rather than deleted so that a reader who followed the
+old advice can find out what happened to it.
+
+#### Repaired in 2.1.0 — do not act on these
+
+- ~~**`AvroReconstructor.reconstruct()` produces an unwritable datum at the shipped default
+  configuration** (`recon/NP-023`, BL-012), workaround `useSchemaDefaults(false)`.~~ **Fixed in
+  2.1.0**; see behaviour change 1. The workaround is no longer needed and is no longer inert:
+  `useSchemaDefaults(false)` now genuinely suppresses a default on a non-nullable field, so a
+  caller who set it as a workaround gets a *different* answer than they did in 2.0.0 (behaviour
+  change 8). The `reconstruct()` datum is still unwritable for a record with **nesting** — that
+  is the separate `avro-generic-record-unwritable` limit, still open and listed below.
+- ~~**`allowMissingFields` does not allow missing fields at either value** (`recon/NP-024`).~~
+  **Fixed in 2.1.0**; see behaviour change 7. The flag still does not reach `handleMissingField`
+  inside an array element — that residue is listed below as open.
+- ~~**An empty flattened map silently returns `{}`** (`recon/NP-025`).~~ **Fixed in 2.1.0**; see
+  behaviour change 9.
+- ~~**3+ branch unions inside Avro array elements are silently dropped** (BL-014).~~ **Fixed in
+  2.1.0**; see behaviour change 6. The framing correction stands and is worth keeping: this was a
+  gap that had **always** been present, not a regression — the `unwrapUnion` method it was
+  originally attributed to never had a declaration in any revision where it was called, so it
+  never executed and no behaviour was lost when it was deleted.
+
+#### Genuinely still open on `main`
+
+- **`AvroReconstructor.reconstruct()` returns an unwritable datum whenever the record has
+  nesting** (`avro-generic-record-unwritable`). `mapToGenericRecord` rebuilds only the ROOT
+  record, so nested records and array elements come back as `LinkedHashMap` and
+  `GenericData.get().validate(schema, record)` returns `false`. This is the residue of NP-023
+  above and is pinned by assertion in both `AvroReconstructorDefaultValueTypeTest` and
+  `AvroReconstructorArrayElementUnionTest` so that "NP-023 fixed" cannot be read as "the datum
+  writes". Use `reconstructToMap` unless you need a writable record.
+- **A RECORD-typed schema default is repaired leaf-by-leaf in `reconstructToMap` only.** Through
+  `reconstruct()` it is still a `LinkedHashMap`; same cause as the row above.
+- **`allowMissingFields` does not reach `handleMissingField` inside an array element**, which
+  fills `""` and `0` for a missing required field one level down regardless of the setting. It
+  logs a WARN now, so it is audible; gating it would turn array-of-records reconstructions that
+  succeed today into throws.
+- **A defaulted LOGICAL-TYPE field arrives as its raw underlying type** (a `ByteBuffer` for a
+  decimal) while the same field supplied in the input arrives converted. A new, smaller
+  inconsistency created by the NP-023 repair and disclosed rather than left to be discovered.
 - **Five `JsonFlattenerConfig` knobs are inert** (BL-015): `charset`, `bufferSize`, `failOnError`,
   `preserveNulls` and `sortKeys` are read nowhere in `src/main`. `failOnError(false)` in
   particular does **not** make parsing lenient. They are documented rather than repaired because
   making them live would silently change behaviour for released callers; they are now pinned as
   inert by a test so that wiring one up cannot happen unnoticed.
-- **3+ branch unions inside Avro array elements are silently dropped** (BL-014). Corrected framing:
-  this is a gap that has **always** been present, not a regression — the `unwrapUnion` method it
-  was originally attributed to never had a declaration in any revision where it was called, so it
-  never executed and no behaviour was lost when it was deleted.
+- **`FileFinder` carried a false compensating-control claim** (`files/NP-027`). A catch block
+  asserted that "size is checked on open instead" and there is no size check on open anywhere in
+  the file. The comment is corrected in place; the missing check itself is not added here.
+- **Two repository-owner items that cannot be fixed in code.** The GitHub **Dependency graph** is
+  disabled for this repository, so the `dependency review` job has never actually run — it
+  reports success without analysing anything. And no **Actions secrets** are configured, so
+  `release.yml` cannot sign or publish. Both need a change in repository settings by the owner.
 
 ---
 

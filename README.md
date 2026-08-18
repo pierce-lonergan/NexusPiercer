@@ -340,8 +340,14 @@ reproducible fixtures is in [docs/ROUND_TRIP_FIDELITY.md](docs/ROUND_TRIP_FIDELI
 - **An Avro union still takes the first branch that will accept the value**, and for a union of
   records the first branch sharing any field name wins with the rest of the data dropped. Repaired
   in 2.1.0 for one position only: inside an *array element*, a union of three or more branches used
-  to be dropped to `null` in complete silence and is now resolved, or refused by name when two
-  record branches match the same columns
+  to be dropped to `null` in complete silence and is now resolved by branch — chosen by the value's
+  Java type first and declaration order second, so a string in the document stops being coerced
+  into an earlier numeric or boolean branch — or refused by name when two record branches match the
+  same columns
+- **An array of records read at the JSON default no longer accepts unbracketed delimited text.**
+  It used to return one record holding the concatenation of all of them, silently; it now raises
+  `ArrayFormatMismatchException` naming the format that *would* read the data. Set `arrayFormat`
+  to match your producer
 
 Use the Avro path where fidelity matters. Treat the JSON round trip as lossy unless a fixture says
 otherwise for your shape.

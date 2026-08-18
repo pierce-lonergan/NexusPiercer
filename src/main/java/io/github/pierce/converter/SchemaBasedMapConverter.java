@@ -940,8 +940,17 @@ public class SchemaBasedMapConverter {
 
     /**
      * Converter for Avro union types.
+     *
+     * <p>STATIC, and it was the only one of the six converters in this file that was not.
+     * SpotBugs has been reporting {@code SIC_INNER_SHOULD_BE_STATIC} on it all along: the
+     * constructor already takes its {@code parent} as an explicit parameter, so the implicit
+     * outer reference an inner class carries was never read - it only kept a whole
+     * {@code SchemaBasedMapConverter} reachable from every union converter. Paid for the WARN
+     * added on the array-element union path in {@code AvroReconstructor}, which costs one
+     * {@code CRLF_INJECTION_LOGS}: the ratchet in .github/quality-baseline.json may only go
+     * down, so a new log line has to be earned somewhere real.</p>
      */
-    private class AvroUnionConverter extends AbstractTypeConverter<Object> {
+    private static class AvroUnionConverter extends AbstractTypeConverter<Object> {
         private final List<TypeConverter<Object, Object>> branchConverters;
         private final List<org.apache.avro.Schema> nonNullTypes;
 
@@ -958,16 +967,45 @@ public class SchemaBasedMapConverter {
             }
         }
 
+        /**
+         * THE 26th EMPTY CATCH. The empty-catch audit that cleared PMD's EmptyCatchBlock from 25
+         * to 0 covered PMD's list; a regex over the tree found TWENTY-SIX genuinely-empty catches
+         * in {@code src/main}. This site was the delta, and it was invisible to the gate for one
+         * reason only: PMD's {@code EmptyCatchBlock} exempts a catch whose variable matches
+         * {@code ^(ignored|expected)$}, and this one was written {@code catch (Exception ignored)}.
+         * That is the naming hatch the audit explicitly recorded as rejected at 24 of the 25 sites
+         * it did classify - the one site already using it was never classified because PMD never
+         * reported it.
+         *
+         * <p>It carried the identical defect the four date/time cascades were repaired for: the
+         * terminal named no branch and {@code getCause()} was null, so a caller who missed every
+         * branch of a five-branch union learned only "Value does not match any union branch". The
+         * cascade is real - a branch declining IS how a union resolves - so the fix is the same
+         * one applied three files away: hold the FIRST failure, and make the terminal say what
+         * was tried and why the first attempt failed.</p>
+         *
+         * <p>{@code Exception} narrowed to {@code RuntimeException}: {@code TypeConverter.convert}
+         * declares no checked exception and {@code TypeConversionException} extends
+         * {@code SchemaConversionException} extends {@code RuntimeException}, so the wider catch
+         * could only ever have caught something no branch can throw.</p>
+         */
         @Override
         protected Object doConvert(Object value) {
+            RuntimeException firstFailure = null;
             for (TypeConverter<Object, Object> converter : branchConverters) {
                 try {
                     return converter.convert(value);
-                } catch (Exception ignored) {
-                    // Try next branch
+                } catch (RuntimeException e) {
+                    // NOT ignored: this is the signal that advances the cascade to the next
+                    // branch. Held so the terminal below can carry a cause.
+                    firstFailure = ConversionFailure.first(firstFailure, e);
                 }
             }
-            throw conversionError(value, "Value does not match any union branch");
+            String tried = nonNullTypes.stream()
+                    .map(s -> s.getType().getName())
+                    .collect(java.util.stream.Collectors.joining(", "));
+            throw conversionError(value,
+                    "Value does not match any union branch. Tried: " + tried, firstFailure);
         }
     }
 
