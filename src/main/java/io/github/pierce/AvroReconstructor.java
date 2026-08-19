@@ -2396,9 +2396,26 @@ public class AvroReconstructor {
                     ? null
                     : childNode.arrayFieldValues.get(fieldName);
 
-            if (rawValues != null && !rawValues.isEmpty()) {
-                // KEY FIX: Use outerIndex to select the correct element
-                Object rawValue = outerIndex < rawValues.size() ? rawValues.get(outerIndex) : rawValues.get(0);
+            if (rawValues != null && outerIndex < rawValues.size()) {
+                // The comment that used to sit here said "KEY FIX: Use outerIndex to select the
+                // correct element" directly above
+                //     outerIndex < rawValues.size() ? rawValues.get(outerIndex) : rawValues.get(0)
+                // which does the OPPOSITE when the index is out of range: it resolves to outer
+                // position 0 and replicates that position's inner records into every position
+                // past the end of a short column. Same mechanism BL-013 (D3) deleted at
+                // reconstructNestedRecordFromArray.
+                //
+                // MEASURED, and this corrects the analysis that ordered the change: it was NOT
+                // "currently feeding a silent duplicator". agreedElementCount refuses first - a
+                // short nested-array-of-records column is counted as a signal for the OUTER level
+                // and its disagreement throws ArrayCardinalityException before any index is
+                // taken. AvroNestedArrayOuterIndexClampTest pins that refusal, because the
+                // refusal is what makes this line unreachable, not the line itself.
+                //
+                // The clamp is gone anyway. An out-of-range index now falls through to the
+                // ordinary absent-field handling below rather than inventing a repeat, so no
+                // future route can silently re-enter it - and no behaviour changes today.
+                Object rawValue = rawValues.get(outerIndex);
 
                 if (rawValue instanceof String) {
                     String strValue = ((String) rawValue).trim();

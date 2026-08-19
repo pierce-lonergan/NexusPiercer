@@ -409,14 +409,29 @@ rather than in the corpus.
 > one; ragged columns come only from externally produced flat maps (Athena, Spark, CDC)". Measured,
 > not argued: `{"g":[[{"a":1},{"b":2}],[{"a":3}]]}` — a perfectly well-formed document — emits
 > `g_a="[[1,null],[3]]"` with **two** outer entries beside `g_b="[[null,2]]"` with **one**. The
-> nested-array arm, `extractFieldsPreservingStructure`, has no padding step at all, so the
-> equal-length property holds only at the two array-of-maps sites. The 2.1.0 alignment repair does
-> NOT close this: post-fix the same document still gives 2 outer entries against 1.
+> nested-array arm, `extractFieldsPreservingStructure`, had no padding step at all, so the
+> equal-length property held only at the two array-of-maps sites.
 >
-> So a disagreeing-count fixture IS expressible from a source document, and the stated blocker was
-> wrong. What remains unverified is whether `soleRecordBranch` descends an `array<array<record>>`
-> far enough for those ragged columns to reach `agreedElementCount` — that is the question to
-> settle before writing the row, and it is filed as part of [BL-018].
+> **SUPERSEDED, 2026-08-19, by [BL-018].** The third site is now padded, and the same document
+> gives `g_a="[[1,null],[3]]"` beside `g_b="[[null,2],[null]]"` — two outer entries each, agreeing
+> on inner length position by position as well. So the sentence above ("the 2.1.0 alignment repair
+> does NOT close this") is now false, and **a disagreeing-count fixture is NO LONGER expressible
+> from a well-formed source document through `MapFlattener`.** The disagreeing-count case is
+> therefore correctly pinned in `AvroArrayOfRecordsSizingTest` and in
+> `AvroNestedArrayOuterIndexClampTest` — both drive the reconstructor with an EXTERNALLY produced
+> flat map, which is the only way that shape now arrives — and the corpus row that was "also owed"
+> is withdrawn rather than left open: a fixture is a source document plus a recording, and there
+> is no source document that produces it.
+>
+> The open question the entry posed is ANSWERED. `collectElementCounts`
+> (`AvroReconstructor.java`) deliberately does not descend into an ARRAY field's INNER
+> cardinality, but it DOES take an array-of-records child's own column sizes as a signal for the
+> OUTER level. So ragged columns reach `agreedElementCount`, which refuses them —
+> `orders_id=2, orders_items_sku=1` throws `ArrayCardinalityException` naming both counts. They
+> do NOT reach the index clamp in `reconstructNestedArrayOfRecordsAtIndex`, which the BL-018
+> analysis believed was silently duplicating outer position 0. Measured: it never fires. The
+> clamp is removed anyway, as unreachable defence, and the refusal that makes it unreachable is
+> what the new test pins.
 
 ---
 
@@ -697,34 +712,69 @@ already reached the same conclusion at Phase 4 — line 130 says the fix means c
 
 ---
 
-### [BL-018] `extractFieldsPreservingStructure` has the array-element misalignment that the other two sites had
+### [BL-018] `extractFieldsPreservingStructure` has the array-element misalignment that the other two sites had — **FIXED IN 2.1.0**
 
-2.1.0 repaired the positional contract at `flattenList` Case 3 and at the array-of-maps arm of
-`extractFieldsFromList`: each column is pre-sized to the element count and written by index. The
-THIRD site, `extractFieldsPreservingStructure` (the nested-array arm), was deliberately left alone
-and still appends one entry per OUTER position with no padding at all.
+**CLOSED 2026-08-19 with a measurement, not a tick.**
 
-**Why it was not bundled with the other two.** Sites A and B only move existing scalar values to
-different indices — no new value shape appears anywhere. Fixing site C would place a bare `null`
-where a nested LIST has always been (`data_name` becoming `[["A"],null]`), a shape `MapFlattener`
-has never emitted and that no reconstructor has been exercised against. Bundling it would also have
-made the seven-row corpus diff impossible to attribute, and an unattributable corpus diff is how a
-regression of the just-fixed class hides.
+REPRODUCED EXACTLY AS FILED. `{"g":[[{"a":1}],[{"b":2}]]}` emitted `g_a="[[1]]"` beside
+`g_b="[[2]]"`, so `b` — which came from outer position 1 — sat at index 0. A consumer zipping the
+two columns by outer index read `a=1` and `b=2` as one nested group. They came from different
+groups: silent corruption from a well-formed document, the same class as the discount landing on
+the wrong line item that motivated the repair at the other two sites.
 
-**Measured counter-examples, both from well-formed documents:**
+**BOTH HALVES OF THE DEFERRAL REASON WERE DISCHARGED, not overruled.**
 
-- `{"g":[[{"a":1},{"b":2}],[{"a":3}]]}` → `g_a="[[1,null],[3]]"` (2 outer entries),
-  `g_b="[[null,2]]"` (1). Ragged, and it refutes the claim corrected under [BL-013].
-- `{"data":[[{"name":"A"}],"text"]}` → `data_name="[["A"]]"`, `data="["text"]"`. The sentinel maps
-  to the BASE key, and outer position 1's value sits at index 0 of its own column.
+- *"Bundling it would make the seven-row corpus diff impossible to attribute."* A sequencing
+  reason, and it was a good one. Spent: this was a dedicated pass and the diff is ONE row.
+- *"It would place a bare `null` where a nested LIST has always been, a shape no reconstructor has
+  been exercised against."* Correct, and it SELECTED the filler rather than blocking the fix. The
+  hole at this site is an inner list of the outer position's inner cardinality — `columnFor`'s own
+  rule one level down — so no column of lists gains a bare null. A bare null appears only where
+  the outer position holds no nested list at all, which is one already-DEFECT shape rather than
+  every nested array.
 
-**Before attempting it:** find every place that assumes each entry of a structure column is a
-`List`, because the fix introduces `null` there. And settle whether `soleRecordBranch` descends an
-`array<array<record>>` far enough for ragged columns to reach `agreedElementCount` — if it does,
-the disagreeing-count case becomes a corpus row and [BL-013]'s residue note changes again.
+**MEASURED CORPUS REACH: three fixtures, one moved.** All 161 inputs were enumerated.
+`structural/mixed-nested-array-sentinel-collision` is re-recorded and stays `DEFECT` — the
+positional half is closed, the sentinel-maps-to-the-base-key half and the `setNestedValue`
+leaf-versus-branch collision are not.
+`structural/array-of-arrays-with-empty-inner` and
+`schema/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records` were verified unchanged
+rather than assumed; the first is the load-bearing pin that rules out filling holes with `[]`.
+Counts stay 56 / 24 / 81.
 
-This is 2.x-eligible behaviour work, not a 3.0.0 breaking change. It just is not this commit.
+**ONE THING THE ANALYSIS GOT WRONG, and it mattered.** It described the index clamp at
+`AvroReconstructor.reconstructNestedArrayOfRecordsAtIndex` as a live silent duplicator being fed
+by this site. It is not: `agreedElementCount` refuses a disagreeing column count first. See the
+[BL-013] correction above for the trace. The clamp is removed as unreachable defence and the
+refusal is pinned; no behaviour changes from that half.
 
+**A SECOND DEFECT FOUND WHILE FIXING THE FIRST, one branch away.** The Java-array arm had no
+empty check at all, so an empty `Object[]` as a nested element vanished from every column and
+everything after it shifted left — while the List arm explicitly preserved the position. It is
+the one key-set change in the whole fix and it has its own named test.
+
+Filed as a follow-up rather than folded in: the `_value` sentinel maps to the BASE key rather than
+to a `_value`-suffixed column, which is what keeps
+`structural/mixed-nested-array-sentinel-collision` a DEFECT after this repair and what the class
+javadoc has always mis-documented. Changing it renames a column and is a bigger decision than
+alignment — see [BL-022].
+
+---
+
+### [BL-022] The `_value` sentinel maps to the base key, not to a `_value`-suffixed column
+
+The `MapFlattener` class javadoc has documented `{data_name, data_value}` for
+`{data: [[{name:"A"}], "text"]}` since before 2.0.0. The code has never produced it: the sentinel
+maps to the BASE key `data`. [BL-018] closed the OTHER half of that discrepancy (the missing
+positional padding) in 2.1.0; this half is what keeps
+`structural/mixed-nested-array-sentinel-collision` classified `DEFECT`.
+
+It is not fixed with [BL-018] on purpose. Emitting `data_value` instead of `data` RENAMES a column
+in released output — a strictly larger behaviour change than alignment, affecting every consumer
+that reads the base key — and it interacts with the `setNestedValue` leaf-versus-branch collision
+(`data` clobbers the subtree built from `data_name`) which renaming would change rather than fix.
+Additive-only does not block it, since no public signature moves; the reason to defer is blast
+radius, and it should be decided rather than inherited.
 ---
 
 ## Medium Priority

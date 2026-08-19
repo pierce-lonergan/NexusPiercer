@@ -12,11 +12,11 @@ must not sit on a released coordinate.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
-BEHAVIOUR IS NOT.** The section immediately below lists **twenty-one** places where a `2.0.0`
+BEHAVIOUR IS NOT.** The section immediately below lists **twenty-two** places where a `2.0.0`
 caller gets a different answer, several of them at the default configuration. Read it before
 upgrading.
 
-**Eight of the twenty-one turn a previously-successful call into a throw**, across seven items:
+**Eight of the twenty-two turn a previously-successful call into a throw**, across seven items:
 a bracketed JSON array read under a delimited format, and its mirror, an unbracketed delimited
 column read under the JSON default (item 3, two cases); disagreeing column counts (item 4); an
 oversized read, which for a compressed file can throw MID-READ (item 14); a bare name that only
@@ -34,7 +34,7 @@ creates the fault it removes is the single most useful thing this changelog can 
 ### Behaviour changes
 
 **These change what the library returns at the SHIPPED DEFAULT configuration.** Items 1–12 are
-`AvroReconstructor`; items 13 and 21 are `MapFlattener` and the flattener's schema read; items
+`AvroReconstructor`; items 13, 21 and 22 are `MapFlattener` and the flattener's schema read; items
 14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; item 18 is `JsonReconstructor`;
 item 19 is `AvroSchemaFlattener`. They are listed here rather than under *Fixed* because a caller
 pinning a snapshot of today's output will see a diff, and because eight previously-successful
@@ -269,8 +269,8 @@ clear the 2.0.0 additive-only gate.
     Seven corpus rows were re-recorded and
     `avro/avro-array-element-multi-branch-union-mixed-branches` moved **DEFECT → LOSSLESS**: its
     residual fault was never union resolution, it was this misalignment, so the corpus counts go
-    55/24/82 → **56/24/81**. A third site, `extractFieldsPreservingStructure`, has the same defect
-    and is deliberately NOT fixed here — see *Known issues*.
+    55/24/82 → **56/24/81**. A third site, `extractFieldsPreservingStructure`, had the same
+    defect and is fixed in item 22 below.
 
 14. **`FileFinder`'s `maxFileSize` is enforced against the RESOLVED file and against the bytes
     actually read.** The gate used to call `Paths.get(fileName)` with no base path while resolution
@@ -409,6 +409,86 @@ clear the 2.0.0 additive-only gate.
     javadoc under *What it deliberately does NOT enforce* and pinned by a test, so the next
     person to add one has to change both. What `SchemaFiles` does enforce is unchanged from
     item 14's list: null byte, traversal, regular-file, and a 100 MB cap applied twice.
+
+22. **The nested-array flattening site now pads its columns to the outer element count**
+    (`MapFlattener.extractFieldsPreservingStructure`; closes [BL-018]). This is the THIRD and
+    last array-element site. Items 13 fixed the other two and this one was deliberately left,
+    with a recorded reason. Both halves of that reason are now spent: the sequencing half
+    ("bundling it would make the seven-row corpus diff impossible to attribute") no longer
+    applies to a dedicated pass whose corpus diff is ONE row, and the shape half ("it would place
+    a bare null where a nested LIST has always been") was dissolved by choosing the right filler
+    rather than by ignoring it.
+
+    Measured before → after, at the shipped default:
+
+    | document | column | 2.0.0 | 2.1.0 |
+    |---|---|---|---|
+    | `{"g":[[{"a":1}],[{"b":2}]]}` | `g_a` | `[[1]]` | `[[1],[null]]` |
+    | | `g_b` | `[[2]]` | `[[null],[2]]` |
+    | `{"g":[[{"a":1},{"b":2}],[{"a":3}]]}` | `g_a` | `[[1,null],[3]]` | unchanged |
+    | | `g_b` | `[[null,2]]` | `[[null,2],[null]]` |
+    | `{"data":[[{"name":"A"}],"text"]}` | `data_name` | `[["A"]]` | `[["A"],null]` |
+    | | `data` | `["text"]` | `[[null],"text"]` |
+    | `{"grid":{"rows":[[1,2],[],[3]]}}` | `grid_rows` | `[[1,2],[],[3]]` | unchanged (pinned) |
+
+    The first row is the whole defect in one line: `b` came from outer position 1 and sat at index
+    0, so a consumer zipping `g_a` and `g_b` by outer index read `a=1` and `b=2` as one nested
+    group. They came from different groups. Same silent corruption as item 13, one level deeper.
+
+    **THE FILLER IS SHAPE-AWARE, and the choice is load-bearing.** At the two array-of-maps sites
+    a column entry is a scalar, so a hole is a scalar `null`. Here a column entry is an INNER
+    LIST, so a hole is an inner list of that outer position's inner cardinality — `[]` exactly
+    when the inner array was empty. A bare `null` appears only where the outer position holds no
+    nested list at all. Both alternatives were rejected against measurements, not preferences: a
+    bare null everywhere changes the slot's TYPE in a column whose entries have always been
+    lists, which is precisely what the deferral note objected to; and `[]` everywhere collides
+    with the genuinely-empty-inner-array case that
+    `structural/array-of-arrays-with-empty-inner` pins as `grid_rows="[[1,2],[],[3]]"`. That
+    fixture re-recording would have been the signal the rule was implemented wrong. It did not
+    move.
+
+    **A CORRECTION TO THE ANALYSIS THAT ORDERED THIS.** It predicted `data="[null,\"text\"]"` —
+    a bare null at outer position 0 of the sentinel column. Shipped is `"[[null],\"text\"]"`,
+    because the rule is uniform: at a position that DOES hold a nested list, a missing column is
+    an inner list, and the sentinel column is not special. The uniform rule keeps the stronger
+    invariant — at every outer position, every column agrees on inner length too — which the
+    bare-null form would have broken in the column most likely to be read beside the others.
+
+    **ONE KEY-SET CHANGE, called out separately so it is attributable.** An empty Java array as a
+    nested element (`Object[0]`, only reachable from a `Map` source, not from JSON) used to
+    vanish from every column: the array arm had no empty check, `extractFieldsFromList` returned
+    an empty map, and nothing was appended, so the outer position disappeared and everything
+    after it shifted left. It now registers its position under the base key, which can introduce
+    a base-key column where a document previously had none.
+
+    **A LOSS THIS CREATES, recorded rather than discovered later.** In `COMMA_SEPARATED` and
+    `PIPE_SEPARATED` the new positional hole renders as the EMPTY STRING, so `data_name` gains a
+    trailing delimiter and a splitter cannot tell a hole from an empty value. That is the same
+    ambiguity this class's javadoc already documents for scalars, now reaching nested-array
+    columns for the first time. Pinned by `MapFlattenerNestedArrayAlignmentTest#siteCUnderEachArrayFormat`.
+
+    Output SIZE grows here as it did for item 13 — columns × outer positions × inner length.
+
+    Corpus reach was measured by enumerating all 161 fixture inputs: exactly three route through
+    this site and exactly one moved.
+    `structural/mixed-nested-array-sentinel-collision` is re-recorded and STAYS `DEFECT` — the
+    positional half of that row is closed, the sentinel-maps-to-the-base-key half and the
+    `setNestedValue` leaf-versus-branch collision are untouched, and its prose now says which is
+    which. `structural/array-of-arrays-with-empty-inner` and
+    `schema/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records` were verified
+    unchanged rather than assumed. Counts stay 56 / 24 / 81.
+
+    NOT A BEHAVIOUR CHANGE, but shipped with it: the index clamp in
+    `AvroReconstructor.reconstructNestedArrayOfRecordsAtIndex` —
+    `outerIndex < rawValues.size() ? rawValues.get(outerIndex) : rawValues.get(0)` — is gone, and
+    its comment, which read "KEY FIX: Use outerIndex to select the correct element" directly above
+    a line that does the opposite out of range, is corrected. **The analysis that ordered this
+    called the clamp a live silent duplicator; measured, it is not.** `agreedElementCount` refuses
+    a disagreeing column count first: the exact shape described throws
+    `ArrayCardinalityException` naming both counts before any index is taken.
+    `AvroNestedArrayOuterIndexClampTest` pins that refusal, because the refusal is what makes the
+    clamp unreachable — not the clamp's own shape. It is removed as unreachable defence so a
+    future ragged producer cannot re-enter it, and nothing observable changes.
 
 ### Added
 
@@ -551,8 +631,8 @@ clear the 2.0.0 additive-only gate.
     compiles**, so no compile gate will ever catch it. Corrected by hand, and recorded here as
     the limit of what the gate proves.
   - `CHANGELOG.md` itself carries a Java block (the `buildFlattener()` example) that no scan had
-    ever counted, because its fence is INDENTED and every previous count anchored `` ```java ``
-    at column 0. It is gated now.
+    ever counted, because its fence is INDENTED and every previous count anchored the
+    fence marker at column 0. It is gated now.
   - `docs/audit/FINDINGS.md` opens several fences MID-LINE (`**Evidence.** ` followed by a fence
     on the same line). That is malformed markdown: the opener is invisible to any line-anchored
     scanner, so the eventual closing fence reads as an opener and every block after it shifts. A
@@ -794,11 +874,6 @@ old advice can find out what happened to it.
   memory on the same input. A cap on the column count, or an opt-out that trades alignment back
   for the old shape, is deferred; the shape is pinned by `SparseArrayOfMapsOutputSizeTest` so any
   future bound has a measured baseline to move.
-
-- **`extractFieldsPreservingStructure` still has the array-element misalignment** the other two
-  sites had ([BL-018]). Deliberately not fixed with them: it would place a bare `null` where a
-  nested `LIST` has always been, a shape no reconstructor has been exercised against, and
-  bundling it would have made the seven-row corpus diff impossible to attribute.
 
 - **Two repository-owner items that cannot be fixed in code.** The GitHub **Dependency graph** is
   disabled for this repository, so the `dependency review` job has never actually run — it

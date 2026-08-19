@@ -29,6 +29,7 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,29 +69,46 @@ import java.util.Set;
  * Input: {phones: [[{number:1}, {number:2}], [{number:3}]]}
  * Output: {phones_number: "[[1,2],[3]]"}
  *
- * // Mixed content at a NESTED array level - MEASURED, and not what this javadoc used to claim:
+ * // Mixed content at a NESTED array level - MEASURED:
  * Input:  {data: [[{name:"A"}], "text"]}
- * Output: {data_name: "[["A"]]", data: "["text"]"}
+ * Output: {data_name: "[["A"],null]", data: "[[null],"text"]"}
  *
- * // The sentinel maps to the BASE key, not to a "_value" suffix, and the two columns are NOT
- * // padded to the outer element count - data_name describes outer position 0 and data describes
- * // outer position 1, but each sits at index 0 of its own column. This javadoc previously
+ * // Both columns are now padded to the OUTER element count (2.1.0, BL-018). data_name holds
+ * // the inner list [["A"]] at outer position 0 and a bare null at position 1, because position
+ * // 1 holds no nested list at all. data holds an inner list of one null at position 0 - the
+ * // inner cardinality that position genuinely had - and the scalar at position 1.
+ * //
+ * // The sentinel still maps to the BASE key, not to a "_value" suffix. This javadoc once
  * // documented {data_name: "[["A"]]", data_value: "[[null],["text"]]"}, which the code has
- * // never produced; the fixture structural/mixed-nested-array-sentinel-collision exists because
- * // of that discrepancy.
+ * // never produced and still does not; the fixture
+ * // structural/mixed-nested-array-sentinel-collision exists because of that remaining half.
  * </pre>
  *
  * <h2>Positional contract for array-element columns</h2>
- * At the two ARRAY-OF-MAPS sites - {@code flattenList} Case 3 and {@code extractFieldsFromList} -
- * every emitted column carries exactly one entry per source element (capped by
- * {@code maxArraySize}), with element {@code i}'s value at index {@code i} and an explicit null
- * where element {@code i} did not carry that column.
+ * At ALL THREE array-element sites - {@code flattenList} Case 3, {@code extractFieldsFromList}
+ * and {@code extractFieldsPreservingStructure} - every emitted column carries exactly one entry
+ * per source element at that level (capped by {@code maxArraySize}), with element {@code i}'s
+ * value at index {@code i} and an explicit hole where element {@code i} did not carry that
+ * column. Values are written by INDEX and never appended.
  * <p>
- * That guarantee does NOT yet extend to {@code extractFieldsPreservingStructure}, the
- * nested-array arm. It appends one entry per OUTER position with no padding at all, so an outer
- * position whose nested list lacks a field leaves no hole, and two columns under the same prefix
- * can have different outer lengths. Measured: {@code {"g":[[{"a":1},{"b":2}],[{"a":3}]]}} emits
- * {@code g_a="[[1,null],[3]]"} (two outer entries) beside {@code g_b="[[null,2]]"} (one).
+ * THE SHAPE OF A HOLE DIFFERS BY SITE, because the element type of a column differs by site, and
+ * that is the one genuine difference left:
+ * <ul>
+ *   <li>At the two ARRAY-OF-MAPS sites a column entry is a SCALAR, so a hole is a scalar
+ *       {@code null}. This is what {@link #columnFor} writes.</li>
+ *   <li>At the NESTED-ARRAY site a column entry is an INNER LIST, so a hole is an inner list of
+ *       that outer position's inner cardinality - {@code []} exactly when the inner array was
+ *       empty. A BARE {@code null} appears only where the outer position holds no nested list at
+ *       all. Measured: {@code {"g":[[{"a":1},{"b":2}],[{"a":3}]]}} emits
+ *       {@code g_a="[[1,null],[3]]"} beside {@code g_b="[[null,2],[null]]"} - two outer entries
+ *       each, agreeing position by position on inner length as well.</li>
+ * </ul>
+ * Do not collapse the two fillers into one. Filling a nested hole with a bare {@code null}
+ * changes the slot's TYPE in a column whose entries have always been lists; filling it with
+ * {@code []} destroys the distinction the corpus pins in
+ * {@code structural/array-of-arrays-with-empty-inner}, where "this position's inner array was
+ * empty" and "this position's inner array had elements, none of which carried this column" are
+ * different facts.
  *
  * <h2>For AWS Athena</h2>
  * Recommended formats:
@@ -138,6 +156,16 @@ import java.util.Set;
 public class MapFlattener implements Serializable {
     private static final long serialVersionUID = 1L;
     private static final Logger log = LoggerFactory.getLogger(MapFlattener.class);
+
+    /**
+     * Column name for an array element that is not a map.
+     *
+     * <p>It maps to the BASE key on the way out, not to a {@code _value}-suffixed column - see
+     * {@code flattenList} Case 2. The class javadoc documented the suffixed shape for a long time
+     * and the code has never produced it; the fixture
+     * {@code structural/mixed-nested-array-sentinel-collision} exists because of that gap.</p>
+     */
+    private static final String VALUE_SENTINEL = "_value";
 
     private final int maxDepth;
     private final int maxArraySize;
@@ -561,7 +589,7 @@ public class MapFlattener implements Serializable {
 
                 // Handle sentinel key for non-map items
                 String fieldKey;
-                if ("_value".equals(fieldName)) {
+                if (VALUE_SENTINEL.equals(fieldName)) {
                     // No field extraction - just use the base key
                     fieldKey = key;
                 } else {
@@ -621,76 +649,145 @@ public class MapFlattener implements Serializable {
     }
 
     /**
-     * Extract fields from nested arrays while preserving the nesting structure
+     * What one outer position of a nested array contributed.
+     *
+     * @param nested    the inner columns, or {@code null} when this position holds no nested list
+     * @param innerSize the entry count those inner columns agree on; 0 for an empty inner list
+     * @param scalar    the normalized value when this position holds a non-list; else {@code null}
+     */
+    private record NestedPosition(Map<String, List<Object>> nested, int innerSize, Object scalar) {
+
+        boolean holdsNestedList() {
+            return nested != null;
+        }
+    }
+
+    /**
+     * Extract fields from nested arrays while preserving the nesting structure.
      * <p>
-     * Example: [[{number:1}, {number:2}], [{number:3}]]
-     * Returns: {number: [[1, 2], [3]]}
+     * Example: [[{number:1}, {number:2}], [{number:3}]] returns {number: [[1, 2], [3]]}.
+     *
+     * <h3>POSITIONAL CONTRACT - the third and last array-element site</h3>
+     *
+     * This used to append one entry per outer position with no padding, so a column first
+     * produced at outer position k landed at index 0. {@code {"g":[[{"a":1}],[{"b":2}]]}} emitted
+     * {@code g_a="[[1]]"} beside {@code g_b="[[2]]"}, and a consumer zipping the two columns by
+     * outer index read {@code a=1} and {@code b=2} as one nested group. They came from different
+     * groups. Same silent corruption the other two sites had, one level deeper.
+     * <p>
+     * It is now two passes: pass 1 records what each outer position produced, pass 2 materialises
+     * every column {@code limit} slots long. THE FILLER IS SHAPE-AWARE and that is the whole
+     * difficulty of this site. At the array-of-maps sites a column entry is a SCALAR, so
+     * {@code columnFor} fills a hole with a scalar {@code null}. Here a column entry is an INNER
+     * LIST, so a hole is an inner list of the right inner cardinality - the same rule one level
+     * down. A bare {@code null} appears only where the outer position holds no nested list at all.
+     *
+     * @see #columnFor the sibling rule, and why the two differ
      */
     private Map<String, List<Object>> extractFieldsPreservingStructure(List<?> list, int limit, int depth) {
-        Map<String, List<Object>> fieldStructures = new LinkedHashMap<>();
+        // PASS 1. `limit` is already min(size, maxArraySize) at both call sites, so the old
+        // processedCount guard could never fire and is gone.
+        List<NestedPosition> positions = new ArrayList<>(limit);
+        Set<String> names = new LinkedHashSet<>();
 
-        int processedCount = 0;
-        for (int i = 0; i < limit && processedCount < maxArraySize; i++) {
+        for (int i = 0; i < limit; i++) {
             Object item = list.get(i);
+            List<?> nestedList = asNestedList(item);
 
-            if (item instanceof List) {
-                List<?> nestedList = (List<?>) item;
-
-                // Recursively extract from nested list
-                Map<String, List<Object>> nestedFields = extractFieldsFromList(nestedList, depth + 1);
-
-                // BUGFIX: Handle empty nested lists - they must be preserved in structure
-                if (nestedList.isEmpty()) {
-                    // Empty nested array - we still need to record its position
-                    // Use _value sentinel key and add an empty list
-                    String sentinelKey = "_value";
-                    if (!fieldStructures.containsKey(sentinelKey)) {
-                        fieldStructures.put(sentinelKey, new ArrayList<>());
-                    }
-                    fieldStructures.get(sentinelKey).add(new ArrayList<>());
-                } else {
-                    // Merge into field structures, preserving nesting
-                    for (Map.Entry<String, List<Object>> entry : nestedFields.entrySet()) {
-                        String fieldName = entry.getKey();
-                        if (!fieldStructures.containsKey(fieldName)) {
-                            fieldStructures.put(fieldName, new ArrayList<>());
-                        }
-                        // Add the nested array as a single element (preserves structure)
-                        fieldStructures.get(fieldName).add(entry.getValue());
-                    }
-                }
-
-            } else if (item != null && item.getClass().isArray()) {
-                // Convert array to list and process
-                Class<?> componentType = item.getClass().getComponentType();
-                List<?> arrayAsList = componentType.isPrimitive()
-                        ? convertPrimitiveArray(item, componentType)
-                        : Arrays.asList((Object[]) item);
-
-                Map<String, List<Object>> nestedFields = extractFieldsFromList(arrayAsList, depth + 1);
-
-                for (Map.Entry<String, List<Object>> entry : nestedFields.entrySet()) {
-                    String fieldName = entry.getKey();
-                    if (!fieldStructures.containsKey(fieldName)) {
-                        fieldStructures.put(fieldName, new ArrayList<>());
-                    }
-                    fieldStructures.get(fieldName).add(entry.getValue());
-                }
-            } else {
-                // Non-array/non-map item at nested level - use sentinel key
-                String sentinelKey = "_value";
-                if (!fieldStructures.containsKey(sentinelKey)) {
-                    fieldStructures.put(sentinelKey, new ArrayList<>());
-                }
-                Object normalizedValue = item == null ? null :
-                        (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
-                fieldStructures.get(sentinelKey).add(normalizedValue);
+            if (nestedList == null) {
+                Object normalizedValue = item == null ? null
+                        : (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
+                positions.add(new NestedPosition(null, 0, normalizedValue));
+                names.add(VALUE_SENTINEL);
+                continue;
             }
 
-            processedCount++;
+            Map<String, List<Object>> nested = extractFieldsFromList(nestedList, depth + 1);
+            if (nested.isEmpty()) {
+                // An empty inner list, or an empty Java array. The List arm always recorded the
+                // position under the sentinel; the ARRAY arm recorded nothing at all, so the
+                // outer position vanished from every column and everything after it shifted left.
+                // Both are handled the same way now.
+                positions.add(new NestedPosition(nested, 0, null));
+                names.add(VALUE_SENTINEL);
+            } else {
+                positions.add(new NestedPosition(nested, innerEntryCount(nested), null));
+                names.addAll(nested.keySet());
+            }
         }
 
-        return fieldStructures;
+        return materialiseNestedColumns(limit, names, positions);
+    }
+
+    /** The nested list at an outer position, or {@code null} when the position holds neither. */
+    private List<?> asNestedList(Object item) {
+        if (item instanceof List) {
+            return (List<?>) item;
+        }
+        if (item != null && item.getClass().isArray()) {
+            Class<?> componentType = item.getClass().getComponentType();
+            return componentType.isPrimitive()
+                    ? convertPrimitiveArray(item, componentType)
+                    : Arrays.asList((Object[]) item);
+        }
+        return null;
+    }
+
+    /**
+     * The entry count the inner columns agree on.
+     *
+     * <p>Every arm of {@link #extractFieldsFromList} produces columns of equal length - the two
+     * array-of-maps arms through {@link #columnFor}, the primitive arm by construction, the
+     * maxDepth arm by returning one single-entry column, and the nested arm by this method's own
+     * caller. The MAXIMUM is taken rather than the first, so that if a future arm ever returns
+     * ragged columns the holes are still padded to the widest, and the outer alignment survives
+     * even though the inner would then be a separate defect.</p>
+     */
+    private static int innerEntryCount(Map<String, List<Object>> nested) {
+        int max = 0;
+        for (List<Object> column : nested.values()) {
+            max = Math.max(max, column.size());
+        }
+        return max;
+    }
+
+    /**
+     * PASS 2: one column per name, each exactly {@code limit} slots long, written by index.
+     *
+     * <p>Extracted from its caller so neither method carries the whole two-pass shape, which is
+     * how a cyclomatic-complexity ratchet gets raised by accident. Ratchets only go down.</p>
+     */
+    private static Map<String, List<Object>> materialiseNestedColumns(
+            int limit, Set<String> names, List<NestedPosition> positions) {
+
+        Map<String, List<Object>> columns = new LinkedHashMap<>();
+        for (String name : names) {
+            List<Object> column = new ArrayList<>(limit);
+            for (int i = 0; i < limit; i++) {
+                NestedPosition p = positions.get(i);
+                if (!p.holdsNestedList()) {
+                    // No nested list here at all, so there is no inner cardinality to honour and
+                    // a bare null is the honest slot. This is the ONLY shape in which a bare null
+                    // appears in a column of inner lists.
+                    column.add(VALUE_SENTINEL.equals(name) ? p.scalar() : null);
+                    continue;
+                }
+                List<Object> present = p.nested().get(name);
+                // A hole in a column of inner lists is an inner list, never a bare null and never
+                // an empty list. `[]` would collide head-on with the genuinely-empty-inner-array
+                // case that structural/array-of-arrays-with-empty-inner pins: "position i's inner
+                // array was empty" and "position i's inner array had elements, none of which
+                // carried this column" are different facts and must stay distinguishable.
+                column.add(present != null ? present : nestedHole(p.innerSize()));
+            }
+            columns.put(name, column);
+        }
+        return columns;
+    }
+
+    /** An inner-list hole of {@code innerSize} nulls; {@code []} exactly when the inner list was empty. */
+    private static List<Object> nestedHole(int innerSize) {
+        return new ArrayList<>(Collections.nCopies(innerSize, null));
     }
 
     /**
@@ -714,7 +811,7 @@ public class MapFlattener implements Serializable {
             }
             List<Object> stringified = new ArrayList<>();
             stringified.add(stringifyObject(list));
-            fields.put("_value", stringified);
+            fields.put(VALUE_SENTINEL, stringified);
             return fields;
         }
 
@@ -768,7 +865,7 @@ public class MapFlattener implements Serializable {
                     // Mixed content - non-map item in array of maps
                     Object normalizedValue = item == null ? null :
                             (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
-                    columnFor(fields, "_value", limit).set(i, normalizedValue);
+                    columnFor(fields, VALUE_SENTINEL, limit).set(i, normalizedValue);
                 }
             }
 
@@ -781,17 +878,24 @@ public class MapFlattener implements Serializable {
             Object item = list.get(i);
             values.add(item == null ? null : normalizePrimitive(item));
         }
-        fields.put("_value", values);
+        fields.put(VALUE_SENTINEL, values);
         return fields;
     }
 
     /**
-     * The one place the positional-hole invariant is established.
+     * The SCALAR half of the positional-hole invariant - the two array-of-maps sites.
      *
      * <p>Returns the existing column for {@code key}, or creates one already {@code size} entries
      * long and filled with nulls. Callers then write with {@code set(i, value)}, so element
      * {@code i}'s value is at index {@code i} and an element that did not carry the column leaves
      * an explicit null exactly where it sits.</p>
+     *
+     * <p>THERE ARE TWO FILLERS, NOT ONE, and they sit at different levels. This one fills with a
+     * scalar {@code null} because a column entry here IS a scalar. One level out, at
+     * {@link #extractFieldsPreservingStructure}, a column entry is an INNER LIST and the hole is
+     * an inner list of nulls - see {@code nestedHole}. The two are deliberately different and
+     * must not be unified: a bare null among inner lists changes the slot's type, which is the
+     * objection that deferred the nested-array repair in the first place.</p>
      *
      * <p>A column that is born the right length cannot be shifted by a later append, which is the
      * whole point: the defect this replaces was an append loop plus a tail pad, and the tail pad
