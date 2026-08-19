@@ -1064,8 +1064,10 @@ public class FileFinder {
                 LOG.trace("URLConnection returned no stream to release");
             }
         } catch (IOException | RuntimeException nothingToRelease) {
-            LOG.trace("No stream to release from URLConnection: {}",
-                    nothingToRelease.getMessage());
+            // Constant format string, exception passed as the throwable argument. Interpolating
+            // getMessage() here would be a CRLF_INJECTION_LOGS finding on a trace line that adds
+            // nothing a stack trace does not already carry.
+            LOG.trace("No stream to release from URLConnection", nothingToRelease);
         }
     }
 

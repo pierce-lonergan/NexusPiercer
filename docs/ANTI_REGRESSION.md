@@ -208,7 +208,7 @@ works", not "works".
 | Dependency review (new deps) | Live, blocking |
 | CodeQL | Live |
 | SBOM generation | Live |
-| Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 361 / 241) |
+| Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 323 / 231) |
 | OWASP CVE scan | **Reporting only** — two known CVEs to clear first |
 | JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md) |
 | ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. Currently 413, reported not gated |
