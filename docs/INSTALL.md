@@ -85,7 +85,7 @@ version from the root `pom.xml` — building `main` gives you the snapshot, not 
 </dependency>
 ```
 
-Run the full suite (2,689 tests, about 5 minutes — 2,689 test invocations on Maven's summary line)
+Run the full suite (2,707 tests, about 5 minutes — 2,707 test invocations on Maven's summary line)
 if you want to verify the build yourself:
 
 ```bash

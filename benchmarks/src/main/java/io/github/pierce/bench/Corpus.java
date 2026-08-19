@@ -51,7 +51,7 @@ public final class Corpus {
     // ------------------------------------------------------------------ shapes
 
     /**
-     * 1 record, 1,000 scalar fields at depth 1, mixed types, ~45 KB serialized.
+     * 1 record, 1,000 scalar fields at depth 1, mixed types, 24,665 bytes serialized.
      *
      * <p>Everything here costs O(keys) and nothing costs O(depth), so a change that halves
      * per-key work shows up cleanly with no structural confound.</p>
@@ -71,7 +71,7 @@ public final class Corpus {
     }
 
     /**
-     * Depth 24, exactly one field per level, one leaf value, ~2 KB serialized.
+     * Depth 24, exactly one field per level, one leaf value, 314 bytes serialized (834 at 64).
      *
      * <p>Deliberately tiny so that anything measurable is depth-driven rather than size-driven.
      * This is the discriminating corpus for the per-node map allocation in {@code MapFlattener}
@@ -90,7 +90,7 @@ public final class Corpus {
     }
 
     /**
-     * 20 scalar arrays x 500 elements, plus 5 arrays-of-records x 100 x 8 fields. ~600 KB.
+     * 20 scalar arrays x 500 elements, plus 5 arrays-of-records x 100 x 8 fields. 189,951 bytes.
      *
      * <p>The allocation-rate headline corpus: 14,000 leaves, which is what it is for.</p>
      *
@@ -131,7 +131,7 @@ public final class Corpus {
     }
 
     /**
-     * 200 fields, each a 3-branch union, ~12 KB.
+     * 200 union fields plus 3 date/union extras - 203 top-level fields, 5,825 bytes.
      *
      * <p>Value distribution is skewed on purpose: 15% null and 70% matching the LAST branch, so
      * trial-and-error branch selection pays its worst realistic cost. Includes a US-format
@@ -165,8 +165,8 @@ public final class Corpus {
     }
 
     /**
-     * The headline corpus: 250 fields, depth 4, 12 arrays with a realistic size distribution
-     * (p50 = 8, mean ~30, p99 = 400), 40% nullable. ~35 KB per record.
+     * The headline corpus: 236 top-level fields, depth 4, 12 arrays with a realistic size
+     * distribution (p50 = 8, mean ~30, p99 = 400), 40% nullable. 11,356 bytes per record.
      *
      * <p>Field names are snake_case and therefore contain the separator, which makes this a live
      * regression test for key injectivity as well as a performance benchmark.</p>

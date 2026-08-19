@@ -10,6 +10,14 @@ benchmarks, 43 rows.
 > three repeat runs of the same bytecode during this pass, `consolidate_arrayHeavy` varied by 480
 > bytes in 8.17 million (0.006%) while its wall-clock varied by 23%. See
 > [ANTI_REGRESSION.md](ANTI_REGRESSION.md).
+>
+> **How near is "near-deterministic": measured.** Four further runs of one unchanged bytecode on
+> 2026-08-19 reproduced `consolidate_wideFlat` to 0.07 B, `consolidate_deepNarrow` to 0.001 B and
+> `consolidate_arrayHeavy` to 1,442 B in 7.66 M (0.019%). The largest fork-to-fork difference
+> anywhere in the suite was `consolidate_mixedProduction` `avgt`: 840 B in 300 K, **0.28%**, and
+> it reproduced in both modes on the second run, so the baseline's `avgt` fork is the outlier
+> rather than today's. Read 0.3% as the observed floor of this counter and the 2% Tier-1 band as
+> having real room in it — but not as having 2% of room.
 
 > **The counter is machine-independent, not JVM-independent.** This is recorded on JDK 21 and
 > `.github/workflows/benchmark.yml` installs JDK 17. `gc.alloc.rate.norm` comes from
@@ -58,6 +66,11 @@ Plus `consolidate_batch1000`, which is throughput-only and so has no µs/op row:
 299,448,647 B/op**. It is 999.99x `consolidate_mixedProduction` and always has been, which means
 batching adds no measurable per-batch overhead and the two are **not independent data points**.
 It is the externally-quoted number; quote it with that caveat attached.
+
+Every figure in that table and in the sentence above it is checked against
+`benchmarks/results/baseline.json` by `PublishedBenchmarkNumbersMatchTheBaselineTest`, because a
+number in this document that disagrees with the file the gate actually reads is how a REVERTED
+iteration's measurement came to be published as a shipped result.
 
 The last four rows of the table are the first measurements this repository has ever gated for
 `AvroReconstructBenchmark` and `SchemaCacheCliffBenchmark`. Eight entries — including every
@@ -118,9 +131,13 @@ flattener performing millions of small operations allocates on every one of them
 overhead is a constant factor the JIT can attack; allocation is garbage the JIT cannot remove
 once it escapes.
 
-The earlier figure of 25.54 MB allocated to flatten a **45 KB** document — 560x amplification —
-was flagged as implausible when it was recorded. It was real. At 0.539 MB the amplification is
-~12x, which is merely unremarkable for a flattener that materialises 1,000 map entries.
+The earlier figure of 25.54 MB allocated to flatten `wideFlat` was flagged as implausible when it
+was recorded, and was published here as **560x** amplification against a document this repository
+described as "~45 KB". It was real, and it was worse than published: `wideFlat` was measured on
+2026-08-19 at **24,665 bytes**, so the amplification was **1,035x**. At 0.539 MB it is **~22x**,
+not the ~12x this paragraph used to claim. Both old figures were arithmetic on a document size
+nobody had ever measured — every corpus size in `benchmarks/README.md` was 1.8x to 6.5x too large,
+and anything derived per-byte inherited the error.
 
 **The honest summary:** this was predicted at 1.5–3x and measured at 8–47x on allocation. The
 prediction was not conservative, it was wrong, and it would have stayed wrong without the harness.
@@ -128,20 +145,93 @@ prediction was not conservative, it was wrong, and it would have stayed wrong wi
 ## What the 2026-08-19 pass changed, predicted against measured
 
 Four optimizations attempted, three kept, one reverted. Allocation leads because it is the
-deterministic counter; wall-clock is corroboration only. Every run reported its natural control
-alongside its target, and the controls held: `mapFlatten_arrayHeavy` and `mapFlatten_wideFlat`
-were flat **to the byte** (+0.00%) across all nine measurement runs of the pass.
+deterministic counter; wall-clock is corroboration only.
 
-Starting point measured on this machine at HEAD *before* any change — **not** the figure the
-previous baseline published, which was 26 commits stale:
+**The before/after below is one same-session A/B, re-measured end to end by the adversarial-review
+follow-up rather than assembled from four separate runs' notes.** The library was rebuilt at
+`7446651` — the commit before the first optimization — in a scratch worktree, installed, and the
+harness rebuilt against it; the six benchmarks were run; the tree was then restored to HEAD, the
+harness rebuilt, its *contents* checked class-by-class against `target/classes`, and the identical
+filter re-run. The two runs demonstrably measured different bytecode:
+`JsonFlattenerConsolidator.class` is md5 `09782540…` at `7446651` and `048b4873…` at HEAD.
+Protocol both sides: `-f 1 -wi 3 -i 5 -w 1s -r 1s -prof gc`, JDK 21.0.7 Temurin, 2 GB heap, same
+machine, 100 minutes apart, `avgt` mode except `batch1000`.
 
-| Benchmark | published baseline | actual HEAD | after this pass | total |
-|---|---:|---:|---:|---:|
-| `consolidate_arrayHeavy` | 23,124,060 | 15,637,015 | **7,663,876** | −51.0% vs actual |
-| `consolidate_mixedProduction` | 859,875 | 804,954 | **300,297** | −62.7% |
-| `consolidate_wideFlat` | 622,540 | 622,540 | **398,449** | −36.0% |
-| `consolidate_deepNarrow` | 13,912 | 13,888 | **13,504** | −2.8% |
-| `consolidate_batch1000` | 859,866,333 | — | **299,448,647** | −65.2% |
+| Benchmark | before B/op | after B/op | Δ alloc | before µs/op | after µs/op | Δ time |
+|---|---:|---:|---:|---:|---:|---:|
+| `consolidate_arrayHeavy` | 15,637,016 | 7,662,434 | **−51.0%** | 4,520.9 | 2,860.1 | −36.7% |
+| `consolidate_mixedProduction` | 804,954 | 299,457 | **−62.8%** | 326.0 | 98.7 | −69.7% |
+| `consolidate_wideFlat` | 622,540 | 398,449 | **−36.0%** | 469.3 | 147.0 | −68.7% |
+| `consolidate_deepNarrow` | 13,912 | 13,632 | **−2.0%** | 71.68 | 1.83 | **39.2x** |
+| `consolidate_batch1000` † | 804,946,331 | 299,448,660 | **−62.8%** | 2.527 | 10.120 | 4.01x |
+| **control** `mapFlatten_arrayHeavy` | 2,486,303.73 | 2,486,303.93 | +0.000008% | 1,114.3 | 1,119.2 | **+0.44%** |
+| **control** `mapFlatten_wideFlat` | 538,576.997 | 538,576.974 | −0.000004% | 143.7 | 140.5 | **−2.22%** |
+
+† throughput-only, so its last three columns are ops/s, not µs/op.
+
+**One published number in the previous version of this table was wrong: `consolidate_deepNarrow`
+read 13,504, which is the measurement from iteration 5 — the iteration that was REVERTED.** The
+shipped value is 13,632, recorded in `benchmarks/results/baseline.json` in the same commit that
+published the 13,504, and reproduced in three independent JMH runs on this tree today, in both
+modes, spanning 13,632.012 to 13,632.014 B/op. The table therefore credited the pass with 128
+bytes that no code in the tree saves. Nothing bound the document to the baseline file;
+`PublishedBenchmarkNumbersMatchTheBaselineTest` now does.
+
+### The controls, and the correction to how they were reported
+
+`MapFlattener` was not touched by any iteration in this pass, so `mapFlatten_arrayHeavy` and
+`mapFlatten_wideFlat` are the natural control group — same machine, same harness, same corpora,
+same JVM invocations as the treatments.
+
+The previous version of this section reported those controls **as allocation only**: "flat to the
+byte (+0.00%) across all nine measurement runs". The adversarial review was right that this is not
+enough. `gc.alloc.rate.norm` is machine-independent by construction — this document says so at the
+top, and RULE 4 of the pass brief is premised on it — so a control measured only in bytes *cannot*
+move when the machine moves. It establishes attribution (the code path was untouched) and says
+nothing whatever about environmental stability, which is the other half of what a control is for.
+Two of this pass's headline claims are wall-clock, and neither had a wall-clock control beside it.
+
+Both metrics are reported above now. Across the 100 minutes separating the two runs the controls
+moved **+0.44%** and **−2.22%** on wall-clock while the treatments moved −36.7% to −97.4%; on
+allocation the same controls moved +0.000008% and −0.000004%. Measured twice at HEAD nine minutes
+apart, those two controls differed by 0.4% and 5.0% on wall-clock while their allocation figures
+agreed to 0.06 B. A workstation timing figure carries
+several percent of noise in either direction; the allocation counter carries about a millionth of
+one. That contrast is the reason this document leads with bytes — and the reason a timing headline
+needs a timing control, not a byte control.
+
+### Against what the previous baseline published
+
+The baseline this pass replaced was 26 `src/main` commits stale, so three of the five "before"
+figures above are **not** the ones previously published, and that gap is not the pass's doing:
+
+| Benchmark | stale published baseline | measured at `7446651` | overstatement |
+|---|---:|---:|---:|
+| `consolidate_arrayHeavy` | 23,124,060 | 15,637,016 | 1.48x |
+| `consolidate_mixedProduction` | 859,875 | 804,954 | 1.07x |
+| `consolidate_batch1000` | 859,866,333 | 804,946,331 | 1.07x |
+| `consolidate_wideFlat` | 622,540 | 622,540 | none |
+| `consolidate_deepNarrow` | 13,912 | 13,912 | none |
+
+Quoting the stale column would credit this pass with −66.9% on `arrayHeavy` and −65.2% on
+`batch1000`. The honest figures are −51.0% and −62.8%. The earlier version of this table published
+the −65.2% precisely because it had no measurement of `batch1000` at `7446651` to divide by and
+left that cell empty; the cell is filled now.
+
+**The baseline file was NOT re-recorded for this follow-up, deliberately.** `src/main` is
+byte-identical from `bb8e988` through this commit — `git diff bb8e988 HEAD -- src/main` is empty —
+so `benchmarks/results/baseline.json` still describes exactly the bytecode that ships, and
+re-recording it would only bank one more run's noise into the gate's reference. Future comparisons
+therefore keep the same reference: a PR is measured against numbers recorded at `740d532` on
+JDK 21, and the 2% Tier-1 band is measured from there. The one figure in it worth knowing about is
+`consolidate_mixedProduction` `avgt`, recorded at 300,297 B/op and reproduced today at 299,457 in
+both modes — a 0.28% fork-to-fork difference, the largest seen in this suite, and in the safe
+direction (a future run reproducing 299,457 reads as an improvement, not a regression).
+
+The four iteration sections below keep the pass's own per-iteration measurements. Those were made
+one change at a time and are **not** re-measured here — re-running them would mean rebuilding four
+intermediate trees, and the end-to-end A/B above already confirms where they landed in aggregate.
+Read the per-iteration deltas as that pass's record and the table above as this one's.
 
 ### Iteration 1 — character scans replace the two per-key regexes · KEPT
 
@@ -154,14 +244,17 @@ Measured: `wideFlat` **−35.98%**, `arrayHeavy` **−40.0%** (−6.26 MB), `mix
 Two of the four landed inside the predicted band; `arrayHeavy` came in *above* it and
 `mixedProduction` *below* it. The `deepNarrow` prediction was the interesting one: one analysis
 predicted −35% there on the belief that the corpus has 24 keys. `deepNarrow(24)` is a single
-nested chain and produces exactly **one** flattened key, so one Matcher out of 13,888 bytes was
+nested chain and produces exactly **one** flattened key, so one Matcher out of 13,912 bytes was
 all there was to win. That analysis was refuted before measuring, and the measurement agreed.
 
-The wall-clock is the outlier of the whole pass, and it is not the Matcher. `deepNarrow`
-allocates 1.4% less and runs **39x faster** (70.4 to 1.8 µs). The pattern `(.+?)\[(\d+)\](.*)`
-against a ~200-character key containing no bracket forces the reluctant quantifier to try every
-start position against every expansion — quadratic backtracking, paid once per key. `deepNarrow`
-has one very long key; `wideFlat` pays it a thousand times and dropped 71%.
+The wall-clock is the outlier of the whole pass, and it is not the Matcher. `deepNarrow` allocates
+1.4% less at this iteration (2.0% across the pass) and runs **39.2x faster** — 71.68 → 1.83 µs in
+the end-to-end pair above, and 40.2x against a second HEAD run nine minutes later. The pattern
+`(.+?)\[(\d+)\](.*)` against a ~200-character key containing no bracket forces the reluctant
+quantifier to try every start position against every expansion — quadratic backtracking, paid once
+per key. `deepNarrow` has one very long key; `wideFlat` pays it a thousand times and dropped
+**68.7%** (469.3 → 147.0 µs). The wall-clock controls moved +0.44% and −2.22% across that same
+pair, which is what licenses reading 39.2x and −68.7% as the code rather than as the machine.
 
 ### Iteration 2 — hoist the `Pattern.compile` out of the per-group loop · KEPT
 
@@ -214,18 +307,66 @@ Recorded here so nobody spends the afternoon rediscovering it.
 
 ## Remaining headroom
 
-`consolidate_arrayHeavy` is still the largest single-document allocator at **7.66 MB/op**, 3.1x
-the next entry (`mapFlatten_arrayHeavy`). It is no longer 9x, and the exception-driven type
-detection that used to be blamed for it is long gone — that shipped in `843a461` on 2026-08-09,
-and after iteration 4 the residual `parseDouble` cost is gone too.
+Ranked by measured allocation at HEAD, against measured corpus sizes. Every document size below
+was measured on 2026-08-19; the sizes this section used to divide by were estimates that ran 1.8x
+to 6.5x high, so every per-byte figure it previously published was wrong by that factor.
 
-What is left there has **not** been attributed by measurement, and this document should not
-pretend otherwise. At 14,000 leaves and 7.66 MB the figure is ~547 B/leaf, spread across
-Jackson's `readTree`, 14,000 `FlattenTask` objects and prefix strings, 14,000 `LinkedHashMap`
-entries, 14,000 `KeyedValue` objects and the stripped base keys. **Before optimizing further, run
-an allocation class histogram.** Every estimate in this section is arithmetic rather than
-observation, and this pass has already shown such estimates to be wrong by a factor of four in
-both directions.
+| # | Benchmark | B/op | input | amplification |
+|---:|---|---:|---:|---:|
+| 1 | `consolidate_arrayHeavy` | 7,663,876 | 189,951 B | 40.3x |
+| 2 | `mapFlatten_arrayHeavy` | 2,486,304 | 189,951 B | 13.1x |
+| 3 | `reconstruct_arrayHeavy` | 887,914 | † | † |
+| 4 | `roundTrip_mixedProduction` | 651,705 | 11,356 B | 57.4x |
+| 5 | `reconstruct_wideFlat` | 578,105 | † | † |
+| 6 | `mapFlatten_wideFlat` | 538,577 | 24,665 B | 21.8x |
+| 7 | `consolidate_wideFlat` | 398,449 | 24,665 B | 16.2x |
+| 8 | `reconstructToJson_mixedProduction` | 356,282 | † | † |
+| 9 | `reconstruct_mixedProduction` | 338,859 | † | † |
+| 10 | `mapFlatten_mixedProduction` | 314,457 | 11,356 B | 27.7x |
+| 11 | `consolidate_mixedProduction` | 300,297 | 11,356 B | 26.4x |
+| — | `mapFlatten_deepNarrow64` | 69,000 | 834 B | 82.7x |
+
+† the reconstruct path is fed a flattened map, not the JSON document, so a ratio against the
+document size would not mean anything. Left blank rather than filled with a plausible number.
+
+**1. `consolidate_arrayHeavy`, 7.66 MB/op.** Still the largest single-document allocator, 3.08x
+the next entry. It is no longer 9x, and the exception-driven type detection once blamed for it is
+long gone — that shipped in `843a461` on 2026-08-09, and iteration 4 removed the residual
+`parseDouble` cost. What remains has **not** been attributed by measurement and this document
+should not pretend otherwise. The arithmetic: 14,000 input leaves → **547 B/leaf**; 420 output keys
+→ **18.2 KB per output key**; 40.3x the document itself. Candidates are Jackson's `readTree`,
+14,000 `FlattenTask` objects and prefix strings, 14,000 `LinkedHashMap` entries, 14,000
+`KeyedValue` objects and the stripped base keys — all of that is arithmetic, not observation.
+**Before optimizing it further, run an allocation class histogram**; this pass has already shown
+such estimates wrong by a factor of four in both directions.
+
+**2. `MapFlattener`'s per-node map, now measured rather than asserted.** `benchmarks/README.md`
+has listed "a per-node map allocation — `MapFlattener.flattenValue` allocates a throwaway
+`LinkedHashMap` per value and is still there" as an unmeasured drill. Measured now, with
+`ThreadMXBean.getThreadAllocatedBytes` over 20,000 warmed iterations per point at depths 8 to 96:
+
+| depth | 8 | 16 | 24 | 32 | 48 | 64 | 96 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| B/op | 7,204 | 13,696 | 21,648 | 30,096 | 48,680 | 70,040 | 119,848 |
+
+A least-squares fit of `a·d + b·d²` gives **786 B per level plus 4.81 B per level²**, and
+reproduces six of the seven points to within 0.8% (depth 8 is 8% off, which is the constant term
+the model omits). Two things follow, and they qualify the roadmap's framing of JFLAT-04 rather
+than confirming it:
+
+* The quadratic term is **real** and its coefficient is close to the predicted cost of rebuilding
+  the prefix at every level: a level-`i` prefix of `level_NN.` keys is roughly `8i` bytes, and
+  Σ 8i ≈ 4d², against a fitted 4.81.
+* It is **not** the dominant cost at realistic depths. The quadratic share is 12.8% at depth 24,
+  28% at 64 and 37% at 96. The linear 786 B/level term — one throwaway `LinkedHashMap`, its table,
+  its entry and the level's key string, per level — is the larger prize until depth ~90.
+
+For scale against the rest of the suite: at depth 24 that is 21,248 B to flatten a **314-byte**
+document with exactly one leaf, i.e. 67.7x amplification, the worst ratio in the corpus.
+
+**3. `consolidate_batch1000` is not an independent data point.** It measures 999.97x
+`consolidate_mixedProduction` and always has. Optimizing "the batch number" means optimizing the
+single-record number; there is no per-batch overhead to find.
 
 Two structural items are known, and both are out of scope for a performance pass because both
 change output:

@@ -20,12 +20,14 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COMPARE = os.path.join(HERE, "compare.py")
+README = os.path.join(HERE, "README.md")
 
 
 def entry(name, mode="avgt", score=100.0, error=1.0, alloc=1000.0, ci=None):
@@ -56,9 +58,12 @@ def run(base, curr, *extra, waivers=None):
 
 
 FAILURES = []
+DRILLS = 0
 
 
 def expect(label, condition, detail=""):
+    global DRILLS
+    DRILLS += 1
     if condition:
         print(f"  PASS  {label}")
     else:
@@ -169,11 +174,25 @@ def main():
     code, out = run(pbase, [param_entry(2, 1000.0)])
     expect("a dropped @Param row is caught", code == 1, out)
 
+    # ---- VERIFY THE COUNT, NEVER THE EXIT CODE ----------------------------------------------
+    # benchmarks/README.md published "23 drills" while this file emitted 24, and the commit
+    # message repeated the wrong figure. A published count that drifts is the same class of
+    # defect the project's "verify the COUNT" doctrine exists to catch, so the count is now
+    # checked against the count that actually ran rather than transcribed by hand.
+    with open(README, encoding="utf-8") as handle:
+        published = re.search(r"`test_compare\.py` runs \*\*(\d+) drills\*\*", handle.read())
+    expect(f"benchmarks/README.md publishes {DRILLS + 1} drills for this file",
+           published is not None and int(published.group(1)) == DRILLS + 1,
+           "README says " + (published.group(1) if published else
+                             "nothing in the form '`test_compare.py` runs **N drills**' - THE "
+                             "ANCHOR MUST BIND, rewording it out of existence stops the count "
+                             "being checked at all"))
+
     print()
     if FAILURES:
-        print(f"{len(FAILURES)} DRILL(S) FAILED: {FAILURES}")
+        print(f"{len(FAILURES)} of {DRILLS} DRILL(S) FAILED: {FAILURES}")
         return 1
-    print("all drills passed")
+    print(f"all {DRILLS} drills passed")
     return 0
 
 

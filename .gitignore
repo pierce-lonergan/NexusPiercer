@@ -60,3 +60,8 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### Python (benchmarks/ drill scripts) ###
+# test_check_harness_fresh.py imports check_harness_fresh.py by path, so running the drills
+# leaves a __pycache__ beside them. Added 2026-08-19 with those drills.
+__pycache__/
+*.pyc

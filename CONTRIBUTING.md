@@ -23,14 +23,16 @@ resolving to *different* JDKs is a known source of confusing failures here.
 ./mvnw verify
 ```
 
-That runs the full suite (2,689 test invocations, roughly 4 minutes). Faster loops:
+That runs the full suite (2,707 test invocations, roughly 4 minutes). Faster loops:
 
 **Read the count from Maven's `Tests run:` summary line, not from the surefire XML.** Summing
-`target/surefire-reports/*.xml` UNDERCOUNTS here by **exactly 532** — measured 2,157 against
-Maven's 2,689 test invocations on 2026-08-19 — because `@Nested` classes emit a separate report
+`target/surefire-reports/*.xml` UNDERCOUNTS here by **exactly 536** — measured 2,171 against
+Maven's 2,707 test invocations on 2026-08-19 — because `@Nested` classes emit a separate report
 per nested class
-while the outer class's own report records `tests="0"`. The gap has been 532 at every measurement
-since 2026-08-17, when the suite was 1,840 against 2,372. The Maven summary line is authoritative.
+while the outer class's own report records `tests="0"`. The gap was 532 at every measurement from
+2026-08-17 (1,840 against 2,372) until 2026-08-19, when two differential test classes added by the
+performance pass moved it to 536 — each contributes two more invocations to Maven's count than to
+its own `tests=` attribute, which the `@Nested` explanation above does not cover. The Maven summary line is authoritative.
 
 Both figures are gated. `PublishedProjectFactsMatchTheSourceTest` reads EVERY occurrence of the
 phrase `N test invocations` in this file, `docs/INSTALL.md` and `docs/ANTI_REGRESSION.md` and

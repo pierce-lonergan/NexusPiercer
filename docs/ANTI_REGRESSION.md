@@ -211,7 +211,7 @@ works", not "works".
 |---|---|
 | CI on every push and PR | Live |
 | JDK 17 + 21, Linux + Windows matrix | Live |
-| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,689 test invocations now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
+| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,707 test invocations now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
 | Cold-clone reproducibility check | Live |
 | No Groovy anywhere / no Groovy or Spock coordinate | Live — `ci.yml` job `no Groovy anywhere`, on every unfiltered push and PR |
 | ~~Single-Groovy-compile assertion~~ | **Removed 2026-08-11** — superseded by the row above; the plugin it guarded no longer exists, so it could only ever pass |
@@ -244,8 +244,9 @@ This table named NONE of them until 2026-08-19, while README pointed here for ex
 | `DependencyMapImportTreesAreRealTest` | An `Imports:` tree in `DEPENDENCY_MAP.md` naming an `io.github` import the class no longer has — the sibling of the row above, added after a sweep corrected that file's table and prose and left its two literal import trees saying `FileFinder`. |
 | `ConfigKnobJavadocMatchesItsWiringTest` | A javadoc calling a `JsonFlattenerConfig` knob inert while its getter is read in `src/main`. Each knob is described in five places; 2.1.0 wired four up and left two of the descriptions saying the opposite. |
 | `FlattenerFamilyDiagramTest` | README's family diagram omitting a flattener, drawing a false edge, or mislabelling corpus coverage. |
-| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. Reads EVERY occurrence of `N test invocations` in the three documents, not the first — a pass corrected `CONTRIBUTING.md` line 26 and left line 30 four lines below it stale, and the gate stayed green. Also checks the surefire-XML pair and the stated 532 gap. |
+| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. Reads EVERY occurrence of `N test invocations` in the three documents, not the first — a pass corrected `CONTRIBUTING.md` line 26 and left line 30 four lines below it stale, and the gate stayed green. Also checks the surefire-XML pair and the stated gap, which moved 532 -> 536 on 2026-08-19. It compares the documents to the number recorded in the baseline, NOT to a run: when the performance pass added three test classes and left the recorded count at 2,689, all four figures were stale together and this gate stayed green. |
 | `ChangelogPreambleMatchesItsOwnSectionTest` | The changelog's "N places" summary disagreeing with the number of items beneath it, **and the throw sentence disagreeing with itself** — `across N items` against the count of distinct items it names, and its restatement below the section heading against its own leading count. Both had drifted while the first three checks stayed green, because none of them compared the preamble to itself. |
+| `PublishedBenchmarkNumbersMatchTheBaselineTest` | A benchmark figure in `docs/PERFORMANCE.md` disagreeing with `benchmarks/results/baseline.json`, the file `compare.py` actually reads. Checks all 24 rows of the results table on three columns, the throughput-only batch sentence, and the pass table's "after" column within a measured 0.5% reproduction band. Written because the pass published `consolidate_deepNarrow` at 13,504 - the measurement from the iteration it had just REVERTED - against a recorded 13,632, and nothing bound the two. |
 | `FileFinderBaselineFootprintTest` | The published size of `FileFinder`'s released API footprint drifting from the baseline file. |
 | `SpotBugsExcludeHasNoBlanketClassBlockTest` | A class-wide `<Match>` with no `<Method>` narrowing — how ten real findings hid for a year. |
 | `NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest` | A private method with no caller in the classes that exclude block used to cover. |
@@ -270,6 +271,21 @@ only — see [BL-021].
 The first attempt at that second drill produced a **false pass**: it exited 1, but from a
 `FileNotFoundError` rather than a gate decision. Worth recording, because an exit code alone does
 not tell you the gate fired — the drill has to assert on the reported reason.
+
+**The harness-freshness check was drilled on 2026-08-19 and FAILED the drill**, which is why it
+was rewritten. The check existed to catch a benchmark run against a stale library artifact; run
+against exactly that state — a pre-pass `nexus-piercer` jar left in `~/.m2`, the harness rebuilt
+from it, every source file older than the resulting jar — it printed "Harness is fresh" and
+exited 0, because it compared modification times and never opened the jar. It now compares the
+205 `io/github/pierce/**.class` entries inside `benchmarks.jar` byte-for-byte against
+`target/classes`, and `benchmarks/test_check_harness_fresh.py` holds 22 drills including that
+incident reproduced in a temporary directory. It was also drilled against a copy of this
+repository's real `target/classes`, in both directions, before being committed.
+
+`PublishedBenchmarkNumbersMatchTheBaselineTest` was drilled the same day, in three directions:
+restoring the reverted iteration's 13,504 into the pass table (blocked, "0.94% apart"), moving one
+`MB alloc/op` cell by 0.001 (blocked, named the cell), and rewording both table headers so the
+gate could no longer find its rows (blocked, "THE ANCHOR MUST BIND").
 
 The four CI-level drills (syntax error, coverage drop, hoisted `Pattern.compile`, per-node
 allocation) still need to be run against a live pull request before the pipeline as a whole can

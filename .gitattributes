@@ -1,2 +1,18 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# GOLDEN RECORDINGS ARE PINNED TO LF, AND THIS LINE IS LOAD-BEARING.
+#
+# consolidator-golden.txt is written by ConsolidatorByteIdentityGoldenTest's recorder with an
+# explicit '\n' and read back with body.split("\n", -1). Under `* text=auto` with
+# core.autocrlf=true - the default on Windows, which is where this project is developed - a fresh
+# checkout rewrites it to CRLF, every recorded value gains a trailing carriage return, and all
+# 704 cases are reported as CHANGED. The gate then tells the contributor that the consolidator
+# emits different bytes and that a performance pass must be REVERTED, when nothing in the library
+# moved at all.
+#
+# Measured on 2026-08-19: `git worktree add` of an unmodified HEAD on Windows produced a 192,222
+# byte file against the 190,814 bytes the recorder writes (1,408 CRLF pairs), and
+# `./mvnw -o clean verify` failed there while the same commit passed in a working tree whose copy
+# had never been re-checked-out. Linux CI never saw it, because a checkout there leaves LF.
+src/test/resources/consolidator-golden.txt text eol=lf

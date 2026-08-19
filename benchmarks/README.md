@@ -53,13 +53,21 @@ Five shapes, each isolating one complexity dimension. The point of separate corp
 one "realistic" blob is attribution — when a number moves, you need to know which property of the
 input moved it.
 
-| Corpus | Shape | Isolates |
-|---|---|---|
-| `wideFlat` | 1,000 scalar fields, depth 1, ~45 KB | Cost linear in key count, no structural confound |
-| `deepNarrow` | depth 24 (and 64), one field per level, ~2 KB | Depth-driven cost; quadratic-in-depth effects |
-| `arrayHeavy` | 20 arrays x 500 + 5 record-arrays x 100 x 8, ~600 KB | Per-element cost and allocation rate |
-| `unionNullable` | 200 three-branch unions, skewed to the last branch, ~12 KB | **Generated but never measured** — no `@Benchmark` consumes it |
-| `mixedProduction` | 250 fields, depth 4, 12 arrays (p50 8 / p99 400), ~35 KB | Headline number; realistic shape |
+| Corpus | Shape | Serialized | Isolates |
+|---|---|---:|---|
+| `wideFlat` | 1,000 scalar fields, depth 1 | 24,665 B | Cost linear in key count, no structural confound |
+| `deepNarrow` | depth 24, one field per level (64 also built) | 314 B (834 B at 64) | Depth-driven cost; quadratic-in-depth effects |
+| `arrayHeavy` | 20 arrays x 500 + 5 record-arrays x 100 x 8 — 14,000 leaves | 189,951 B | Per-element cost and allocation rate |
+| `unionNullable` | 200 three-branch unions skewed to the last branch, plus 3 date/union extras | 5,825 B | **Generated but never measured** — no `@Benchmark` consumes it |
+| `mixedProduction` | 236 top-level fields, depth 4, 12 arrays (p50 8 / p99 400) | 11,356 B | Headline number; realistic shape |
+
+**Every size in that column was published 1.8x to 6.5x too large until 2026-08-19** — "~45 KB",
+"~2 KB", "~600 KB", "~12 KB", "~35 KB", and "250 fields" for a document with 236. The figures now
+shown are measured: `Corpus.toJson(...)` — which is `writeValueAsString`, i.e. compact JSON, which
+is exactly what the benchmarks feed — counted as UTF-8 bytes. The error was not confined to this
+table; `docs/PERFORMANCE.md` divided an allocation figure by the fictional 45 KB and published a
+"560x amplification" that is really 1,035x. Anything derived from a document size, per-byte or
+per-field, was wrong by the same factor.
 
 Two properties are non-negotiable in the generator:
 
@@ -103,11 +111,16 @@ The drills are now executable. Run them:
 python benchmarks/test_compare.py
 ```
 
-23 drills, added 2026-08-19, covering both directions. Until then **nothing exercised
-`compare.py` at all** — `docs/ANTI_REGRESSION.md` records exactly two manual drills, both of
-which injected a regression and watched it block, and one of which was itself a false pass (it
-exited 1 from a `FileNotFoundError` rather than from a gate decision). Every drill therefore
-asserts the reported REASON as well as the exit code.
+`test_compare.py` runs **25 drills**, added 2026-08-19, covering both directions. Until then
+**nothing exercised `compare.py` at all** — `docs/ANTI_REGRESSION.md` records exactly two manual
+drills, both of which injected a regression and watched it block, and one of which was itself a
+false pass (it exited 1 from a `FileNotFoundError` rather than from a gate decision). Every drill
+therefore asserts the reported REASON as well as the exit code.
+
+The 25th drill is this sentence. The file published "23 drills" while emitting 24, so each drill
+file now reads its own count out of this README and fails if the two disagree — a published count
+that drifts is the same defect as a published suite size that drifts, and this project's doctrine
+is to verify the count rather than the exit code.
 
 The drills that mattered were the ones nobody had run — the states where the gate reports success
 because it measured nothing. All four were real, and all four are fixed:
@@ -142,6 +155,31 @@ python benchmarks/check_harness_fresh.py
 
 That one is not hypothetical either: it was hit during the 2026-08-19 pass, by the person writing
 up the hole, and caught only because the wrong number happened to be recognisable.
+
+**And the first version of that check did not catch it.** The adversarial review the same day ran
+the documented incident against it — a stale `nexus-piercer` artifact left in `~/.m2`, then only
+`./mvnw -f benchmarks/pom.xml clean package` — and the check printed "Harness is fresh" and exited
+0, because the freshly-built jar post-dated every source file. It compared modification times and
+never opened the jar. The blessed run reported `consolidate_wideFlat` at 622,541 B/op against a
+true 398,449, and `compare.py` cannot see that in the dangerous direction: a stale run is
+self-consistent, so improving the code, forgetting the install, and rebuilding only the harness
+yields a clean 0.00% and the conclusion that the change did nothing.
+
+The check now compares **contents, not timestamps**: every `io/github/pierce/**.class` inside
+`benchmarks.jar` must be byte-identical to the same class under `target/classes`, with no class
+missing from either side, and `target/classes` must itself post-date `src/main/java`. The mtime
+comparison is kept as the cheap catch for "edited and rebuilt nothing". On this tree that is 205
+classes compared per run.
+
+```bash
+python benchmarks/test_check_harness_fresh.py
+```
+
+`test_check_harness_fresh.py` runs **22 drills**, and the second block of them is the incident
+above reproduced in a temporary directory: a jar that post-dates every source and carries the
+previous build's bytes. It was also drilled against a copy of this repository's real 205-class
+`target/classes` in both directions before being committed. A check that has only ever passed is
+indistinguishable from one that cannot fail, which is what the first version turned out to be.
 
 An untested gate is indistinguishable from a disabled one. This repository already shipped a 20%
 coverage floor against 60% actual coverage and three static-analysis plugins that had never been

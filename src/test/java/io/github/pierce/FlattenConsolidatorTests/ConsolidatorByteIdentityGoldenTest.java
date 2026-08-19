@@ -331,6 +331,24 @@ class ConsolidatorByteIdentityGoldenTest {
                     .as("golden recording %s is missing from the test classpath", GOLDEN_RESOURCE)
                     .isNotNull();
             String body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+
+            // DIAGNOSE THE TRANSPORT BEFORE BLAMING THE PAYLOAD. The recorder writes '\n' and
+            // this reader splits on '\n', so a CRLF checkout leaves a trailing carriage return on
+            // every recorded value and reports all 704 cases as CHANGED - telling the contributor
+            // that the consolidator emits different bytes and that their performance pass must be
+            // reverted, when nothing in the library moved. Measured on 2026-08-19: a fresh
+            // `git worktree add` of an unmodified HEAD on Windows failed this gate for exactly
+            // that reason. `.gitattributes` now pins this file to `eol=lf`; if that line is
+            // removed or the file is rewritten by an editor, fail HERE, with the real reason.
+            assertThat(body)
+                    .as("%s was read with CRLF line endings. That is a checkout problem, not an "
+                            + "output change: the recorder writes LF and .gitattributes pins this "
+                            + "path to `text eol=lf`. Restore the line ending "
+                            + "(git checkout -- src/test/resources/consolidator-golden.txt) "
+                            + "rather than re-recording, which would bake CRLF into the golden.",
+                            GOLDEN_RESOURCE)
+                    .doesNotContain("\r\n");
+
             Map<String, String> out = new LinkedHashMap<>();
             String[] lines = body.split("\n", -1);
             for (int i = 0; i + 1 < lines.length; i += 2) {
