@@ -9,20 +9,20 @@
   "cannotCatch" : "It cannot detect the loss from the output alone - that is the point, and it means the harness must compare against the input, never self-validate the result. It also does not prove heterogeneous arrays fail in general, only in this collision shape.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "The one-segment key overwrites the array holder built from the longer keys, producing a syntactically perfect array with both object elements silently deleted and no error, warning, or log."
+    "detail" : "The one-segment key still overwrites the array holder built from the longer keys, so both object elements are still deleted and this row stays DEFECT. Since 2.1.0 the result is no longer 'syntactically perfect': the array comes back at its true length of four as [null, null, x, y], so the two deleted objects leave explicit holes at the indices they occupied instead of vanishing into a clean two-element string array that reads as valid data. The deletion is unchanged; its detectability is not."
   },
   "configDescription" : "defaults",
   "config" : { },
   "input" : "{\"mixed\":[{\"a\":1},{\"a\":2},\"x\",\"y\"]}",
   "expected" : {
     "mapBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
-    "flat" : "{\"mixed\":\"S:[\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2]\"}",
-    "mapDoc" : "{\"mixed\":[\"S:x\",\"S:y\"]}",
+    "flat" : "{\"mixed\":\"S:[null,null,\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2,null,null]\"}",
+    "mapDoc" : "{\"mixed\":[null,null,\"S:x\",\"S:y\"]}",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
-    "flatJson" : "{\"mixed\":\"S:[\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2]\"}",
-    "jsonDoc" : "{\"mixed\":[\"S:x\",\"S:y\"]}",
+    "flatJson" : "{\"mixed\":\"S:[null,null,\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2,null,null]\"}",
+    "jsonDoc" : "{\"mixed\":[null,null,\"S:x\",\"S:y\"]}",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

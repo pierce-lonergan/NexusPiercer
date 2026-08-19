@@ -1,6 +1,6 @@
 package io.github.pierce;
 
-import io.github.pierce.files.FileFinder;
+import io.github.pierce.files.SchemaFiles;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
@@ -92,8 +92,11 @@ public class AvroSchemaFlattener implements Serializable {
     public Schema getFlattenedSchema(String schemaPath) throws IOException {
         String cacheKey = schemaPath + ":" + this.includeArrayStatistics + ":" + this.includeNonTerminalArrays;
         return schemaCache.computeIfAbsent(cacheKey, path -> {
-            try {
-                InputStream is = FileFinder.findFile(schemaPath);
+            // try-with-resources: this stream was opened and never closed on the success path,
+            // leaking one descriptor per distinct cache key. Read directly rather than through
+            // FileFinder - a schema path is a path, and the finder's not-found message embeds
+            // discovered filenames, which the RuntimeException below then hands to Spark's logs.
+            try (InputStream is = SchemaFiles.open(schemaPath)) {
                 Schema schema = new Schema.Parser().parse(is);
                 return flattenSchema(schema);
             } catch (IOException e) {

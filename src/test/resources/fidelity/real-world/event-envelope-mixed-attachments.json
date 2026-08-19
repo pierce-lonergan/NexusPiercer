@@ -9,20 +9,20 @@
   "cannotCatch" : "It cannot detect the map-ordering dependence: reorder the input so the scalar comes first and the failure changes shape - still wrong, differently wrong, and untested. It also does not cover the _value sentinel path for nested mixed arrays.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "Two of three attachments are silently deleted. No error, no warning, and the field count at root is unchanged, so nothing downstream can detect the deletion."
+    "detail" : "The two object attachments are still silently deleted - they come back as nulls, with no error and no warning - so this row stays DEFECT. What changed in 2.1.0 is that the deletion is now VISIBLE and correctly positioned: the array comes back with its true length of three as [null, null, legacy-inline-note], where before it came back as a two-element array with the inline note relocated to index 0. Previously nothing downstream could detect the loss, because a clean two-element array of strings looks like well-formed data; two explicit nulls at the positions the objects occupied do not. The residual cause is the base-key/child-column collision in setNestedValue, which this repair does not touch."
   },
   "configDescription" : "defaults",
   "config" : { },
   "input" : "{\"event_id\":\"evt_9931\",\"event_type\":\"ticket.updated\",\"actor_id\":\"USR-42\",\"attachments\":[{\"kind\":\"image\",\"url\":\"https://cdn.example.com/a.png\"},{\"kind\":\"pdf\",\"url\":\"https://cdn.example.com/b.pdf\"},\"legacy-inline-note\"]}",
   "expected" : {
     "mapBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
-    "flat" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[\\\"legacy-inline-note\\\",null]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\"]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\"]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
-    "mapDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[\"S:legacy-inline-note\",null],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "flat" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[null,null,\\\"legacy-inline-note\\\"]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\",null]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\",null]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
+    "mapDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[null,null,\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
-    "flatJson" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[\\\"legacy-inline-note\\\",null]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\"]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\"]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
-    "jsonDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[\"S:legacy-inline-note\",null],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "flatJson" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[null,null,\\\"legacy-inline-note\\\"]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\",null]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\",null]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
+    "jsonDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[null,null,\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

@@ -49,9 +49,9 @@ corpus of **161 fixtures** that are executed on every build:
 
 | Classification | Count | Meaning |
 |---|---:|---|
-| `LOSSLESS` | 55 | Round-trips exactly, and that is correct |
+| `LOSSLESS` | 56 | Round-trips exactly, and that is correct |
 | `ACCEPTED_LOSS` | 24 | Does not round-trip; the reason is stated and defensible |
-| `DEFECT` | 82 | Does not round-trip, and that is a bug we have not fixed |
+| `DEFECT` | 81 | Does not round-trip, and that is a bug we have not fixed |
 
 A `DEFECT` fixture asserts the defect is **still present**, so repairing one turns the build red and
 forces a deliberate update to the published contract. The document cannot drift from the corpus —
@@ -204,6 +204,24 @@ Dataset<Row> profile = NexusPiercerPatterns.profileJsonStructure(df, "raw_json")
 `FlattenOptions` is `Serializable`, so a configured flattener can be captured into a Spark closure
 and shipped to executors.
 
+### Which flattener do I use?
+
+Six public types have "Flattener" in the name and the names do not tell you them apart. Three
+flatten DATA; three flatten a SCHEMA and never touch a record. Renaming them is a breaking change
+and is deferred to 3.0.0 ([BL-016]), so until then this table is the selection rule.
+
+| Class | Flattens | Reach for it when |
+|---|---|---|
+| **`MapFlattener`** | data — `Map` → flat `Map` | **Default choice.** This is the engine; everything else here is a facade, a different input type, or schema-only. |
+| `JsonFlattener` | data — fluent facade over `MapFlattener` | Prefer `MapFlattener`. It holds a `MapFlattener` internally and adds a fluent chain; before 2.1.0 no caller could even obtain one, since the constructor is private and every factory returned `FluentOperation` ([BL-010]). |
+| `JsonFlattenerConsolidator` | data — independent Jackson implementation | Only from the Spark layer, which is what calls it. It contains **no** `MapFlattener`, so its output is not guaranteed to match, and the fidelity corpus does not cover it. |
+| `EnrichedSchemaFlattener` | schema only | **Default choice for schemas.** The current one: `final`, configured by `FlattenOptions`, and the target of the enriched pipeline API above. |
+| `AvroSchemaFlattener` | schema only | Legacy. Emits Avro `Schema.Field`s directly. |
+| `GAvroSchemaFlattener` | schema only | Legacy, and independent of `AvroSchemaFlattener` despite the name — it emits names shaped to match `MapFlattener`'s data output, plus type casts. |
+
+For reading a schema file off disk, use **`SchemaFiles`**, not `FileFinder` — the latter is
+deprecated in 2.1.0.
+
 ## Capability reference
 
 <details>
@@ -246,7 +264,9 @@ and shipped to executors.
 <summary><b>Operational</b></summary>
 
 - Typed exceptions carrying schema name and path
-- `FileFinder` path-traversal, null-byte, extension and size enforcement
+- `SchemaFiles` path-traversal, null-byte and size enforcement on every schema read
+  (`FileFinder` is deprecated in 2.1.0; see the note below for what its guards did and did
+  not cover in 2.0.0)
 - JMH benchmark harness with allocation-based (machine-independent) regression gates
 - Ratcheted Checkstyle / PMD / SpotBugs ceilings that may only decrease
 - CycloneDX SBOM, OWASP dependency-check, CodeQL, reproducible-build verification
@@ -311,8 +331,14 @@ suite on JDK 17 and 21 across Linux and Windows.
 
 - Flattened keys are now injectively encoded, so `user_id` and `user.id` are distinct and the
   separator-driven heap exhaustion is gone
-- `FileFinder`'s `validatePaths`, `allowedExtensions` and `maxFileSize` are enforced — they were
-  settable and read nowhere, behind a builder that implied otherwise
+- `FileFinder`'s `validatePaths`, `allowedExtensions` and `maxFileSize` began to be enforced —
+  they were settable and read nowhere, behind a builder that implied otherwise. **Stated more
+  precisely in 2.1.0, because that sentence claimed more than the code did:** in 2.0.0 the
+  size gate covered only names resolving as a regular file relative to the working directory,
+  and `fileExists`/`getFileMetadata` bypassed all three guards by calling the cache loader
+  directly. `AvroSchemaLoader` also caught and discarded the traversal `SecurityException`
+  and then read the file through an unvalidated fallback. All four are closed in 2.1.0, and
+  `FileFinder` is deprecated in favour of `SchemaFiles`
 - Recursive Avro schemas fail with a typed `RecursiveSchemaException` on the enriched API
 
 **Still true today.** These are the headline entries from the fidelity manifest; the full list with

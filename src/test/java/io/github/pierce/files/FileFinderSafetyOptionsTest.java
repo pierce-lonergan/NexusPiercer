@@ -124,15 +124,63 @@ class FileFinderSafetyOptionsTest {
     }
 
     @Test
-    @DisplayName("a file over maxFileSize is refused with a size-specific error")
-    void oversizedFileRejected() throws IOException {
-        // Default limit is 100 MB, so assert the check reads the real size rather than writing
-        // 100 MB in a unit test: a small file must pass the same code path.
+    @DisplayName("a file under maxFileSize resolves normally")
+    void underSizedFileResolves() throws IOException {
+        // THIS TEST WAS CALLED oversizedFileRejected AND ASSERTED NO REJECTION. Its body wrote a
+        // 2-byte file, asserted the open succeeded, and asserted 2 < 100 MB - so it could not
+        // fail, under a name that made the suite look as though maxFileSize were covered while
+        // nothing covered it. Renamed to what it actually measures. The rejection it used to
+        // promise is now measured for real, against the RESOLVED file and against the bytes
+        // read, in FileFinderResolvedSizeGateTest.
         Path small = tempDir.resolve("small.avsc");
         Files.writeString(small, "{}");
 
         assertThatCode(() -> FileFinder.findFile(small.toString()).close())
                 .doesNotThrowAnyException();
         assertThat(Files.size(small)).isLessThan(100L * 1024 * 1024);
+    }
+
+    @Test
+    @DisplayName("getFileMetadata rejects a traversal name instead of searching for it")
+    void getFileMetadataRejectsTraversal() {
+        // getFileMetadata called fileCache.get(fileName) DIRECTLY, so it never invoked
+        // enforceSafetyOptions. It ran the full search on a traversal name and reported the
+        // outcome as a plain not-found. The class javadoc claimed getInputStream was "the single
+        // choke point every public accessor funnels through"; this test is what refutes it.
+        assertThatThrownBy(() -> FileFinder.getFileMetadata("../../../etc/passwd"))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("Path traversal");
+    }
+
+    @Test
+    @DisplayName("fileExists does not perform a search on a traversal name")
+    void fileExistsDoesNotSearchOnATraversalName() {
+        // Asserting only the RETURN VALUE would be a test that can only pass: fileExists returns
+        // false for this name before the fix too, because the file is not found. The observable
+        // that actually changes is whether the search ran at all.
+        long before = FileFinder.getStatistics().searchAttempts;
+
+        assertThat(FileFinder.fileExists("../../../etc/passwd")).isFalse();
+
+        assertThat(FileFinder.getStatistics().searchAttempts)
+                .as("a traversal name must be refused before findFileHandle increments the "
+                        + "search counter - otherwise the full 28-path, 6-classpath-probe, "
+                        + "depth-5 walk ran on attacker-controlled input")
+                .isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("fileExists still searches, and still answers, for a legitimate name")
+    void goodInputControlFileExistsStillWorks() throws IOException {
+        // CAPABLE-OF-DISCRIMINATING LEG for the test above: routing fileExists through the
+        // validator must not stop it doing its job.
+        Path real = tempDir.resolve("present.avsc");
+        Files.writeString(real, "{}");
+
+        long before = FileFinder.getStatistics().searchAttempts;
+        assertThat(FileFinder.fileExists(real.toString())).isTrue();
+        assertThat(FileFinder.getStatistics().searchAttempts)
+                .as("a legitimate name must still reach the search")
+                .isGreaterThan(before);
     }
 }

@@ -3,7 +3,7 @@ package io.github.pierce.spark;
 import io.github.pierce.AvroSchemaFlattener;
 import io.github.pierce.CreateSparkStructFromAvroSchema;
 import io.github.pierce.JsonFlattenerConsolidator;
-import io.github.pierce.files.FileFinder;
+import io.github.pierce.files.SchemaFiles;
 import org.apache.avro.Schema;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -858,7 +858,7 @@ public class NexusPiercerSparkPipeline implements Serializable {
             originalSchema = config.avroSchema;
         } else {
             LOG.info("Loading schema from: {}", config.schemaPath);
-            String schemaJson = FileFinder.Util.readAsString(config.schemaPath);
+            String schemaJson = SchemaFiles.readString(config.schemaPath);
             originalSchema = new Schema.Parser().parse(schemaJson);
         }
 

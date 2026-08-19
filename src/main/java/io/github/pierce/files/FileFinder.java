@@ -59,7 +59,27 @@ import java.util.zip.GZIPInputStream;
  *     // Exception includes list of searched locations and available files
  * }
  * </pre>
+ *
+ * @deprecated Use {@link SchemaFiles} instead. If you have a path, read it; searching 28
+ *     directories, six classpath locations and a depth-five tree to answer a question you already
+ *     knew the answer to is not a feature.
+ *
+ *     <p><b>THIS CLASS PINS THE JVM OPEN.</b> A single static {@code findFile} call constructs the
+ *     singleton, which starts two thread pools that nothing ever shuts down. The scheduled pool
+ *     used non-daemon threads, so a CLI or a {@code spark-submit} driver that finished its work
+ *     would hang instead of exiting; both pools are daemon threads as of 2.1.0, but the singleton
+ *     still has no lifecycle and there is still no {@code close()}.</p>
+ *
+ *     <p><b>{@link Config} configures nothing.</b> Every field is private with no accessor, and
+ *     the only construction anywhere is {@code new FileFinder(new Config())} inside
+ *     {@code getInstance()}. There is no injection point, so a {@code Config} you build is inert.
+ *     It is public API in the 2.0.0 baseline and cannot be removed before 3.0.0.</p>
+ *
+ *     <p>Removal, and the rework into an instantiable {@code AutoCloseable} component, is filed as
+ *     BL-017 for 3.0.0: 34 members of this class sit in the released 2.0.0 API baseline, so none
+ *     of it can go additively.</p>
  */
+@Deprecated
 public class FileFinder {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileFinder.class);
@@ -88,8 +108,13 @@ public class FileFinder {
     private final ScheduledExecutorService scheduledExecutor;
 
     /**
-     * Configuration class - all settings in one place
+     * Configuration class - all settings in one place.
+     *
+     * @deprecated Configures nothing. Every field is private with no accessor, and the only
+     *     construction anywhere is {@code new Config()} inside {@code getInstance()}, so there is
+     *     no injection point and an instance you build is inert. Use {@link SchemaFiles}.
      */
+    @Deprecated
     public static class Config {
 
         private final List<String> searchPaths = Arrays.asList(
@@ -111,8 +136,6 @@ public class FileFinder {
                 "src/test/avro/schemas",
 
 
-                "src/main/resources",
-                "src/test/resources",
                 "build/resources/main",
                 "build/resources/test",
 
@@ -133,12 +156,17 @@ public class FileFinder {
                 "data",
                 "data/schemas",
                 "test-data",
-                "test-data/schemas",
+                "test-data/schemas"
 
 
-                "..",
-                "../..",
-                "../../.."
+                // NO PARENT DIRECTORIES. "..", "../.." and "../../.." used to be listed here.
+                // performDiscovery applies Files.walk(path, 2) to every search path and is invoked
+                // by createNotFoundException on EVERY miss, and its results are embedded in the
+                // FileFinderException MESSAGE. Measured from this repo root: a .json miss walked
+                // 67 files across sibling checkouts in ".." and 24 in "../../..", the user's home
+                // directory - and AvroSchemaFlattener rewraps that message into a RuntimeException
+                // that Spark logs. On an executor the same walk enters sibling containers' scratch
+                // space. A schema resolver has no business above its own working tree.
         );
 
 
@@ -329,7 +357,15 @@ public class FileFinder {
             return t;
         });
 
-        this.scheduledExecutor = Executors.newScheduledThreadPool(2);
+        // DAEMON, like the pool above it. This used the default thread factory, which creates
+        // NON-daemon threads, and nothing in this class ever called shutdown - so a single static
+        // findFile call pinned the JVM open forever. A CLI or a spark-submit driver finished its
+        // work and then hung.
+        this.scheduledExecutor = Executors.newScheduledThreadPool(2, r -> {
+            Thread t = new Thread(r, "FileFinder-scheduled-" + Thread.currentThread().getId());
+            t.setDaemon(true);
+            return t;
+        });
 
         // Initialize file cache
         this.fileCache = CacheBuilder.newBuilder()
@@ -402,9 +438,14 @@ public class FileFinder {
      * include {@code ..}, {@code ../..} and {@code ../../..}, so {@code ../../../etc/passwd} was
      * an arbitrary-file read.</p>
      *
-     * <p>Enforced here because {@code getInputStream} is the single choke point every public
-     * accessor funnels through — validating at each entry point instead would leave whichever one
-     * gets added next unguarded.</p>
+     * <p>CORRECTION: this javadoc used to claim {@code getInputStream} was "the single choke point
+     * every public accessor funnels through". IT WAS NOT, and the claim was itself the kind of
+     * false compensating control this class keeps producing. {@code fileExists} and
+     * {@code getFileMetadata} both called {@code fileCache.get} directly and never came through
+     * here, so {@code FileFinder.fileExists("../../../etc/passwd")} ran the full search with no
+     * validation at all. Both now call this method first. There is still no structural guarantee
+     * that the next accessor added will — the guarantee is the tests, not the shape of the
+     * class.</p>
      *
      * @throws SecurityException if the name escapes its base, or carries a disallowed extension
      * @throws IOException       if the resolved file exceeds {@code maxFileSize}
@@ -422,11 +463,15 @@ public class FileFinder {
             String normalised = fileName.replace('\\', '/');
             if (normalised.contains("../") || normalised.startsWith("..")
                     || normalised.contains("/..")) {
+                // The old text said FileFinder "searches parent directories by default" (no
+                // longer true - they were removed) and told the caller to "disable validatePaths
+                // if the input is trusted", which was never possible: Config has no setters and
+                // no injection point, since getInstance() hard-codes new FileFinder(new Config()).
+                // A false remediation instruction inside a security error is its own defect.
                 throw new SecurityException(
-                        "Path traversal rejected: '" + fileName + "'. FileFinder searches parent "
-                                + "directories by default, so a relative escape would read files "
-                                + "outside the intended tree. Pass an absolute path, or disable "
-                                + "validatePaths if the input is trusted.");
+                        "Path traversal rejected: '" + fileName + "'. A relative escape would "
+                                + "read files outside the working tree. Pass a path that stays "
+                                + "inside it, or an absolute path to the file you mean.");
             }
         }
 
@@ -451,41 +496,103 @@ public class FileFinder {
             }
         }
 
-        if (config.maxFileSize > 0) {
-            try {
-                java.nio.file.Path p = java.nio.file.Paths.get(fileName);
-                if (java.nio.file.Files.isRegularFile(p)) {
-                    long size = java.nio.file.Files.size(p);
-                    if (size > config.maxFileSize) {
-                        throw new IOException(String.format(
-                                "File '%s' is %d bytes, exceeding maxFileSize %d",
-                                fileName, size, config.maxFileSize));
-                    }
-                }
-            } catch (java.nio.file.InvalidPathException notALocalPath) {
-                // THE CATCH IS CORRECT; THE SENTENCE THAT USED TO JUSTIFY IT WAS NOT. It read
-                // "size is checked on open instead". There is no size check on open. `maxFileSize`
-                // appears in this file only as the field, its javadoc, and this block - findFile,
-                // getInputStream, findFileHandle, searchClasspath, searchLocalPaths and searchHdfs
-                // never consult it. A compensating control that does not exist is exactly the kind
-                // of claim this codebase keeps finding, and it was hiding inside a comment.
-                //
-                // WHAT IS ACTUALLY TRUE: this gate is best-effort and applies only to names that
-                // resolve as a regular file RELATIVE TO THE CWD, because Paths.get(fileName) has
-                // no base path while resolution uses config.getAllSearchPaths(). Classpath, HDFS
-                // and search-path-resolved names are not size-checked at all. Filed as its own
-                // backlog entry rather than fixed here.
-                //
-                // ON POSIX THIS CATCH IS UNREACHABLE: UnixPath rejects only an embedded NUL, and
-                // the null-byte check above already turns that into a SecurityException. Only
-                // WindowsPath rejects the colon in "hdfs://nn:8020/...". Any test for it must be
-                // OS-gated or it passes vacuously.
-                // The name itself is deliberately NOT logged: it is caller-supplied and every
-                // other log line in this class that echoes it is a CRLF_INJECTION_LOGS finding.
-                // The exception carries the offending input for anyone who needs it.
-                LOG.debug("maxFileSize gate skipped: the name is not a valid local path on this "
-                        + "platform", notALocalPath);
+        // NO SIZE CHECK HERE ANY MORE, DELIBERATELY. The block that used to sit at this point did
+        // `Paths.get(fileName)` with NO base path while resolution goes through
+        // `config.getAllSearchPaths()`, so it gated only names that happened to resolve as a
+        // regular file relative to the CWD. Classpath, HDFS, deep-search and search-path hits were
+        // never size-checked at all, and the block's own comment said so.
+        //
+        // The gate now runs where the size is actually known - `enforceResolvedSize`, against the
+        // resolved FileHandle - and again as a hard byte count on the returned stream. It is NOT
+        // duplicated here as a "cheap fast path": two gates for one condition produce two
+        // different messages for the same failure, which is how the next stale comment gets
+        // written.
+    }
+
+    /**
+     * Refuses a resolved file whose known size exceeds {@code maxFileSize}.
+     *
+     * <p>Called from {@code getInputStream} between the cache lookup and the open, so it covers
+     * all five resolution strategies rather than only CWD-relative regular files. It sits OUTSIDE
+     * the cache loader on purpose, so it re-fires on a cache hit.</p>
+     *
+     * <p>A NEGATIVE SIZE IS NOT A PASS. {@code createClasspathHandle} stores
+     * {@code URLConnection.getContentLengthLong()}, which is {@code -1} when the length is
+     * unknown; a gate reading {@code size > max} would wave that through silently and reproduce
+     * the original defect in the exact strategy this method exists for. Unknown size falls through
+     * to the byte-counting cap on the stream instead.</p>
+     */
+    private void enforceResolvedSize(String fileName, FileHandle handle) throws IOException {
+        if (config.maxFileSize > 0 && handle.size >= 0 && handle.size > config.maxFileSize) {
+            throw new IOException(String.format(
+                    "File '%s' resolved from %s is %d bytes, exceeding maxFileSize %d",
+                    fileName, handle.location, handle.size, config.maxFileSize));
+        }
+    }
+
+    /**
+     * Hard byte cap on a stream, applied to the OUTERMOST (decompressed) stream.
+     *
+     * <p>Three things a handle-size comparison alone cannot cover, all of them live:</p>
+     * <ul>
+     *   <li>{@code .gz} is an allowed extension and {@code openInputStream} inflates it
+     *       transparently. {@code handle.size} is the COMPRESSED size, so a small archive passes
+     *       any cap and the caller receives whatever the archive chooses to produce. A limit on
+     *       compressed bytes is not a limit.</li>
+     *   <li>a classpath handle can carry size {@code -1} for unknown length.</li>
+     *   <li>handles are cached for 60 minutes, so a file that grew since resolution is opened
+     *       against a stale, smaller size.</li>
+     * </ul>
+     *
+     * <p>The message leads with the cap because this throw can land MID-READ, after the caller has
+     * already consumed bytes - a partial read that then fails would otherwise surface as a parse
+     * error somewhere downstream rather than as "the file is too big".</p>
+     */
+    private static final class SizeLimitedInputStream extends FilterInputStream {
+        private final long limit;
+        private final String name;
+        private long read;
+
+        SizeLimitedInputStream(InputStream in, long limit, String name) {
+            super(in);
+            this.limit = limit;
+            this.name = name;
+        }
+
+        private void count(long n) throws IOException {
+            if (n <= 0) {
+                return;
             }
+            read += n;
+            if (read > limit) {
+                throw new IOException(String.format(
+                        "maxFileSize %d exceeded while reading '%s': stopped after %d bytes. For "
+                                + "a compressed file this counts DECOMPRESSED bytes.",
+                        limit, name, read));
+            }
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b >= 0) {
+                count(1);
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = super.read(b, off, len);
+            count(n);
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = super.skip(n);
+            count(skipped);
+            return skipped;
         }
     }
 
@@ -494,7 +601,14 @@ public class FileFinder {
      */
     public static boolean fileExists(String fileName) {
         try {
-            getInstance().fileCache.get(fileName);
+            FileFinder instance = getInstance();
+            // Validate BEFORE touching the cache. This method used to call fileCache.get directly,
+            // so FileFinder.fileExists("../../../etc/passwd") ran the full search - every search
+            // path, six classpath probes and a depth-5 walk - on attacker-controlled input and
+            // then returned false. The return value was always going to be false; what changed is
+            // that the search no longer happens. Observable via getStatistics().searchAttempts.
+            instance.enforceSafetyOptions(fileName);
+            instance.fileCache.get(fileName);
             return true;
         } catch (Exception e) {
             return false;
@@ -527,8 +641,12 @@ public class FileFinder {
      * Get file metadata
      */
     public static FileMetadata getFileMetadata(String fileName) throws IOException {
+        FileFinder instance = getInstance();
+        // Same bypass as fileExists: this went straight to the cache loader, so a traversal name
+        // was searched for and then reported as a plain not-found.
+        instance.enforceSafetyOptions(fileName);
         try {
-            FileHandle handle = getInstance().fileCache.get(fileName);
+            FileHandle handle = instance.fileCache.get(fileName);
             return new FileMetadata(
                     handle.path,
                     handle.size,
@@ -544,6 +662,10 @@ public class FileFinder {
     /**
      * Discover files with specific extension
      */
+    /**
+     * @deprecated Walks every search path on every call. Use {@link SchemaFiles} with a known path.
+     */
+    @Deprecated
     public static List<String> discoverFiles(String extension) {
         return getInstance().performDiscovery(extension);
     }
@@ -551,13 +673,39 @@ public class FileFinder {
     /**
      * Discover all Avro schema files
      */
+    /**
+     * @deprecated Walks every search path on every call. Use {@link SchemaFiles} with a known path.
+     */
+    @Deprecated
     public static List<String> discoverAvroSchemas() {
         return discoverFiles(".avsc");
     }
 
     /**
+     * Reads the effective {@code maxFileSize}. Package-private: a test seam, not API.
+     *
+     * <p>{@code Config} has no setters and no injection point - {@code getInstance()} hard-codes
+     * {@code new FileFinder(new Config())} - so a 100 MB cap cannot otherwise be exercised without
+     * writing 100 MB. The alternative was a test that writes a 2-byte file and asserts
+     * {@code 2 < 100 MB}, which is what used to stand in for coverage here.</p>
+     */
+    static long maxFileSizeForTesting() {
+        return getInstance().config.maxFileSize;
+    }
+
+    /** Lowers the cap so the gate can be measured. Package-private test seam; restore it after. */
+    static void maxFileSizeForTesting(long bytes) {
+        getInstance().config.maxFileSize = bytes;
+    }
+
+    /**
      * Clear all caches
      */
+    /**
+     * @deprecated Clears caches that {@link SchemaFiles} does not have. Retained because the
+     *     test suite needs to reset this class's global state between cases.
+     */
+    @Deprecated
     public static void clearCaches() {
         FileFinder instance = getInstance();
         instance.fileCache.invalidateAll();
@@ -572,6 +720,10 @@ public class FileFinder {
     /**
      * Get detailed statistics
      */
+    /**
+     * @deprecated Reports on caches that {@link SchemaFiles} does not have and does not need.
+     */
+    @Deprecated
     public static Statistics getStatistics() {
         FileFinder instance = getInstance();
         return new Statistics(
@@ -602,6 +754,7 @@ public class FileFinder {
         try {
             FileHandle handle = fileCache.get(fileName);
             cacheHits.incrementAndGet();
+            enforceResolvedSize(fileName, handle);
             return openInputStream(handle);
         } catch (ExecutionException e) {
             cacheMisses.incrementAndGet();
@@ -679,8 +832,10 @@ public class FileFinder {
         for (String location : classpathLocations) {
             searchedLocations.add("classpath:" + location);
 
-            URL resource = getClass().getResourceAsStream(location) != null
-                    ? getClass().getResource(location) : null;
+            // getResource alone. This used to call getResourceAsStream purely to test for
+            // existence and then throw the stream away, on all six probes of every miss - each
+            // one pinning an Inflater into the shared JarFile.
+            URL resource = getClass().getResource(location);
 
             if (resource == null) {
                 resource = Thread.currentThread().getContextClassLoader().getResource(location.startsWith("/")
@@ -903,6 +1058,11 @@ public class FileFinder {
             is = new GZIPInputStream(is);
         }
 
+        // OUTSIDE the GZIP wrap on purpose, so the cap counts DECOMPRESSED bytes.
+        if (config.maxFileSize > 0) {
+            is = new SizeLimitedInputStream(is, config.maxFileSize, handle.path);
+        }
+
         return new BufferedInputStream(is, 64 * 1024);
     }
 
@@ -927,7 +1087,11 @@ public class FileFinder {
                 try {
                     Path path = Paths.get(searchPath);
                     if (Files.exists(path) && Files.isDirectory(path)) {
-                        Files.walk(path, 2)
+                        // try-with-resources: Files.walk holds an open directory stream, and
+                        // discovery runs on EVERY miss across every search path, so leaking one
+                        // per path per miss adds up fast.
+                        try (java.util.stream.Stream<Path> walk = Files.walk(path, 2)) {
+                            walk
                                 .filter(p -> {
                                     try {
                                         return p.toString().endsWith(extension);
@@ -952,6 +1116,7 @@ public class FileFinder {
                                         discovered.add(p.toAbsolutePath().toString());
                                     }
                                 });
+                        }
                     }
                 } catch (AccessDeniedException e) {
                     LOG.debug("Access denied to path: {} - {}", searchPath, e.getMessage());
@@ -1183,6 +1348,12 @@ public class FileFinder {
     /**
      * Utility methods for common operations
      */
+    /**
+     * @deprecated General file utilities on a schema resolver. Use {@link SchemaFiles} for
+     *     schema reads; for HTTP or HDFS use those clients directly, where the timeouts and
+     *     credentials are yours to set.
+     */
+    @Deprecated
     public static class Util {
 
         /**

@@ -192,7 +192,7 @@
       "id": "heterogeneous-arrays",
       "kind": "LOSS",
       "headline": "A mixed-type array loses elements or leaks an internal sentinel into your data.",
-      "statement": "With objects before the scalars the object elements are silently deleted. With scalars first the flattener's internal marker appears in the reconstructed document as if it were a value.",
+      "statement": "With objects before the scalars the object elements are silently deleted. With scalars first the flattener's internal marker appears in the reconstructed document as if it were a value. REPAIRED IN PART IN 2.1.0: the deletions above are unchanged, but they are no longer invisible. Array-element columns are now written by index rather than appended and tail-padded, so a deleted object element leaves an explicit null at the position it occupied and the array keeps its true length. Previously the survivors were packed from index 0 and the array came back short - a clean, plausible, shorter array that nothing downstream could tell from well-formed data.",
       "fixtures": [
         "heterogeneous-array-object-first",
         "heterogeneous-array-scalar-first",
@@ -204,20 +204,19 @@
       "id": "avro-unions",
       "kind": "LOSS",
       "headline": "An Avro union takes the first branch that will accept the value and coerces to it.",
-      "statement": "A string branch listed before int turns every value in that field into text. [long, double] truncates a fractional value to an integer. For a union of records, the first branch sharing any field name wins and the remaining data is dropped. A nullable string whose value is the literal text \"null\" comes back as an actual null. NARROWED IN 2.1.0 for one position only: inside an ARRAY ELEMENT, a union of three or more branches used to be dropped entirely - the field became null with no log at any level - and is now resolved by a real index-aware branch selector, or refused by name when two record branches match the same columns. The top-level first-branch-wins behaviour above is UNCHANGED; avro-union-of-records-overlapping-fields is still DEFECT. NARROWED FURTHER IN THE SAME RELEASE, after review measured that the first version of that array-element selector had itself become an instance of this very entry. It tried the branches in DECLARATION ORDER, so a value that was a STRING in the source document was coerced into an earlier numeric or boolean branch even though the flattener had NOT erased its type at that position - the JSON column keeps the quotes, items_meta=[\"0007\"], and Jackson boxes the element as a String. Measured: \"0007\" under [\"null\",\"int\",\"long\",\"string\"] came back as Integer 7, \"hello\" under [\"null\",\"boolean\",\"string\"] came back as Boolean false because Boolean.parseBoolean never throws, and \"1e999\" under [\"null\",\"double\",\"string\"] came back as Infinity. Selection inside an array element is now TYPE-DIRECTED first and declaration order second, so a String prefers STRING/ENUM/BYTES/FIXED, a Number prefers the numeric branches and a Boolean prefers BOOLEAN; a branch carrying a logical type is never demoted. Where the value's Java type has no branch to prefer the coercion is unavoidable, still happens, and now logs a WARN naming the before and after text. NONE of this reaches the TOP-LEVEL union, and the distinction is the reason: there the flat map holds meta=0007 as a bare unquoted scalar, so the type genuinely has been erased and any choice is a guess.",
+      "statement": "A string branch listed before int turns every value in that field into text. [long, double] truncates a fractional value to an integer. For a union of records, the first branch sharing any field name wins and the remaining data is dropped. A nullable string whose value is the literal text \"null\" comes back as an actual null. NARROWED IN 2.1.0 for one position only: inside an ARRAY ELEMENT, a union of three or more branches used to be dropped entirely - the field became null with no log at any level - and is now resolved by a real index-aware branch selector, or refused by name when two record branches match the same columns. The top-level first-branch-wins behaviour above is UNCHANGED; avro-union-of-records-overlapping-fields is still DEFECT. NARROWED FURTHER IN THE SAME RELEASE, after review measured that the first version of that array-element selector had itself become an instance of this very entry. It tried the branches in DECLARATION ORDER, so a value that was a STRING in the source document was coerced into an earlier numeric or boolean branch even though the flattener had NOT erased its type at that position - the JSON column keeps the quotes, items_meta=[\"0007\"], and Jackson boxes the element as a String. Measured: \"0007\" under [\"null\",\"int\",\"long\",\"string\"] came back as Integer 7, \"hello\" under [\"null\",\"boolean\",\"string\"] came back as Boolean false because Boolean.parseBoolean never throws, and \"1e999\" under [\"null\",\"double\",\"string\"] came back as Infinity. Selection inside an array element is now TYPE-DIRECTED first and declaration order second, so a String prefers STRING/ENUM/BYTES/FIXED, a Number prefers the numeric branches and a Boolean prefers BOOLEAN; a branch carrying a logical type is never demoted. Where the value's Java type has no branch to prefer the coercion is unavoidable, still happens, and now logs a WARN naming the before and after text. NONE of this reaches the TOP-LEVEL union, and the distinction is the reason: there the flat map holds meta=0007 as a bare unquoted scalar, so the type genuinely has been erased and any choice is a guess. NARROWED AGAIN IN 2.1.0, and this time the repair was in the FLATTENER, not the reconstructor: avro-array-element-multi-branch-union-mixed-branches used to sit in this list and is now LOSSLESS, so it has been removed from it. Its residual fault was never union resolution at all - MapFlattener built each array-element column by APPENDING values as it met them and then tail-padding to the longest column, so a column first seen at element k landed at index 0. items_meta came out as [plain, null] when element 1 was the one carrying 'plain'. Columns are now written by INDEX, the misalignment is gone, and both elements resolve to their own branch.",
       "fixtures": [
         "avro-union-string-branch-swallows-int",
         "avro-union-long-before-double-truncates",
         "avro-union-of-records-overlapping-fields",
-        "avro-nullable-string-literal-null-collapses",
-        "avro-array-element-multi-branch-union-mixed-branches"
+        "avro-nullable-string-literal-null-collapses"
       ]
     },
     {
       "id": "avro-arrays-of-records",
       "kind": "LOSS",
       "headline": "One null element destroys an entire Avro array of records.",
-      "statement": "A single null inside an array of records annihilates the whole array, and one null nested record erases the nested records of every other element in that array. NARROWED IN 2.1.0: a third loss used to sit here unlisted because no fixture reached it - an array whose element fields ALL live inside a nested record silently returned ONE element instead of N, under every array format including the JSON default. That is repaired and pinned by avro-array-of-records-nested-only-collapses-to-one. Disagreeing column lengths, which used to be reconciled by padding the short columns and duplicating the last nested value, now throw ArrayCardinalityException; the corpus cannot express that input, so it is pinned in AvroArrayOfRecordsSizingTest instead. AND ONE MORE, caught in review before release: the format-driven column split that repaired the collapse above introduced the SAME collapse in the opposite direction at the SHIPPED DEFAULT. Under arrayFormat=JSON an UNBRACKETED delimited column returned one element holding the raw concatenated text - {items_sku=S1,S2,S3} became one record rather than three - with no exception and no log of any level. MapFlattener's JSON writer always brackets a column, including a single-element one, so such a column cannot have come from it; it now raises ArrayFormatMismatchException naming the configured format, the format that would read the data, and how many records the other reading finds. The guard fires only where the two readings disagree, so an unbracketed column with no delimiter in it is left alone.",
+      "statement": "A single null inside an array of records annihilates the whole array, and one null nested record erases the nested records of every other element in that array. NARROWED IN 2.1.0: a third loss used to sit here unlisted because no fixture reached it - an array whose element fields ALL live inside a nested record silently returned ONE element instead of N, under every array format including the JSON default. That is repaired and pinned by avro-array-of-records-nested-only-collapses-to-one. Disagreeing column lengths, which used to be reconciled by padding the short columns and duplicating the last nested value, now throw ArrayCardinalityException; the corpus cannot express that input, so it is pinned in AvroArrayOfRecordsSizingTest instead. AND ONE MORE, caught in review before release: the format-driven column split that repaired the collapse above introduced the SAME collapse in the opposite direction at the SHIPPED DEFAULT. Under arrayFormat=JSON an UNBRACKETED delimited column returned one element holding the raw concatenated text - {items_sku=S1,S2,S3} became one record rather than three - with no exception and no log of any level. MapFlattener's JSON writer always brackets a column, including a single-element one, so such a column cannot have come from it; it now raises ArrayFormatMismatchException naming the configured format, the format that would read the data, and how many records the other reading finds. The guard fires only where the two readings disagree, so an unbracketed column with no delimiter in it is left alone. AND ONE MORE NARROWING IN 2.1.0, in the flattener: the array LENGTH is no longer lost. orders now comes back with its true two elements rather than collapsing to one, because array-element columns are written by index instead of appended and tail-padded. The record data is still annihilated, so the row stays DEFECT; only the count is now honest.",
       "fixtures": [
         "avro-array-of-records-null-element-annihilates-array",
         "avro-array-of-records-nullable-nested-record-shadowed"
@@ -341,9 +340,9 @@
   ],
   "counts": {
     "total": 161,
-    "lossless": 55,
+    "lossless": 56,
     "acceptedLoss": 24,
-    "defect": 82,
+    "defect": 81,
     "nonDefaultConfig": 52,
     "losslessNotUnderDefaultReconstruction": 4,
     "losslessNotUnderPublishedRecipe": 1,
@@ -352,9 +351,9 @@
     "families": {
       "avro": {
         "total": 34,
-        "LOSSLESS": 11,
+        "LOSSLESS": 12,
         "ACCEPTED_LOSS": 3,
-        "DEFECT": 20
+        "DEFECT": 19
       },
       "limits": {
         "total": 20,
@@ -582,7 +581,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Heterogeneous array, scalars before the object - internal sentinel leaks out",
-      "detail": "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output.",
+      "detail": "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output. Unchanged in 2.1.0 and still DEFECT. The column CONTENTS did change: mixed is now [1,2,null] and mixed_a is [null,null,3], so the object at source index 2 is recorded at index 2 rather than being relocated to index 0. That repair is upstream in the flattener and does not touch the sentinel leak, which is what this row is for.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -596,7 +595,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Heterogeneous array, objects before the scalars - object elements silently deleted",
-      "detail": "The one-segment key overwrites the array holder built from the longer keys, producing a syntactically perfect array with both object elements silently deleted and no error, warning, or log.",
+      "detail": "The one-segment key still overwrites the array holder built from the longer keys, so both object elements are still deleted and this row stays DEFECT. Since 2.1.0 the result is no longer 'syntactically perfect': the array comes back at its true length of four as [null, null, x, y], so the two deleted objects leave explicit holes at the indices they occupied instead of vanishing into a clean two-element string array that reads as valid data. The deletion is unchanged; its detectability is not.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1435,8 +1434,8 @@
       "stack": "AVRO",
       "classification": "DEFECT",
       "referenceIssue": "",
-      "title": "A single null element destroys the entire array of records",
-      "detail": "Both the record element and the array length are lost; the extracted field values are silently discarded. No exception at any point.",
+      "title": "A single null element destroys the records in an array, though no longer its length",
+      "detail": "The record element is still lost - orders comes back [null, null] with the extracted id silently discarded and no exception at any point - so this row stays DEFECT. THE ARRAY LENGTH IS NO LONGER LOST: since 2.1.0 the flattener emits orders_id as [1,null] and orders as [null,null], so the array reconstructs with its true two elements instead of collapsing to one. That is a smaller lie than before, not a repair: a caller who checked the element count would have caught this and now will not, while the data loss that matters is unchanged. The residual cause is the bare base column shadowing the child column, which this repair does not touch.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1631,8 +1630,8 @@
       "stack": "BOTH",
       "classification": "DEFECT",
       "referenceIssue": "",
-      "title": "Sparse array of maps: cells grow quadratically and values move to the wrong element",
-      "detail": "Every sparse value is RELOCATED into element 0 and the later elements are emptied. Not loss - silent corruption that reads as valid data. Every element also gains explicit nulls for keys it never had.",
+      "title": "Sparse array of maps: cells grow quadratically, and every element gains nulls it never had",
+      "detail": "HALF OF THIS ROW WAS REPAIRED IN 2.1.0 AND THE TITLE CHANGED WITH IT. The relocation is gone: r_k2 is now [null,2,null] and r_k3 is [null,null,3], so each sparse value sits under the element that carried it. What survives, and keeps this row DEFECT, is the other half: every element gains an explicit null for every key it never had, so element 0 comes back as {k1:1, k2:null, k3:null, z:0} where the source document had only {k1:1, z:0}. Absent and present-null are indistinguishable on the way back, and no marker exists to tell them apart. The quadratic cell growth is also unchanged and is now unconditional: one column per distinct field across all elements, each column pre-sized to the element count, while maxArraySize bounds only the element count and nothing bounds the column count.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1758,7 +1757,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "E-commerce order where only the second line item carries a discount",
-      "detail": "discount_pct migrates from line item 2 to line item 1 and item 2 gains an explicit null it never had. The document round-trips with the correct field count and a plausible shape - only the association is wrong.",
+      "detail": "THE MIGRATION IS FIXED IN 2.1.0; THE FABRICATED NULL IS NOT. discount_pct now stays on line item 2 (SKU-205) where the document put it - previously it was applied to line item 1 (SKU-100), silent financial corruption that round-tripped with a correct field count and a plausible shape. What keeps this row DEFECT is that line item 1 still gains an explicit discount_pct of null that it never carried. A consumer cannot tell 'no discount was recorded' from 'a discount of null was recorded'.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1884,7 +1883,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Event envelope whose attachments array mixes objects with a legacy inline string",
-      "detail": "Two of three attachments are silently deleted. No error, no warning, and the field count at root is unchanged, so nothing downstream can detect the deletion.",
+      "detail": "The two object attachments are still silently deleted - they come back as nulls, with no error and no warning - so this row stays DEFECT. What changed in 2.1.0 is that the deletion is now VISIBLE and correctly positioned: the array comes back with its true length of three as [null, null, legacy-inline-note], where before it came back as a two-element array with the inline note relocated to index 0. Previously nothing downstream could detect the loss, because a clean two-element array of strings looks like well-formed data; two explicit nulls at the positions the objects occupied do not. The residual cause is the base-key/child-column collision in setNestedValue, which this repair does not touch.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -2175,10 +2174,10 @@
       "family": "avro",
       "file": "avro/avro-array-element-multi-branch-union-mixed-branches.json",
       "stack": "AVRO",
-      "classification": "DEFECT",
+      "classification": "LOSSLESS",
       "referenceIssue": "BL-014",
-      "title": "A three-branch union whose two array elements take DIFFERENT branches",
-      "detail": "The shape a three-branch union exists FOR, and the half BL-014's repair could not fix - because the damage is done before the reconstructor is reached. Element 0 takes the record branch and element 1 the string branch, so the flattener emits BOTH a bare items_meta column and an items_meta_src child column. It emits them MISALIGNED: items_meta=[\"plain\",null] puts element 1's value at index 0, while items_meta_src=[\"web\",null] correctly puts element 0's at index 0. No reconstructor can undo that. What DID change is which kind of wrong you get. Element 0 now reconstructs correctly as the record branch; element 1 throws ReconstructionException 'Could not match any union type at: items[1].meta' under the default strictValidation, where before the repair both elements were silently wrong. MEASURED VERBATIM by disabling the new union arm and re-recording: pre-fix avroDoc was {\"items\":[{\"meta\":\"S:plain\",\"sku\":\"S:a\"},{\"meta\":null,\"sku\":\"S:b\"}]} - element 0 got element 1's string and element 1 got nothing, with no exception and no log. That is the pass theme working: the recoverable half is recovered and the unrecoverable half became audible. Filed DEFECT because the round trip still does not hold, and the root cause - MapFlattener's column alignment for a mixed-branch union - is a new, separate finding.",
+      "title": "A three-branch union whose two array elements take DIFFERENT branches - now resolved",
+      "detail": "LOSSLESS since 2.1.0. The id is deliberately left defect-shaped so the history stays legible; precedent is avro-array-element-multi-branch-union-dropped. Element 0 resolves to the record branch via the index-aware nested-record helper, and element 1 falls past the failing record branch to the type-directed STRING branch, so meta comes back as the record {src: web} and as the string 'plain' respectively. What changed is UPSTREAM: MapFlattener now writes each array-element column by INDEX instead of appending and tail-padding, so items_meta is [null, plain] rather than [plain, null]. Before that, element 1's string sat at index 0 and the reconstructor threw ReconstructionException 'Could not match any union type at: items[1].meta'.",
       "configDescription": "assert DATA",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",

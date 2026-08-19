@@ -356,6 +356,12 @@ public class JsonReconstructor implements Serializable {
 
             return result;
 
+        } catch (ReconstructionException alreadyDiagnosed) {
+            // A typed refusal survives the wrapper. ArrayParseException names the column, the
+            // configured format and the raw value; re-wrapping it as "Failed to reconstruct
+            // flattened map" would replace a diagnosis with a shrug, and a caller who wants to
+            // catch that one specific contradiction could no longer do it by type.
+            throw alreadyDiagnosed;
         } catch (Exception e) {
             log.error("Reconstruction failed", e);
             throw new ReconstructionException("Failed to reconstruct flattened map", e);
@@ -475,7 +481,7 @@ public class JsonReconstructor implements Serializable {
                     if (value instanceof String) {
                         String strValue = ((String) value).trim();
                         if (looksLikeSerializedArray(strValue)) {
-                            List<Object> parsed = parseArrayValue(strValue);
+                            List<Object> parsed = tryParseArrayValue(strValue);
                             if (parsed != null && parsed.size() > 1) {
                                 isArray = true;
                                 detectedSize = Math.max(detectedSize, parsed.size());
@@ -529,9 +535,53 @@ public class JsonReconstructor implements Serializable {
     }
 
     /**
-     * Parse a serialized array value.
+     * SPECULATIVE PROBE: is this value a serialized array?
+     *
+     * <p>Used only by structure inference, which asks this of every value in every prefix group.
+     * "No" is the ordinary answer there, not a failure, so this never throws and never logs above
+     * DEBUG. A document carrying a marker like {@code [CIRCULAR_REFERENCE]} must reconstruct
+     * exactly as before.</p>
+     *
+     * <p>Implemented as a thin wrapper that CALLS the committed converter and catches its
+     * refusal, rather than as a second copy of the cascade. If the two were separate
+     * implementations they could drift - inference deciding a prefix is an array that the
+     * converter then refuses - which would turn a silently-wrong output into a hard failure on
+     * data that works today. Sharing the body makes that impossible by construction.</p>
      */
-    private List<Object> parseArrayValue(Object value) {
+    private List<Object> tryParseArrayValue(Object value) {
+        try {
+            List<Object> parsed = parseArrayValue(value, null);
+            return parsed == null ? Collections.emptyList() : parsed;
+        } catch (ArrayParseException notAnArray) {
+            if (log.isDebugEnabled()) {
+                log.debug("Structure inference: value is bracketed but not parseable as an array");
+            }
+            // EMPTY, not null. The caller's test is `size() > 1`, so empty and null are already
+            // indistinguishable to it, and this class maintains a gate - see
+            // ReconstructorNeverReturnsNullListContractTest - that a list-returning path does not
+            // hand back null.
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * COMMITTED CONVERTER: turn a serialized array value into its elements.
+     *
+     * <p>Callers of this method have already decided the path is an array - either the caller
+     * named it in {@code arrayPaths()} or inference ruled the prefix an array from its sibling
+     * columns. At that point "I could not parse it" is not an answer, it is a silent
+     * substitution: the value used to come back as a ONE-ELEMENT list holding the raw unparsed
+     * text, indistinguishable from a legitimate one-element array. In {@code reconstructArray} it
+     * was worse than that - the single unparsed element was then REPLICATED into every element of
+     * an N-element array by the last-value clamp, so one piece of garbage was presented as N
+     * successfully parsed values.</p>
+     *
+     * @param columnPath the column being converted, for the message; null when called from the
+     *                   probe, which discards the exception anyway
+     * @throws ArrayParseException under {@code arrayFormat=JSON} when the value is bracketed but
+     *                             is not parseable JSON
+     */
+    private List<Object> parseArrayValue(Object value, String columnPath) {
         if (value == null) {
             return null;
         }
@@ -551,26 +601,35 @@ public class JsonReconstructor implements Serializable {
             try {
                 return objectMapper.readValue(strValue, LIST_TYPE_REF);
             } catch (JsonProcessingException notJson) {
-                // HYBRID SITE. Under BRACKET_LIST, COMMA_SEPARATED and PIPE_SEPARATED this is a
-                // legitimate try-this-then-that cascade and the switch below recovers. Under the
-                // DEFAULT arrayFormat JSON it is not: the switch falls straight through to
-                // `return Collections.singletonList(value)`, so bracket-wrapped text that Jackson
-                // rejects becomes a ONE-ELEMENT ARRAY HOLDING THE RAW UNPARSED STRING, which is
-                // indistinguishable from a legitimate one-element array. That is the laundering
-                // shape, so the JSON arm - and only the JSON arm - says so.
+                // Under BRACKET_LIST, COMMA_SEPARATED and PIPE_SEPARATED this is a legitimate
+                // try-this-then-that cascade and the switch below recovers, so a decline there is
+                // the cascade working and deserves no complaint.
                 //
-                // DELIBERATELY DIAGNOSTIC ONLY. Returning null here instead would be more honest
-                // and all three call sites already handle null, but it changes reconstructed
-                // output on the JSON stack and collides with the vd-array-lookalike /
-                // string-array-lookalikes fixture family. That is corpus-moving work and is filed
-                // separately rather than smuggled into an empty-catch pass.
-                // Only the JSON arm is reported. Under the other three the switch below
-                // recovers, so a decline there is the cascade working and a second log line would
-                // be noise on an ordinary input.
+                // Under the DEFAULT arrayFormat JSON it is not a cascade. The switch falls
+                // straight through and the value used to be returned as a one-element list
+                // holding the raw unparsed text. MapFlattener's JSON writer always emits
+                // parseable JSON - including for a single-element column - so such a value cannot
+                // have come from it, which makes this a detectable contradiction rather than a
+                // guess.
+                //
+                // A WARN WAS THE OLD ANSWER AND IT WAS NOT ENOUGH. AvroReconstructor already
+                // settled the same question in the mirror-image direction and wrote down why:
+                // "a warning here would be read and ignored by exactly the caller it is aimed at
+                // - a Spark job whose logs nobody tails - and the data would still be wrong."
+                // One library must not give two different answers to the same misconfiguration.
+                //
+                // The speculative probe, tryParseArrayValue, catches this and returns null, so
+                // structure inference is UNCHANGED and a document carrying a marker such as
+                // [CIRCULAR_REFERENCE] still reconstructs exactly as before.
                 if (arrayFormat == ArraySerializationFormat.JSON) {
-                    log.warn("Value at arrayFormat {} looks like a JSON array but is not "
-                            + "parseable JSON; it will be returned as a SINGLE element holding "
-                            + "the raw text: {}", arrayFormat, strValue, notJson);
+                    throw new ArrayParseException(
+                            "Column " + (columnPath == null ? "(inferred)" : "'" + columnPath + "'")
+                                    + " is bracketed but is not parseable JSON, and arrayFormat is "
+                                    + arrayFormat + ". MapFlattener's JSON writer always emits "
+                                    + "parseable JSON, so this value did not come from it. Either "
+                                    + "the column is not an array, or the configured arrayFormat "
+                                    + "does not match the writer. Raw value: " + strValue,
+                            notJson);
                 }
             }
         }
@@ -817,9 +876,10 @@ public class JsonReconstructor implements Serializable {
                     result.put(key, processArrays(mapValue, analysis, path));
                 }
             } else if (analysis.arrayPaths.contains(path) && value instanceof String) {
-                // This is a leaf that should be an array
-                List<Object> parsed = parseArrayValue(value);
-                result.put(key, parsed != null ? parsed : value);
+                // This is a leaf that should be an array. The caller named this path in
+                // arrayPaths(), so a refusal is an answer rather than a reason to substitute.
+                List<Object> parsed = parseArrayValue(value, path);
+                result.put(key, parsed);
             } else {
                 // Regular value
                 if (value != null || preserveNulls) {
@@ -860,7 +920,12 @@ public class JsonReconstructor implements Serializable {
                 // Nested object - keep as single element
                 parsedValues = Collections.singletonList(value);
             } else {
-                parsedValues = parseArrayValue(value);
+                // This fallback used to reconstruct EXACTLY what parseArrayValue already
+                // returned - a one-element list holding the raw text - which the last-value
+                // clamp below then replicated into every element of the array.
+                // Named with the SEPARATOR, so the message quotes the key the caller actually put
+                // in the flattened map rather than a structural path they never wrote.
+                parsedValues = parseArrayValue(value, arrayPath + separator + fieldName);
                 if (parsedValues == null) {
                     parsedValues = Collections.singletonList(value);
                 }
@@ -1318,6 +1383,25 @@ public class JsonReconstructor implements Serializable {
     /**
      * Exception for reconstruction failures.
      */
+    /**
+     * A column that a caller or inference has already committed to being an array is bracketed
+     * but is not parseable JSON, under {@code arrayFormat=JSON}.
+     *
+     * <p>Sibling of {@code AvroReconstructor.ArrayFormatMismatchException}, and thrown for the
+     * same reason: a warning on this path would be read and ignored by exactly the caller it is
+     * aimed at, and the data would still be wrong. Structure INFERENCE never raises this - there
+     * a bracketed non-array is the ordinary answer to a speculative question.</p>
+     *
+     * @since 2.1.0
+     */
+    public static class ArrayParseException extends ReconstructionException {
+        private static final long serialVersionUID = 1L;
+
+        public ArrayParseException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public static class ReconstructionException extends RuntimeException {
         public ReconstructionException(String message) {
             super(message);

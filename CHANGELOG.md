@@ -212,7 +212,171 @@ parameter list or visibility changes — the new exception types and the added
     and for anyone who has been silently losing array elements it is the first notice they have
     ever had.
 
+13. **`MapFlattener` now writes every array-element column BY INDEX, so a value stays under the
+    element that carried it.** This is a silent-corruption fix, not a loss fix, and it is the
+    largest behaviour change in this release.
+
+    Case 3 of `flattenList` and the array-of-maps arm of `extractFieldsFromList` both built their
+    columns by APPENDING each value as they met it, then equalised the columns with a TAIL pad. A
+    column first seen at element *k* therefore landed at index 0, and every later value for it was
+    shifted left by the number of earlier elements that lacked it. **The tail pad is why nothing
+    downstream could see this**: it already made every column the same LENGTH, so a length check —
+    including this release's own `ArrayCardinalityException` — passed while the values sat under
+    the wrong elements. Both sites now pre-size each column to the element count and write with
+    `set(i, …)`; the equaliser is deleted rather than kept beside the indexed writes, so a future
+    append path cannot silently re-shift and still satisfy every length assertion.
+
+    What a caller sees. (a) Values re-associated with the correct element — measured on
+    `real-world/order-optional-discount-absent`, a 15% discount that the document put on line item
+    2 was being applied to line item 1, with a correct field count and a plausible shape.
+    (b) Columns that were short now carry one slot per source element, so reconstructed arrays
+    that used to collapse now report their true length. (c) An element that did not carry a column
+    now leaves an explicit `null` at its own index rather than no entry at all.
+
+    HONEST ABOUT WHAT THIS DOES **NOT** FIX, because two published rows read better afterwards
+    without losing less. `structural/heterogeneous-array-object-first` still deletes both object
+    elements and `avro/avro-array-of-records-null-element-annihilates-array` still annihilates its
+    record; both now return the true element count with explicit nulls where the data was, instead
+    of a shorter array that looked like clean data. The array length being honest is a smaller lie,
+    not a repair — and for the Avro row it means a caller who would have caught the loss by
+    checking the element count no longer can. An absent key inside an array element still becomes
+    a present null on the way back, and nothing marks a positional hole as distinct from a value
+    genuinely written as null.
+
+    Seven corpus rows were re-recorded and
+    `avro/avro-array-element-multi-branch-union-mixed-branches` moved **DEFECT → LOSSLESS**: its
+    residual fault was never union resolution, it was this misalignment, so the corpus counts go
+    55/24/82 → **56/24/81**. A third site, `extractFieldsPreservingStructure`, has the same defect
+    and is deliberately NOT fixed here — see *Known issues*.
+
+14. **`FileFinder`'s `maxFileSize` is enforced against the RESOLVED file and against the bytes
+    actually read.** The gate used to call `Paths.get(fileName)` with no base path while resolution
+    went through the configured search paths, so it covered only names that happened to resolve as
+    a regular file relative to the working directory. A file reached through the classpath, HDFS,
+    the deep search or any non-CWD search path was not size-checked at all. Two further holes are
+    closed with it: a classpath handle whose content length is unknown reports `-1`, which a
+    `size > max` comparison waves through, and `.gz` is an allowed extension that is inflated
+    transparently, so the handle's COMPRESSED size was being compared against the cap. The cap is
+    now applied twice — once against a known resolved size before anything is opened, and once as
+    a hard byte count on the outermost, decompressed stream. **A previously-successful read of an
+    oversized file now throws**, and for a compressed file the throw can land mid-read.
+
+15. **`FileFinder` no longer searches parent directories.** `".."`, `"../.."` and `"../../.."`
+    were default search paths, and `performDiscovery` — invoked on EVERY miss to build the
+    not-found message — applies `Files.walk(path, 2)` to each of them and embeds the results in the
+    exception text. Measured from this repository's root, a `.json` miss walked 67 files across
+    sibling checkouts and 24 in the user's home directory, and `AvroSchemaFlattener` rewraps that
+    message into a `RuntimeException` that Spark logs. On an executor the same walk enters sibling
+    containers' scratch space. `discoverFiles`, `discoverAvroSchemas` and
+    `FileFinderException.getAvailableFiles()` now return a strictly smaller set — for
+    `discoverFiles` that is a change in returned DATA, not only in an error string. Two duplicate
+    entries were removed at the same time, so each lookup issues two fewer `Files.exists` calls.
+    The traversal `SecurityException` message was rewritten in the same change: it claimed
+    FileFinder "searches parent directories by default" (no longer true) and told the caller to
+    "disable validatePaths if the input is trusted", which was never possible, since `Config` has
+    no setters and no injection point.
+
+16. **`FileFinder.getFileMetadata` and `fileExists` now validate before searching.** Both called
+    the cache loader directly, so neither ever reached `enforceSafetyOptions` — the class javadoc
+    claiming `getInputStream` was "the single choke point every public accessor funnels through"
+    was false, and that claim has been corrected in place. `getFileMetadata` on a traversal name
+    now throws `SecurityException` where it previously threw
+    `IOException("Failed to get file metadata")` after running the full search. `fileExists` still
+    returns `false`, but stops performing the search first; the difference is observable through
+    `getStatistics().searchAttempts`.
+
+17. **`AvroSchemaLoader.loadAvroSchema` propagates `SecurityException` instead of silently falling
+    back to an unvalidated read.** This closed a live bypass of the 2.0.0 traversal fix. The loader
+    wrapped its `FileFinder` call in `catch (Exception e)` with a DEBUG log; `SecurityException` is
+    a `RuntimeException`, so the traversal guard fired and was DISCARDED, and control fell through
+    to `loadFromLocalFileSystem` — `Paths.get(basePath, schemaName)` plus `Files.readAllBytes`,
+    with no traversal check, no extension check and no size cap, over a search-path list beginning
+    with `"."`. The guard was proven at the `FileFinder` boundary and enforced nowhere at the
+    library boundary. `normalizeSchemaName` appends `.avsc`, which narrowed the reachable target
+    set but did not close it. A 2.0.0 caller relying on that fallback to read a `.avsc` from
+    outside the working tree will now fail.
+
+18. **`JsonReconstructor` refuses an unparseable bracketed column where the caller has already
+    committed to it being an array.** Under `arrayFormat=JSON`, a bracket-wrapped value Jackson
+    cannot parse used to be returned as a one-element list holding the raw text — indistinguishable
+    from a legitimate one-element array. In `reconstructArray` it was worse: that single unparsed
+    element was then REPLICATED into every element of an N-element array by the last-value clamp,
+    so one piece of garbage was presented as N successfully parsed values. It now throws
+    `ArrayParseException`, naming the flattened key, the configured format and the raw value.
+
+    **The structure-inference probe is explicitly UNCHANGED and still treats such a value as
+    "not an array", without throwing and without warning above DEBUG.** That is half the design,
+    not an oversight: inference asks this of every value in every prefix group, where "no" is the
+    ordinary answer, and making it throw would turn
+    `limits/circular-map-reference-is-marked-and-the-guard-is-live` red by rejecting a benign
+    `[CIRCULAR_REFERENCE]` marker — converting a working reconstruction into a hard failure. That
+    row is the only fixture in the corpus that reaches this path at all, which is also why no
+    fixture moved. The probe is implemented as a thin wrapper that CALLS the committed converter
+    and catches its refusal, rather than as a second copy of the cascade, so the two cannot drift
+    into disagreeing about what an array is.
+
+    `BRACKET_LIST`, `COMMA_SEPARATED` and `PIPE_SEPARATED` are untouched — there the JSON attempt
+    is the first leg of a genuine try-this-then-that cascade and a decline is the cascade working.
+    Separately, a `ReconstructionException` raised inside `reconstruct` is no longer re-wrapped as
+    `"Failed to reconstruct flattened map"`; a typed refusal now survives to the caller.
+
+    This aligns `JsonReconstructor` with the answer `AvroReconstructor` already gives to the same
+    misconfiguration. One library should not answer it two different ways.
+
+19. **`AvroSchemaFlattener.getFlattenedSchema(String)` no longer SEARCHES for the schema — it reads
+    the path it is given.** Flagged on its own because it is the one repoint in this release with
+    no fallback behind it, and because nothing in this repository exercises that overload, so no
+    test went red to announce it.
+
+    The parameter is named `schemaPath` and is now treated as one. Previously the call went through
+    `FileFinder`, so a BARE NAME like `"product_schema.avsc"` could resolve out of any of roughly
+    28 configured directories, the classpath, or a depth-five walk. It now resolves relative to the
+    working directory and stops. **A caller passing a bare name and relying on the search will get
+    `FileNotFoundException` where they previously got a schema** — pass a path, or resolve the name
+    yourself before calling.
+
+    `AvroSchemaLoader` is NOT affected in the same way: it keeps its own search paths and classpath
+    fallback at steps 2 and 3, so only the traversal refusal is new there.
+    `NexusPiercerSparkPipeline` takes an operator-supplied `config.schemaPath`, which was always a
+    path.
+
+    Two defects go with it: the stream at this call site was opened and never closed on the success
+    path, leaking a descriptor per distinct cache key, and the not-found message embedded the
+    filenames discovery had found — which this method rewraps into a `RuntimeException` that Spark
+    logs.
+
+20. **`FileFinder.fileExists` now returns `false` for a name that fails validation, even if the
+    file is there.** It validates before consulting the cache, so a disallowed extension, a
+    traversal segment or a null byte answers `false` rather than `true`. This is the consistent
+    answer — `findFile` refuses those names, so reporting that they exist was an invitation to a
+    call that cannot succeed — but it is a changed return value for an existing input.
+
 ### Added
+
+- **`JsonReconstructor.ArrayParseException`**, a nested public class extending
+  `ReconstructionException`. Additive; the 2.0.0 baseline gate is unaffected.
+
+- **`io.github.pierce.files.SchemaFiles`** — a static, dependency-free reader for a schema file
+  whose path the caller already knows. `open(String)` and `readString(String)` reject a null byte,
+  reject a relative escape, resolve the LITERAL path with no searching, stat, size-cap, and return
+  a stream capped at the same limit so a file that grew between the stat and the read still cannot
+  exceed it. No singleton, no thread pools, no caches, no fuzzy matching. This is the replacement
+  named in `FileFinder`'s deprecation notice, and all three of the library's own call sites
+  (`AvroSchemaFlattener`, `AvroSchemaLoader`, `NexusPiercerSparkPipeline`) now use it. Additive;
+  the 2.0.0 baseline gate is unaffected.
+
+### Deprecated
+
+- **`FileFinder`, `FileFinder.Config`, `FileFinder.Util`, `discoverFiles`, `discoverAvroSchemas`,
+  `getStatistics` and `clearCaches`.** `@Deprecated` is additive and clears the baseline gate;
+  nothing is removed at 2.1.0. The notice discloses two things a caller reading it needs: a single
+  static `findFile` call constructs a singleton whose thread pools nothing ever shuts down (the
+  scheduled pool used NON-daemon threads, so a CLI or `spark-submit` driver would finish its work
+  and then hang — both pools are daemon as of this release, but there is still no lifecycle and no
+  `close()`), and `Config` configures nothing, because every field is private with no accessor and
+  the only construction anywhere is inside `getInstance()`. Removal and the rework into an
+  instantiable `AutoCloseable` component are filed as [BL-017] for 3.0.0; 34 members of this class
+  sit in the released 2.0.0 baseline, so none of it can go additively.
 
 - **`AvroReconstructor.ArrayCardinalityException` and `AvroReconstructor.ArrayFormatMismatchException`**,
   both nested public classes extending `ReconstructionException`, plus a

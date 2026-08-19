@@ -1,6 +1,6 @@
 package io.github.pierce;
 
-import io.github.pierce.files.FileFinder;
+import io.github.pierce.files.SchemaFiles;
 import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Multi-environment support (local, test, production)
  * - Caching for performance
  * - Batch loading with partial failure handling
- * - Integration with existing FileFinder
+ * - Direct, size-capped schema reads via SchemaFiles
  * - Comprehensive error reporting
  */
 public class AvroSchemaLoader {
@@ -278,15 +278,30 @@ public class AvroSchemaLoader {
     // Private helper methods
 
     private Schema findAndLoadSchema(String schemaName) throws IOException {
-        // 1. First try using FileFinder if available
-        try {
-            InputStream is = FileFinder.findFile(schemaName);
-            if (is != null) {
-                LOG.info("Schema {} found via FileFinder", schemaName);
-                return new Schema.Parser().parse(is);
-            }
-        } catch (Exception e) {
-            LOG.debug("FileFinder could not locate schema: {}", schemaName);
+        // 1. Direct read of the literal path.
+        //
+        // TWO DEFECTS USED TO LIVE IN THIS BLOCK, and the first was a live bypass of the 2.0.0
+        // traversal fix. It called FileFinder.findFile and wrapped it in `catch (Exception e)`
+        // with a DEBUG log. SecurityException is a RuntimeException, so FileFinder's traversal
+        // guard fired and was DISCARDED - and control fell through to step 2 below, which is
+        // Paths.get(basePath, schemaName) + Files.readAllBytes over a search-path list beginning
+        // with ".", with no traversal check, no extension check and no size cap. The guard was
+        // proven at the FileFinder boundary by FileFinderSafetyOptionsTest and enforced nowhere
+        // at the library boundary. normalizeSchemaName appends ".avsc", which narrowed the
+        // reachable target set but did not close it.
+        //
+        // The second: the stream was opened and never closed on the success path.
+        //
+        // SecurityException now propagates. A refusal is an answer, not a reason to try again by
+        // another route.
+        try (InputStream is = SchemaFiles.open(schemaName)) {
+            LOG.info("Schema {} read directly from path", schemaName);
+            return new Schema.Parser().parse(is);
+        } catch (SecurityException refused) {
+            throw refused;
+        } catch (IOException notThere) {
+            LOG.debug("Schema {} is not a readable path; falling back to the search paths",
+                    schemaName);
         }
 
         // 2. Try each search path

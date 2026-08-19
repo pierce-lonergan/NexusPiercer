@@ -24,6 +24,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Deque;
 import java.util.HashSet;
@@ -67,10 +68,29 @@ import java.util.Set;
  * Input: {phones: [[{number:1}, {number:2}], [{number:3}]]}
  * Output: {phones_number: "[[1,2],[3]]"}
  *
- * // Mixed content uses _value sentinel:
- * Input: {data: [[{name:"A"}], "text"]}
- * Output: {data_name: "[["A"]]", data_value: "[[null],["text"]]"}
+ * // Mixed content at a NESTED array level - MEASURED, and not what this javadoc used to claim:
+ * Input:  {data: [[{name:"A"}], "text"]}
+ * Output: {data_name: "[["A"]]", data: "["text"]"}
+ *
+ * // The sentinel maps to the BASE key, not to a "_value" suffix, and the two columns are NOT
+ * // padded to the outer element count - data_name describes outer position 0 and data describes
+ * // outer position 1, but each sits at index 0 of its own column. This javadoc previously
+ * // documented {data_name: "[["A"]]", data_value: "[[null],["text"]]"}, which the code has
+ * // never produced; the fixture structural/mixed-nested-array-sentinel-collision exists because
+ * // of that discrepancy.
  * </pre>
+ *
+ * <h2>Positional contract for array-element columns</h2>
+ * At the two ARRAY-OF-MAPS sites - {@code flattenList} Case 3 and {@code extractFieldsFromList} -
+ * every emitted column carries exactly one entry per source element (capped by
+ * {@code maxArraySize}), with element {@code i}'s value at index {@code i} and an explicit null
+ * where element {@code i} did not carry that column.
+ * <p>
+ * That guarantee does NOT yet extend to {@code extractFieldsPreservingStructure}, the
+ * nested-array arm. It appends one entry per OUTER position with no padding at all, so an outer
+ * position whose nested list lacks a field leaves no hole, and two columns under the same prefix
+ * can have different outer lengths. Measured: {@code {"g":[[{"a":1},{"b":2}],[{"a":3}]]}} emits
+ * {@code g_a="[[1,null],[3]]"} (two outer entries) beside {@code g_b="[[null,2]]"} (one).
  *
  * <h2>For AWS Athena</h2>
  * Recommended formats:
@@ -553,7 +573,17 @@ public class MapFlattener implements Serializable {
             return result;
         }
 
-        // Case 3: Array of maps at this level (FIXED VERSION with recursive flattening)
+        // Case 3: Array of maps at this level.
+        //
+        // POSITIONAL CONTRACT: every column is born `limit` long and is written by INDEX. Values
+        // are never appended and the columns are never equalised afterwards.
+        //
+        // The previous shape appended each value as it was encountered and then tail-padded every
+        // column up to the longest. That made the LENGTHS agree while leaving the VALUES under the
+        // wrong elements - a column first seen at element k landed at index 0 - so no length check
+        // anywhere downstream, including AvroReconstructor's ArrayCardinalityException, could see
+        // it. The equaliser is deleted rather than kept beside the indexed writes precisely so a
+        // future append path cannot silently re-shift and still pass every length assertion.
         if (hasMaps) {
             Map<String, List<Object>> fieldValues = new LinkedHashMap<>();
             String separator = useArrayBoundarySeparator ? "__" : "_";
@@ -562,45 +592,26 @@ public class MapFlattener implements Serializable {
                 Object item = list.get(i);
 
                 if (item instanceof Map) {
-                    @SuppressWarnings("unchecked")
                     Map<?, ?> itemMap = (Map<?, ?>) item;
 
-                    // FIXED: Recursively flatten each map in the array
+                    // Recursively flatten each map in the array
                     Map<String, Object> flattenedItem = flattenObject(itemMap, "", depth + 1);
 
-                    // Collect the flattened fields
+                    // Collect the flattened fields, each under its own element index
                     for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {
                         String fieldKey = joinEncodedKey(key, separator, entry.getKey());
-
-                        if (!fieldValues.containsKey(fieldKey)) {
-                            fieldValues.put(fieldKey, new ArrayList<>());
-                        }
-
-                        fieldValues.get(fieldKey).add(entry.getValue());
+                        columnFor(fieldValues, fieldKey, limit).set(i, entry.getValue());
                     }
                 } else {
-                    // Non-map item in the array
-                    if (!fieldValues.containsKey(key)) {
-                        fieldValues.put(key, new ArrayList<>());
-                    }
+                    // Non-map item in the array - carried under the base key
                     Object normalizedValue = item == null ? null :
                             (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
-                    fieldValues.get(key).add(normalizedValue);
+                    columnFor(fieldValues, key, limit).set(i, normalizedValue);
                 }
             }
 
-            // Ensure all arrays have consistent length (pad with nulls)
-            int maxSize = fieldValues.values().stream()
-                    .mapToInt(List::size)
-                    .max()
-                    .orElse(0);
-
             for (Map.Entry<String, List<Object>> entry : fieldValues.entrySet()) {
-                List<Object> values = entry.getValue();
-                while (values.size() < maxSize) {
-                    values.add(null);
-                }
-                result.put(entry.getKey(), serializeArray(values));
+                result.put(entry.getKey(), serializeArray(entry.getValue()));
             }
 
             return result;
@@ -735,48 +746,29 @@ public class MapFlattener implements Serializable {
         }
 
         if (hasMaps) {
-            // Array of maps - extract fields with proper key tracking (FIXED VERSION)
-            Set<String> usedKeys = new HashSet<>();
-
+            // Array of maps one level down. Same positional contract as flattenList Case 3:
+            // every column is born `limit` long and written by index, never appended and
+            // never equalised afterwards. No corpus fixture reaches this arm, which is exactly
+            // why it is covered by MapFlattenerColumnAlignmentTest - an alignment invariant that
+            // holds at depth one and fails at depth two is worse than one that fails everywhere,
+            // because callers start trusting it.
             for (int i = 0; i < limit; i++) {
                 Object item = list.get(i);
 
                 if (item instanceof Map) {
-                    @SuppressWarnings("unchecked")
                     Map<?, ?> map = (Map<?, ?>) item;
 
-                    // FIXED: Recursively flatten the map
+                    // Recursively flatten the map
                     Map<String, Object> flattenedMap = flattenObject(map, "", depth + 1);
 
                     for (Map.Entry<String, Object> entry : flattenedMap.entrySet()) {
-                        String fieldName = entry.getKey();
-                        if (!fields.containsKey(fieldName)) {
-                            fields.put(fieldName, new ArrayList<>());
-                        }
-                        fields.get(fieldName).add(entry.getValue());
+                        columnFor(fields, entry.getKey(), limit).set(i, entry.getValue());
                     }
                 } else {
                     // Mixed content - non-map item in array of maps
-                    String sentinelKey = "_value";
-                    if (!fields.containsKey(sentinelKey)) {
-                        fields.put(sentinelKey, new ArrayList<>());
-                    }
                     Object normalizedValue = item == null ? null :
                             (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
-                    fields.get(sentinelKey).add(normalizedValue);
-                }
-            }
-
-            // Pad arrays for consistency
-            int maxSize = fields.values().stream()
-                    .mapToInt(List::size)
-                    .max()
-                    .orElse(0);
-
-            for (Map.Entry<String, List<Object>> entry : fields.entrySet()) {
-                List<Object> values = entry.getValue();
-                while (values.size() < maxSize) {
-                    values.add(null);
+                    columnFor(fields, "_value", limit).set(i, normalizedValue);
                 }
             }
 
@@ -791,6 +783,28 @@ public class MapFlattener implements Serializable {
         }
         fields.put("_value", values);
         return fields;
+    }
+
+    /**
+     * The one place the positional-hole invariant is established.
+     *
+     * <p>Returns the existing column for {@code key}, or creates one already {@code size} entries
+     * long and filled with nulls. Callers then write with {@code set(i, value)}, so element
+     * {@code i}'s value is at index {@code i} and an element that did not carry the column leaves
+     * an explicit null exactly where it sits.</p>
+     *
+     * <p>A column that is born the right length cannot be shifted by a later append, which is the
+     * whole point: the defect this replaces was an append loop plus a tail pad, and the tail pad
+     * made every column the correct LENGTH while the values sat under the wrong elements. Both
+     * array-of-maps sites share this helper so they cannot drift apart.</p>
+     */
+    private static List<Object> columnFor(Map<String, List<Object>> columns, String key, int size) {
+        List<Object> column = columns.get(key);
+        if (column == null) {
+            column = new ArrayList<>(Collections.nCopies(size, null));
+            columns.put(key, column);
+        }
+        return column;
     }
 
     /**

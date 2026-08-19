@@ -9,20 +9,20 @@
   "cannotCatch" : "It cannot detect the symmetric case where the sparse field is absent from the LAST element instead of the first; that one pads correctly by luck and would pass.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "discount_pct migrates from line item 2 to line item 1 and item 2 gains an explicit null it never had. The document round-trips with the correct field count and a plausible shape - only the association is wrong."
+    "detail" : "THE MIGRATION IS FIXED IN 2.1.0; THE FABRICATED NULL IS NOT. discount_pct now stays on line item 2 (SKU-205) where the document put it - previously it was applied to line item 1 (SKU-100), silent financial corruption that round-tripped with a correct field count and a plausible shape. What keeps this row DEFECT is that line item 1 still gains an explicit discount_pct of null that it never carried. A consumer cannot tell 'no discount was recorded' from 'a discount of null was recorded'."
   },
   "configDescription" : "defaults",
   "config" : { },
   "input" : "{\"order_id\":\"ORD-2026-0004\",\"currency_code\":\"USD\",\"line_items\":[{\"sku\":\"SKU-100\",\"quantity\":1,\"unit_price\":19.99},{\"sku\":\"SKU-205\",\"quantity\":2,\"unit_price\":7.25,\"discount_pct\":15}]}",
   "expected" : {
     "mapBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"},{\"discount_pct\":\"I:15\",\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"D:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
-    "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[15,null]\",\"line\\\\_items_quantity\":\"S:[1,2]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,7.25]\",\"order\\\\_id\":\"S:ORD-2026-0004\"}",
-    "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":\"I:15\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"},{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"D:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
+    "flat" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[null,15]\",\"line\\\\_items_quantity\":\"S:[1,2]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,7.25]\",\"order\\\\_id\":\"S:ORD-2026-0004\"}",
+    "mapDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":null,\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"D:19.99\"},{\"discount_pct\":\"I:15\",\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"D:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":\"I:15\",\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
-    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[15,null]\",\"line\\\\_items_quantity\":\"S:[1,2]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,7.25]\",\"order\\\\_id\":\"S:ORD-2026-0004\"}",
-    "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":\"I:15\",\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":null,\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
+    "flatJson" : "{\"currency\\\\_code\":\"S:USD\",\"line\\\\_items_discount\\\\_pct\":\"S:[null,15]\",\"line\\\\_items_quantity\":\"S:[1,2]\",\"line\\\\_items_sku\":\"S:[\\\"SKU-100\\\",\\\"SKU-205\\\"]\",\"line\\\\_items_unit\\\\_price\":\"S:[19.99,7.25]\",\"order\\\\_id\":\"S:ORD-2026-0004\"}",
+    "jsonDoc" : "{\"currency_code\":\"S:USD\",\"line_items\":[{\"discount_pct\":null,\"quantity\":\"I:1\",\"sku\":\"S:SKU-100\",\"unit_price\":\"BD:19.99\"},{\"discount_pct\":\"I:15\",\"quantity\":\"I:2\",\"sku\":\"S:SKU-205\",\"unit_price\":\"BD:7.25\"}],\"order_id\":\"S:ORD-2026-0004\"}",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

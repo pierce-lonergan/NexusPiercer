@@ -9,20 +9,20 @@
   "cannotCatch" : "It cannot catch the case where a user legitimately has a field named \"_value\", which would be silently merged with the wrapper. It also cannot distinguish the wrapper leak from the failure to parse the columns, since both are consequences of the same collision.",
   "predicted" : {
     "classification" : "DEFECT",
-    "detail" : "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output."
+    "detail" : "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output. Unchanged in 2.1.0 and still DEFECT. The column CONTENTS did change: mixed is now [1,2,null] and mixed_a is [null,null,3], so the object at source index 2 is recorded at index 2 rather than being relocated to index 0. That repair is upstream in the flattener and does not touch the sentinel leak, which is what this row is for."
   },
   "configDescription" : "defaults",
   "config" : { },
   "input" : "{\"mixed\":[1,2,{\"a\":3}]}",
   "expected" : {
     "mapBaseline" : "{\"mixed\":[\"I:1\",\"I:2\",{\"a\":\"I:3\"}]}",
-    "flat" : "{\"mixed\":\"S:[1,2]\",\"mixed_a\":\"S:[3,null]\"}",
-    "mapDoc" : "{\"mixed\":{\"_value\":\"S:[1,2]\",\"a\":\"S:[3,null]\"}}",
+    "flat" : "{\"mixed\":\"S:[1,2,null]\",\"mixed_a\":\"S:[null,null,3]\"}",
+    "mapDoc" : "{\"mixed\":{\"_value\":\"S:[1,2,null]\",\"a\":\"S:[null,null,3]\"}}",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"mixed\":[\"I:1\",\"I:2\",{\"a\":\"I:3\"}]}",
-    "flatJson" : "{\"mixed\":\"S:[1,2]\",\"mixed_a\":\"S:[3,null]\"}",
-    "jsonDoc" : "{\"mixed\":{\"_value\":\"S:[1,2]\",\"a\":\"S:[3,null]\"}}",
+    "flatJson" : "{\"mixed\":\"S:[1,2,null]\",\"mixed_a\":\"S:[null,null,3]\"}",
+    "jsonDoc" : "{\"mixed\":{\"_value\":\"S:[1,2,null]\",\"a\":\"S:[null,null,3]\"}}",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

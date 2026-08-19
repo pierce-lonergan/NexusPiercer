@@ -401,11 +401,22 @@ flattening; `MapFlattener` neither quotes nor escapes on that path. The cardinal
 it whenever the split leaves the columns disagreeing, but a document where every column happened to
 contain the same number of stray delimiters would split consistently and pass while being wrong.
 
-**ALSO OWED AND NOT DONE:** the disagreeing-count case cannot be a corpus row at all.
-`FidelityFixture` takes a source DOCUMENT and `MapFlattener` always emits equal-length columns from
-a well-formed one; ragged columns come only from externally produced flat maps (Athena, Spark,
-CDC). It is pinned in `AvroArrayOfRecordsSizingTest` instead, and that limit is a real gap in what
-the corpus can express.
+**ALSO OWED AND NOT DONE:** the disagreeing-count case is pinned in `AvroArrayOfRecordsSizingTest`
+rather than in the corpus.
+
+> **CORRECTION, 2.1.0 — the reason given above was FALSE and is the reason nobody looked again.**
+> This paragraph used to read "`MapFlattener` always emits equal-length columns from a well-formed
+> one; ragged columns come only from externally produced flat maps (Athena, Spark, CDC)". Measured,
+> not argued: `{"g":[[{"a":1},{"b":2}],[{"a":3}]]}` — a perfectly well-formed document — emits
+> `g_a="[[1,null],[3]]"` with **two** outer entries beside `g_b="[[null,2]]"` with **one**. The
+> nested-array arm, `extractFieldsPreservingStructure`, has no padding step at all, so the
+> equal-length property holds only at the two array-of-maps sites. The 2.1.0 alignment repair does
+> NOT close this: post-fix the same document still gives 2 outer entries against 1.
+>
+> So a disagreeing-count fixture IS expressible from a source document, and the stated blocker was
+> wrong. What remains unverified is whether `soleRecordBranch` descends an `array<array<record>>`
+> far enough for those ragged columns to reach `agreedElementCount` — that is the question to
+> settle before writing the row, and it is filed as part of [BL-018].
 
 ---
 
@@ -571,6 +582,79 @@ Not doable additively; recorded so it is not lost.
 
 ---
 
+### [BL-017] 3.0.0 removal or extraction of `FileFinder`
+
+Deprecated in 2.1.0; cannot be removed before 3.0.0 because **34 members of it sit in
+`src/test/resources/api/public-api-2.0.0.txt`** and `PublicApiIsAdditiveOnlySinceReleaseTest`
+asserts released ⊆ current by design.
+
+**The verdict, and it is stronger than "1,257 lines for three call sites."** `FileFinder.Config` is
+public API that configures nothing. Every field is private with no accessor except
+`getAllSearchPaths()`; `searchPaths` is a fixed-size `Arrays.asList`; and the only construction
+anywhere in `src/` is `INSTANCE = new FileFinder(new Config())` inside `getInstance()`. So
+`maxFileSize`, `validatePaths`, `allowedExtensions`, `maxSearchDepth` and the search-path list are
+not defaults — they are hard-coded constants wearing the costume of configuration, and `CTOR public
+...FileFinder.Config()` is a baseline entry for a type that constructs an object nothing consumes.
+That is what made the 2.0.0 `SecurityException` message ("disable validatePaths if the input is
+trusted") an instruction no caller could follow; the message was rewritten in 2.1.0.
+
+**Still true at 2.1.0, and not fixable additively:**
+
+- A single static `findFile` call constructs a singleton that starts two thread pools nothing ever
+  shuts down. Both are daemon threads as of 2.1.0, so the JVM-exit hazard is gone, but there is
+  still no lifecycle, no `close()`, and no way to have two differently-configured finders.
+- `performDeepSearch` still walks the working directory to depth 5 on every miss. Making it opt-in
+  needs a `Config` setter, which is additive **and inert**, because `Config` cannot be injected.
+- `DeepFileSearcher.currentDepth` is incremented in `preVisitDirectory` and decremented in
+  `postVisitDirectory`, so it tracks a running count of open directories rather than the depth of
+  the current node; the `currentDepth > maxDepth` guard therefore fires on breadth. The real bound
+  is the `maxDepth` argument to `walkFileTree`. Delete the counter.
+- `initializeEnvironmentPaths()` probes the CWD for `mvnw`, `.idea` and `.project` at `Config`
+  construction, so the search-path set depends on where the JVM happened to be started. A Spark
+  driver launched from a directory containing `.idea` searches `out/production/classes`; one
+  launched elsewhere does not.
+- `maxContentCacheBytes` is 50 MB while `maxFileSize` is 100 MB, so any file between the two is
+  loaded, returned, and immediately evicted by Guava's `maximumWeight`. The content cache is pure
+  overhead for exactly the sizes where caching would matter most.
+
+**Recommended 3.0.0 shape:** delete `FileFinder`, keep `SchemaFiles`; or extract the finder into a
+separate optional artifact for callers who genuinely want fuzzy discovery. `docs/audit/ROADMAP.md`
+already reached the same conclusion at Phase 4 — line 130 says the fix means changing FileFinder
+"from a static singleton with hidden global lifecycle into an instantiable AutoCloseable component
+— an API change, not a patch" — and that conclusion had never been carried into this file.
+
+---
+
+### [BL-018] `extractFieldsPreservingStructure` has the array-element misalignment that the other two sites had
+
+2.1.0 repaired the positional contract at `flattenList` Case 3 and at the array-of-maps arm of
+`extractFieldsFromList`: each column is pre-sized to the element count and written by index. The
+THIRD site, `extractFieldsPreservingStructure` (the nested-array arm), was deliberately left alone
+and still appends one entry per OUTER position with no padding at all.
+
+**Why it was not bundled with the other two.** Sites A and B only move existing scalar values to
+different indices — no new value shape appears anywhere. Fixing site C would place a bare `null`
+where a nested LIST has always been (`data_name` becoming `[["A"],null]`), a shape `MapFlattener`
+has never emitted and that no reconstructor has been exercised against. Bundling it would also have
+made the seven-row corpus diff impossible to attribute, and an unattributable corpus diff is how a
+regression of the just-fixed class hides.
+
+**Measured counter-examples, both from well-formed documents:**
+
+- `{"g":[[{"a":1},{"b":2}],[{"a":3}]]}` → `g_a="[[1,null],[3]]"` (2 outer entries),
+  `g_b="[[null,2]]"` (1). Ragged, and it refutes the claim corrected under [BL-013].
+- `{"data":[[{"name":"A"}],"text"]}` → `data_name="[["A"]]"`, `data="["text"]"`. The sentinel maps
+  to the BASE key, and outer position 1's value sits at index 0 of its own column.
+
+**Before attempting it:** find every place that assumes each entry of a structure column is a
+`List`, because the fix introduces `null` there. And settle whether `soleRecordBranch` descends an
+`array<array<record>>` far enough for ragged columns to reach `agreedElementCount` — if it does,
+the disagreeing-count case becomes a corpus row and [BL-013]'s residue note changes again.
+
+This is 2.x-eligible behaviour work, not a 3.0.0 breaking change. It just is not this commit.
+
+---
+
 ## Medium Priority
 
 ### [BL-007] Investigate and Resolve JsonReconstructor — CLOSED 2026-08-17, PREMISE REFUTED ✅
@@ -607,7 +691,19 @@ Not doable additively; recorded so it is not lost.
 
 ## Low Priority
 
-### [BL-008] Clarify Flattener Naming Convention
+### [BL-008] Clarify Flattener Naming Convention — CLOSED 2026-08-18 ✅
+
+**Closed by the "Which flattener do I use?" table in README.md**, which names all SIX (the original
+filing listed two) and splits them into three DATA flatteners and three SCHEMA flatteners. Measured
+relationships rather than assumed ones: `JsonFlattener` holds a `MapFlattener` field and is a
+facade over it; `JsonFlattenerConsolidator` contains **no** reference to `MapFlattener` and is an
+independent Jackson implementation, so its output is not guaranteed to match and the corpus does
+not cover it; `GAvroSchemaFlattener` is independent of `AvroSchemaFlattener` despite the name, its
+only mention of it being a javadoc example that would not compile. Renaming is breaking and stays
+filed under [BL-016].
+
+Original filing follows.
+
 - **Type:** Documentation
 - **Priority:** Low
 - **Effort:** XS
