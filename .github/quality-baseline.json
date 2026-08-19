@@ -180,7 +180,7 @@
     "note": "All 9 original violations were unused imports and are fixed. Re-measured 0 on 2026-08-11 after the Groovy removal. Note this gate never saw the ported test sources: includeTestSourceDirectory is false, so the default-package AvroReconstructorTest that was moved into io.github.pierce during the port was moved for Java-tooling reasons, not because Checkstyle would have rejected it — Checkstyle was never going to look."
   },
   "pmd": {
-    "ceiling": 323,
+    "ceiling": 322,
     "mode": "ratchet",
     "topRules": {
       "AvoidLiteralsInIfCondition": 64,
