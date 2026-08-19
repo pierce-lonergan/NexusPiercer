@@ -334,25 +334,78 @@ class JsonReconstructorKeyCollisionTest {
         // leaf-side guard was added, branch-then-leaf silently OVERWROTE the subtree here while
         // leaf-then-branch threw - the exact asymmetry the fix removes, reintroduced one layer
         // further down.
-        Map<String, Object> leafFirst = ordered("a\\b", "scalar", "a\\b_c", "1");
-        Map<String, Object> branchFirst = ordered("a\\b_c", "1", "a\\b", "scalar");
+        //
+        // AND IT RUNS OVER THREE LEAF SHAPES, NOT ONE. The first version of this test used only
+        // the String "scalar", and that is exactly why the first version of the guards passed it
+        // while still losing data. The guards asked `occupant instanceof Map && !(value
+        // instanceof Map)` and `existing == null`, so the answer depended on the RUNTIME TYPE OF
+        // THE VALUE, and two shapes walked straight through. Measured at bd5b070, before this
+        // repair:
+        //
+        //   Map leaf,  branch-first : {a\b_c=KEEP-ME, a\b={}}  -> {a\b={}}       KEEP-ME GONE
+        //   Map leaf,  leaf-first   : {a\b={}, a\b_c=KEEP-ME}  -> {a\b={c=KEEP-ME}}  merged
+        //   null leaf, leaf-first   : {a\b=null, a\b_c=1}      -> {a\b={c=1}}    null LEAF GONE
+        //   null leaf, branch-first : threw, as it does today
+        //
+        // Three silent answers and one throw, from a guard pair whose javadoc claimed both orders
+        // were covered. A value-shaped test cannot find a value-shaped hole, so the shapes are
+        // now the parameter.
+        for (Object leaf : new Object[] {"scalar", null, new LinkedHashMap<String, Object>()}) {
+            String shape = leaf == null ? "null" : leaf.getClass().getSimpleName();
+            Map<String, Object> leafFirst = ordered("a\\b", leaf, "a\\b_c", "1");
+            Map<String, Object> branchFirst = ordered("a\\b_c", "1", "a\\b", leaf);
 
-        assertThrows(JsonReconstructor.KeyCollisionException.class,
-                () -> defaults().reconstruct(leafFirst));
-        assertThrows(JsonReconstructor.KeyCollisionException.class,
-                () -> defaults().reconstruct(branchFirst),
-                "branch-then-leaf must refuse too; before the leaf-side guard it silently "
-                        + "overwrote the subtree with the scalar");
+            assertThrows(JsonReconstructor.KeyCollisionException.class,
+                    () -> defaults().reconstruct(leafFirst),
+                    "leaf-then-branch must refuse for a " + shape + " leaf");
+            assertThrows(JsonReconstructor.KeyCollisionException.class,
+                    () -> defaults().reconstruct(branchFirst),
+                    "branch-then-leaf must refuse for a " + shape + " leaf; before the "
+                            + "identity-based guard it silently overwrote the subtree");
 
-        // And it refuses under every policy, because the policies only skip keys the DETECTOR
-        // found - which here is none of them. A refusal is the correct answer for input the
-        // detector cannot classify; guessing would be the silent option.
-        for (JsonReconstructor.CollisionPolicy policy : JsonReconstructor.CollisionPolicy.values()) {
-            assertThrows(JsonReconstructor.KeyCollisionException.class,
-                    () -> with(policy).reconstruct(leafFirst), policy.toString());
-            assertThrows(JsonReconstructor.KeyCollisionException.class,
-                    () -> with(policy).reconstruct(branchFirst), policy.toString());
+            // And it refuses under every policy, because the policies only skip keys the DETECTOR
+            // found - which here is none of them. A refusal is the correct answer for input the
+            // detector cannot classify; guessing would be the silent option.
+            for (JsonReconstructor.CollisionPolicy policy : JsonReconstructor.CollisionPolicy.values()) {
+                assertThrows(JsonReconstructor.KeyCollisionException.class,
+                        () -> with(policy).reconstruct(leafFirst), policy + " / " + shape);
+                assertThrows(JsonReconstructor.KeyCollisionException.class,
+                        () -> with(policy).reconstruct(branchFirst), policy + " / " + shape);
+            }
         }
+    }
+
+    @Test
+    @DisplayName("BACKSTOP: reconstruct does not mutate the map, or the nested values, it was handed")
+    void reconstructDoesNotMutateTheMapItWasHanded() {
+        // The old descent adopted a caller's Map as its write target - `current = (Map) existing`
+        // - so a longer key wrote INTO an object the caller still owns. Measured at bd5b070:
+        //
+        //   inner BEFORE {zz=9}  ->  reconstruct  ->  inner AFTER {zz=9, c=1}
+        //
+        // Two consequences, both bad on their own. Running reconstruct twice on the same input
+        // returned two different answers, and the guard that reports shadowedKeys was inspecting
+        // an object whose contents the caller can change underneath it.
+        Map<String, Object> inner = new LinkedHashMap<>();
+        inner.put("zz", 9);
+        Map<String, Object> flat = ordered("a\\b", inner, "a\\b_c", "1");
+
+        assertThrows(JsonReconstructor.KeyCollisionException.class,
+                () -> defaults().reconstruct(flat));
+        assertEquals(1, inner.size(),
+                "reconstruct wrote into the caller's nested map: " + inner);
+        assertEquals(9, inner.get("zz"));
+
+        // The no-collision case is the other half: a caller Map that nothing descends into must
+        // come back untouched too, and reconstruct must be idempotent on it.
+        Map<String, Object> keep = new LinkedHashMap<>();
+        keep.put("zz", 9);
+        Map<String, Object> plain = ordered("a", keep, "b", "1");
+        Map<String, Object> once = defaults().reconstruct(plain);
+        Map<String, Object> twice = defaults().reconstruct(plain);
+        assertEquals(1, keep.size(), "reconstruct mutated a caller Map it did not descend into");
+        assertEquals(once.toString(), twice.toString(),
+                "reconstruct is not idempotent on the same input map");
     }
 
     // ------------------------------------------------------------------ the three real producers

@@ -815,7 +815,21 @@ BL-018 padding commit itself — rewrote that javadoc block to describe the meas
 
 ---
 
-### [BL-022] The `_value` sentinel maps to the base key — **DECIDED 2026-08-19: the base key is the contract, the suffix is REFUSED** ✅
+### [BL-022] The `_value` sentinel maps to the base key — **CLOSED 2026-08-19: the base key is the contract, the suffix is REFUSED** ✅
+
+**WHAT SHIPPED, in one paragraph, so nobody has to reconstruct it from the trace below.** No
+emitted key changed: `data`, `grid_rows`, `mixed` and `attachments` are all byte-identical to
+`2.0.0`. The suffix rename was refused on a trace, not deferred, and the two documents that would
+have broken under it are now corpus rows rather than paragraphs
+(`structural/mixed-array-sentinel-vs-user-value-field` and
+`structural/nullable-nested-record-shadowed-json-stack`). The data loss the entry was filed
+against was real but lived one layer downstream, in `JsonReconstructor`, and was split out and
+fixed as [BL-023]. The published contract for the sentinel's column is *the emitted key set is
+`{P, P_field}`, two columns of ONE array to be read together* — deliberately not "`P` is a leaf",
+because that form goes stale the day a reconstruct-side zip lands. Corpus at close: **166
+fixtures, 58 / 25 / 83**. Two things this entry raised are NOT closed and are restated at the
+bottom: the schema-side key-set gate, and the zip repair that would make the colliding rows
+`LOSSLESS`.
 
 **THE PREMISE THIS ENTRY CARRIED FOR SIX PASSES WAS FALSE, and it was false in this file.** The
 entry opened by asserting, in the present perfect, that the `MapFlattener` class javadoc *has
@@ -876,9 +890,13 @@ deliberately NOT as "`P` is a leaf", because that second form goes stale the mom
 reconstruct-side zip lands.
 
 **"The base-key choice causes the silent data loss" — OVERSTATED, and measured.** Decoding every
-flat key in all 164 fixtures into segment lists and searching for a key whose path is a strict
-prefix of another gives **8 rows, of which only 5 involve the sentinel**. Three reproduce the
-identical leaf/branch collision with no sentinel anywhere:
+flat key in the 164 fixtures the corpus held at `24dc5a5` into segment lists and searching for a
+key whose path is a strict
+prefix of another gives **8 rows, of which only 5 involve the sentinel**. Re-measured over all
+**166** fixtures with the production `FlattenedPath` decoder once this release's two new rows had
+landed: **10 rows, 6 of them sentinel-involved** — one row of each kind was added, so the ratio is
+essentially unchanged and the conclusion is not sensitive to the corpus growing. Three of the
+original eight reproduce the identical leaf/branch collision with no sentinel anywhere:
 
 * `avro/avro-array-of-records-nullable-nested-record-shadowed` — `orders_ship` beside
   `orders_ship_city`, pure user data, DEFECT;
@@ -903,11 +921,18 @@ must not be to edit the javadoc to match the code". Commit 6bb66d1 did exactly t
 well — it kept the discrepancy legible rather than erasing it. An instruction that is already
 violated by a good change needs rewriting, not obeying.
 
-**Still open, filed rather than folded in:** for 3.0.0, if the rename is ever revisited, the schema
-side must move in the same commit (`AvroSchemaFlattener` ARRAY case, `GAvroSchemaFlattener`
-array-of-primitives and array-of-arrays). Nothing in the current gate set flattens a schema and a
-document of the same shape and compares key sets. That gate is worth adding regardless of which
-option wins.
+**Still open, filed rather than folded in — the two things this closure does NOT cover:**
+
+1. **The schema-side key-set gate.** For 3.0.0, if the rename is ever revisited, the schema side
+   must move in the same commit (`AvroSchemaFlattener` ARRAY case, `GAvroSchemaFlattener`
+   array-of-primitives and array-of-arrays). Nothing in the current gate set flattens a schema and
+   a document of the same shape and compares key sets. That gate is worth adding regardless of
+   which option wins, because a desynchronised data column and schema column is a silent
+   field-not-found rather than a loud failure.
+2. **The zip repair.** The two columns of one array are recoverable by zipping the base column
+   with the field columns by outer index, and that is not implemented. Until it is, the colliding
+   corpus rows stay `DEFECT` and no `CollisionPolicy` member returns the source document. Tracked
+   under [BL-023].
 
 ---
 
@@ -971,6 +996,64 @@ hold the scalar — which is the `_value` wrapper, which is the defect. It is no
 Sorting the flat map before iterating is worse than all of them: a stable wrong answer is harder to
 notice than an unstable one.
 
+**THE FIRST VERSION OF THE FIX SHIPPED TWO SILENT PATHS OF ITS OWN, found in adversarial review of
+`bd5b070` and repaired in the follow-up commit.** They are written up here rather than folded into
+the paragraph above, because a repair that reintroduces the class it removes is the single most
+useful thing this entry can record. The backstops in `setNestedValue` tested the SHAPE OF THE
+CALLER'S VALUE — `existing == null` on the way down, `occupant instanceof Map && !(value instanceof
+Map)` at the leaf — so the answer depended on the runtime type of a value the caller supplied.
+Measured at `bd5b070` through the public `reconstruct(Map)` at the default policy:
+
+| flattened map | `bd5b070` | now |
+| --- | --- | --- |
+| `{"a\b_c":"KEEP-ME","a\b":{}}` | `{"a\b":{}}` — KEEP-ME gone, no exception, no WARN | `KeyCollisionException` |
+| `{"a\b":{},"a\b_c":"KEEP-ME"}` | `{"a\b":{"c":"KEEP-ME"}}` — merged into the caller's own map | `KeyCollisionException` |
+| `{"a\b":null,"a\b_c":"1"}` | `{"a\b":{"c":"1"}}` — the null leaf gone | `KeyCollisionException` |
+| `{"a\b_c":"1","a\b":null}` | `KeyCollisionException` | `KeyCollisionException` |
+
+Three silent answers and one throw, under a javadoc that asserted both orders were covered. The
+reach was narrow — `MapFlattener` always emits canonical keys, so only a hand-built map reaches
+it — but `reconstruct(Map)` is public and that is the whole reason the backstops exist. **The
+pinning test only ever used the String leaf `"scalar"`, which is why a value-shaped hole survived
+a test written to close it**; it now runs both orders over a String, a `null` and a `Map`.
+
+**The repair is to stop asking about shape and start asking about identity.** `buildHierarchy`
+carries one `IdentityHashMap`-backed set of the nodes THIS WALK created. A descent is allowed only
+into a node the walk built; a leaf write is refused only when a node the walk built is already
+there; neither question consults the caller's value. One set per `reconstruct`, one entry per
+created node — not per key — so the hot path pays a reference add rather than a string encode.
+
+**A second defect went with it: `reconstruct` used to MUTATE the map it was handed.**
+`current = (Map) existing` adopted a caller's Map value as the write target, so a longer key wrote
+into an object the caller still owned — `{"zz":9}` came back `{"zz":9,"c":1}` — which also made
+two calls on the same input return two different answers. Never adopting a caller's Map fixes both
+at once. `reconstructDoesNotMutateTheMapItWasHanded` pins it in the collision case and in the
+ordinary no-collision case.
+
+**NO POLICY PRESERVES BOTH COLUMNS, and no fourth member could.** Stated here because the deleted
+`_value` wrapper accidentally did, for a subset of documents, and a `2.0.0` caller who was reading
+`_value` to salvage the columns now gets an exception with no equivalent option. Measured at HEAD
+for `{"mixed":["S",{"k":"V1"},{"k":"V2"}]}`, which flattens to
+`{mixed=["S",null,null], mixed_k=[null,"V1","V2"]}`:
+
+| policy | returns | values lost |
+| --- | --- | --- |
+| `FAIL` | `KeyCollisionException` | none — nothing is produced, the input is intact |
+| `PREFER_LEAF` | `{"mixed":["S",null,null]}` | `V1`, `V2` |
+| `PREFER_BRANCH` | `{"mixed":[{"k":null},{"k":"V1"},{"k":"V2"}]}` | `S` |
+
+**RELAYED, NOT RE-MEASURED HERE:** adversarial review reports that over 892 colliding fuzz seeds
+the `24dc5a5` build returned every scalar leaf value for **496** of them (56%) in the mangled
+`{"mixed":{"_value":"[…]","k":"[…]"}}` shape, and had already lost at least one value for the
+other 396. That harness is not in this repository and the figure has not been reproduced here; it
+is recorded because it sizes what the deletion cost, not because it has been verified. A fourth
+policy is REFUSED for the [BL-022] reason: `FlattenedPath` is a bijection over user segment lists
+with no reserved namespace, so any node holding both sides must name the scalar under a key a user
+field can already occupy — which is the `_value` wrapper. Instead `KeyCollisionException` now says
+so in its message and points at `getCollidingKey()` and `getShadowedKeys()`, which name both sides
+so a caller can zip them out of the map they still hold under a key of their own choosing. The
+zip repair that would make the corpus rows `LOSSLESS` remains unimplemented.
+
 **Still open.** `AvroReconstructor` is NOT in this fix's blast radius — `PathNode.addPath` sets the
 leaf value and the children side by side, so neither write can clobber the other and the tree is
 order-independent by construction. It still drops one side on a genuine collision (measured:
@@ -1012,6 +1095,54 @@ hazard survives elsewhere and is deliberately left for its own change rather tha
 exactly the same way — a Turkish executor would fail to match a field named `ID`. It is a
 different class of consequence (a missed field rather than a renamed column) and it belongs to the
 converter package, so it is named here and filed rather than repaired in a reconstructor commit.
+
+**The locale pin now has a behavioural test, which it did not when it shipped.** Adversarial
+review measured that reverting the three `Locale.ROOT` arguments and running the whole suite gives
+**2684 tests, 0 failures, BUILD SUCCESS** — nothing noticed a released-output column rename. The
+only thing that did was SpotBugs `DM_CONVERT_CASE`, and that is a proxy: it fires on any
+locale-less case conversion anywhere in the class, pins no key, and is silenced by any refactor
+that routes case conversion through a helper. `MapFlattenerNamingLocaleTest` sets the default
+locale to `tr-TR` and asserts the emitted keys by CODE POINT. Drilled: with the pin reverted it
+fails `expected: <U+0069 U+0064> but was: <U+0131 U+0064>`.
+
+---
+
+### [BL-025] `reconstructArray` duplicates one column's whole serialized text into every element
+
+**Found by adversarial review of `bd5b070` while checking whether `PREFER_BRANCH` fabricates
+values. It does not — this does, and it reproduces with NO collision anywhere.** Filed rather than
+fixed because it is a different defect in a different method from the collision work, and because
+it is already a standing corpus fact that would go red the moment it is repaired.
+
+Measured identically at `24dc5a5` and at `bd5b070`, so it is not a regression of either pass:
+
+```
+in   {"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":{"city":"LA"}}]}
+flat {orders_id=[1,2], orders_ship_city=["NY","LA"]}
+out  {"orders":[{"id":1,"ship":{"city":"[\"NY\",\"LA\"]"}},
+                {"id":2,"ship":{"city":"[\"NY\",\"LA\"]"}}]}
+```
+
+Every element's `city` holds the ENTIRE column text, as a string. The cause is in
+`reconstructArray`: the nested object under `ship` is not recognised as a per-element column, so
+`parsedValues` is a one-element list holding the raw serialized text, and the shorter-column
+fallback (`values.get(values.size() - 1)`) then replicates that one value into every index. It is
+the same fallback the corpus row `structural/array-element-with-nested-object-duplicated` was
+written to isolate — "That fallback invents data rather than failing" — and that row is `DEFECT`
+today, so no new fixture is owed and repairing this turns the build red by design.
+
+**Why it matters beyond its own row.** `PREFER_BRANCH` steers callers into it. The member's whole
+proposition is "keep the subtree", and for the nullable-nested-record shape the subtree it keeps is
+this one: `{"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":null}]}` under `PREFER_BRANCH`
+returns a `city` of `["NY",null]` on BOTH elements, including the one whose `ship` was `null` in
+the source. The javadoc on `CollisionPolicy.PREFER_BRANCH` now says so and names the corpus row;
+before this it said only "Keep the SUBTREE and discard the colliding short key."
+
+**The fix, when it is taken:** the same zip-by-outer-index repair [BL-023] owes the collision rows.
+Padding or last-value replication produces a schema-valid record that is wrong, which is what
+`AvroReconstructor.ArrayCardinalityException` already refuses to do on the Avro stack — the two
+sides should agree, and today the JSON stack fabricates where the Avro stack throws.
+
 ---
 
 ## Medium Priority

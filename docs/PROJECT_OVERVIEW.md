@@ -9,7 +9,7 @@ NexusPiercer is a production-grade data engineering toolkit designed to transfor
 1. **Bidirectional Data Transformation** — Flatten nested structures AND reconstruct them perfectly
 2. **Multiple Flattening Strategies** — JsonFlattenerConsolidator, MapFlattener, JsonFlattener (all Java)
 3. **Schema-Aware Processing** — AvroSchemaFlattener with terminal/non-terminal array classification
-4. **Reconstruction, NOT "perfect" reconstruction** — `AvroReconstructor` rebuilds hierarchical data from flattened form, and the project publishes exactly how often that is lossy: **81 of 164** fidelity fixtures are classified `DEFECT`, meaning they do not round trip and that is a bug. README says "treat the JSON round trip as lossy unless a fixture says otherwise" and README is the correct document. This line said "perfectly".
+4. **Reconstruction, NOT "perfect" reconstruction** — `AvroReconstructor` rebuilds hierarchical data from flattened form, and the project publishes exactly how often that is lossy: **83 of 166** fidelity fixtures are classified `DEFECT`, meaning they do not round trip and that is a bug. README says "treat the JSON round trip as lossy unless a fixture says otherwise" and README is the correct document. This line said "perfectly".
 5. **Complete Type System** — 15+ type converters for Iceberg/Avro schema conversion
 
 The library solves the critical problem of making nested document-oriented data compatible with columnar storage and SQL analytics while preserving the ability to reconstruct original structures when needed.

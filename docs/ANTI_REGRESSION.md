@@ -201,7 +201,7 @@ works", not "works".
 |---|---|
 | CI on every push and PR | Live |
 | JDK 17 + 21, Linux + Windows matrix | Live |
-| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,634 now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
+| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,689 test invocations now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
 | Cold-clone reproducibility check | Live |
 | No Groovy anywhere / no Groovy or Spock coordinate | Live — `ci.yml` job `no Groovy anywhere`, on every unfiltered push and PR |
 | ~~Single-Groovy-compile assertion~~ | **Removed 2026-08-11** — superseded by the row above; the plugin it guarded no longer exists, so it could only ever pass |
@@ -234,8 +234,8 @@ This table named NONE of them until 2026-08-19, while README pointed here for ex
 | `DependencyMapImportTreesAreRealTest` | An `Imports:` tree in `DEPENDENCY_MAP.md` naming an `io.github` import the class no longer has — the sibling of the row above, added after a sweep corrected that file's table and prose and left its two literal import trees saying `FileFinder`. |
 | `ConfigKnobJavadocMatchesItsWiringTest` | A javadoc calling a `JsonFlattenerConfig` knob inert while its getter is read in `src/main`. Each knob is described in five places; 2.1.0 wired four up and left two of the descriptions saying the opposite. |
 | `FlattenerFamilyDiagramTest` | README's family diagram omitting a flattener, drawing a false edge, or mislabelling corpus coverage. |
-| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. |
-| `ChangelogPreambleMatchesItsOwnSectionTest` | The changelog's "N places" summary disagreeing with the number of items beneath it. |
+| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. Reads EVERY occurrence of `N test invocations` in the three documents, not the first — a pass corrected `CONTRIBUTING.md` line 26 and left line 30 four lines below it stale, and the gate stayed green. Also checks the surefire-XML pair and the stated 532 gap. |
+| `ChangelogPreambleMatchesItsOwnSectionTest` | The changelog's "N places" summary disagreeing with the number of items beneath it, **and the throw sentence disagreeing with itself** — `across N items` against the count of distinct items it names, and its restatement below the section heading against its own leading count. Both had drifted while the first three checks stayed green, because none of them compared the preamble to itself. |
 | `FileFinderBaselineFootprintTest` | The published size of `FileFinder`'s released API footprint drifting from the baseline file. |
 | `SpotBugsExcludeHasNoBlanketClassBlockTest` | A class-wide `<Match>` with no `<Method>` narrowing — how ten real findings hid for a year. |
 | `NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest` | A private method with no caller in the classes that exclude block used to cover. |

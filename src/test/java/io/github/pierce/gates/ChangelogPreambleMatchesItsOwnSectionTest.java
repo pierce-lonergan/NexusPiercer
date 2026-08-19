@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -117,5 +118,62 @@ class ChangelogPreambleMatchesItsOwnSectionTest {
         assertTrue(found >= 3,
                 "the throw sentence names only " + found + " items; it is meant to enumerate "
                         + "them so a caller can find each one");
+    }
+
+    @Test
+    @DisplayName("the throw sentence's own arithmetic adds up, in both places it is stated")
+    void throwSentenceArithmeticIsInternallyConsistent() throws IOException {
+        // TWO CLAUSES DRIFTED WHILE THE THREE CHECKS ABOVE STAYED GREEN, because none of them
+        // compared the preamble to ITSELF. At 24dc5a5 the sentence read "Nine ... across seven
+        // items" while naming eight distinct items, and fifteen lines later the same preamble
+        // said "because eight previously-successful calls now throw" - three numbers, two of
+        // them wrong, in one paragraph a reader is told to read before upgrading.
+        String doc = changelog();
+        String preamble = doc.substring(0, doc.indexOf("### Behaviour changes"));
+
+        int sentence = preamble.indexOf("turn a previously-successful call into a throw");
+        assertTrue(sentence >= 0, "the preamble no longer states how many calls now throw");
+        String throwSentence = preamble.substring(sentence);
+
+        // 1. "across N items" must equal the number of DISTINCT items the sentence goes on to
+        //    name. An item carrying two cases is still one item.
+        Matcher across = Pattern.compile("across ([a-z-]+) items").matcher(throwSentence);
+        assertTrue(across.find(),
+                "the throw sentence no longer says 'across N items'; that clause is how a reader "
+                        + "knows whether the enumeration that follows is complete");
+        List<Integer> named = new ArrayList<>();
+        Matcher item = Pattern.compile("item (\\d+)").matcher(throwSentence);
+        while (item.find()) {
+            int n = Integer.parseInt(item.group(1));
+            if (!named.contains(n)) {
+                named.add(n);
+            }
+        }
+        assertEquals(wordFor(named.size()), across.group(1),
+                "the throw sentence says 'across " + across.group(1) + " items' but names "
+                        + named.size() + " distinct items " + named + ". Update the paragraph "
+                        + "that counts them, not this test.");
+
+        // 2. The leading count and the restatement below the section heading must be the same
+        //    number. The restatement sits in the section's own preamble rather than in the
+        //    document's, which is precisely why the three checks above never reached it.
+        Matcher leading = Pattern.compile("\\*\\*([A-Z][a-z-]+) of the ").matcher(preamble);
+        assertTrue(leading.find(), "the preamble no longer opens the throw sentence with a count");
+        Matcher restated =
+                Pattern.compile("because ([a-z-]+) previously-successful\\s+calls now throw")
+                        .matcher(doc.substring(0, doc.indexOf("### Added")));
+        assertTrue(restated.find(),
+                "the preamble no longer restates the throw count above the Behaviour changes "
+                        + "section; that restatement said 'eight' while the header said 'Nine'");
+        assertEquals(leading.group(1).toLowerCase(Locale.ROOT), restated.group(1),
+                "the preamble states the throw count twice and the two disagree: '"
+                        + leading.group(1) + "' at the top, '" + restated.group(1) + "' lower down");
+    }
+
+    /** The English word this file uses for {@code n}. */
+    private static String wordFor(int n) {
+        assertTrue(n >= 0 && n < WORDS.length,
+                "the throw sentence names " + n + " items, which is off the end of the word table");
+        return WORDS[n];
     }
 }

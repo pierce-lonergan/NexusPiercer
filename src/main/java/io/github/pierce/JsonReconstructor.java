@@ -128,6 +128,18 @@ public class JsonReconstructor implements Serializable {
     private static final Pattern JSON_ARRAY_PATTERN = Pattern.compile("^\\s*\\[.*\\]\\s*$", Pattern.DOTALL);
     private static final Pattern BRACKET_LIST_PATTERN = Pattern.compile("^\\s*\\[(.*)\\]\\s*$", Pattern.DOTALL);
 
+    /**
+     * Distinguishes "this key is absent" from "this key is present holding null".
+     *
+     * <p>{@code map.get(k) == null} conflates the two, and that conflation is what let a
+     * null-valued leaf be silently overwritten by the intermediate node a longer key needed.
+     * Compared by identity only; it is never stored and never escapes this class.</p>
+     */
+    private static final Object ABSENT = new Object();
+
+    /** Both ends of this class's internal array-holder marker keys: {@code __isArray__}. */
+    private static final String MARKER_PREFIX = "__";
+
     // Type references
     private static final TypeReference<Map<String, Object>> MAP_TYPE_REF =
             new TypeReference<Map<String, Object>>() {};
@@ -183,6 +195,17 @@ public class JsonReconstructor implements Serializable {
      * the same two entries produced {@code {"a":"2"}} in one order and
      * {@code {"a":{"_value":"2","b":"1"}}} in the other.</p>
      *
+     * <p><b>NO MEMBER PRESERVES BOTH SIDES, and there is no fourth member that could.</b>
+     * {@code FAIL} keeps the input intact by not producing a document at all; the other two each
+     * drop one column. A member that kept both would have to invent a node holding a scalar and
+     * an object at once, which JSON has no form for, so it would have to name the scalar - and
+     * every available name is one a user field can already occupy. That is exactly the deleted
+     * {@code _value} wrapper, traced and refused under [BL-022]. The columns are still in the
+     * caller's hands: {@link KeyCollisionException#getCollidingKey()} and
+     * {@link KeyCollisionException#getShadowedKeys()} name both sides, and the values are read
+     * straight out of the map that was passed in, so a caller who needs both can zip them
+     * themselves under a key of their own choosing.</p>
+     *
      * @since 2.1.0
      */
     public enum CollisionPolicy {
@@ -204,6 +227,17 @@ public class JsonReconstructor implements Serializable {
          * Keep the SUBTREE and discard the colliding short key. Deterministic and logged at WARN.
          * Note this changes the outcome for the majority of colliding documents relative to
          * pre-2.1.0 behaviour, which most often landed on the leaf.
+         *
+         * <p><b>The retained subtree is not guaranteed faithful.</b> This member only chooses
+         * which side survives the collision; it does not repair anything downstream of that
+         * choice. A nested record inside an array of records is reconstructed by a separate,
+         * still-open defect that duplicates one column's whole serialized text into every
+         * element - corpus row {@code structural/array-element-with-nested-object-duplicated},
+         * which reproduces with NO collision present - so for
+         * {@code {"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":null}]}} this member
+         * returns a {@code ship.city} of {@code ["NY",null]} on BOTH elements, including the one
+         * whose {@code ship} was null in the source. Keeping the subtree is still the larger
+         * half of the data; it is not the source document.</p>
          */
         PREFER_BRANCH
     }
@@ -987,6 +1021,14 @@ public class JsonReconstructor implements Serializable {
                                                Set<String> collisions) {
         Map<String, Object> root = new LinkedHashMap<>();
 
+        // Every intermediate node THIS WALK created, by identity. It is the only thing that tells
+        // a branch apart from a caller's Map-valued leaf: both are Maps, and `instanceof Map`
+        // alone cannot distinguish "a node I built for a longer key" from "a value the caller
+        // handed me". One IdentityHashMap per reconstruct, one entry per created node - not per
+        // key - so the hot path pays a reference add, not a string encode.
+        Set<Map<String, Object>> branches =
+                Collections.newSetFromMap(new IdentityHashMap<Map<String, Object>, Boolean>());
+
         for (Map.Entry<String, Object> entry : flattenedMap.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
@@ -997,7 +1039,7 @@ public class JsonReconstructor implements Serializable {
                 continue;
             }
 
-            setNestedValue(root, segments.toArray(new String[0]), value, analysis);
+            setNestedValue(root, segments.toArray(new String[0]), value, analysis, branches);
         }
 
         return root;
@@ -1020,56 +1062,71 @@ public class JsonReconstructor implements Serializable {
     /**
      * Set a value at a nested path, creating intermediate structures as needed.
      *
-     * <p>Two guards here are BACKSTOPS, not the primary detection. A non-Map found at an
-     * intermediate segment, or a Map found where a leaf is about to be written, both mean the
-     * same thing: a shorter key and a longer key are asking for the same node. For a CANONICALLY
-     * encoded key set that is already decided by {@link #collidingLeafKeys} before this method
-     * runs, so neither guard can fire.</p>
+     * <p>Two guards here are BACKSTOPS, not the primary detection. A node the walk did NOT
+     * create found at an intermediate segment, or a node it DID create found where a leaf is
+     * about to be written, both mean the same thing: a shorter key and a longer key are asking
+     * for the same node. For a CANONICALLY encoded key set that is already decided by
+     * {@link #collidingLeafKeys} before this method runs, so neither guard can fire.</p>
      *
      * <p>They exist for the case the set intersection cannot see. {@code reconstruct(Map)} is
      * public and takes any map, and a caller can hand it a NON-CANONICAL key - one whose own
      * encoding is not what {@code FlattenedPath} would have produced for its segments. The key
      * {@code a\b} decodes to the single segment {@code a\b} (a backslash escaping nothing is a
      * literal backslash) and re-encodes to {@code a\\b}, so it is not equal to the intermediate
-     * path that {@code a\b_c} contributes and the intersection misses it. Both orders are
-     * covered: the branch-then-leaf order trips the leaf guard, the leaf-then-branch order trips
-     * the intermediate guard, and a caller gets the same exception type either way instead of
-     * one silent overwrite and one fabricated key.</p>
+     * path that {@code a\b_c} contributes and the intersection misses it.</p>
+     *
+     * <p><b>THE TEST IS IDENTITY, NOT SHAPE, and the first version of these guards got that
+     * wrong.</b> It asked {@code existing instanceof Map} on the way down and
+     * {@code occupant instanceof Map && !(value instanceof Map)} at the leaf, so the answer
+     * depended on the RUNTIME TYPE OF THE CALLER'S VALUE. Measured against that version: a
+     * Map-valued leaf skipped the leaf guard entirely and {@code current.put} destroyed the
+     * subtree - {@code {a\b_c=KEEP-ME, a\b={}}} returned {@code {a\b={}}}, silently - and a
+     * null-valued leaf was indistinguishable from an absent key, so
+     * {@code {a\b=null, a\b_c=1}} returned {@code {a\b={c=1}}} while the reverse order threw.
+     * Two value shapes, one order each, silent in both.</p>
+     *
+     * <p>{@code branches} is what fixes it: the identity of every node THIS walk created. A
+     * descent is allowed only into a node the walk built, a leaf write is refused only when a
+     * node the walk built is already sitting there, and neither question consults the caller's
+     * value at all. All three leaf shapes - scalar, {@code null}, {@code Map} - and both orders
+     * now raise the same {@link KeyCollisionException}, which is what
+     * {@code JsonReconstructorKeyCollisionTest.aNonCanonicalKeyIsCaughtByTheBackstopsInEitherOrder}
+     * pins. It also means a caller's Map value is never adopted as the write target, so
+     * {@code reconstruct} no longer mutates the map it was handed.</p>
      */
     @SuppressWarnings("unchecked")
     private void setNestedValue(Map<String, Object> root, String[] parts, Object value,
-                                StructureAnalysis analysis) {
+                                StructureAnalysis analysis, Set<Map<String, Object>> branches) {
         Map<String, Object> current = root;
 
         for (int i = 0; i < parts.length - 1; i++) {
             String part = parts[i];
             String currentPath = FlattenedPath.encode(Arrays.asList(Arrays.copyOfRange(parts, 0, i + 1)), separator);
 
-            Object existing = current.get(part);
+            // getOrDefault against a private sentinel, NOT get() == null: a key present with a
+            // null value is a LEAF the caller wrote, and reading it as "nothing here yet" is
+            // how the null-valued collision used to be overwritten without a word.
+            Object existing = current.getOrDefault(part, ABSENT);
 
-            if (existing == null) {
-                // Check if this path is an array
+            if (existing == ABSENT) {
+                Map<String, Object> nested = new LinkedHashMap<>();
                 if (analysis.arrayPaths.contains(currentPath)) {
-                    // Create array holder (will be processed later)
-                    Map<String, Object> arrayHolder = new LinkedHashMap<>();
-                    arrayHolder.put("__isArray__", true);
-                    arrayHolder.put("__arrayPath__", currentPath);
-                    current.put(part, arrayHolder);
-                    current = arrayHolder;
-                } else {
-                    // Create nested object
-                    Map<String, Object> nested = new LinkedHashMap<>();
-                    current.put(part, nested);
-                    current = nested;
+                    // Array holder; reconstructArray strips the markers later.
+                    nested.put("__isArray__", true);
+                    nested.put("__arrayPath__", currentPath);
                 }
-            } else if (existing instanceof Map) {
+                current.put(part, nested);
+                branches.add(nested);
+                current = nested;
+            } else if (existing instanceof Map && branches.contains(existing)) {
                 current = (Map<String, Object>) existing;
             } else {
-                // A scalar is already parked at an intermediate segment. Until 2.1.0 this branch
-                // wrapped it as {"_value": existing, ...}: a key the source never carried, which
-                // does not survive a re-flatten (the node re-encodes to a_\_value, not to a) and
-                // which silently duelled with a genuine field named _value. It was reachable only
-                // from a collision, and collisions are now decided in front of this walk, so the
+                // Something the CALLER put here is parked at an intermediate segment - a scalar,
+                // a null, or a Map of their own. Until 2.1.0 the scalar case wrapped it as
+                // {"_value": existing, ...}: a key the source never carried, which does not
+                // survive a re-flatten (the node re-encodes to a_\_value, not to a) and which
+                // silently duelled with a genuine field named _value. It was reachable only from
+                // a collision, and collisions are now decided in front of this walk, so the
                 // wrapper is deleted rather than kept as a fallback - keeping it would have
                 // preserved the exact nondeterminism the detection exists to remove.
                 throw new KeyCollisionException(currentPath,
@@ -1078,18 +1135,22 @@ public class JsonReconstructor implements Serializable {
             }
         }
 
-        // Set the leaf value. The guard is the mirror of the one in the loop above: a Map
-        // already sitting where a leaf is about to be written was put there by a LONGER key, so
-        // overwriting it is the collision seen from the other end. Without this, the two orders
-        // are not symmetric - the loop refuses one and this line silently destroyed the other.
+        // Set the leaf value. The guard is the mirror of the one in the loop above: a node THIS
+        // WALK created, already sitting where a leaf is about to be written, was created by a
+        // LONGER key, so overwriting it is the collision seen from the other end.
         String leafKey = parts[parts.length - 1];
         Object occupant = current.get(leafKey);
-        if (occupant instanceof Map && !(value instanceof Map)) {
+        if (occupant instanceof Map && branches.contains(occupant)) {
             String here = FlattenedPath.encode(Arrays.asList(parts), separator);
             List<String> shadowed = new ArrayList<>();
             for (Object child : ((Map<?, ?>) occupant).keySet()) {
-                shadowed.add(here + separator
-                        + FlattenedPath.escapeSegment(String.valueOf(child), separator));
+                String name = String.valueOf(child);
+                // The array-holder markers are this class's own bookkeeping. Naming them as
+                // shadowed keys would put a column the caller never wrote into the diagnosis.
+                if (!name.startsWith(MARKER_PREFIX) || !name.endsWith(MARKER_PREFIX)) {
+                    shadowed.add(here + separator
+                            + FlattenedPath.escapeSegment(name, separator));
+                }
             }
             throw new KeyCollisionException(here, shadowed, separator);
         }
@@ -1714,7 +1775,12 @@ public class JsonReconstructor implements Serializable {
                     + "If any of " + shadowedKeys + " was meant as a literal field name containing "
                     + "the separator '" + separator + "' rather than as a nesting level, it must "
                     + "be escaped - " + escaped + ". Otherwise choose which side to keep with "
-                    + "JsonReconstructor.builder().onKeyCollision(PREFER_LEAF | PREFER_BRANCH).";
+                    + "JsonReconstructor.builder().onKeyCollision(PREFER_LEAF | PREFER_BRANCH). "
+                    + "NEITHER KEEPS BOTH SIDES, and no policy can: a JSON node cannot be a "
+                    + "scalar and an object at once, so keeping both would mean inventing a key "
+                    + "to hold the scalar under - which is the _value wrapper 2.1.0 deleted. "
+                    + "Both sides are still in the map you passed in; getCollidingKey() and "
+                    + "getShadowedKeys() name them, so you can zip them under a key you choose.";
         }
 
         /** The key that is also an intermediate path. */

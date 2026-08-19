@@ -23,13 +23,21 @@ resolving to *different* JDKs is a known source of confusing failures here.
 ./mvnw verify
 ```
 
-That runs the full suite (2,684 test invocations, roughly 4 minutes). Faster loops:
+That runs the full suite (2,689 test invocations, roughly 4 minutes). Faster loops:
 
 **Read the count from Maven's `Tests run:` summary line, not from the surefire XML.** Summing
-`target/surefire-reports/*.xml` UNDERCOUNTS here by **exactly 532** — measured 2,102 against
-Maven's 2,634 on 2026-08-19 — because `@Nested` classes emit a separate report per nested class
+`target/surefire-reports/*.xml` UNDERCOUNTS here by **exactly 532** — measured 2,157 against
+Maven's 2,689 test invocations on 2026-08-19 — because `@Nested` classes emit a separate report
+per nested class
 while the outer class's own report records `tests="0"`. The gap has been 532 at every measurement
-since 2026-08-17, when it was 1,840 against 2,372. The Maven summary line is authoritative.
+since 2026-08-17, when the suite was 1,840 against 2,372. The Maven summary line is authoritative.
+
+Both figures are gated. `PublishedProjectFactsMatchTheSourceTest` reads EVERY occurrence of the
+phrase `N test invocations` in this file, `docs/INSTALL.md` and `docs/ANTI_REGRESSION.md` and
+requires all of them to equal the count recorded in `.github/quality-baseline.json`, and it checks
+the surefire-XML figure and the stated gap against the same file. A HISTORICAL suite size must not
+be written in that phrase — date it and say "the suite was N invocations", which the gate
+deliberately does not match.
 
 ```bash
 ./mvnw -Pfast package

@@ -32,7 +32,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       The document that exists to explain the ratchets published a ratchet value the ratchet
  *       does not use.</li>
  *   <li>{@code CONTRIBUTING.md} said 2,372 test invocations, {@code docs/INSTALL.md} said 2,401,
- *       and the baseline recorded 2,530. Three documents, three numbers, none current.</li>
+ *       and the baseline recorded 2,530. Three documents, three numbers, none current. The check
+ *       later read only the FIRST occurrence per document, and a pass that corrected
+ *       {@code CONTRIBUTING.md} line 26 left line 30 four lines below it saying the previous
+ *       figure - two suite sizes in one file, both dated the same day, gate green. It now reads
+ *       EVERY occurrence of the canonical phrase in all three documents, and checks the
+ *       surefire-XML pair that the same paragraph publishes.</li>
  *   <li>{@code docs/ANTI_REGRESSION.md} is where README sends a reader for "how the gates and
  *       ratchets work", and it named none of the gates added over the last five passes.</li>
  * </ul>
@@ -80,21 +85,77 @@ class PublishedProjectFactsMatchTheSourceTest {
     @Test
     @DisplayName("every published suite size is the same number")
     void everyPublishedSuiteSizeIsTheSameNumber() {
-        int contributing = firstIntBefore(read(CONTRIBUTING), "test invocations");
-        int install = firstIntBefore(read(INSTALL), "tests, about");
         int recorded = recordedTestCount();
-
-        assertThat(contributing).as("CONTRIBUTING.md no longer states a suite size").isPositive();
-        assertThat(install).as("docs/INSTALL.md no longer states a suite size").isPositive();
         assertThat(recorded).as("no test count recorded in the quality baseline").isPositive();
 
-        assertThat(List.of(contributing, install))
-                .as("THREE DOCUMENTS, THREE NUMBERS. CONTRIBUTING.md says %d, docs/INSTALL.md says "
-                        + "%d, and .github/quality-baseline.json records %d. Take the number from "
-                        + "the most recent measurement; a suite size is the one figure a new "
-                        + "contributor uses to decide whether their run looks right.",
-                        contributing, install, recorded)
+        // EVERY OCCURRENCE, NOT THE FIRST. This assertion used to read the FIRST integer before
+        // "test invocations" in each document, and a pass that corrected CONTRIBUTING.md line 26
+        // to 2,684 left line 30 saying 2,634 four lines below it - two suite sizes in one file,
+        // both dated the same day, and the gate green because it never looked past the first.
+        List<Integer> published = new ArrayList<>();
+        published.addAll(allIntsBefore(read(CONTRIBUTING), "test invocations"));
+        published.addAll(allIntsBefore(read(INSTALL), "test invocations"));
+        published.addAll(allIntsBefore(read(ANTI_REGRESSION), "test invocations"));
+        published.addAll(allIntsBefore(read(INSTALL), "tests, about"));
+
+        // THE MARKER MUST BIND. A document that stops using the canonical phrase stops being
+        // measured, which is the failure this whole class exists to prevent one level up.
+        assertThat(published)
+                .as("the three documents no longer publish a suite size in the canonical form "
+                        + "'N test invocations' (or 'N tests, about' in docs/INSTALL.md). "
+                        + "Rewording it out of existence makes this gate silently stop measuring.")
+                .hasSizeGreaterThanOrEqualTo(3);
+
+        assertThat(published)
+                .as("A PUBLISHED SUITE SIZE DISAGREES WITH THE BASELINE. The documents state %s "
+                        + "and .github/quality-baseline.json records %d. Take the number from the "
+                        + "most recent measurement; a suite size is the one figure a new "
+                        + "contributor uses to decide whether their run looks right. A HISTORICAL "
+                        + "figure must NOT be written in the canonical phrase - date it and say "
+                        + "'the suite was N invocations' instead, which this gate deliberately "
+                        + "does not match.",
+                        published, recorded)
                 .containsOnly(recorded);
+    }
+
+    @Test
+    @DisplayName("the published surefire-XML undercount is the pair the baseline recorded")
+    void theSurefireUndercountMatchesTheBaseline() {
+        // CONTRIBUTING.md tells a contributor to read Maven's summary line rather than sum the
+        // surefire XML, and backs it with a measured pair. Both halves of that pair go stale
+        // together, and the pair is the reason a reader trusts the instruction.
+        Matcher recorded = Pattern.compile("surefire-XML sum reads (\\d+)").matcher(read(BASELINE));
+        assertThat(recorded.find())
+                .as(".github/quality-baseline.json no longer records the surefire-XML sum, so the "
+                        + "figure CONTRIBUTING.md publishes cannot be checked against anything")
+                .isTrue();
+        int baselineXml = Integer.parseInt(recorded.group(1));
+
+        String contributing = read(CONTRIBUTING);
+        // \s+ rather than a literal space: the sentence wraps, and a line break between
+        // "against" and "Maven's" is a formatting choice that must not switch a gate off.
+        Matcher published =
+                Pattern.compile("measured ([\\d,]+)\\s+against\\s+Maven's").matcher(contributing);
+        assertThat(published.find())
+                .as("CONTRIBUTING.md no longer states the measured surefire-XML sum")
+                .isTrue();
+        int publishedXml = Integer.parseInt(published.group(1).replace(",", ""));
+
+        assertThat(publishedXml)
+                .as("CONTRIBUTING.md publishes a surefire-XML sum of %d and "
+                        + ".github/quality-baseline.json records %d", publishedXml, baselineXml)
+                .isEqualTo(baselineXml);
+
+        // And the stated gap must actually be the gap, so the two numbers cannot drift apart
+        // while each stays individually defensible.
+        Matcher gap = Pattern.compile("UNDERCOUNTS here by \\*\\*exactly (\\d+)\\*\\*")
+                .matcher(contributing);
+        assertThat(gap.find()).as("CONTRIBUTING.md no longer states the undercount gap").isTrue();
+        assertThat(recordedTestCount() - publishedXml)
+                .as("CONTRIBUTING.md says the surefire XML undercounts by exactly %s, but the "
+                        + "figures it publishes differ by %d", gap.group(1),
+                        recordedTestCount() - publishedXml)
+                .isEqualTo(Integer.parseInt(gap.group(1)));
     }
 
     // ------------------------------------------------------------------ 3. the gate inventory
@@ -149,10 +210,24 @@ class PublishedProjectFactsMatchTheSourceTest {
         return last;
     }
 
-    /** The integer immediately preceding {@code marker}, commas allowed. */
-    private static int firstIntBefore(String doc, String marker) {
-        Matcher m = Pattern.compile("([\\d,]+)\\s+" + Pattern.quote(marker)).matcher(doc);
-        return m.find() ? Integer.parseInt(m.group(1).replace(",", "")) : -1;
+    /**
+     * EVERY integer immediately preceding {@code marker}, commas allowed.
+     *
+     * <p>The marker's own spaces become {@code \s+}, so a line break inside the phrase - which is
+     * a formatting choice a Markdown editor makes without thinking - cannot switch this gate off
+     * while leaving it green.</p>
+     */
+    private static List<Integer> allIntsBefore(String doc, String marker) {
+        StringBuilder pattern = new StringBuilder("([\\d,]+)");
+        for (String word : marker.split(" ")) {
+            pattern.append("\\s+").append(Pattern.quote(word));
+        }
+        List<Integer> found = new ArrayList<>();
+        Matcher m = Pattern.compile(pattern.toString()).matcher(doc);
+        while (m.find()) {
+            found.add(Integer.parseInt(m.group(1).replace(",", "")));
+        }
+        return found;
     }
 
     private static List<Path> listGates() {

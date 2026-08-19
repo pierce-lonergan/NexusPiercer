@@ -12,11 +12,11 @@ must not sit on a released coordinate.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
-BEHAVIOUR IS NOT.** The section immediately below lists **twenty-eight** places where a `2.0.0`
+BEHAVIOUR IS NOT.** The section immediately below lists **twenty-nine** places where a `2.0.0`
 caller gets a different answer, several of them at the default configuration. Read it before
 upgrading.
 
-**Ten of the twenty-eight turn a previously-successful call into a throw**, across eight items:
+**Ten of the twenty-nine turn a previously-successful call into a throw**, across nine items:
 a bracketed JSON array read under a delimited format, and its mirror, an unbracketed delimited
 column read under the JSON default (item 3, two cases); disagreeing column counts (item 4); an
 oversized read, which for a compressed file can throw MID-READ (item 14); a bare name that only
@@ -38,11 +38,11 @@ creates the fault it removes is the single most useful thing this changelog can 
 ### Behaviour changes
 
 **These change what the library returns at the SHIPPED DEFAULT configuration.** Items 1–12 are
-`AvroReconstructor`; items 13, 21, 22, 23 and 27 are `MapFlattener` and the flattener's schema read; items 24-26 are
+`AvroReconstructor`; items 13, 21, 22, 23, 27 and 29 are `MapFlattener` and the flattener's schema read; items 24-26 are
 `JsonFlattener`; items
 14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; items 18 and 28 are `JsonReconstructor`;
 item 19 is `AvroSchemaFlattener`. They are listed here rather than under *Fixed* because a caller
-pinning a snapshot of today's output will see a diff, and because eight previously-successful
+pinning a snapshot of today's output will see a diff, and because ten previously-successful
 calls now throw. No public signature, return type, parameter list or visibility changes — the new
 exception types and the added `ReconstructionException(String)` constructor are additive and
 clear the 2.0.0 additive-only gate.
@@ -753,9 +753,13 @@ clear the 2.0.0 additive-only gate.
     `attachments`. New key names: `data`, `grid_rows`, `mixed`, `attachments` — unchanged, every
     one of them.**
 
-    **THE COLLISION IS NOT A SENTINEL PROBLEM, measured.** Decoding every flat key in all 164
-    fixtures into segment lists and searching for a key whose path is a strict prefix of another
-    finds **8 rows, of which only 5 involve the sentinel**. Three reproduce it with no sentinel
+    **THE COLLISION IS NOT A SENTINEL PROBLEM, measured.** Decoding every flat key in the 164
+    fixtures the corpus held at `24dc5a5` into segment lists and searching for a key whose path is
+    a strict prefix of another
+    finds **8 rows, of which only 5 involve the sentinel** — re-measured over all **166** fixtures
+    with the production decoder after this release's two new rows landed, **10 rows, 6 of them
+    sentinel-involved**, one of each kind added. Three of the original eight reproduce it with no
+    sentinel
     anywhere: a nullable nested record inside an array of records
     (`{"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":null}]}` emitted `orders_ship`
     beside `orders_ship_city` and returned both `ship` fields as `null`, deleting `{"city":"NY"}`
@@ -837,6 +841,44 @@ clear the 2.0.0 additive-only gate.
     the JSON TEXT of the map, and there is no `mixed_a`. No fixture reaches this shape and no test
     asserted it; `MapFlattenerSentinelKeyContractTest` now does. It is also a second, independent
     reason `_value` would misdescribe that column — it is not type-homogeneous.
+
+29. **The three `MapFlattener` naming strategies are pinned to `Locale.ROOT`, so the emitted
+    COLUMN NAME stops being a function of the JVM the job runs on.** Before this,
+    `applyNamingStrategy` called `toLowerCase()` and `toUpperCase()` with no locale, which uses
+    the DEFAULT locale. On a `tr-TR`, `az` or `lt` JVM that is a different case mapping for ASCII
+    `i`/`I`, so the same document produced a different key set on a Turkish executor than on an
+    American one. Measured on two separately compiled builds under
+    `-Duser.language=tr -Duser.country=TR`:
+
+    | strategy and input | `2.0.0` on a tr-TR JVM | now, on every JVM |
+    |---|---|---|
+    | `LOWER_CASE` `{"ID":1}` | `ıd` — U+0131 U+0064, DOTLESS i | `id` — U+0069 U+0064 |
+    | `UPPER_CASE` `{"id":1}` | `İD` — U+0130 U+0044, I WITH DOT ABOVE | `ID` — U+0049 U+0044 |
+    | `SNAKE_CASE` `{"userID":1}` | `user_ı_d` | `user_i_d` |
+    | `LOWER_CASE` `{"user":{"ID":1,"NAME":"x"}}` | `user_ıd`, `user_name` | `user_id`, `user_name` |
+
+    **This is a column rename in released output, which is why it is here and not under
+    *Fixed*.** It is a no-op on every locale whose ASCII case mapping agrees with `ROOT` — which
+    is every locale a CI matrix normally runs — and that is exactly what made it survivable for
+    two releases and exactly what makes it worth naming: the caller who is affected is the one
+    whose Spark executor happens to be started with a Turkish default locale, and their symptom
+    is a schema field-not-found rather than an error anyone can trace back to here. A column name
+    is a data-format decision; Athena, Spark and Avro all resolve it by exact string.
+    `AS_IS` is unchanged and touches nothing.
+
+    **It had no behavioural test and now has one.** Adversarial review reverted the three
+    `Locale.ROOT` arguments and ran the whole suite: **2684 tests, 0 failures, BUILD SUCCESS** —
+    nothing noticed. The only thing that did was SpotBugs, through `DM_CONVERT_CASE`, which is a
+    static-analysis proxy: it fires on any locale-less case conversion anywhere in the class, so
+    it pins no key, and any refactor that routes case conversion through a helper silences it
+    while the column name goes back to being environment-dependent.
+    `MapFlattenerNamingLocaleTest` sets the default locale to `tr-TR`, asserts the emitted keys by
+    CODE POINT — the two spellings are visually near-identical — and restores in a `finally`.
+
+    Filed as the second half of [BL-024]. The same hazard survives in
+    `converter/SchemaBasedMapConverter`, which lowercases field names at four sites to build a
+    case-insensitive lookup; that one is a missed field rather than a renamed column, and it is
+    left for its own change rather than folded in here.
 
 ### Added
 
@@ -989,9 +1031,11 @@ clear the 2.0.0 additive-only gate.
 
   - **The ceilings row said `(0 / 323 / 231)`** while the baseline enforced PMD at 322 — the
     document that exists to explain the ratchets publishing a value the ratchet does not use. Both
-    are 318 now.
+    were brought to 318 at that pass; PMD is 315 today.
   - **Three documents published three suite sizes** — 2,372, 2,401 and 2,530 — none current. All
-    say 2,634. `CONTRIBUTING.md`'s surefire-XML undercount is re-measured too: it is **exactly
+    were set to 2,634 at that pass; the figure is 2,689 today and EVERY occurrence of it is now
+    gated, not just the first in each file. `CONTRIBUTING.md`'s surefire-XML undercount is
+    re-measured too: it is **exactly
     532**, not "roughly 500", and has been 532 at every measurement since 2026-08-17.
   - **The gate inventory named none of the gates.** README sends readers to that document for
     "how the gates and ratchets work" and sixteen gates were absent from it.
@@ -1021,7 +1065,7 @@ clear the 2.0.0 additive-only gate.
   - `docs/MODULE_INDEX.md` listed `FileFinder` at **"~100" lines**. It is 1,462 — a 14x
     understatement — and `SchemaFiles` was missing entirely.
   - `docs/PROJECT_OVERVIEW.md` claimed **"Perfect Reconstruction"** and that `verify()` confirms
-    "the reconstructed data matches the original exactly". 81 of 164 fixtures are `DEFECT`, and
+    "the reconstructed data matches the original exactly". 83 of 166 fixtures are `DEFECT`, and
     `verify()` compares doubles with a 1e-6 tolerance and treats String and Number as compatible —
     wired to that oracle the corpus reports two money-losing rows as perfect. Its line counts were
     stale by 942 lines on `AvroReconstructor` alone.
