@@ -51,6 +51,16 @@ graph TB
 ```
 
 ## Component Diagram (C4 Level 3)
+
+> **Choosing between the six flatteners?** This diagram shows where they sit in the system. It is
+> not the selection rule — that is the family diagram under
+> [README's "Which flattener do I use?"](../README.md#which-flattener-do-i-use), which puts all six
+> side by side with what each takes, what each emits, and which are covered by the fidelity corpus.
+> The two are kept from drifting by `FlattenerFamilyDiagramTest` and
+> `ArchitectureGraphEdgesAreRealTest` respectively; the family diagram deliberately lives in README
+> rather than here, because this file's edge gate builds one alias map for the WHOLE document and a
+> second diagram reusing an id would silently retarget the first one's edges.
+
 *Internal components and their relationships*
 
 ```mermaid
@@ -91,7 +101,7 @@ graph LR
     
     subgraph "Utilities"
         SF[SchemaFiles]
-        FF[FileFinder]
+        FF["FileFinder<br/>DEPRECATED 2.1.0 - use SchemaFiles"]
     end
     
     NPSP --> JFC

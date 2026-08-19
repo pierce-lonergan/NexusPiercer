@@ -85,7 +85,7 @@ version from the root `pom.xml` — building `main` gives you the snapshot, not 
 </dependency>
 ```
 
-Run the full suite (2,401 tests, about 5 minutes) if you want to verify the build yourself:
+Run the full suite (2,634 tests, about 5 minutes) if you want to verify the build yourself:
 
 ```bash
 ./mvnw verify

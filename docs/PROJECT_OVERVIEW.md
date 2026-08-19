@@ -1,6 +1,6 @@
 # Project Overview — NexusPiercer
-> Confidence Level: HIGH
-> Last Updated: 2025-12-08 (Session 2)
+> Confidence Level: MIXED — the structural description is sound; every LINE COUNT and every file-count in this document was stale by eight months before the 2026-08-19 sweep, and the "perfect reconstruction" language below was contradicted by the project's own fidelity corpus. Both are corrected in place with the old claim named.
+> Last Updated: 2026-08-19 — re-measured against `src/main` in a documentation sweep. Line counts and inventories below are a SNAPSHOT and rot; where a claim can be checked by a test it is, and the test is named.
 
 ## Executive Summary
 
@@ -9,7 +9,7 @@ NexusPiercer is a production-grade data engineering toolkit designed to transfor
 1. **Bidirectional Data Transformation** — Flatten nested structures AND reconstruct them perfectly
 2. **Multiple Flattening Strategies** — JsonFlattenerConsolidator, MapFlattener, JsonFlattener (all Java)
 3. **Schema-Aware Processing** — AvroSchemaFlattener with terminal/non-terminal array classification
-4. **Perfect Reconstruction** — AvroReconstructor can rebuild original hierarchical data from flattened form
+4. **Reconstruction, NOT "perfect" reconstruction** — `AvroReconstructor` rebuilds hierarchical data from flattened form, and the project publishes exactly how often that is lossy: **81 of 164** fidelity fixtures are classified `DEFECT`, meaning they do not round trip and that is a bug. README says "treat the JSON round trip as lossy unless a fixture says otherwise" and README is the correct document. This line said "perfectly".
 5. **Complete Type System** — 15+ type converters for Iceberg/Avro schema conversion
 
 The library solves the critical problem of making nested document-oriented data compatible with columnar storage and SQL analytics while preserving the ability to reconstruct original structures when needed.
@@ -159,13 +159,13 @@ Questions that emerged during discovery:
 
 ### Answered in Session 2:
 1. **What is the relationship between JsonFlattenerConsolidator and JsonFlattener?**
-   - **Answer:** They serve different purposes. JsonFlattenerConsolidator (820 lines) is the core flattening engine with consolidation and explosion. JsonFlattener (2005 lines) is a fluent API wrapper that provides streaming, batch processing, validation, and multiple I/O formats on top of MapFlattener. Both are Java; the question originally read "Java vs Groovy" and that distinction no longer exists.
+   - **Answer:** They serve different purposes. JsonFlattenerConsolidator (902 lines, measured 2026-08-19) is the core flattening engine with consolidation and explosion. JsonFlattener (2,333 lines, measured 2026-08-19) is a fluent API wrapper that provides streaming, batch processing, validation, and multiple I/O formats on top of MapFlattener. Both are Java; the question originally read "Java vs Groovy" and that distinction no longer exists.
 
 2. **How does AvroReconstructor work with flattened data?**
-   - **Answer:** AvroReconstructor (2980 lines) uses the Avro schema to rebuild hierarchical GenericRecords from flattened Maps. It includes verification utilities to confirm "perfect reconstruction" — meaning the reconstructed data matches the original exactly.
+   - **Answer (corrected 2026-08-19):** AvroReconstructor (3,922 lines, measured) uses the Avro schema to rebuild hierarchical records from flattened Maps. **It does NOT confirm "perfect reconstruction" and the phrase should not be used.** `verify()` treats String and Number as a compatible pair and compares doubles with an absolute tolerance of 1e-6; wired to that oracle the fidelity corpus reports the 30-digit-integer row and the decimal-precision row as perfect while both lose money. Use `Map.equals`. Two further limits are published in `SECURITY.md`: `reconstruct()` returns a datum that fails `GenericData.validate` whenever the record has nesting (`recon/NP-022`), and a defaulted logical-type field arrives as its raw underlying type (`recon/NP-026`).
 
 3. **What is the status of JsonReconstructor?**
-   - **Answer (corrected 2026-08-17):** ACTIVE. 1295 lines of live, compiled, exported Java, wired
+   - **Answer (corrected 2026-08-17, re-measured 2026-08-19 at 1,428 lines):** ACTIVE. Live, compiled, exported Java, wired
      to the shared `FlattenedPath` encoding, covered by 45 tests plus roughly 40 fidelity fixtures.
      Unlike AvroReconstructor it performs schema-LESS reconstruction, inferring structure from the
      flattened keys. Its known limits are published in `docs/ROUND_TRIP_FIDELITY.md`, including a

@@ -1,6 +1,6 @@
 # Dependency Map — NexusPiercer
 > Import and dependency relationships
-> Last Updated: 2025-12-08
+> Last Updated: 2026-08-19 — re-measured against `src/main` in a documentation sweep. Line counts and inventories below are a SNAPSHOT and rot; where a claim can be checked by a test it is, and the test is named.
 
 ## External Dependencies
 
@@ -127,7 +127,7 @@ Imports:
 | NexusPiercerSparkPipeline | 4 (Spark, Avro, Jackson, SLF4J) | 4 | 8 |
 | JsonFlattenerConsolidator | 1 (Jackson) | 0 | 1 |
 | MapFlattener | 2 (Jackson, SLF4J) | 0 | 2 |
-| AvroSchemaFlattener | 3 (Avro, POI, SLF4J) | 1 (FileFinder) | 4 |
+| AvroSchemaFlattener | 3 (Avro, POI, SLF4J) | 1 (SchemaFiles) | 4 |
 | IcebergSchemaConverter | 1 (Iceberg) | 2 (Registry, Config) | 3 |
 
 ### Coupling Analysis
@@ -137,7 +137,7 @@ Imports:
 - MapFlattener: Self-contained with Jackson
 
 **Medium Coupling:**
-- AvroSchemaFlattener: Depends on FileFinder for schema loading
+- AvroSchemaFlattener: Depends on **SchemaFiles** for schema loading (this said `FileFinder` until 2026-08-19; the repoint happened in 2.1.0 and `FileFinder` is now deprecated)
 - IcebergSchemaConverter: Depends on converter infrastructure
 
 **High Coupling (Potential Concern):**

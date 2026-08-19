@@ -16,7 +16,7 @@
 
 | ID | Category | Description | Location | Discovered |
 |----|----------|-------------|----------|------------|
-| — | — | No critical concerns identified | — | — |
+| — | — | **THIS ROW IS FALSE AND IS CORRECTED RATHER THAN DELETED.** `SECURITY.md` publishes three open issues of critical shape: `quality/NP-002`, a self-referential `.avsc` causing `StackOverflowError`; `quality/NP-003`, `record Node { Node next }` looping until heap exhaustion — an unkillable hang rather than a fast failure; and `quality/NP-013`, an unbounded explosion cross-product (three array paths of 1,000 elements yields 1e9 records). `perf/NP-028`, a 4 MB well-formed document exhausting a 1 GB heap, was open until 2.1.0 capped it. This table describes the CODE-QUALITY review it came from and never inherited the security register; saying "none identified" while a sibling document lists three was the most quotable contradiction in the tree. **Read `SECURITY.md` for security concerns.** | — | 2026-08-19 |
 
 ---
 

@@ -201,19 +201,49 @@ works", not "works".
 |---|---|
 | CI on every push and PR | Live |
 | JDK 17 + 21, Linux + Windows matrix | Live |
-| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measured 65.46% |
+| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,634 now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
 | Cold-clone reproducibility check | Live |
 | No Groovy anywhere / no Groovy or Spock coordinate | Live — `ci.yml` job `no Groovy anywhere`, on every unfiltered push and PR |
 | ~~Single-Groovy-compile assertion~~ | **Removed 2026-08-11** — superseded by the row above; the plugin it guarded no longer exists, so it could only ever pass |
-| Dependency review (new deps) | Live, blocking |
+| Dependency review (new deps) | **Configured but NEVER EXECUTED.** The job is declared and concludes success, but the repository's Dependency graph is disabled so the step is SKIPPED and nothing is analysed — see `SECURITY.md`, which measured it. This row said "Live, blocking" while another document in the same tree said the opposite. |
 | CodeQL | Live |
 | SBOM generation | Live |
-| Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 323 / 231) |
+| Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 318 / 231). Asserted equal to that file by `PublishedProjectFactsMatchTheSourceTest` — this row said `323` for a pass after the PMD ceiling was lowered in `da29c55`, which is a document explaining the ratchets while publishing a value the ratchet does not use. |
 | OWASP CVE scan | **Reporting only** — two known CVEs to clear first |
 | JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md) |
-| ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. Currently 413, reported not gated |
+| ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. 413 AS MEASURED ON 2026-08-11, against a `src/main` of ~19,860 lines; it is 24,432 lines now and the figure has not been re-run. Reported, not gated. `docs/PERFORMANCE.md` published 378 for the same control and called it ratcheted; both halves of that were wrong and are corrected there. |
 | Tier 1 / Tier 2 comparison gate | Live, and **drilled in both directions** |
 | Gate-failure drills (CI-level) | **Not yet run** — the four in the table above |
+
+### The gate inventory
+
+Every in-suite gate, so that "how the gates work" is answerable from this document rather than
+from `ls`. Asserted complete by `PublishedProjectFactsMatchTheSourceTest#antiRegressionNamesEveryGate`
+— it lists `src/test/java/io/github/pierce/gates/` and fails if a gate is missing from this table.
+This table named NONE of them until 2026-08-19, while README pointed here for exactly this.
+
+| Gate | What it refuses |
+|---|---|
+| `PublicApiIsAdditiveOnlySinceReleaseTest` | A removed, narrowed or retyped public member, against `src/test/resources/api/public-api-2.0.0.txt`. The one most likely to be tripped by a well-meant cleanup; adding is always fine. |
+| `DocumentedJavaSnippetsCompileTest` | A published Java block that does not compile, or one with no `<!-- snippet: … -->` directive. **Default deny**: a block that opts out must say why and is counted. |
+| `NoPhantomPatternsMethodIsPublishedAsCallableTest` | A `NexusPiercerPatterns.x(` in published code or a javadoc `<pre>` naming a method the class does not have. |
+| `PublishedSnippetsCompileTest` | A manifest stack recipe that is not byte-identical to a compiled method body, or that does not reproduce its recorded answer when run. |
+| `RoundTripFidelityDocTest` | `docs/ROUND_TRIP_FIDELITY.md` diverging from the manifest by a single byte. Regenerate; never hand-edit. |
+| `ReadmeFidelityCountsTest` | README's fixture counts disagreeing with `manifest.json`. |
+| `ArchitectureGraphEdgesAreRealTest` | An edge drawn in `ARCHITECTURE_GRAPH.md` that the source does not have. |
+| `FlattenerFamilyDiagramTest` | README's family diagram omitting a flattener, drawing a false edge, or mislabelling corpus coverage. |
+| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. |
+| `ChangelogPreambleMatchesItsOwnSectionTest` | The changelog's "N places" summary disagreeing with the number of items beneath it. |
+| `FileFinderBaselineFootprintTest` | The published size of `FileFinder`'s released API footprint drifting from the baseline file. |
+| `SpotBugsExcludeHasNoBlanketClassBlockTest` | A class-wide `<Match>` with no `<Method>` narrowing — how ten real findings hid for a year. |
+| `NoDeadPrivateMethodsInTheFormerlySuppressedClassesTest` | A private method with no caller in the classes that exclude block used to cover. |
+| `NoAnonymousClassCapturesAnEnclosingInstanceTest` | An anonymous class holding an implicit outer reference on a Spark-serialized path. |
+| `NoStackedJavadocCommentsTest` | Two javadoc blocks stacked on one member, where the first is silently discarded. |
+| `ReconstructorNeverReturnsNullListContractTest` | A reconstructor returning `null` where the contract says empty list. |
+
+**These are gates, not coverage.** Each refuses one specific shape of regression. None of them
+asserts that the library is correct, and the snippet gate in particular proves TYPE-CORRECTNESS
+only — see [BL-021].
 
 ### Drills completed
 
@@ -233,7 +263,7 @@ allocation) still need to be run against a live pull request before the pipeline
 be described as verified.
 
 The reporting-only entries are a deliberate, time-boxed state, not the end state. Turning
-Checkstyle, PMD, and SpotBugs on for the first time against ~19,860 never-linted lines produces a
+Checkstyle, PMD, and SpotBugs on for the first time against the ~19,860 never-linted lines of 2026-08-09 (24,432 today) produces a
 large violation count at once; without a trustworthy green baseline underneath, that flood is
 unattributable noise and the predictable response is to switch the gates back off — which is
 exactly the history recorded in this POM. The sequencing is in

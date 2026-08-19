@@ -630,7 +630,16 @@ Not doable additively; recorded so it is not lost.
   sites anywhere in `src/main` or `src/test`, and both are strictly weaker duplicates of
   `newOperation().from(x).toJson(opts)`: they bypass transform/validate/filter entirely and ignore
   `OutputOptions.includeNulls` and `config.usePrettyPrint`.
-- Resolve [BL-015] one way or the other.
+- Resolve [BL-015] one way or the other. **NARROWED 2026-08-19:** four of the knobs are live;
+  what remains for 3.0.0 is removing `JsonFlattenerConfig.failOnError`, whose effect is undefined
+  rather than unimplemented, plus `InputOptions.lenient` and `InputOptions.skipInvalid`, which
+  the original filing did not count.
+- **Rename the six flatteners.** README and [BL-008]'s closure note both file the rename here and
+  this entry did not carry it until 2026-08-19. The names to settle: `MapFlattener`,
+  `JsonFlattener`, `JsonFlattenerConsolidator`, `AvroSchemaFlattener`, `GAvroSchemaFlattener`
+  (the `G` prefix is a fossil of the Groovy port) and `EnrichedSchemaFlattener`. Six public types
+  whose names do not distinguish DATA from SCHEMA from SCHEMA-PLUS-CASTING; until 3.0.0 the
+  family diagram and the selection table in README are the answer.
 
 ---
 
@@ -879,7 +888,7 @@ Original filing follows.
 - **Acceptance Criteria:** README section explaining the purpose and relationship of each flattener class
 - **Discovered:** Session 2
 
-### [BL-009] Add Flattener Family Diagram — PARTIALLY ADDRESSED 2026-08-19
+### [BL-009] Add Flattener Family Diagram — **CLOSED 2026-08-19**
 
 `docs/ARCHITECTURE_GRAPH.md` now carries `EnrichedSchemaFlattener` and `SchemaFiles`, both of
 which were absent while the classes they replace were drawn, and every class-to-class edge in it
@@ -888,9 +897,45 @@ is asserted against the source by
 five edges that had silently rotted: `ASF --> FileFinder` (falsified by the 2.1.0 repoint),
 `GASF --> ASF`, `CSFS --> ASF`, `NPSP --> NPF` and `ASC --> TCR`, plus fifteen registry rows
 claiming the converters implement `TypeConverter` directly when they extend
-`AbstractTypeConverter`. What remains open is the ORIGINAL ask: a diagram in README showing the
-six flatteners side by side and when to use each. The README table does the selection job in
-prose; the picture does not exist.
+`AbstractTypeConverter`.
+
+**The ORIGINAL ask is now met.** README carries a mermaid flowchart directly above the
+"Which flattener do I use?" table, in three lanes by WHAT IT FLATTENS — data, schema only, schema
+plus per-record casting — with each node stating what it takes, what it emits, whether it is the
+default choice, whether it is legacy, and which fidelity stack covers it. It is gated by
+`src/test/java/io/github/pierce/gates/FlattenerFamilyDiagramTest.java`, which asserts four things:
+
+1. the set of names in the diagram EQUALS the set of top-level `src/main` types whose simple name
+   contains "Flattener" — so adding a seventh flattener and not drawing it turns the build red;
+2. every `A --> B` edge resolves to a dependency the source actually has, word-boundary matched so
+   `AvroSchemaFlattener` does not match inside `GAvroSchemaFlattener` (which is exactly the false
+   edge `docs/CLASS_REGISTRY.md` asserted);
+3. each node's corpus-coverage marker agrees with whether the fidelity harness names that class —
+   measured, `JsonFlattenerConsolidator` is named by ZERO files under
+   `src/test/java/io/github/pierce/fidelity/` while the other five are named by 1 to 8, and README
+   already claimed that in prose with nothing checking it;
+4. a mutation drill: renaming a class, deleting a node and inventing a seventh each fail, and each
+   mutation is asserted to have actually applied so the drill cannot prove nothing.
+
+**WHERE IT LIVES, AND WHY NOT IN `ARCHITECTURE_GRAPH.md`.** Putting it there would have inherited
+`ArchitectureGraphEdgesAreRealTest` for free, and that is a trap: that gate builds ONE alias map
+for the whole file, last write wins, so a second diagram reusing `MF[…]` or `ASF[…]` with a
+different label would silently retarget the FIRST diagram's edges while the gate kept passing. A
+new silent failure of exactly the class this repository keeps hitting. `ARCHITECTURE_GRAPH.md`
+carries a cross-reference instead, and the new gate reuses the technique rather than the file.
+
+**A PREMISE IN THE TASK THAT DID NOT HOLD.** The brief asked the diagram to say "which of the TWO
+round-trip stacks" each flattener belongs to. There are FOUR stack keys in
+`src/test/resources/fidelity/manifest.json`, and the letters COLLIDE with the audit register's:
+the manifest's Stack A is `MapFlattener`, while `docs/audit/FINDINGS.md` NP-001 calls
+`MapFlattener` Stack B. The diagram uses the manifest's letters — it is the published contract —
+and says so in a caption, because drawing "Stack A" without saying whose would have published a
+new false claim inside the artefact commissioned to remove false claims.
+
+**"Corpus-covered" and "in a stack recipe" are kept as SEPARATE claims.** `EnrichedSchemaFlattener`
+and `GAvroSchemaFlattener` are exercised by the harness but named in no published stack recipe;
+collapsing the two would publish a false negative about the class README calls the default choice
+for schemas.
 
 - **Type:** Documentation
 - **Priority:** Low
@@ -898,8 +943,9 @@ prose; the picture does not exist.
 - **Related Concern:** C-002
 - **Affected Files:** README.md, docs/
 - **Description:** Create a visual diagram showing the relationship between all flattener classes: JsonFlattenerConsolidator, JsonFlattener, MapFlattener, and their different use cases.
-- **Acceptance Criteria:** Mermaid diagram in README showing class relationships and when to use each
+- **Acceptance Criteria:** Mermaid diagram in README showing class relationships and when to use each — **MET**
 - **Discovered:** Session 2
+- **Completed:** 2026-08-19
 
 ---
 
@@ -939,6 +985,12 @@ prose; the picture does not exist.
 | BL-001 | Document Java vs Groovy Implementation Choice | 2026-08-11 | `4001d3b` | Groovy toolchain removal |
 | BL-007 | Investigate and Resolve JsonReconstructor — **premise refuted, closed** | 2026-08-17 | see below | SpotBugs exclude-block removal |
 | BL-010 | JsonFlattener is dead public surface | 2026-08-17 | see below | SpotBugs exclude-block removal |
+| BL-008 | GAvroSchemaFlattener: unknown responsibility | 2026-08-18 | see below | measured, premise refuted |
+| BL-012 | reconstruct() vs reconstructToMap() | 2026-08-18 | see below | settled, not fixed |
+| BL-013 | Array-of-records cardinality | 2026-08-18 | `e65fec7` | array-element alignment |
+| BL-014 | Multi-branch unions inside array elements | 2026-08-18 | `e65fec7` | array-element alignment |
+| BL-018 | extractFieldsPreservingStructure misalignment | 2026-08-19 | `6bb66d1` | the third array-element site |
+| BL-009 | Flattener family diagram | 2026-08-19 | this commit | README diagram + FlattenerFamilyDiagramTest |
 
 ROADMAP Phase 2 required "a commit SHA on every future completion claim". BL-003 and BL-004
 predate that rule and no SHA was recorded at the time; they are marked as such rather than
@@ -961,7 +1013,8 @@ back-filled with a guess. The 2026-08-17 rows are closed by the commit that carr
   not use, and would imply to a reader of this backlog that the choice is still live.
 - **What survives:** the *naming* confusion between `JsonFlattenerConsolidator` and
   `JsonFlattener` is real and independent of language — they are two different Java classes with
-  similar names. That is tracked separately by **BL-008** and **BL-009**, both still open.
+  similar names. That was tracked separately by **BL-008** and **BL-009**; both are now closed
+  (BL-008 measured and its premise refuted, BL-009 by the README family diagram and its gate).
 - **Completed:** 2026-08-11
 
 ### [BL-004] Dependency Hygiene & Modernization — COMPLETED ✅

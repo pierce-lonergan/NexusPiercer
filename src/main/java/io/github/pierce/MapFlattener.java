@@ -168,6 +168,16 @@ public class MapFlattener implements Serializable {
     private static final String VALUE_SENTINEL = "_value";
 
     /**
+     * The floor every {@code Builder} bound shares.
+     *
+     * <p>Named rather than written as {@code 1} five times, which PMD counted five times under
+     * {@code AvoidLiteralsInIfCondition} and which is genuinely worse to read: the five guards
+     * are one rule, and a reader should not have to check that the fifth agrees with the first
+     * four.</p>
+     */
+    private static final int MIN_BOUND = 1;
+
+    /**
      * Default ceiling on array-element cells emitted by one {@link #flatten(Map)} call.
      *
      * <p>2^20, chosen against the published figure rather than picked. At the shipped defaults
@@ -758,9 +768,8 @@ public class MapFlattener implements Serializable {
 
         for (int i = 0; i < limit; i++) {
             Object item = list.get(i);
-            List<?> nestedList = asNestedList(item);
 
-            if (nestedList == null) {
+            if (!isNestedList(item)) {
                 Object normalizedValue = item == null ? null
                         : (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
                 positions.add(new NestedPosition(null, 0, normalizedValue));
@@ -768,7 +777,7 @@ public class MapFlattener implements Serializable {
                 continue;
             }
 
-            Map<String, List<Object>> nested = extractFieldsFromList(nestedList, depth + 1);
+            Map<String, List<Object>> nested = extractFieldsFromList(asNestedList(item), depth + 1);
             if (nested.isEmpty()) {
                 // An empty inner list, or an empty Java array. The List arm always recorded the
                 // position under the sentinel; the ARRAY arm recorded nothing at all, so the
@@ -785,18 +794,28 @@ public class MapFlattener implements Serializable {
         return materialiseNestedColumns(limit, names, positions);
     }
 
-    /** The nested list at an outer position, or {@code null} when the position holds neither. */
+    /** Whether an outer position holds a nested list or a Java array. */
+    private static boolean isNestedList(Object item) {
+        return item instanceof List || (item != null && item.getClass().isArray());
+    }
+
+    /**
+     * The nested list at an outer position.
+     *
+     * <p>Split from {@link #isNestedList} rather than returning {@code null} for "not a list":
+     * a method that returns a collection or null makes every caller a candidate for a
+     * NullPointerException and PMD is right to say so. The predicate answers the question and
+     * this answers the follow-up, and neither can be called in the wrong order by accident
+     * because this one throws on input the predicate would have rejected.</p>
+     */
     private List<?> asNestedList(Object item) {
         if (item instanceof List) {
             return (List<?>) item;
         }
-        if (item != null && item.getClass().isArray()) {
-            Class<?> componentType = item.getClass().getComponentType();
-            return componentType.isPrimitive()
-                    ? convertPrimitiveArray(item, componentType)
-                    : Arrays.asList((Object[]) item);
-        }
-        return null;
+        Class<?> componentType = item.getClass().getComponentType();
+        return componentType.isPrimitive()
+                ? convertPrimitiveArray(item, componentType)
+                : Arrays.asList((Object[]) item);
     }
 
     /**
@@ -1010,7 +1029,12 @@ public class MapFlattener implements Serializable {
                     + "untrusted input. This is refused rather than truncated because dropping "
                     + "columns leaves every surviving column the correct length, so no "
                     + "downstream check could see the loss.";
-            log.warn(message);
+            // NOT LOGGED. Throwing IS the report: this message reaches the caller in full,
+            // and logging it as well would be double reporting whose only distinctive effect is
+            // one log line per refusal - on the exact input class an attacker controls. The
+            // first draft of this method logged at WARN and find-sec-bugs counted it as
+            // CRLF_INJECTION_LOGS, which was the right complaint about the wrong half: the fix
+            // is not to sanitise the log line, it is not to have one.
             throw new FlattenLimitExceededException(message);
         }
         context.arrayCells = next;
@@ -1460,24 +1484,24 @@ public class MapFlattener implements Serializable {
         private ArraySerializationFormat arrayFormat = ArraySerializationFormat.JSON;
 
         public Builder maxDepth(int depth) {
-            if (depth < 1) {
-                throw new IllegalArgumentException("maxDepth must be >= 1");
+            if (depth < MIN_BOUND) {
+                throw new IllegalArgumentException("maxDepth must be >= " + MIN_BOUND);
             }
             this.maxDepth = depth;
             return this;
         }
 
         public Builder maxArraySize(int size) {
-            if (size < 1) {
-                throw new IllegalArgumentException("maxArraySize must be >= 1");
+            if (size < MIN_BOUND) {
+                throw new IllegalArgumentException("maxArraySize must be >= " + MIN_BOUND);
             }
             this.maxArraySize = size;
             return this;
         }
 
         public Builder maxMapSize(int size) {
-            if (size < 1) {
-                throw new IllegalArgumentException("maxMapSize must be >= 1");
+            if (size < MIN_BOUND) {
+                throw new IllegalArgumentException("maxMapSize must be >= " + MIN_BOUND);
             }
             this.maxMapSize = size;
             return this;
@@ -1499,16 +1523,16 @@ public class MapFlattener implements Serializable {
          * @param cells maximum cells per invocation, at least 1
          */
         public Builder maxArrayCells(int cells) {
-            if (cells < 1) {
-                throw new IllegalArgumentException("maxArrayCells must be >= 1");
+            if (cells < MIN_BOUND) {
+                throw new IllegalArgumentException("maxArrayCells must be >= " + MIN_BOUND);
             }
             this.maxArrayCells = cells;
             return this;
         }
 
         public Builder maxJsonStringLength(int length) {
-            if (length < 1) {
-                throw new IllegalArgumentException("maxJsonStringLength must be >= 1");
+            if (length < MIN_BOUND) {
+                throw new IllegalArgumentException("maxJsonStringLength must be >= " + MIN_BOUND);
             }
             this.maxJsonStringLength = length;
             return this;

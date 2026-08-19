@@ -1,6 +1,6 @@
 # Class Registry — NexusPiercer
 > Complete inventory of all classes/types with responsibilities
-> Last Updated: 2025-12-08
+> Last Updated: 2026-08-19 — re-measured against `src/main` in a documentation sweep. Line counts and inventories below are a SNAPSHOT and rot; where a claim can be checked by a test it is, and the test is named.
 
 ## Registry Format
 
@@ -27,7 +27,7 @@ Each class entry follows this structure:
 - **Layer:** APPLICATION
 - **Type:** Service (Builder Pattern)
 - **Responsibility:** Main entry point for Spark batch/streaming JSON processing with schema validation
-- **Collaborators:** JsonFlattenerConsolidator, AvroSchemaFlattener, CreateSparkStructFromAvroSchema, FileFinder, SparkSession
+- **Collaborators:** JsonFlattenerConsolidator, AvroSchemaFlattener, CreateSparkStructFromAvroSchema, **SchemaFiles** (not `FileFinder` — measured, the file imports `io.github.pierce.files.SchemaFiles` and never names `FileFinder`), SparkSession
 - **Used By:** Client applications, NexusPiercerPatterns
 - **State:** Stateful — SparkSession, PipelineConfig, cached schemas
 - **Thread Safety:** Yes — uses ConcurrentHashMap for schema caching
@@ -116,7 +116,7 @@ Each class entry follows this structure:
 - **Layer:** DOMAIN
 - **Type:** Service
 - **Responsibility:** Flattens complex Avro schemas with terminal/non-terminal array classification
-- **Collaborators:** Schema, FileFinder, POI (for Excel export)
+- **Collaborators:** Schema, **SchemaFiles** (not `FileFinder`; measured at `AvroSchemaFlattener.java` line 3), POI (for Excel export)
 - **Used By:** NexusPiercerSparkPipeline
 - **State:** Stateful — field tracking, metadata, statistics
 - **Thread Safety:** Partial — uses ConcurrentHashMap for cache
@@ -397,7 +397,7 @@ Each class entry follows this structure:
 - **Layer:** INFRASTRUCTURE
 - **Type:** Utility
 - **Responsibility:** Loads Avro schemas from various sources
-- **Collaborators:** FileFinder, Schema.Parser
+- **Collaborators:** SchemaFiles (primary), FileFinder (classpath fallback only), Schema.Parser
 - **Used By:** NexusPiercerSparkPipeline
 - **State:** Unknown
 - **Thread Safety:** Unknown

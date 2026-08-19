@@ -98,7 +98,7 @@ highest-value remaining item: one file, one language, no API change.
 
 | Metric | Before | Now | Target |
 |---|---:|---:|---:|
-| `invokedynamic` in `io.github.pierce.**` | 7,168 | **378** | 378 |
+| `invokedynamic` in `io.github.pierce.**` | 7,168 | **413** (2026-08-11) | not gated |
 
 The remaining 378 are ordinary Java lambda, method-reference and string-concat sites, not dynamic
 dispatch. Ratcheted by

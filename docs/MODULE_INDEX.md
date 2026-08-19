@@ -1,6 +1,6 @@
 # Module Index — NexusPiercer
 > Directory of all modules/packages discovered
-> Last Updated: 2025-12-08
+> Last Updated: 2026-08-19 — re-measured against `src/main` in a documentation sweep. Line counts and inventories below are a SNAPSHOT and rot; where a claim can be checked by a test it is, and the test is named.
 
 ## Package Structure
 
@@ -117,7 +117,8 @@ io.github.pierce
 
 | Class | Purpose | Lines | Explored |
 |-------|---------|-------|----------|
-| FileFinder | Find files from classpath/filesystem | ~100 | No |
+| FileFinder | Find files from classpath/filesystem — **DEPRECATED 2.1.0, use `SchemaFiles`** | 1,462 | No |
+| SchemaFiles | The supported schema reader: traversal, null-byte and size enforcement | 188 | No |
 
 ---
 

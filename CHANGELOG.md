@@ -723,6 +723,83 @@ clear the 2.0.0 additive-only gate.
 
 ### Documentation
 
+- **[BL-009] is closed: README carries a flattener-family diagram, and it is gated.** Three lanes
+  by what each class flattens — DATA, SCHEMA only, and SCHEMA plus per-record casting — with each
+  node stating what it takes, what it emits, whether it is the default choice, whether it is
+  legacy, and which fidelity stack covers it. `FlattenerFamilyDiagramTest` asserts the name set
+  equals the `src/main` Flattener types, that every drawn edge is a dependency the source has
+  (word-boundary matched, so `AvroSchemaFlattener` does not match inside `GAvroSchemaFlattener`),
+  that each coverage marker agrees with the harness, and that renaming / deleting / adding a node
+  each fail.
+
+  **It is NOT in `docs/ARCHITECTURE_GRAPH.md`, deliberately.** That would have inherited
+  `ArchitectureGraphEdgesAreRealTest` for free — and that gate builds ONE alias map for the whole
+  file, last write wins, so a second diagram reusing an id silently retargets the first diagram's
+  edges while the gate keeps passing. A cross-reference goes there instead.
+
+  **A premise in the task did not hold and the diagram says so.** It asked which of "the two
+  round-trip stacks" each flattener belongs to. There are FOUR stack keys in the manifest, and the
+  letters COLLIDE with the audit register's: the manifest's Stack A is `MapFlattener`, while
+  `docs/audit/FINDINGS.md` NP-001 calls `MapFlattener` Stack B. The diagram uses the manifest's
+  letters, because the manifest is the published contract, and captions the collision.
+
+- **A documentation sweep, with three of its numbers now under test.** New
+  `PublishedProjectFactsMatchTheSourceTest` asserts that `docs/ANTI_REGRESSION.md` publishes the
+  ceilings `.github/quality-baseline.json` enforces, that every document stating a suite size
+  states the same one, and that `ANTI_REGRESSION` names every gate. All three had drifted:
+
+  - **The ceilings row said `(0 / 323 / 231)`** while the baseline enforced PMD at 322 — the
+    document that exists to explain the ratchets publishing a value the ratchet does not use. Both
+    are 318 now.
+  - **Three documents published three suite sizes** — 2,372, 2,401 and 2,530 — none current. All
+    say 2,634. `CONTRIBUTING.md`'s surefire-XML undercount is re-measured too: it is **exactly
+    532**, not "roughly 500", and has been 532 at every measurement since 2026-08-17.
+  - **The gate inventory named none of the gates.** README sends readers to that document for
+    "how the gates and ratchets work" and sixteen gates were absent from it.
+
+  Corrections that could not be gated and were made by hand, each naming the false claim rather
+  than overwriting it:
+
+  - `docs/PERFORMANCE.md` published `invokedynamic` as **378 and ratcheted**; `ANTI_REGRESSION`
+    published **413 and an observation**, for the same control, in the same tree. 413, observed,
+    dated, and marked not re-run against a `src/main` that has grown from ~19,860 to 24,432 lines.
+  - `ANTI_REGRESSION` said the **dependency-review** job was "Live, blocking"; `SECURITY.md` had
+    already measured it as SKIPPED because the repository's Dependency graph is disabled. Two
+    documents in one tree contradicting each other about whether a control runs.
+  - `SECURITY.md`'s `quality/NP-001` residual claimed `..`, `../..` and `../../..` "remain in the
+    DEFAULT search paths". **They do not** — `FileFinder.Config.searchPaths` has held no parent
+    directory since 2.1.0. And the whole `files/NP-027` row was doubly stale: `enforceResolvedSize`
+    caps the resolved handle however it was located and `SizeLimitedInputStream` caps the byte
+    stream, so both halves of its stated cause are closed. Struck through with the fix named.
+  - `docs/CONCERNS.md` said **"No critical concerns identified"** while `SECURITY.md` published a
+    `StackOverflowError`, an unkillable heap-exhaustion hang and an unbounded cross-product. The
+    most quotable contradiction in the tree; corrected in place with the three named.
+  - `docs/CLASS_REGISTRY.md` and `docs/DEPENDENCY_MAP.md` still named **`FileFinder`** as the
+    collaborator of `NexusPiercerSparkPipeline`, `AvroSchemaFlattener` and `AvroSchemaLoader`. All
+    three import `SchemaFiles`; the first two never name `FileFinder` at all. This is the same
+    false edge `ArchitectureGraphEdgesAreRealTest` deleted from the graph a pass ago, still live
+    in the registry because no test read it.
+  - `docs/MODULE_INDEX.md` listed `FileFinder` at **"~100" lines**. It is 1,462 — a 14x
+    understatement — and `SchemaFiles` was missing entirely.
+  - `docs/PROJECT_OVERVIEW.md` claimed **"Perfect Reconstruction"** and that `verify()` confirms
+    "the reconstructed data matches the original exactly". 81 of 164 fixtures are `DEFECT`, and
+    `verify()` compares doubles with a 1e-6 tolerance and treats String and Number as compatible —
+    wired to that oracle the corpus reports two money-losing rows as perfect. Its line counts were
+    stale by 942 lines on `AvroReconstructor` alone.
+  - `docs/audit/FINDINGS.md` now opens with a header declaring it FROZEN at 2026-08-09, naming
+    four findings it still publishes present-tense that are long fixed, mapping its
+    `src/main/groovy` locations onto the Java tree, and flagging its dead `docs/API_SURFACE.md`
+    citations. **The 200 findings are not rewritten** — the register's value is that it is a
+    snapshot, and 200 status edits would be stale next pass while a header cannot rot.
+  - `README.md`'s Documentation table said "four offline install routes"; `docs/INSTALL.md` has
+    four routes TOTAL of which three need no Central, which is what README's own body says six
+    paragraphs earlier. `INSTALL.md` was the correct document and was left alone.
+  - `README.md` listed `SchemaCacheStats.hitRate()` under Flattening; it is declared on
+    `AvroReconstructor` and caches on the reconstruction side. And "reproducible-build
+    verification" overstated what CI does — no workflow compares two builds byte for byte, and
+    `<Built-By>${user.name}</Built-By>` would defeat it across machines.
+
+
 - **`OSS-01` is closed, and the fix is a compiler rather than a correction.** Every published
   Java block in every git-tracked markdown file is now compiled on every build by
   `DocumentedJavaSnippetsCompileTest`. Measured before the change: **83** Java blocks in **8**

@@ -1,3 +1,26 @@
+> ## THIS REGISTER IS FROZEN AT 2026-08-09. READ IT AS HISTORY.
+>
+> It records what a 13-agent audit found on that date and it is deliberately not maintained: its
+> value is that it is a snapshot. **It has no status column, so a finding here may be long fixed
+> and still read as live.** Known examples: `NP-002` (injective key encoding) was fixed and
+> RELEASED in 2.0.0; `CI-001` ("no CI runs at all") is false — four workflows exist; `OSS-02`
+> ("no README.md exists") is false; `OSS-01`'s phantom `NexusPiercerPatterns` methods were
+> retracted in 2.1.0 and every published Java block is now compiled by
+> `DocumentedJavaSnippetsCompileTest`.
+>
+> **For current state read `SECURITY.md`, `CHANGELOG.md` and `docs/BACKLOG.md`.**
+>
+> Two navigation notes. Every `**Location:** src/main/groovy/X.groovy` line names a tree that no
+> longer exists — the Groovy sources were ported and the directory removed on 2026-08-11; read
+> those as `src/main/java/io/github/pierce/X.java`. And several citations point at
+> `docs/API_SURFACE.md`, which was deleted; the material it held is in `README.md` and
+> `docs/CLASS_REGISTRY.md`.
+>
+> This file is EXEMPT from the documented-snippet gate, for the reason that makes it useful: it
+> quotes code AS FOUND, including code that never compiled. It also opens several fences MID-LINE
+> (`**Evidence.** ` followed by a fence on the same line), which is malformed markdown — a
+> structural parse of this file reports 9 java blocks where it holds 20.
+
 # NexusPiercer Audit — Findings Register
 
 Generated 2026-08-09 by a 13-agent audit (8 parallel specialists, adversarial verification of every

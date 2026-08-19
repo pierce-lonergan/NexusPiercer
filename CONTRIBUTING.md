@@ -23,13 +23,13 @@ resolving to *different* JDKs is a known source of confusing failures here.
 ./mvnw verify
 ```
 
-That runs the full suite (2,372 test invocations, roughly 4 minutes). Faster loops:
+That runs the full suite (2,634 test invocations, roughly 4 minutes). Faster loops:
 
 **Read the count from Maven's `Tests run:` summary line, not from the surefire XML.** Summing
-`target/surefire-reports/*.xml` UNDERCOUNTS here by roughly 500 — measured 1,840 against Maven's
-2,372 on 2026-08-17 — because `@Nested` classes emit a separate report per nested class while the
-outer class's own report records `tests="0"`. 25 of the 205 report files are such zero-count
-outers. The Maven summary line is authoritative.
+`target/surefire-reports/*.xml` UNDERCOUNTS here by **exactly 532** — measured 2,102 against
+Maven's 2,634 on 2026-08-19 — because `@Nested` classes emit a separate report per nested class
+while the outer class's own report records `tests="0"`. The gap has been 532 at every measurement
+since 2026-08-17, when it was 1,840 against 2,372. The Maven summary line is authoritative.
 
 ```bash
 ./mvnw -Pfast package

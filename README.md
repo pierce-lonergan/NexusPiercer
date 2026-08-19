@@ -233,12 +233,60 @@ and shipped to executors.
 
 ### Which flattener do I use?
 
+```mermaid
+flowchart TB
+    subgraph DATA["Flatten DATA (a document or a Map)"]
+        MF["MapFlattener<br/><i>Map&lt;?,?&gt; → Map&lt;String,Object&gt;</i><br/><b>default choice</b><br/>corpus: Stack A + Stack C"]
+        JF["JsonFlattener<br/><i>String/File/Reader/byte[]/URL → Map or JSON</i><br/>fluent facade over MapFlattener<br/>corpus: Stack B"]
+        JFC["JsonFlattenerConsolidator<br/><i>String → String, or → List&lt;String&gt;</i><br/>independent Jackson implementation<br/><b>NOT COVERED BY THE CORPUS</b>"]
+    end
+
+    subgraph SCHEMA["Flatten a SCHEMA only"]
+        ESF["EnrichedSchemaFlattener<br/><i>Schema → List&lt;FlattenedField&gt;</i><br/>also stream(Schema, Consumer)<br/><b>default choice for schemas</b><br/>corpus-covered, in no stack recipe"]
+        ASF["AvroSchemaFlattener<br/><i>Schema → Schema</i><br/>plus getArrayFieldNames(),<br/>reconstructOriginalSchema()<br/>legacy · corpus: Stack C + schema inverse"]
+    end
+
+    subgraph BOTH["Flatten a SCHEMA <b>and</b> cast records"]
+        GASF["GAvroSchemaFlattener<br/><i>Schema → Map&lt;String,FlattenedFieldType&gt;</i><br/>plus applyTypes(Map,Map) — the per-record step<br/>legacy · corpus-covered, in no stack recipe"]
+    end
+
+    FP["FlattenedPath<br/><i>injective key encoding</i>"]
+    FO["FlattenOptions<br/><i>Serializable, Spark-safe</i>"]
+    SF["SchemaFiles<br/><i>reads .avsc</i>"]
+    NPSP["NexusPiercerSparkPipeline"]
+    NPF["NexusPiercerFunctions"]
+
+    JF --> MF
+    GASF --> MF
+    MF --> FP
+    ESF --> FO
+    ASF --> SF
+    NPSP --> JFC
+    NPF --> JFC
+```
+
+**Corpus letters are the MANIFEST's, and they collide with the audit register's.**
+`src/test/resources/fidelity/manifest.json` declares Stack A = Map level, Stack B = JSON level,
+Stack C = Avro. `docs/audit/FINDINGS.md` NP-001 uses A and B *the other way round* — its Stack A is
+`JsonFlattenerConsolidator`, its Stack B is `MapFlattener`. The manifest wins here because it is the
+published contract; the audit register is a frozen 2026-08-09 snapshot.
+
+**"Legacy" is a documentation judgement, not `@Deprecated`.** Neither legacy class carries the
+annotation and neither should yet: `GAvroSchemaFlattener.applyTypes` has no replacement anywhere in
+the library, and `NexusPiercerSparkPipeline` still calls `AvroSchemaFlattener` internally.
+Deprecating a class with no replacement is a false signal.
+
+**"Corpus-covered" and "in a stack recipe" are different claims.** `EnrichedSchemaFlattener` and
+`GAvroSchemaFlattener` are exercised by the fidelity harness but appear in no published stack
+recipe. `JsonFlattenerConsolidator` is in neither — and it is the class the Spark surface is built
+on, so read the table below before choosing it.
+
 Six public types have "Flattener" in the name and the names do not tell you them apart. Three
 flatten DATA; two flatten a SCHEMA only; and `GAvroSchemaFlattener` flattens a schema **and**
 carries `applyTypes`, the per-record type-casting step the Spark streaming path calls — so "the
 schema ones never touch a record" is true of two of the three, not three. Renaming them is a
-breaking change and is deferred to 3.0.0 ([BL-016]), so until then this table is the selection
-rule.
+breaking change and is deferred to 3.0.0 ([BL-016]), so until then the diagram above and this table
+are the selection rule.
 
 | Class | Flattens | Reach for it when |
 |---|---|---|
@@ -265,7 +313,9 @@ deprecated in 2.1.0.
 - Name-collision detection under both `FAIL` and `ESCAPE` policies, for source and injected columns
 - Positional column injection, with source field order never reordered
 - Streaming emission for wide schemas
-- Bounded, instrumented schema cache with `SchemaCacheStats.hitRate()`
+- A per-invocation `maxArrayCells` ceiling that REFUSES rather than truncating, because a
+  truncated column set leaves every surviving column the right length and no downstream check
+  could see the loss
 
 </details>
 
@@ -273,6 +323,8 @@ deprecated in 2.1.0.
 <summary><b>Reconstruction</b></summary>
 
 - Avro records rebuilt from flattened rows, with the original or a supplied schema
+- Bounded, instrumented schema cache with `SchemaCacheStats.hitRate()` (declared on
+  `AvroReconstructor`: it caches on the RECONSTRUCTION side, not the flattening side)
 - Original schema rebuilt from a flattened schema
 - Configurable separator, array format, null preservation and array-path hints
 - Depth-bounded to stop hostile input exhausting the heap
@@ -299,7 +351,9 @@ deprecated in 2.1.0.
   not cover in 2.0.0)
 - JMH benchmark harness with allocation-based (machine-independent) regression gates
 - Ratcheted Checkstyle / PMD / SpotBugs ceilings that may only decrease
-- CycloneDX SBOM, OWASP dependency-check, CodeQL, reproducible-build verification
+- CycloneDX SBOM, OWASP dependency-check, CodeQL, cold-clone build verification and a pinned
+  `project.build.outputTimestamp` (no workflow compares two builds byte for byte, and
+  `<Built-By>${user.name}</Built-By>` in the manifest would defeat it across machines)
 
 </details>
 
@@ -308,7 +362,7 @@ deprecated in 2.1.0.
 | Document | What's in it |
 |---|---|
 | [Round-trip fidelity](docs/ROUND_TRIP_FIDELITY.md) | **What survives a round trip, fixture by fixture** — generated, drift-guarded |
-| [Install](docs/INSTALL.md) | Maven Central plus four offline install routes |
+| [Install](docs/INSTALL.md) | Maven Central plus three offline install routes |
 | [Performance](docs/PERFORMANCE.md) | Benchmark methodology and measured results |
 | [Anti-regression](docs/ANTI_REGRESSION.md) | How the gates and ratchets work |
 | [Audit findings](docs/audit/FINDINGS.md) | Full engineering audit — 200 verified findings, ranked |
