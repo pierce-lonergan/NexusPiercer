@@ -231,6 +231,8 @@ This table named NONE of them until 2026-08-19, while README pointed here for ex
 | `RoundTripFidelityDocTest` | `docs/ROUND_TRIP_FIDELITY.md` diverging from the manifest by a single byte. Regenerate; never hand-edit. |
 | `ReadmeFidelityCountsTest` | README's fixture counts disagreeing with `manifest.json`. |
 | `ArchitectureGraphEdgesAreRealTest` | An edge drawn in `ARCHITECTURE_GRAPH.md` that the source does not have. |
+| `DependencyMapImportTreesAreRealTest` | An `Imports:` tree in `DEPENDENCY_MAP.md` naming an `io.github` import the class no longer has — the sibling of the row above, added after a sweep corrected that file's table and prose and left its two literal import trees saying `FileFinder`. |
+| `ConfigKnobJavadocMatchesItsWiringTest` | A javadoc calling a `JsonFlattenerConfig` knob inert while its getter is read in `src/main`. Each knob is described in five places; 2.1.0 wired four up and left two of the descriptions saying the opposite. |
 | `FlattenerFamilyDiagramTest` | README's family diagram omitting a flattener, drawing a false edge, or mislabelling corpus coverage. |
 | `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. |
 | `ChangelogPreambleMatchesItsOwnSectionTest` | The changelog's "N places" summary disagreeing with the number of items beneath it. |

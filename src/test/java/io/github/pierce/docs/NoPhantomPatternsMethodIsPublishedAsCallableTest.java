@@ -114,6 +114,122 @@ class NoPhantomPatternsMethodIsPublishedAsCallableTest {
                 .isSubsetOf(realMethodNames());
     }
 
+    // ------------------------------------------------------------------ the PROSE form
+
+    /**
+     * The shape survived three passes because every gate looked for call syntax.
+     *
+     * <p>OSS-01 was "the docs name methods that do not exist". Its first correction replaced the
+     * phantom METHODS with a phantom SIGNATURE - "reporting helpers over an already-loaded
+     * {@code Dataset}" - and the second correction fixed two of the three sites and edited the
+     * third file without touching the line. {@link #everyPublishedCallNamesARealMethod()} cannot
+     * see any of it: prose describing a parameter contains no {@code NexusPiercerPatterns.name(}
+     * and no {@code ```java} fence, so neither this class's call scanner nor the compile gate
+     * ever reads it. Three passes is enough evidence that the prose form needs its own gate.</p>
+     */
+    @Test
+    @DisplayName("no published prose gives these methods a shape reflection disagrees with")
+    void noPublishedProseClaimsAnInputShapeTheMethodsDoNotHave() {
+        for (Method m : NexusPiercerPatterns.class.getMethods()) {
+            if (m.getDeclaringClass() != NexusPiercerPatterns.class) {
+                continue;
+            }
+            assertThat(m.getParameterTypes()[0])
+                    .as("this gate's premise is that both methods take a SparkSession first and "
+                            + "no Dataset at all; %s changed that, so rewrite the gate before "
+                            + "rewriting the docs", m.getName())
+                    .isEqualTo(org.apache.spark.sql.SparkSession.class);
+            assertThat(m.getParameterTypes())
+                    .as("%s now takes a Dataset; the prose below is no longer wrong", m.getName())
+                    .doesNotContain(org.apache.spark.sql.Dataset.class);
+        }
+
+        List<String> offences = new ArrayList<>();
+        int scanned = 0;
+        for (String file : DocSnippetSource.trackedMarkdown()) {
+            scanned += scanProse(read(DocSnippetSource.moduleRoot().resolve(file)), file, offences);
+        }
+        for (Path java : mainJavaFiles()) {
+            String label = DocSnippetSource.moduleRoot().relativize(java).toString()
+                    .replace('\\', '/');
+            scanned += scanProse(read(java), label, offences);
+        }
+
+        assertThat(scanned)
+                .as("VERIFY THE COUNT: a scanner that reads nothing reports nothing. It must "
+                        + "find real mentions of the class before its silence means anything.")
+                .isGreaterThan(0);
+        assertThat(offences)
+                .as("PUBLISHED PROSE GIVES NexusPiercerPatterns AN INPUT SHAPE IT DOES NOT HAVE. "
+                        + "Both public methods take (SparkSession, ...path...) and neither takes "
+                        + "a Dataset. A line may still SAY 'already-loaded Dataset' while denying "
+                        + "it - the corrective sentences do - but an affirmative claim is a "
+                        + "phantom signature and this is its third recurrence.")
+                .isEmpty();
+    }
+
+    /** The shapes this class does not have, in the wording the three sites actually used. */
+    private static final List<String> PHANTOM_SHAPES = List.of(
+            "already-loaded dataset", "already loaded dataset",
+            "pre-built etl", "pre-built pattern", "pre-configured pipeline");
+
+    /**
+     * A retraction always negates the phrase directly; a claim does not.
+     *
+     * <p>A first draft accepted a negation anywhere on the line. That let
+     * {@code docs/CLASS_REGISTRY.md:73} through, because it asserted the Dataset shape in its
+     * first clause and denied something ELSE - the {@code jsonToDelta} recipes - in a
+     * parenthetical thirty words later. The denial has to be about the phrase it clears.</p>
+     */
+    private static final int NEGATION_WINDOW = 60;
+
+    private static final List<String> NEGATIONS = List.of(
+            "neither", "not ", "never", "no ", "used to", "phantom", "does not", "do not");
+
+    /** Backticks and {@code {@code ..}} are formatting, not meaning; strip them before matching. */
+    private static String normalise(String line) {
+        return line.replace("{@code ", "").replace("`", "").replace("}", "")
+                .toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * Lines attributable to this class that assert a shape it does not have.
+     *
+     * <p>ATTRIBUTABLE means the line names the class, OR sits under a markdown heading that
+     * does. The heading rule is what reaches {@code docs/SPARK_PIPELINE.md}'s
+     * "### 3. NexusPiercerPatterns" section body, whose sentence described ETL recipes two lines
+     * above a snippet saying those recipes do not exist.</p>
+     */
+    private static int scanProse(String text, String label, List<String> offences) {
+        int seen = 0;
+        boolean markdown = label.endsWith(".md");
+        boolean underHeading = false;
+        String[] lines = text.split("\r?\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            if (markdown && line.startsWith("#")) {
+                underHeading = line.contains("NexusPiercerPatterns");
+            }
+            if (!line.contains("NexusPiercerPatterns") && !underHeading) {
+                continue;
+            }
+            seen++;
+            String flat = normalise(line);
+            for (String shape : PHANTOM_SHAPES) {
+                int at = flat.indexOf(shape);
+                if (at < 0) {
+                    continue;
+                }
+                String before = flat.substring(Math.max(0, at - NEGATION_WINDOW), at);
+                if (NEGATIONS.stream().noneMatch(before::contains)) {
+                    offences.add(label + ":" + (i + 1) + " -> " + line.strip());
+                    break;
+                }
+            }
+        }
+        return seen;
+    }
+
     private static Set<String> realMethodNames() {
         Set<String> names = new TreeSet<>();
         for (Method m : NexusPiercerPatterns.class.getMethods()) {

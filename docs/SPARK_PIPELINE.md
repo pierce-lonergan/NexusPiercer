@@ -21,7 +21,7 @@ A powerful, intuitive abstraction layer for processing nested JSON data with Avr
 - **Built-in error handling** strategies
 - **Performance optimizations** with schema caching
 - **SQL functions** for ad-hoc processing
-- **Pre-built patterns** for common use cases
+- **Quality and profiling reports** over raw JSON
 
 ## 📋 Table of Contents
 
@@ -116,7 +116,8 @@ spark.sql("""
 
 ### 3. NexusPiercerPatterns
 
-Pre-configured pipelines for common use cases.
+Two reporting helpers, both reading a path with a `SparkSession`. There are no pre-built ETL
+recipes on this class; see the note at the top of this page.
 
 <!-- snippet: body env=spark -->
 ```java

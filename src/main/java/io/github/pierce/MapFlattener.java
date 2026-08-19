@@ -110,6 +110,15 @@ import java.util.Set;
  * empty" and "this position's inner array had elements, none of which carried this column" are
  * different facts.
  *
+ * <p>THAT PARAGRAPH WAS TRUE AS A RULE AND FALSE AS A DESCRIPTION for the whole of the release
+ * that introduced it. The branch guarded on the FLATTENED result being empty, so an inner list
+ * of empty objects took the empty-array path: {@code {"g":[[],[{"a":1}]]}},
+ * {@code {"g":[[{}],[{"a":1}]]}} and {@code {"g":[[{},{}],[{"a":1}]]}} all emitted
+ * {@code g_a="[[],[1]]"}, collapsing exactly the two facts above. The inner cardinality is now
+ * read from the SOURCE list, so those three emit {@code [[],[1]]}, {@code [[null],[1]]} and
+ * {@code [[null,null],[1]]}. The pin that was supposed to rule this out used an all-scalar
+ * document and could never reach the map arm; see CHANGELOG item 27.
+ *
  * <h2>For AWS Athena</h2>
  * Recommended formats:
  * <pre>
@@ -375,9 +384,11 @@ public class MapFlattener implements Serializable {
             // caller writing `catch (FlattenLimitExceededException)` - exactly what this class's
             // javadoc tells them to write - would catch nothing. It is not silent in the log; it
             // is silent to the type system, which is where the guarantee was supposed to live.
-            // It is also NOT logged again here: chargeCells already logged it at WARN with the
-            // message and no stack, because a full stack trace per refusal is itself an
-            // amplification vector on the exact input class an attacker controls.
+            // IT IS NOT LOGGED ANYWHERE, here or in chargeCells. Do not go looking for a WARN
+            // line; there is none, and this comment used to say chargeCells wrote one. The
+            // exception message IS the whole report: it reaches the caller in full, and a log
+            // line per refusal - a full stack trace or otherwise - is one write per request on
+            // the exact input class an attacker controls. See the note in chargeCells.
             throw e;
         } catch (StackOverflowError e) {
             log.error("Stack overflow - circular reference or excessive depth detected", e);
@@ -728,7 +739,11 @@ public class MapFlattener implements Serializable {
      * What one outer position of a nested array contributed.
      *
      * @param nested    the inner columns, or {@code null} when this position holds no nested list
-     * @param innerSize the entry count those inner columns agree on; 0 for an empty inner list
+     * @param innerSize how many inner slots this position occupies. When {@code nested} is
+     *                  non-empty it is the entry count those columns agree on; when
+     *                  {@code nested} is EMPTY it is the source element count, which is 0 only
+     *                  for a genuinely empty inner list. It used to be hardcoded to 0 in the
+     *                  empty case, which made {@code [{}]} and {@code []} indistinguishable
      * @param scalar    the normalized value when this position holds a non-list; else {@code null}
      */
     private record NestedPosition(Map<String, List<Object>> nested, int innerSize, Object scalar) {
@@ -777,13 +792,31 @@ public class MapFlattener implements Serializable {
                 continue;
             }
 
-            Map<String, List<Object>> nested = extractFieldsFromList(asNestedList(item), depth + 1);
+            List<?> innerList = asNestedList(item);
+            Map<String, List<Object>> nested = extractFieldsFromList(innerList, depth + 1);
             if (nested.isEmpty()) {
-                // An empty inner list, or an empty Java array. The List arm always recorded the
-                // position under the sentinel; the ARRAY arm recorded nothing at all, so the
-                // outer position vanished from every column and everything after it shifted left.
-                // Both are handled the same way now.
-                positions.add(new NestedPosition(nested, 0, null));
+                // NO COLUMNS CAME BACK, and there are THREE ways to get here, not two. An empty
+                // inner list; an empty Java array; and - the one the first draft of this branch
+                // missed - a NON-EMPTY inner list whose every element flattened to nothing, e.g.
+                // [{}] or [{},{}]. The guard used to be `nested.isEmpty()` paired with a
+                // hardcoded innerSize of 0, which collapsed inner cardinality 0, 1, 2 and 3 into
+                // the identical output and destroyed the exact distinction this site exists to
+                // keep: `[]` means "this position's inner array was EMPTY", and an inner list of
+                // N nulls means "it had N elements, none of which carried this column".
+                //
+                // The inner cardinality is a property of the SOURCE, so it is read from the
+                // source - capped by maxArraySize because that is the count
+                // extractFieldsFromList would have produced columns for. For a genuinely empty
+                // inner list the same expression yields 0, so the empty-array repair below still
+                // holds without a second branch.
+                positions.add(new NestedPosition(nested,
+                        Math.min(innerList.size(), maxArraySize), null));
+                // Registering the position under the sentinel is what stops it vanishing. The
+                // List arm always did; the ARRAY arm recorded nothing at all, so the outer
+                // position disappeared from every column and everything after it shifted left.
+                // All three shapes are handled the same way now. This is a KEY-SET change and it
+                // is reachable from plain JSON, not only from a Map source - {"g":[[{}]]} takes
+                // this branch. CHANGELOG item 22 said otherwise and was corrected in 2.1.0.
                 names.add(VALUE_SENTINEL);
             } else {
                 positions.add(new NestedPosition(nested, innerEntryCount(nested), null));
@@ -845,6 +878,27 @@ public class MapFlattener implements Serializable {
     private Map<String, List<Object>> materialiseNestedColumns(
             int limit, Set<String> names, List<NestedPosition> positions) {
 
+        // THE HOLE CELLS NOTHING ELSE CHARGES. A first draft of this charged the whole inner
+        // axis here - sum of inner sizes rather than `limit` - on the premise that the inner
+        // axis was uncounted. DRILLED AND REFUTED: it is counted, by columnFor inside the
+        // recursive extractFieldsFromList, which charges (inner element count) per inner column
+        // as each is created. Measured, {"g":[[{"k0":1},..,{"k999":1}]]} charges 1,000,000 cells
+        // and sits one position short of the default budget. Charging the full inner axis again
+        // here would DOUBLE-charge every ordinary nested document and halve its ceiling.
+        //
+        // What genuinely escapes is the position whose inner list is non-empty and flattens to
+        // NO columns - [{}], [{},{}]. Its extraction creates no inner column, so columnFor never
+        // runs and it costs nothing, yet after the cardinality repair above it contributes
+        // innerSize nulls to EVERY column. Uncharged, {"g":[[1000 distinct-key maps],[{} x1000]]}
+        // is 13,901 input bytes and 10,012,005 output characters. Only those cells are charged
+        // here, and only the ones beyond the single slot `limit` already covers.
+        int holeCells = 0;
+        for (NestedPosition p : positions) {
+            if (p.holdsNestedList() && p.nested().isEmpty()) {
+                holeCells += Math.max(0, p.innerSize() - 1);
+            }
+        }
+
         Map<String, List<Object>> columns = new LinkedHashMap<>();
         for (String name : names) {
             // Charged against the same per-invocation budget as the two array-of-maps sites.
@@ -854,7 +908,7 @@ public class MapFlattener implements Serializable {
             // quadratic exactly like them - measured, 1000 sparse nested positions emit
             // 6,999,890 characters against 4,999,890 for the flat equivalent. Leaving it
             // uncharged would leave the WIDEST of the three sites unbounded.
-            chargeCells(name, columns.size() + 1, limit);
+            chargeCells(name, columns.size() + 1, limit + holeCells);
             List<Object> column = new ArrayList<>(limit);
             for (int i = 0; i < limit; i++) {
                 NestedPosition p = positions.get(i);

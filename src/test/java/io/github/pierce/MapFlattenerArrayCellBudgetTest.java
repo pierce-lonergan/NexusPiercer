@@ -222,6 +222,61 @@ class MapFlattenerArrayCellBudgetTest {
     }
 
     @Test
+    @DisplayName("a nested position that flattens to NO columns is charged for its holes")
+    void aNestedPositionThatFlattensToNoColumnsIsChargedForItsHoles() {
+        // WHAT NEW SILENT FAILURE DID THE CARDINALITY REPAIR CREATE? This one, and the first
+        // analysis of it was WRONG in a way worth recording. The premise was "the nested site's
+        // inner axis is uncharged". DRILLED: it is charged, by columnFor inside the recursive
+        // extraction, which bills (inner element count) per inner column as each is created -
+        // {"g":[[k0..k999]]} costs 1,000,000 cells and lands one outer position short of the
+        // default budget. A charge for the whole inner axis here would have double-billed every
+        // ordinary nested document and halved its ceiling; the control below catches exactly
+        // that and failed against the first draft.
+        //
+        // The real gap is narrow: an inner list that is NON-EMPTY but flattens to no columns
+        // ([{}], [{},{}]) creates no inner column, so columnFor never runs and it costs nothing.
+        // Before the cardinality repair it also produced nothing - one [] per column. Now it
+        // produces innerSize nulls in EVERY column. Measured with the repair and no hole charge:
+        // 13,901 input bytes -> 10,012,005 output characters, accepted.
+        List<Object> distinctKeys = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            distinctKeys.add(Collections.singletonMap("k" + i, i));
+        }
+        List<Object> allEmpty = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            allEmpty.add(new LinkedHashMap<String, Object>());
+        }
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("g", List.of(distinctKeys, allEmpty));
+
+        MapFlattener.FlattenLimitExceededException e = assertThrows(
+                MapFlattener.FlattenLimitExceededException.class,
+                () -> MapFlattener.builder().build().flatten(doc),
+                "1001 columns each gaining 999 hole cells is 1,000,999 cells that nothing "
+                        + "counted; uncharged this document emits ten million characters from "
+                        + "thirteen kilobytes and is accepted");
+        assertTrue(e.getMessage().contains("maxArrayCells="),
+                "the refusal must name the knob that caused it: " + e.getMessage());
+
+        // CONTROL: an ordinary nested document must NOT be refused. Every position here carries
+        // its column, so columnFor bills the inner axis once and the hole charge adds zero.
+        // 1000 outer x 1000 inner x 1 column = 1,000,000 cells, inside the default budget. This
+        // is the assertion that refuted the double-charging draft.
+        List<Object> wide = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            wide.add(Collections.singletonMap("same", i));
+        }
+        List<Object> outer = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            outer.add(wide);
+        }
+        Map<String, Object> single = new LinkedHashMap<>();
+        single.put("g", outer);
+        assertEquals(1, MapFlattener.builder().build().flatten(single).size(),
+                "CONTROL: one column x 1000 outer x 1000 inner stays under the default budget");
+    }
+
+    @Test
     @DisplayName("maxArrayCells validates like its four siblings")
     void maxArrayCellsValidatesLikeItsSiblings() {
         assertThrows(IllegalArgumentException.class,

@@ -268,8 +268,11 @@ class JsonFlattenerReusableEngineTest {
      * unfalsifiable.
      */
     @Nested
-    @DisplayName("BL-015: the five inert JsonFlattenerConfig knobs are pinned as inert")
+    @DisplayName("BL-015: four JsonFlattenerConfig knobs are pinned LIVE, one pinned inert")
     class InertConfigKnobsArePinned {
+        // The display name said "the five inert ... knobs are pinned as inert" for a whole pass
+        // after this class was rewritten to assert the opposite. A stale label on a live test is
+        // worse than none: a reader grepping for what is inert finds this and stops.
 
         private static final String DOC = "{\"z\":1,\"a\":{\"b\":null,\"c\":\"x\"}}";
 

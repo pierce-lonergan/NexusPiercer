@@ -14,10 +14,12 @@ import static io.github.pierce.spark.NexusPiercerFunctions.*;
 import static org.apache.spark.sql.functions.*;
 
 /**
- * NexusPiercerPatterns - reporting helpers over an already-loaded {@code Dataset}.
+ * NexusPiercerPatterns - two reporting helpers that read a PATH with a {@link SparkSession}.
  *
  * <p>THE CLASS HAS TWO PUBLIC METHODS, and neither writes anything. Both take the
- * {@link SparkSession} and a PATH; neither takes an already-loaded {@code Dataset}.</p>
+ * {@link SparkSession} and a PATH; neither takes an already-loaded {@code Dataset}. The summary
+ * line above used to say "reporting helpers over an already-loaded {@code Dataset}" - the third
+ * copy of the phantom shape, contradicted by the sentence directly beneath it.</p>
  *
  * <pre>
  * Dataset&lt;Row&gt; quality = NexusPiercerPatterns.generateDataQualityReport(

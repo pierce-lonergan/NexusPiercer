@@ -545,15 +545,28 @@ public class JsonFlattener implements Serializable {
          * fully honoured on all three of the engine's own methods — {@code maxDepth},
          * {@code maxArraySize}, {@code arrayFormat}, {@code useArrayBoundarySeparator},
          * {@code detectCircularReferences} and {@code namingStrategy} all take effect. The
-         * {@link JsonFlattenerConfig} half largely does not: {@code charset}, {@code bufferSize},
-         * {@code failOnError}, {@code preserveNulls} and {@code sortKeys} are read nowhere in
-         * {@code src/main} at all, and {@code prettyPrint} reaches
-         * {@link FluentOperation#toJson()} but not
-         * {@link JsonFlattener#flattenToJson(String, boolean)} or
-         * {@link JsonFlattener#flattenMapToJson(Map, boolean)}, which take their own explicit
-         * {@code pretty} argument. This is pre-existing 2.0.0 behaviour that {@code buildFlattener()}
-         * makes reachable rather than introduces; it is pinned by the inertness probe in
-         * {@code JsonFlattenerReusableEngineTest} and tracked as BL-015.
+         * {@link JsonFlattenerConfig} half is honoured on five of its six fields as of 2.1.0:
+         * {@code charset}, {@code bufferSize}, {@code preserveNulls} and {@code sortKeys} were
+         * wired up in that release and {@code prettyPrint} was already live. TWO CAVEATS AND ONE
+         * EXCEPTION remain, and this paragraph is the one place a caller is likely to read them:
+         * <ul>
+         *   <li>{@code failOnError} is <b>INERT BY DESIGN</b> - read nowhere, effect undefined
+         *       rather than unimplemented. See {@link Builder#failOnError(boolean)}.</li>
+         *   <li>{@code prettyPrint} reaches {@link FluentOperation#toJson()} but not
+         *       {@link JsonFlattener#flattenToJson(String, boolean)} or
+         *       {@link JsonFlattener#flattenMapToJson(Map, boolean)}, which take their own
+         *       explicit {@code pretty} argument.</li>
+         *   <li>{@code sortKeys} moves {@code toJson()} and {@code toBytes()} but NOT
+         *       {@code toPrettyJson()}, which sorts unconditionally through
+         *       {@code ORDER_MAP_ENTRIES_BY_KEYS} at both settings.</li>
+         * </ul>
+         * Every honoured field is an engine-level DEFAULT: an explicitly passed
+         * {@link InputOptions} or {@link OutputOptions} still wins. Pinned by
+         * {@code JsonFlattenerConfigKnobsTest}; tracked as BL-015.
+         *
+         * <p>THIS PARAGRAPH SAID THE OPPOSITE for the whole of the pass that wired the four
+         * knobs up - "read nowhere in {@code src/main} at all" - and pointed at an inertness
+         * probe that had been rewritten to assert liveness. Both are corrected here.</p>
          *
          * @return the shareable engine, with the {@code MapFlattener} configuration honoured in
          *         full and the {@code JsonFlattenerConfig} caveats above
@@ -671,10 +684,24 @@ public class JsonFlattener implements Serializable {
             }
 
             /**
-             * INERT. {@link JsonFlattenerConfig#getCharset()} is read nowhere in {@code src/main};
-             * the live charsets are on {@link InputOptions} and {@link OutputOptions}. See BL-015.
+             * HONOURED SINCE 2.1.0 as the engine-level default charset. It decodes
+             * {@code from(InputStream)}, {@code from(byte[])} and
+             * {@code batch().fromJsonArrayFile(Path)}, and it supplies the charset of the
+             * {@link OutputOptions} the no-argument output terminals synthesise. An explicitly
+             * passed {@link InputOptions} or {@link OutputOptions} still wins.
              *
-             * @param charset stored and read by nothing
+             * <p>IT ENCODES OUTPUT AS WELL AS DECODING INPUT, which is the half a caller who
+             * only wanted non-UTF-8 input decoding will not expect. {@code toBytes()} and
+             * {@code toFile(File)} write through this charset, so a character outside it is
+             * replaced with {@code '?'} - measured, {@code {"k":"日本"}} under
+             * ISO-8859-1 emits {@code 7b226b223a223f3f227d}. Pass an explicit
+             * {@code OutputOptions} to decode input as one charset and write output as another.
+             *
+             * <p>This javadoc said "INERT ... stored and read by nothing" for the whole of the
+             * pass that wired the knob up. {@code getCharset()} is read at four sites in
+             * {@code src/main}. See [BL-015].
+             *
+             * @param charset the engine-level default charset; UTF-8 when unset
              * @return this builder
              */
             public ConfigBuilder charset(Charset charset) {

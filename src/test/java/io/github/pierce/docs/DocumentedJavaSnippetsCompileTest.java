@@ -88,8 +88,16 @@ class DocumentedJavaSnippetsCompileTest {
     /**
      * The escape-hatch ratchet. Pseudo is the ONLY way a published block avoids the compiler, so
      * it is the only place this gate can be hollowed out without deleting a test.
+     *
+     * <p>LOWERED FROM 3 TO 2. The third escape was the "Pitfall 2" block in
+     * {@code docs/JSON_FLATTENER_CONSOLIDATOR.md}, whose recorded reason - "both halves are
+     * constructor calls with no receiver, kept side by side so the numbers can be compared" -
+     * stated a fact about the code that is not a reason it cannot be compiled. A constructor call
+     * IS a legal expression statement, and unlike the other two pseudo blocks that one carried no
+     * {@code ...} ellipsis. It now compiles as {@code body env=core}. A hatch is only as credible
+     * as the reasons inside it. Ratchets only go DOWN.</p>
      */
-    private static final int EXPECTED_PSEUDO_BLOCKS = 3;
+    private static final int EXPECTED_PSEUDO_BLOCKS = 2;
 
     /** A named upper bound, so the hatch cannot grow quietly even if somebody edits the number. */
     private static final int PSEUDO_UPPER_BOUND = 8;
@@ -325,9 +333,18 @@ class DocumentedJavaSnippetsCompileTest {
             List<String> lines = Files.readAllLines(
                     DocSnippetSource.moduleRoot().resolve(file), StandardCharsets.UTF_8);
             Set<Integer> naive = new TreeSet<>(DocSnippetSource.naiveJavaFenceLines(lines));
+            if (DocSnippetSource.exemptFiles().contains(file)) {
+                // NOT COMPARED, AND THE LOOP MUST NOT COUNT IT. blocksIn() short-circuits for an
+                // exempt file and returns the NAIVE fence lines verbatim, so isEqualTo(naive)
+                // there compares a list with itself. Two of the comparisons this loop used to
+                // count were tautologies while the failure message claimed "TWO INDEPENDENTLY
+                // WRITTEN SCANNERS DISAGREE". The COUNT of an exempt file's blocks is still
+                // enforced, by theBlockCountPerFileMatchesTheRecordedCount above.
+                continue;
+            }
             Set<Integer> parsed = new TreeSet<>(DocSnippetSource.blocksIn(file).stream()
                     .map(Snippet::fenceLine).toList());
-            if (!DocSnippetSource.exemptFiles().contains(file)) {
+            {
                 for (int i = 0; i < lines.size(); i++) {
                     String l = lines.get(i);
                     assertThat(l.contains("```java") && !l.stripLeading().startsWith("```"))
@@ -346,8 +363,16 @@ class DocumentedJavaSnippetsCompileTest {
                     .isEqualTo(naive);
             compared++;
         }
-        assertThat(compared).as("VERIFY THE COUNT: the cross-check is a loop over the tracked "
-                + "file list, and an empty list compares nothing").isGreaterThan(5);
+        assertThat(compared)
+                .as("VERIFY THE COUNT, EXACTLY. The cross-check is a loop over the tracked file "
+                        + "list; an empty list compares nothing, and a loop that silently "
+                        + "includes an exempt file inflates the number with self-comparisons. "
+                        + "Every tracked markdown file except the exempt ones must be compared, "
+                        + "so the count is an equality and not a floor.")
+                .isEqualTo(DocSnippetSource.trackedMarkdown().size()
+                        - DocSnippetSource.exemptFiles().size());
+        assertThat(compared).as("and the file set must not have collapsed to nothing")
+                .isGreaterThan(5);
 
         List<String> odd = List.of(
                 "<!-- snippet: pseudo reason=\"synthetic fixture proving the extractor sees odd fences\" -->",

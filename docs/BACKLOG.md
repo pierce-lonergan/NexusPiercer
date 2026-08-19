@@ -796,8 +796,14 @@ refusal is pinned; no behaviour changes from that half.
 
 **A SECOND DEFECT FOUND WHILE FIXING THE FIRST, one branch away.** The Java-array arm had no
 empty check at all, so an empty `Object[]` as a nested element vanished from every column and
-everything after it shifted left — while the List arm explicitly preserved the position. It is
-the one key-set change in the whole fix and it has its own named test.
+everything after it shifted left — while the List arm explicitly preserved the position. It has
+its own named test.
+
+**CORRECTED 2026-08-19:** this paragraph called that "the one key-set change in the whole fix",
+and CHANGELOG item 22 said the branch was reachable only from a `Map` source. Both are wrong.
+The same branch fires whenever an inner list flattens to no columns, which plain JSON reaches
+with an inner list of empty objects — `{"g":[[{}]]}` gains a `g` column. The branch also
+collapsed inner cardinality 0, 1, 2 and 3 into one output, which is CHANGELOG item 27.
 
 Filed as a follow-up rather than folded in: the `_value` sentinel maps to the BASE key rather than
 to a `_value`-suffixed column, which is what keeps

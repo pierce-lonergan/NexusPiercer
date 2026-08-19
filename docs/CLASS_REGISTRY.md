@@ -70,7 +70,7 @@ Each class entry follows this structure:
 - **File:** `src/main/java/io/github/pierce/spark/NexusPiercerPatterns.java`
 - **Layer:** APPLICATION
 - **Type:** Utility (Static Methods)
-- **Responsibility:** Reporting helpers over an already-loaded `Dataset` — `generateDataQualityReport` and `profileJsonStructure`. (The `jsonToParquet`/`jsonToDelta` ETL recipes this line used to claim have never existed on the class; see OSS-01.)
+- **Responsibility:** Two reporting helpers that read a PATH with a `SparkSession` — `generateDataQualityReport(SparkSession, String schemaPath, String inputPath)` and `profileJsonStructure(SparkSession, String inputPath, int sampleSize)`. Neither takes an already-loaded `Dataset` and neither writes anything. (This line has now carried TWO phantom shapes: the `jsonToParquet`/`jsonToDelta` ETL recipes through 2.0.0, and the `already-loaded Dataset` signature that replaced them; see OSS-01. Both are gated by `NoPhantomPatternsMethodIsPublishedAsCallableTest`.)
 - **Collaborators:** NexusPiercerSparkPipeline, SparkSession
 - **Used By:** Client applications
 - **State:** Stateless

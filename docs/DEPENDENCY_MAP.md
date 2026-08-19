@@ -66,7 +66,7 @@ Imports:
 ├── io.github.pierce.AvroSchemaFlattener
 ├── io.github.pierce.CreateSparkStructFromAvroSchema
 ├── io.github.pierce.JsonFlattenerConsolidator
-├── io.github.pierce.files.FileFinder
+├── io.github.pierce.files.SchemaFiles
 ├── org.apache.avro.Schema
 ├── org.apache.spark.sql.*
 ├── com.fasterxml.jackson.databind.JsonNode
@@ -97,7 +97,7 @@ Imports:
 ### AvroSchemaFlattener
 ```
 Imports:
-├── io.github.pierce.files.FileFinder
+├── io.github.pierce.files.SchemaFiles
 ├── org.apache.avro.Schema
 ├── org.apache.poi.ss.usermodel.*
 ├── org.apache.poi.xssf.usermodel.XSSFWorkbook

@@ -323,7 +323,7 @@ new JsonFlattenerConsolidator(..., "orders.items");
 ```
 
 ### Pitfall 2: Deep Nesting Performance
-<!-- snippet: pseudo reason="A DO/DON-T contrast about limit values; both halves are constructor calls with no receiver, kept side by side so the numbers can be compared." -->
+<!-- snippet: body env=core -->
 ```java
 // DON'T: Process extremely deep JSON without limits
 new JsonFlattenerConsolidator(",", null, 1000, 10000, false);

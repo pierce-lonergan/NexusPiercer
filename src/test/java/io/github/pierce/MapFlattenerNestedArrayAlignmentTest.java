@@ -148,6 +148,55 @@ class MapFlattenerNestedArrayAlignmentTest {
     }
 
     @Test
+    @DisplayName("PIN, MAP ARM: N elements that carry no column emit N nulls, never []")
+    void innerCardinalitySurvivesWhenNoInnerElementCarriesTheColumn() throws Exception {
+        // THE PIN ABOVE IS A SCALAR-ONLY CONTROL AND COULD NOT FAIL FOR THE PROPERTY IT NAMES.
+        // {"grid":{"rows":[[1,2],[],[3]]}} is all scalars, so it never reaches the map arm of
+        // extractFieldsPreservingStructure - the only arm where "the inner array was empty" and
+        // "the inner array had elements, none of which carried this column" can both occur. The
+        // whole rule the class javadoc, the changelog and that pin assert lives in this arm and
+        // nothing exercised it. Measured at b48e177, all four of these emitted the SAME string:
+        //   g_a=[[],[1]]  for inner cardinality 0, 1, 2 AND 3.
+        // The guard read `nested.isEmpty()` - the FLATTENED result - so an inner list of N empty
+        // maps took the empty-array path and recorded innerSize 0. [] then meant both facts at
+        // once, which is exactly the collapse the pin above says changes its string.
+        assertEquals("[[],[1]]", flatten("{\"g\":[[],[{\"a\":1}]]}").get("g_a"),
+                "genuinely empty inner array: [] is correct and must NOT become [null]");
+        assertEquals("[[null],[1]]", flatten("{\"g\":[[{}],[{\"a\":1}]]}").get("g_a"));
+        assertEquals("[[null,null],[1]]", flatten("{\"g\":[[{},{}],[{\"a\":1}]]}").get("g_a"));
+        assertEquals("[[null,null,null],[1]]",
+                flatten("{\"g\":[[{},{},{}],[{\"a\":1}]]}").get("g_a"));
+
+        // The base (sentinel) column obeys the same rule, because the rule is uniform.
+        assertEquals("[[],[null]]", flatten("{\"g\":[[],[{\"a\":1}]]}").get("g"));
+        assertEquals("[[null],[null]]", flatten("{\"g\":[[{}],[{\"a\":1}]]}").get("g"));
+        assertEquals("[[null,null],[null]]", flatten("{\"g\":[[{},{}],[{\"a\":1}]]}").get("g"));
+    }
+
+    @Test
+    @DisplayName("the base-key column appears from PURE JSON, not only from a Map source")
+    void theBaseKeyColumnIsReachableFromPlainJson() throws Exception {
+        // CHANGELOG item 22 said the key-set change was "only reachable from a Map source, not
+        // from JSON", and the assertion below used to say "THIS IS THE ONE KEY-SET CHANGE IN THE
+        // FIX". Both were wrong: the branch that registers the outer position under the base key
+        // fires whenever an inner list flattens to no columns, and an inner list of empty maps
+        // does that from plain JSON. Four documents with no Java array anywhere:
+        assertEquals("[[null]]", flatten("{\"g\":[[{}]]}").get("g"));
+
+        Map<String, Object> two = flatten("{\"g\":[[{}],[{\"a\":1}]]}");
+        assertEquals("[[null],[null]]", two.get("g"));
+        assertEquals("[[null],[1]]", two.get("g_a"));
+
+        Map<String, Object> reversed = flatten("{\"g\":[[{\"a\":1}],[{}]]}");
+        assertEquals("[[null],[null]]", reversed.get("g"));
+        assertEquals("[[1],[null]]", reversed.get("g_a"));
+
+        Map<String, Object> explicitNull = flatten("{\"g\":[[{\"a\":null}],[{}]]}");
+        assertEquals("[[null],[null]]", explicitNull.get("g"));
+        assertEquals("[[null],[null]]", explicitNull.get("g_a"));
+    }
+
+    @Test
     @DisplayName("an empty nested Java array no longer loses its outer position")
     void anEmptyNestedJavaArrayNoLongerLosesItsOuterPosition() {
         // A Java array, not JSON: the array arm of extractFieldsPreservingStructure is only

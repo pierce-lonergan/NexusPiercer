@@ -160,8 +160,48 @@ final class DocSnippetSource {
                     + "nothing. Zero files means zero parameterized invocations means a green "
                     + "build that checked nothing.");
         }
+        out.addAll(unstagedMarkdownWithJavaFences(out));
         Collections.sort(out);
         return out;
+    }
+
+    /**
+     * Markdown on disk that git does not track yet, but that publishes a java fence.
+     *
+     * <p>THE FILE SET COMES FROM GIT so that a new document cannot escape by not being on a
+     * hardcoded list. That property holds against the INDEX, not against the working tree:
+     * measured, a {@code docs/NEWDOC.md} containing a phantom call and no directive at all passed
+     * the whole suite while unstaged, and produced seven failures the moment it was
+     * {@code git add}-ed. CI is safe because CI runs committed trees; an author running the suite
+     * locally before staging got a green build on a document the gate had never read, which is
+     * the same false assurance the gate exists to remove.</p>
+     *
+     * <p>Only files holding a java fence are pulled in. An untracked scratch note with no code in
+     * it is not the gate's business, and failing on it would teach authors to work around this.</p>
+     */
+    private static List<String> unstagedMarkdownWithJavaFences(List<String> tracked) {
+        List<String> extra = new ArrayList<>();
+        Path root = moduleRoot();
+        try (var walk = Files.walk(root)) {
+            for (Path p : walk.filter(Files::isRegularFile).toList()) {
+                String rel = root.relativize(p).toString().replace('\\', '/');
+                if (!rel.endsWith(".md")
+                        || rel.startsWith("target/")
+                        || rel.startsWith(".git/")
+                        || rel.contains("/target/")
+                        || rel.startsWith(".claude/")
+                        || tracked.contains(rel)) {
+                    continue;
+                }
+                if (!naiveJavaFenceLines(Files.readAllLines(p, StandardCharsets.UTF_8)).isEmpty()) {
+                    extra.add(rel);
+                }
+            }
+        } catch (IOException e) {
+            throw new AssertionError("DOC SNIPPET GATE DID NOT RUN: cannot walk " + root
+                    + " for untracked markdown", e);
+        }
+        return extra;
     }
 
     // ------------------------------------------------------------------ extraction

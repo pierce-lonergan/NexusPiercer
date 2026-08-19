@@ -12,11 +12,11 @@ must not sit on a released coordinate.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
-BEHAVIOUR IS NOT.** The section immediately below lists **twenty-six** places where a `2.0.0`
+BEHAVIOUR IS NOT.** The section immediately below lists **twenty-seven** places where a `2.0.0`
 caller gets a different answer, several of them at the default configuration. Read it before
 upgrading.
 
-**Nine of the twenty-six turn a previously-successful call into a throw**, across seven items:
+**Nine of the twenty-seven turn a previously-successful call into a throw**, across seven items:
 a bracketed JSON array read under a delimited format, and its mirror, an unbracketed delimited
 column read under the JSON default (item 3, two cases); disagreeing column counts (item 4); an
 oversized read, which for a compressed file can throw MID-READ (item 14); a bare name that only
@@ -35,7 +35,7 @@ creates the fault it removes is the single most useful thing this changelog can 
 ### Behaviour changes
 
 **These change what the library returns at the SHIPPED DEFAULT configuration.** Items 1–12 are
-`AvroReconstructor`; items 13, 21, 22 and 23 are `MapFlattener` and the flattener's schema read; items 24-26 are
+`AvroReconstructor`; items 13, 21, 22, 23 and 27 are `MapFlattener` and the flattener's schema read; items 24-26 are
 `JsonFlattener`; items
 14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; item 18 is `JsonReconstructor`;
 item 19 is `AvroSchemaFlattener`. They are listed here rather than under *Fixed* because a caller
@@ -456,12 +456,29 @@ clear the 2.0.0 additive-only gate.
     invariant — at every outer position, every column agrees on inner length too — which the
     bare-null form would have broken in the column most likely to be read beside the others.
 
-    **ONE KEY-SET CHANGE, called out separately so it is attributable.** An empty Java array as a
-    nested element (`Object[0]`, only reachable from a `Map` source, not from JSON) used to
-    vanish from every column: the array arm had no empty check, `extractFieldsFromList` returned
-    an empty map, and nothing was appended, so the outer position disappeared and everything
-    after it shifted left. It now registers its position under the base key, which can introduce
-    a base-key column where a document previously had none.
+    **A KEY-SET CHANGE, and the original wording of this paragraph was WRONG about who can reach
+    it.** An outer position whose inner list flattens to no columns used to vanish from every
+    column: `extractFieldsFromList` returned an empty map, nothing was appended, so the outer
+    position disappeared and everything after it shifted left. It now registers its position
+    under the base key, which can introduce a base-key column where a document previously had
+    none.
+
+    This shipped saying the change was "only reachable from a `Map` source, not from JSON" — an
+    empty Java array, `Object[0]` — and `docs/BACKLOG.md` and the pin's own assertion message
+    repeated it. **Measured, it is reachable from plain JSON**, because the same branch fires
+    whenever an inner list flattens to no columns and an inner list of empty objects does exactly
+    that. Four documents with no Java array anywhere, before (0962a56) and after:
+
+    | Document | before | after |
+    |---|---|---|
+    | `{"g":[[{}]]}` | *no keys at all* | `g="[[null]]"` |
+    | `{"g":[[{}],[{"a":1}]]}` | `g_a="[[1]]"` | `g="[[null],[null]]"`, `g_a="[[null],[1]]"` |
+    | `{"g":[[{"a":1}],[{}]]}` | `g_a="[[1]]"` | `g="[[null],[null]]"`, `g_a="[[1],[null]]"` |
+    | `{"g":[[{"a":null}],[{}]]}` | `g_a="[[null]]"` | `g="[[null],[null]]"`, `g_a="[[null],[null]]"` |
+
+    The `[[null]]` values rather than `[[]]` are item 27, which corrects the second half of this
+    same branch. Pinned by
+    `MapFlattenerNestedArrayAlignmentTest#theBaseKeyColumnIsReachableFromPlainJson`.
 
     **A LOSS THIS CREATES, recorded rather than discovered later.** In `COMMA_SEPARATED` and
     `PIPE_SEPARATED` the new positional hole renders as the EMPTY STRING, so `data_name` gains a
@@ -558,15 +575,33 @@ clear the 2.0.0 additive-only gate.
     against 4,999,890 for the flat equivalent. A budget enforced only in `columnFor` would have
     left the WIDEST of the three sites unbounded. All three are charged.
 
+    **THE CEILING IS ON TOTAL CELLS REGARDLESS OF SPARSITY, and the examples above are all
+    sparse ones.** A dense batch document with no amplification at all is refused on the same
+    arithmetic once it crosses the bound. Measured at the default 1,048,576: `50 arrays x 1000
+    elements x 20 dense keys` passes at 1,000,000 cells, `60 arrays x 1000 elements x 20 dense
+    keys` is refused at `arr52`, `300 arrays x 200 elements x 20 keys` at `arr262`, and `1000
+    arrays x 100 elements x 12 keys` at `arr873`. In each of those the cell count equals the
+    number of actual values — nothing is being amplified. The `maxArrayCells` javadoc does say
+    the budget is "across ALL arrays in the document" and the exception names the knob and says
+    to raise it, so the failure is loud and actionable; a batch user should still be able to
+    recognise their own shape here rather than in production.
+
     Corpus: three new `limits/` fixtures, `array-cells-below-max` and `array-cells-exactly-max`
     (LOSSLESS) and `array-cells-one-over-max` (ACCEPTED_LOSS, recording the refusal). Counts move
     **56 / 24 / 81 over 161** to **58 / 25 / 81 over 164**.
 
-24. **`JsonFlattenerConfig.sortKeys` is honoured by the no-argument `toJson()`,
-    `toPrettyJson()` and `toBytes()`.** A caller who set `sortKeys(true)` previously got insertion
+24. **`JsonFlattenerConfig.sortKeys` is honoured by the no-argument `toJson()` and
+    `toBytes()`.** A caller who set `sortKeys(true)` previously got insertion
     order. Measured for `{"z":1,"a":{"b":null,"c":"x"}}`: before `{"z":1,"a_b":null,"a_c":"x"}`,
     after `{"a_b":null,"a_c":"x","z":1}`. `toJson(OutputOptions)` is unaffected — an explicitly
     passed options object still wins.
+
+    **NOT `toPrettyJson()`, and this entry shipped saying otherwise.** `PRETTY_MAPPER` enables
+    `ORDER_MAP_ENTRIES_BY_KEYS` unconditionally at construction, so pretty output was ALREADY
+    sorted before 2.1.0 and is byte-identical at both settings — measured, both emit
+    `{ "a_b" : null, "a_c" : "x", "z" : 1 }`. The knob has no observable effect on that terminal
+    and `sortKeys(false)` does not restore insertion order there. Pinned by
+    `JsonFlattenerConfigKnobsTest#sortKeysDoesNotMoveToPrettyJsonBecauseItAlreadySorts`.
 
 25. **`JsonFlattenerConfig.preserveNulls` is honoured by the same terminals, and
     `preserveNulls(false)` now REMOVES null-valued keys.** Measured on the same document: before
@@ -582,6 +617,24 @@ clear the 2.0.0 additive-only gate.
     non-UTF-8 charset and used those overloads gets different decoded text: measured,
     ISO-8859-1 bytes for `{"k":"é"}` read back as `é` where they previously arrived as `\uFFFD`.
     `from(InputStream, Charset)` and `from(byte[], Charset)` are unaffected.
+
+    **TWO CORRECTIONS TO THIS ENTRY AS SHIPPED.**
+
+    *It also ENCODES OUTPUT, and that is lossy.* `engineDefaults()` feeds the config charset into
+    the `OutputOptions` the no-argument terminals synthesise, and `toBytes()`/`toFile()` write
+    through it. Before this release `toBytes()` used `OutputOptions.defaults()`, i.e. UTF-8
+    always. So a caller who set ISO-8859-1 meaning only "decode my input that way" also changed
+    how output is written, and a character outside that charset becomes `'?'` — measured,
+    a two-CJK-character document emits `7b226b223a22e697a5e69cac227d` under UTF-8 and
+    `7b226b223a223f3f227d` under ISO-8859-1. To decode input as one charset and write output as
+    another, pass an explicit `OutputOptions`. Pinned by
+    `JsonFlattenerConfigKnobsTest#theEngineCharsetEncodesOutputAndCanLoseCharacters`.
+
+    *The replacement-character claim above is wrong for the `Path` overload.*
+    `batch().fromJsonArrayFile(Path)` goes through `Files.readString(path, charset)`, which
+    THROWS on undecodable bytes rather than substituting — measured, a UTF-8 config over
+    ISO-8859-1 file bytes raises `JsonFlattenException: Failed to read file`. Substitution is
+    what the `InputStream` and `byte[]` overloads did.
 
     NOT a behaviour change, shipped alongside: `JsonFlattenerConfig.bufferSize` is now honoured on
     `from(InputStream)`, `from(Reader)` and `toFile(..)`. Output is byte-identical either way — it
@@ -607,6 +660,52 @@ clear the 2.0.0 additive-only gate.
     grep finds them only at their own declarations. Both are now labelled, and pinned by a test so
     the seven is falsifiable rather than a grep result in a report. Removing them is [BL-016] /
     3.0.0, same as `failOnError`.
+
+27. **A nested-array position whose inner elements carry no columns now emits its true inner
+    cardinality instead of `[]`.** Item 22 established the rule that at the nested-array site a
+    hole is an inner list of that position's inner cardinality, and that `[]` means one specific
+    thing: "this position's inner array was EMPTY", distinguishable from "it had elements, none
+    of which carried this column". **The implementation did not keep that rule.** The branch
+    guarded on `nested.isEmpty()` — the FLATTENED result — so an inner list of N empty objects
+    took the empty-array path and recorded an inner size of 0, collapsing four different
+    documents into one output:
+
+    | Document | before (b48e177) | after |
+    |---|---|---|
+    | `{"g":[[],[{"a":1}]]}` | `g_a="[[],[1]]"` | unchanged — the inner array really was empty |
+    | `{"g":[[{}],[{"a":1}]]}` | `g_a="[[],[1]]"` | `g_a="[[null],[1]]"` |
+    | `{"g":[[{},{}],[{"a":1}]]}` | `g_a="[[],[1]]"` | `g_a="[[null,null],[1]]"` |
+    | `{"g":[[{},{},{}],[{"a":1}]]}` | `g_a="[[],[1]]"` | `g_a="[[null,null,null],[1]]"` |
+
+    Byte-identical across all four before; the distinction the class javadoc, item 22 and the
+    corpus row `structural/array-of-arrays-with-empty-inner` all say is preserved was being
+    destroyed. The inner cardinality is a property of the SOURCE, so it is now read from the
+    source list (capped by `maxArraySize`, which is the count the inner extraction would have
+    produced columns for). A genuinely empty inner list yields 0 from the same expression, so the
+    empty-Java-array repair from item 22 still holds with no second branch.
+
+    **THE PIN THAT WAS SUPPOSED TO RULE THIS OUT COULD NOT FAIL.**
+    `MapFlattenerNestedArrayAlignmentTest`'s declared pin says any fix that pads with `[]`
+    "without distinguishing" the two facts changes its string. Its input,
+    `{"grid":{"rows":[[1,2],[],[3]]}}`, is all scalars and never reaches the map arm — the only
+    arm where both facts can occur. It was a scalar-only control for a rule about maps. No corpus
+    fixture and no other test covered an empty-object nested element either. The pin now carries
+    the map-arm inputs above and fails against the old code.
+
+    **AND THE REPAIR'S OWN NEW GAP, checked before shipping rather than after.** Making those
+    positions cost their real cardinality also made them expensive, and nothing charged them: an
+    inner list that flattens to no columns creates no inner column, so `columnFor` never runs.
+    Measured with the repair and no charge, `{"g":[[1000 distinct-key maps],[{} x1000]]}` is
+    13,901 input bytes and 10,012,005 output characters, accepted. `materialiseNestedColumns` now
+    charges those hole cells against `maxArrayCells`. **A first attempt charged the whole inner
+    axis on the premise that it was uncounted; that premise was drilled and refuted** — it is
+    counted, by `columnFor` inside the recursive extraction — and the draft would have
+    double-billed every ordinary nested document and halved its ceiling. The control in
+    `MapFlattenerArrayCellBudgetTest#aNestedPositionThatFlattensToNoColumnsIsChargedForItsHoles`
+    is the assertion that caught it.
+
+    Corpus: no fixture reaches an empty-object nested element, so no row moved and the counts
+    stay **58 / 25 / 81 over 164**.
 
 ### Added
 

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -103,6 +104,56 @@ class JsonFlattenerConfigKnobsTest {
         assertTrue(!reader.requests.isEmpty(), "the reader was never read from");
         assertEquals(4096, reader.requests.get(0).intValue(),
                 "the first read request must be the configured buffer size, not 8192");
+    }
+
+    // ------------------------------------------------- the two claims the records overstated
+
+    @Test
+    @DisplayName("sortKeys does NOT move toPrettyJson(), which sorts unconditionally")
+    void sortKeysDoesNotMoveToPrettyJsonBecauseItAlreadySorts() {
+        // CHANGELOG item 24 shipped saying sortKeys is "honoured by the no-argument toJson(),
+        // toPrettyJson() and toBytes()" and that "a caller who set sortKeys(true) previously got
+        // insertion order". For toPrettyJson that is false in both directions: PRETTY_MAPPER
+        // enables ORDER_MAP_ENTRIES_BY_KEYS unconditionally at construction, so pretty output was
+        // ALREADY sorted before 2.1.0 and setting sortKeys(false) does not restore insertion
+        // order. The knob is real on the other two terminals; the third was a records error.
+        String off = with(JsonFlattener.JsonFlattenerConfig.builder().sortKeys(false).build())
+                .from(DOC).toPrettyJson().replaceAll("\\s+", "");
+        String on = with(JsonFlattener.JsonFlattenerConfig.builder().sortKeys(true).build())
+                .from(DOC).toPrettyJson().replaceAll("\\s+", "");
+
+        assertEquals(off, on, "toPrettyJson must be byte-identical at both sortKeys settings");
+        assertEquals("{\"a_b\":null,\"a_c\":\"x\",\"z\":1}", off,
+                "and it must be SORTED even at sortKeys(false), which is the half that makes the "
+                        + "changelog's 'previously got insertion order' wrong for this terminal");
+
+        // CONTROL: the same knob on the same document DOES move the compact terminals, so the
+        // equality above is a fact about toPrettyJson and not a broken comparison.
+        assertNotEquals(
+                with(JsonFlattener.JsonFlattenerConfig.builder().sortKeys(false).build())
+                        .from(DOC).toJson(),
+                with(JsonFlattener.JsonFlattenerConfig.builder().sortKeys(true).build())
+                        .from(DOC).toJson(),
+                "VACUITY CONTROL: sortKeys must still be observable somewhere");
+    }
+
+    @Test
+    @DisplayName("the engine charset ENCODES output too, and that is lossy")
+    void theEngineCharsetEncodesOutputAndCanLoseCharacters() {
+        // Recorded because the disclosure did not say it. engineDefaults() feeds
+        // config.getCharset() into the synthesised OutputOptions, and toBytes() writes through
+        // it - so a caller who set ISO-8859-1 meaning "decode my input that way" also silently
+        // changed how output is encoded. Characters outside the charset become '?'.
+        byte[] utf8 = with(JsonFlattener.JsonFlattenerConfig.builder()
+                .charset(StandardCharsets.UTF_8).build()).from("{\"k\":\"日本\"}").toBytes();
+        byte[] latin1 = with(JsonFlattener.JsonFlattenerConfig.builder()
+                .charset(StandardCharsets.ISO_8859_1).build()).from("{\"k\":\"日本\"}").toBytes();
+
+        assertEquals("{\"k\":\"日本\"}", new String(utf8, StandardCharsets.UTF_8));
+        assertEquals("{\"k\":\"??\"}", new String(latin1, StandardCharsets.ISO_8859_1),
+                "two characters were replaced by '?' on the way OUT, after decoding fine on the "
+                        + "way in. A caller who wants non-UTF-8 input and UTF-8 output must pass "
+                        + "an explicit OutputOptions.");
     }
 
     // ------------------------------------------------------------------ the precedence control

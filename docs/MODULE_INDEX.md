@@ -51,7 +51,7 @@ io.github.pierce
 |-------|---------|-------|----------|
 | NexusPiercerSparkPipeline | Main pipeline API (batch/streaming) | 948 | Partial |
 | NexusPiercerFunctions | Spark SQL UDFs (flatten_json, etc.) | ~200 | No |
-| NexusPiercerPatterns | Pre-built ETL patterns | ~150 | No |
+| NexusPiercerPatterns | JSON quality report and structure profiling over a path | ~150 | No |
 
 ---
 
