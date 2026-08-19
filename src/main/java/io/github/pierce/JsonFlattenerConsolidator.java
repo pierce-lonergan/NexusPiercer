@@ -36,10 +36,23 @@ public class JsonFlattenerConsolidator implements Serializable {
     private static final ThreadLocal<Set<String>> arrayFieldsThreadLocal =
             ThreadLocal.withInitial(HashSet::new);
 
-    private static final Pattern ARRAY_INDEX_STRIP_PATTERN = Pattern.compile("\\[\\d+\\]");
     private static final Pattern ALL_INDICES_PATTERN = Pattern.compile("\\[(\\d+)\\]");
-    private static final Pattern MALFORMED_JSON_PATTERN = Pattern.compile("[:,\\[]\\s*(undefined|NaN)\\s*[,\\}\\]]");
-    private static final Pattern ARRAY_INDEX_PATTERN = Pattern.compile("(.+?)\\[(\\d+)\\](.*)");
+
+    // Three Pattern constants were removed here on 2026-08-19.
+    //
+    // ARRAY_INDEX_PATTERN and ARRAY_INDEX_STRIP_PATTERN were the two per-key regexes in
+    // consolidateFlattened; they are now the character scans hasArrayIndex and
+    // stripArrayIndices at the bottom of this class. Both regexes are preserved verbatim in
+    // ArrayIndexScanDifferentialTest as FROZEN ORACLES - they define the behaviour this class
+    // shipped through 2026-08-19, and the scans must stay bug-compatible with them forever,
+    // including the three narrowings that look like defects and are not: a key starting with
+    // '[' is not array-indexed, a bracket preceded by a line terminator is not array-indexed,
+    // and a non-ASCII digit is not an index.
+    //
+    // MALFORMED_JSON_PATTERN was compiled at class-init and referenced by nothing anywhere in
+    // src/. The live guard is the two String.contains calls in flattenAndConsolidateJson. Same
+    // finding, and same resolution, as the dead Pattern fields already removed from
+    // AvroReconstructor - see the note at AvroReconstructor:130.
 
     public JsonFlattenerConsolidator(String arrayDelimiter, String nullPlaceholder,
                                      int maxNestingDepth, int maxArraySize,
@@ -613,10 +626,13 @@ public class JsonFlattenerConsolidator implements Serializable {
             Object value = entry.getValue();
 
             String consolidatedKey = key.replace(".", "_");
-            boolean hasArrayIndex = ARRAY_INDEX_PATTERN.matcher(key).find();
+            // Evaluated on the dotted key, exactly as the regex was, rather than on
+            // consolidatedKey. The answer provably coincides - '.' and '_' are both
+            // non-line-terminators - but keeping the input identical removes the need to argue it.
+            boolean indexed = hasArrayIndex(key);
 
-            if (hasArrayIndex) {
-                String baseKey = ARRAY_INDEX_STRIP_PATTERN.matcher(consolidatedKey).replaceAll("");
+            if (indexed) {
+                String baseKey = stripArrayIndices(consolidatedKey);
                 groupedByBase.computeIfAbsent(baseKey, k -> new ArrayList<>())
                         .add(new KeyedValue(key, value, true));
             } else {
@@ -873,6 +889,127 @@ public class JsonFlattenerConsolidator implements Serializable {
         } catch (Exception e) {
             return "Error_Serializing_Value";
         }
+    }
+
+    // ------------------------------------------------------------- array-index scanning
+    //
+    // The two regexes these scans replaced are frozen in ArrayIndexScanDifferentialTest, which
+    // asserts agreement over an exhaustive 66,430-string space plus 400,000 random tries. They
+    // live in the test rather than here because they are no longer the specification of
+    // anything that runs: they are the historical definition of the shipped behaviour, and the
+    // scans below must remain bug-compatible with them.
+
+    /**
+     * Character-scan equivalent of {@code ARRAY_INDEX_PATTERN.matcher(key).find()}.
+     *
+     * <p>Replaces a {@link Matcher} allocation on every flattened key. The predicate that
+     * {@code (.+?)\[(\d+)\](.*)} actually computes under {@code find()} is narrower than it
+     * looks, and both narrowings are load-bearing:</p>
+     * <ul>
+     *   <li>{@code .+?} requires at least one character before the bracket, so a key that
+     *       <em>starts</em> with {@code [} does not match. {@code "[0]"} is not array-indexed.</li>
+     *   <li>{@code .} excludes line terminators, so the character immediately before the bracket
+     *       must not be one of {@code \n \r \u0085 \u2028 \u2029}. {@code "a\n[0]"} does not
+     *       match either.</li>
+     * </ul>
+     *
+     * <p>The trailing {@code (.*)} imposes nothing, because it can match empty.</p>
+     *
+     * <p>{@code \d} without {@code UNICODE_CHARACTER_CLASS} is ASCII-only, so this uses an
+     * explicit {@code '0'..'9'} range. {@link Character#isDigit} would additionally accept
+     * Devanagari, Arabic-Indic and fullwidth digits and would classify keys the regex leaves
+     * alone as array-indexed — silently merging two output columns.</p>
+     */
+    private static boolean hasArrayIndex(String key) {
+        int n = key.length();
+        for (int p = 1; p < n; p++) {
+            if (key.charAt(p) != '[' || isLineTerminator(key.charAt(p - 1))) {
+                continue;
+            }
+            if (indexRunEnd(key, p) > p) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Character-scan equivalent of
+     * {@code ARRAY_INDEX_STRIP_PATTERN.matcher(key).replaceAll("")}.
+     *
+     * <p>Deliberately NOT sharing {@link #hasArrayIndex}'s predicate. {@code \[\d+\]} has no
+     * preceding-character requirement, so unlike the find above it strips a leading
+     * {@code "[0]"}, and it is insensitive to line terminators.</p>
+     *
+     * <p>{@code replaceAll} scans left to right for non-overlapping matches, which means that on
+     * a failed bracket the scan must advance by exactly ONE character rather than skipping past
+     * it: {@code "a[[0]"} strips to {@code "a["}, because the match is found at the second
+     * bracket. Advancing past the first bracket would produce {@code "a"} instead.</p>
+     *
+     * <p>Returns the argument itself when nothing is stripped, which is the common case for the
+     * non-array keys that dominate wide documents.</p>
+     */
+    private static String stripArrayIndices(String key) {
+        int n = key.length();
+        int removed = 0;
+        int i = 0;
+        while (i < n) {
+            int end = indexRunEnd(key, i);
+            if (end > i) {
+                removed += end - i;
+                i = end;
+            } else {
+                i++;
+            }
+        }
+        if (removed == 0) {
+            return key;
+        }
+
+        char[] out = new char[n - removed];
+        int o = 0;
+        i = 0;
+        while (i < n) {
+            int end = indexRunEnd(key, i);
+            if (end > i) {
+                i = end;
+            } else {
+                out[o++] = key.charAt(i++);
+            }
+        }
+        return new String(out);
+    }
+
+    /**
+     * If {@code s} has the shape {@code [<ascii digits>]} starting at {@code from}, returns the
+     * index one past the closing bracket; otherwise returns {@code from}.
+     *
+     * <p>The digit run is maximal by construction, which matches the regex: {@code \d+} is
+     * greedy, and backtracking cannot help because a shortened run is always followed by another
+     * digit rather than by {@code ']'}. The run is never parsed as a number — the regex does not
+     * parse it either, so an index of twenty digits behaves identically here.</p>
+     */
+    private static int indexRunEnd(String s, int from) {
+        int n = s.length();
+        if (from >= n || s.charAt(from) != '[') {
+            return from;
+        }
+        int q = from + 1;
+        while (q < n && s.charAt(q) >= '0' && s.charAt(q) <= '9') {
+            q++;
+        }
+        if (q == from + 1 || q >= n || s.charAt(q) != ']') {
+            return from;
+        }
+        return q + 1;
+    }
+
+    /**
+     * The five characters Java's {@code .} refuses to match when neither {@code DOTALL} nor
+     * {@code UNIX_LINES} is set.
+     */
+    private static boolean isLineTerminator(char c) {
+        return c == '\n' || c == '\r' || c == '\u0085' || c == '\u2028' || c == '\u2029';
     }
 
     private static class FlattenTask implements Serializable {

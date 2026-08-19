@@ -208,7 +208,7 @@ works", not "works".
 | Dependency review (new deps) | **Configured but NEVER EXECUTED.** The job is declared and concludes success, but the repository's Dependency graph is disabled so the step is SKIPPED and nothing is analysed — see `SECURITY.md`, which measured it. This row said "Live, blocking" while another document in the same tree said the opposite. |
 | CodeQL | Live |
 | SBOM generation | Live |
-| Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 315 / 231). Asserted equal to that file by `PublishedProjectFactsMatchTheSourceTest` — this row said `323` for a pass after the PMD ceiling was lowered in `da29c55`, which is a document explaining the ratchets while publishing a value the ratchet does not use. |
+| Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 314 / 231). Asserted equal to that file by `PublishedProjectFactsMatchTheSourceTest` — this row said `323` for a pass after the PMD ceiling was lowered in `da29c55`, which is a document explaining the ratchets while publishing a value the ratchet does not use. |
 | OWASP CVE scan | **Reporting only** — two known CVEs to clear first |
 | JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md) |
 | ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. 413 AS MEASURED ON 2026-08-11, against a `src/main` of ~19,860 lines; it is 24,432 lines now and the figure has not been re-run. Reported, not gated. `docs/PERFORMANCE.md` published 378 for the same control and called it ratcheted; both halves of that were wrong and are corrected there. |

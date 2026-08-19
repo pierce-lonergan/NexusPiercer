@@ -1,0 +1,1408 @@
+# comma-stats :: fidelity/avro-array-element-multi-branch-union-dropped
+{"items_sku":"a,b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":1,"items_sku_max_length":1,"items_sku_avg_length":1.0,"items_sku_type":"string_list_consolidated","items_meta_src":"web,pos","items_meta_src_count":2,"items_meta_src_distinct_count":2,"items_meta_src_min_length":3,"items_meta_src_max_length":3,"items_meta_src_avg_length":3.0,"items_meta_src_type":"string_list_consolidated"}
+# comma-stats :: fidelity/avro-array-element-multi-branch-union-mixed-branches
+{"items_sku":"a,b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":1,"items_sku_max_length":1,"items_sku_avg_length":1.0,"items_sku_type":"string_list_consolidated","items_meta":"plain","items_meta_count":1,"items_meta_distinct_count":1,"items_meta_min_length":5,"items_meta_max_length":5,"items_meta_avg_length":5.0,"items_meta_type":"string_single_value","items_meta_src":"web","items_meta_src_count":1,"items_meta_src_distinct_count":1,"items_meta_src_min_length":3,"items_meta_src_max_length":3,"items_meta_src_avg_length":3.0,"items_meta_src_type":"string_single_value"}
+# comma-stats :: fidelity/avro-array-of-records-bracket-list-round-trip
+{"line_items_sku":"SKU-311,SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"Bolt, hex, M8,Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":6,"line_items_description_max_length":13,"line_items_description_avg_length":9.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"4,8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/avro-array-of-records-control
+{"orders_id":"1,2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship_city":"NY,LA","orders_ship_city_count":2,"orders_ship_city_distinct_count":2,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_list_consolidated"}
+# comma-stats :: fidelity/avro-array-of-records-datum-unwritable
+{"orders_id":"1,2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship_city":"NY,LA","orders_ship_city_count":2,"orders_ship_city_distinct_count":2,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_list_consolidated"}
+# comma-stats :: fidelity/avro-array-of-records-nested-only-collapses-to-one
+{"order_id":"O1","line_items_meta_code":"C1,C2,C3","line_items_meta_code_count":3,"line_items_meta_code_distinct_count":3,"line_items_meta_code_min_length":2,"line_items_meta_code_max_length":2,"line_items_meta_code_avg_length":2.0,"line_items_meta_code_type":"string_list_consolidated","line_items_meta_label":"L1,L2,L3","line_items_meta_label_count":3,"line_items_meta_label_distinct_count":3,"line_items_meta_label_min_length":2,"line_items_meta_label_max_length":2,"line_items_meta_label_avg_length":2.0,"line_items_meta_label_type":"string_list_consolidated"}
+# comma-stats :: fidelity/avro-array-of-records-null-element-annihilates-array
+{"orders":null,"orders_count":0,"orders_distinct_count":0,"orders_id":1,"orders_id_count":1,"orders_id_distinct_count":1,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_single_value"}
+# comma-stats :: fidelity/avro-array-of-records-nullable-nested-record-shadowed
+{"orders_id":"1,2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship":null,"orders_ship_count":0,"orders_ship_distinct_count":0,"orders_ship_city":"NY","orders_ship_city_count":1,"orders_ship_city_distinct_count":1,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_single_value"}
+# comma-stats :: fidelity/avro-array-of-records-pipe-format-comma-inside-element
+{"line_items_sku":"SKU-311,SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"Bolt, hex, M8,Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":6,"line_items_description_max_length":13,"line_items_description_avg_length":9.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"4,8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/avro-array-statistics-suffix-silent-overwrite
+{"tags_count":2,"tags":"a,b","tags_distinct_count":2,"tags_min_length":1,"tags_max_length":1,"tags_avg_length":1.0,"tags_type":"string_list_consolidated"}
+# comma-stats :: fidelity/avro-bare-logical-types-are-a-writable-datum
+{"d":19000,"ts":1700000000000,"s":null}
+# comma-stats :: fidelity/avro-boundary-separator-datum-does-not-hold-under-defaults
+{"attrs_unit":"C","attrs_value":21.5}
+# comma-stats :: fidelity/avro-bytes-b64-sentinel-and-fixed-charset
+{"payload":"B64:AAAA","sig":"ÿ\u0001\u0002\u0003"}
+# comma-stats :: fidelity/avro-decimal-bytes-scale-mismatch
+{"amount":12.5,"fee":0.5}
+# comma-stats :: fidelity/avro-empty-datum-cannot-build-a-record
+{}
+# comma-stats :: fidelity/avro-enum-accepted-fixed-decimal-erased
+{"status":"SUSPENDED","price":1234.5678}
+# comma-stats :: fidelity/avro-flat-record-is-a-valid-datum-control
+{"id":7,"name":"a","ok":true,"ratio":1.5,"note":null}
+# comma-stats :: fidelity/avro-flattened-name-collision-guard-fires
+{"user_id":"nested"}
+# comma-stats :: fidelity/avro-generic-record-is-not-a-valid-datum
+{"id":1,"ship_city":"NY"}
+# comma-stats :: fidelity/avro-logical-type-datum-is-writable-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":null}
+# comma-stats :: fidelity/avro-logical-types-erased-inside-arrays
+{"events_occurredAt":1609459200000,"events_occurredAt_count":1,"events_occurredAt_distinct_count":1,"events_occurredAt_min_length":13,"events_occurredAt_max_length":13,"events_occurredAt_avg_length":13.0,"events_occurredAt_type":"numeric_single_value","events_day":18628,"events_day_count":1,"events_day_distinct_count":1,"events_day_min_length":5,"events_day_max_length":5,"events_day_avg_length":5.0,"events_day_type":"numeric_single_value","events_amount":1.25,"events_amount_count":1,"events_amount_distinct_count":1,"events_amount_min_length":4,"events_amount_max_length":4,"events_amount_avg_length":4.0,"events_amount_type":"numeric_single_value"}
+# comma-stats :: fidelity/avro-map-of-records-control
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# comma-stats :: fidelity/avro-map-of-records-datum-unwritable
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# comma-stats :: fidelity/avro-nullable-scalars-and-logical-types-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":null}
+# comma-stats :: fidelity/avro-nullable-string-literal-null-collapses
+{"status":"null","padded":" null ","safe":"nullable"}
+# comma-stats :: fidelity/avro-reconstruct-original-schema-ignores-argument
+{"id":"x-1","nested_n":7}
+# comma-stats :: fidelity/avro-record-defaults-dropped-in-reconstructed-schema
+{"id":"x-1","retries":3,"region":"us-east-1"}
+# comma-stats :: fidelity/avro-recursive-schema-stack-overflows
+{"name":"root","child_name":"leaf","child_child":null}
+# comma-stats :: fidelity/avro-schema-cache-hit-with-distinct-names-control
+{"id":"e1","amount":12.5}
+# comma-stats :: fidelity/avro-schema-cache-serves-a-stale-flattened-schema
+{"id":"e1","amount":12.5}
+# comma-stats :: fidelity/avro-underscore-field-name-column-divergence
+{"user_id":"u-1","balance":10.5}
+# comma-stats :: fidelity/avro-union-long-before-double-truncates
+{"amount":3.7,"count":5}
+# comma-stats :: fidelity/avro-union-of-records-overlapping-fields
+{"payment_id":"p-1","payment_routing":"021000021","payment_account":"12345678"}
+# comma-stats :: fidelity/avro-union-string-branch-swallows-int
+{"v":42,"w":true}
+# comma-stats :: fidelity/array-cells-below-max
+{"r_a":"1,3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"2,4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":1,"r_b_max_length":1,"r_b_avg_length":1.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-cells-exactly-max
+{"r_a":"1,3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"2,4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":1,"r_b_max_length":1,"r_b_avg_length":1.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-cells-one-over-max
+{"r_a":"1,3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"2,4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":1,"r_b_max_length":1,"r_b_avg_length":1.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-size-below-max
+{"r_a":"1,2,3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10,20,30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-size-exactly-max
+{"r_a":"1,2,3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10,20,30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-size-max-one-collapses-the-type
+{"r_a":"1,2,3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10,20,30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-size-one-over-max
+{"r_a":"1,2,3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10,20,30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/depth-below-max
+{"outer_leaf":7,"outer_other":"text"}
+# comma-stats :: fidelity/depth-bound-bypassed-by-empty-container
+{"a":null,"b_c":1}
+# comma-stats :: fidelity/depth-bound-map-vs-list-asymmetry
+{"a_b_c":1,"a_d":"1,2","a_d_count":2,"a_d_distinct_count":2,"a_d_min_length":1,"a_d_max_length":1,"a_d_avg_length":1.0,"a_d_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/depth-exactly-max
+{"l1_l2_leaf":7,"l1_l2_tag":"x"}
+# comma-stats :: fidelity/depth-one-over-max
+{"l1_l2_l3_leaf":7}
+# comma-stats :: fidelity/depth-overflow-aliases-a-real-string
+{"l1_l2_l3":"{\"leaf\":7}"}
+# comma-stats :: fidelity/empty-chains-yield-keys-with-zero-leaves
+{"a":null,"b_c":null,"d_e_f":null}
+# comma-stats :: fidelity/invalid-maxdepth-fails-closed
+{"a":1}
+# comma-stats :: fidelity/map-size-limit-truncates-fields-silently
+{"f1":1,"f2":2,"f3":3,"f4":4,"f5":5,"f6":6,"f7":7,"f8":8,"f9":9,"f10":10}
+# comma-stats :: fidelity/reconstructor-maxdepth-is-a-dead-control
+{"d1_d2_d3_d4_d5_d6_d7_leaf":1}
+# comma-stats :: fidelity/single-element-array-at-the-arity-lower-bound
+{"r_tags":"only","r_tags_count":1,"r_tags_distinct_count":1,"r_tags_min_length":4,"r_tags_max_length":4,"r_tags_avg_length":4.0,"r_tags_type":"string_single_value"}
+# comma-stats :: fidelity/sparse-array-of-maps-padding-misaligns-elements
+{"r_k1":1,"r_k1_count":1,"r_k1_distinct_count":1,"r_k1_min_length":1,"r_k1_max_length":1,"r_k1_avg_length":1.0,"r_k1_type":"numeric_single_value","r_z":"0,0,0","r_z_count":3,"r_z_distinct_count":1,"r_z_min_length":1,"r_z_max_length":1,"r_z_avg_length":1.0,"r_z_type":"numeric_list_consolidated","r_k2":2,"r_k2_count":1,"r_k2_distinct_count":1,"r_k2_min_length":1,"r_k2_max_length":1,"r_k2_avg_length":1.0,"r_k2_type":"numeric_single_value","r_k3":3,"r_k3_count":1,"r_k3_distinct_count":1,"r_k3_min_length":1,"r_k3_max_length":1,"r_k3_avg_length":1.0,"r_k3_type":"numeric_single_value"}
+# comma-stats :: fidelity/wide-record-210-fields-under-one-parent
+{"rec_a1":1,"rec_a2":2,"rec_a3":3,"rec_a4":4,"rec_a5":5,"rec_a6":6,"rec_a7":7,"rec_a8":8,"rec_a9":9,"rec_a10":10,"rec_a11":11,"rec_a12":12,"rec_a13":13,"rec_a14":14,"rec_a15":15,"rec_a16":16,"rec_a17":17,"rec_a18":18,"rec_a19":19,"rec_a20":20,"rec_a21":21,"rec_a22":22,"rec_a23":23,"rec_a24":24,"rec_a25":25,"rec_a26":26,"rec_a27":27,"rec_a28":28,"rec_a29":29,"rec_a30":30,"rec_a31":31,"rec_a32":32,"rec_a33":33,"rec_a34":34,"rec_a35":35,"rec_a36":36,"rec_a37":37,"rec_a38":38,"rec_a39":39,"rec_a40":40,"rec_a41":41,"rec_a42":42,"rec_a43":43,"rec_a44":44,"rec_a45":45,"rec_a46":46,"rec_a47":47,"rec_a48":48,"rec_a49":49,"rec_a50":50,"rec_a51":51,"rec_a52":52,"rec_a53":53,"rec_a54":54,"rec_a55":55,"rec_a56":56,"rec_a57":57,"rec_a58":58,"rec_a59":59,"rec_a60":60,"rec_a61":61,"rec_a62":62,"rec_a63":63,"rec_a64":64,"rec_a65":65,"rec_a66":66,"rec_a67":67,"rec_a68":68,"rec_a69":69,"rec_a70":70,"rec_a71":71,"rec_a72":72,"rec_a73":73,"rec_a74":74,"rec_a75":75,"rec_a76":76,"rec_a77":77,"rec_a78":78,"rec_a79":79,"rec_a80":80,"rec_a81":81,"rec_a82":82,"rec_a83":83,"rec_a84":84,"rec_a85":85,"rec_a86":86,"rec_a87":87,"rec_a88":88,"rec_a89":89,"rec_a90":90,"rec_a91":91,"rec_a92":92,"rec_a93":93,"rec_a94":94,"rec_a95":95,"rec_a96":96,"rec_a97":97,"rec_a98":98,"rec_a99":99,"rec_a100":100,"rec_a101":101,"rec_a102":102,"rec_a103":103,"rec_a104":104,"rec_a105":105,"rec_a106":106,"rec_a107":107,"rec_a108":108,"rec_a109":109,"rec_a110":110,"rec_a111":111,"rec_a112":112,"rec_a113":113,"rec_a114":114,"rec_a115":115,"rec_a116":116,"rec_a117":117,"rec_a118":118,"rec_a119":119,"rec_a120":120,"rec_a121":121,"rec_a122":122,"rec_a123":123,"rec_a124":124,"rec_a125":125,"rec_a126":126,"rec_a127":127,"rec_a128":128,"rec_a129":129,"rec_a130":130,"rec_a131":131,"rec_a132":132,"rec_a133":133,"rec_a134":134,"rec_a135":135,"rec_a136":136,"rec_a137":137,"rec_a138":138,"rec_a139":139,"rec_a140":140,"rec_a141":141,"rec_a142":142,"rec_a143":143,"rec_a144":144,"rec_a145":145,"rec_a146":146,"rec_a147":147,"rec_a148":148,"rec_a149":149,"rec_a150":150,"rec_a151":151,"rec_a152":152,"rec_a153":153,"rec_a154":154,"rec_a155":155,"rec_a156":156,"rec_a157":157,"rec_a158":158,"rec_a159":159,"rec_a160":160,"rec_a161":161,"rec_a162":162,"rec_a163":163,"rec_a164":164,"rec_a165":165,"rec_a166":166,"rec_a167":167,"rec_a168":168,"rec_a169":169,"rec_a170":170,"rec_a171":171,"rec_a172":172,"rec_a173":173,"rec_a174":174,"rec_a175":175,"rec_a176":176,"rec_a177":177,"rec_a178":178,"rec_a179":179,"rec_a180":180,"rec_a181":181,"rec_a182":182,"rec_a183":183,"rec_a184":184,"rec_a185":185,"rec_a186":186,"rec_a187":187,"rec_a188":188,"rec_a189":189,"rec_a190":190,"rec_a191":191,"rec_a192":192,"rec_a193":193,"rec_a194":194,"rec_a195":195,"rec_a196":196,"rec_a197":197,"rec_a198":198,"rec_a199":199,"rec_a200":200,"rec_a201":201,"rec_a202":202,"rec_a203":203,"rec_a204":204,"rec_a205":205,"rec_a206":206,"rec_a207":207,"rec_a208":208,"rec_a209":209,"rec_a210":210}
+# comma-stats :: fidelity/wide-separator-heavy-np021-regression
+{"root_deep_nest_field_one_x1":1,"root_deep_nest_field_one_x2":2,"root_deep_nest_field_one_x3":3,"root_deep_nest_field_one_x4":4,"root_deep_nest_field_one_x5":5,"root_deep_nest_field_one_x6":6,"root_deep_nest_field_one_x7":7,"root_deep_nest_field_one_x8":8,"root_deep_nest_field_one_x9":9,"root_deep_nest_field_one_x10":10,"root_deep_nest_field_one_x11":11,"root_deep_nest_field_one_x12":12,"root_deep_nest_field_one_x13":13,"root_deep_nest_field_one_x14":14,"root_deep_nest_field_one_x15":15,"root_deep_nest_field_one_x16":16,"root_deep_nest_field_one_x17":17,"root_deep_nest_field_one_x18":18,"root_deep_nest_field_one_x19":19,"root_deep_nest_field_one_x20":20,"root_deep_nest_field_one_x21":21,"root_deep_nest_field_one_x22":22,"root_deep_nest_field_one_x23":23,"root_deep_nest_field_one_x24":24}
+# comma-stats :: fidelity/array-boundary-separator-manufactures-a-collision
+{"a__b":1,"a_b":2}
+# comma-stats :: fidelity/backslash-and-preencoded-lookalike-names
+{"a\\b":1,"a\\_b":2,"a_b":4,"a\\":5}
+# comma-stats :: fidelity/case-only-differing-names-preserved
+{"Id":1,"id":2,"ID":3}
+# comma-stats :: fidelity/double-underscore-namespace-swallowed
+{"__":2,"_x_":3,"__meta___v":1}
+# comma-stats :: fidelity/empty-string-key-renamed-into-collision
+{"":1,"empty_key":2}
+# comma-stats :: fidelity/is-array-field-name-changes-json-type
+{"cfg___isArray__":true,"cfg_name":"x"}
+# comma-stats :: fidelity/lower-case-collision-suffix-corrupts-structure
+{"Id":1,"id":2}
+# comma-stats :: fidelity/multichar-separator-with-single-separator-char-in-name
+{"__x":1,"a_b_c":2}
+# comma-stats :: fidelity/punctuation-and-control-chars-in-names
+{"a_b":1,"d\"e":3,"f\ng":4,"h i":5,"c":2}
+# comma-stats :: fidelity/separator-in-name-vs-nesting
+{"user_id":2}
+# comma-stats :: fidelity/snake-case-injects-unescaped-separators
+{"userId":1}
+# comma-stats :: fidelity/strict-key-validation-folds-three-names-into-one
+{"a_b":1,"a-b":2,"a b":3}
+# comma-stats :: fidelity/top-level-double-sanitization-asymmetry
+{"a___b":1,"n_a___b":2}
+# comma-stats :: fidelity/triple-underscore-key-dropped
+{"___":1,"ok":2}
+# comma-stats :: fidelity/underscore-boundary-around-the-np022-trap
+{"_":1,"__x":3,"x__":4,"a__":2}
+# comma-stats :: fidelity/unicode-names-must-not-normalize
+{"café":1,"café":2,"🔑":3,"עברית":4}
+# comma-stats :: fidelity/upper-case-strategy-renames-without-restructuring
+{"e":2,"a_b_cD":1}
+# comma-stats :: fidelity/user-field-named-value-vs-flattener-sentinel
+{"a__value":1,"b__value__value":2}
+# comma-stats :: fidelity/recipe-diverges-when-the-flattener-is-tuned
+{"a_b_c_d":"leaf"}
+# comma-stats :: fidelity/recipe-holds-on-a-plain-defaults-document
+{"order_id":"A-1","order_qty":3,"order_paid":true,"order_note":null}
+# comma-stats :: fidelity/cdc-create-before-null
+{"op":"c","ts_ms":1786321931482,"before":null,"source_connector":"postgresql","source_db":"sales","source_table":"orders","source_lsn":24576123,"after_order_id":8814,"after_customer_id":77301,"after_status":"pending","after_total_amount":148.75}
+# comma-stats :: fidelity/cdc-update-with-array-column
+{"op":"u","ts_ms":1786321931482,"before_order_id":8814,"before_status":"pending","after_order_id":8814,"after_status":"shipped","before_tag_list":"rush,gift","before_tag_list_count":2,"before_tag_list_distinct_count":2,"before_tag_list_min_length":4,"before_tag_list_max_length":4,"before_tag_list_avg_length":4.0,"before_tag_list_type":"string_list_consolidated","after_tag_list":"rush,gift,insured","after_tag_list_count":3,"after_tag_list_distinct_count":3,"after_tag_list_min_length":4,"after_tag_list_max_length":7,"after_tag_list_avg_length":5.0,"after_tag_list_type":"string_list_consolidated"}
+# comma-stats :: fidelity/customer-preferences-object-with-array
+{"customer_id":"CUST-88120","loyalty_tier":"gold","preferences_theme":"dark","preferences_locale":"en_GB","preferences_notification_channels":"email,sms,push","preferences_notification_channels_count":3,"preferences_notification_channels_distinct_count":3,"preferences_notification_channels_min_length":3,"preferences_notification_channels_max_length":5,"preferences_notification_channels_avg_length":4.0,"preferences_notification_channels_type":"string_list_consolidated"}
+# comma-stats :: fidelity/customer-profile-addresses-and-preferences
+{"customer_id":"CUST-77301","full_name":"José Álvarez-Ng","email":"jose@example.com","loyalty_points":12500,"preferences_theme":"dark","preferences_locale":"fr_CA","preferences_email_opt_in":true,"preferences_sms_opt_in":false,"addresses_address_type":"billing,shipping","addresses_address_type_count":2,"addresses_address_type_distinct_count":2,"addresses_address_type_min_length":7,"addresses_address_type_max_length":8,"addresses_address_type_avg_length":7.5,"addresses_address_type_type":"string_list_consolidated","addresses_line_1":"12 Rue de l'Église,500 Market St","addresses_line_1_count":2,"addresses_line_1_distinct_count":2,"addresses_line_1_min_length":13,"addresses_line_1_max_length":18,"addresses_line_1_avg_length":15.5,"addresses_line_1_type":"string_list_consolidated","addresses_city":"Montréal,San Francisco","addresses_city_count":2,"addresses_city_distinct_count":2,"addresses_city_min_length":8,"addresses_city_max_length":13,"addresses_city_avg_length":10.5,"addresses_city_type":"string_list_consolidated","addresses_postal_code":"H2X 1Y4,94105","addresses_postal_code_count":2,"addresses_postal_code_distinct_count":2,"addresses_postal_code_min_length":5,"addresses_postal_code_max_length":7,"addresses_postal_code_avg_length":6.0,"addresses_postal_code_type":"string_list_consolidated","addresses_country_code":"CA,US","addresses_country_code_count":2,"addresses_country_code_distinct_count":2,"addresses_country_code_min_length":2,"addresses_country_code_max_length":2,"addresses_country_code_avg_length":2.0,"addresses_country_code_type":"string_list_consolidated"}
+# comma-stats :: fidelity/customer-profile-legacy-key-shadow
+{"customer_id":"CUST-90210","preferences_theme":"dark","preferences_digest":"weekly","notification_settings_push":true}
+# comma-stats :: fidelity/empty-cart
+{"cart_id":"CART-000551","customer_id":"CUST-77301","line_items":null,"applied_promo_codes":null,"totals":null,"updated_at":"2026-08-09T14:32:11Z"}
+# comma-stats :: fidelity/event-envelope-mixed-attachments
+{"event_id":"evt_9931","event_type":"ticket.updated","actor_id":"USR-42","attachments":"legacy-inline-note","attachments_count":1,"attachments_distinct_count":1,"attachments_min_length":18,"attachments_max_length":18,"attachments_avg_length":18.0,"attachments_type":"string_single_value","attachments_kind":"image,pdf","attachments_kind_count":2,"attachments_kind_distinct_count":2,"attachments_kind_min_length":3,"attachments_kind_max_length":5,"attachments_kind_avg_length":4.0,"attachments_kind_type":"string_list_consolidated","attachments_url":"https://cdn.example.com/a.png,https://cdn.example.com/b.pdf","attachments_url_count":2,"attachments_url_distinct_count":2,"attachments_url_min_length":29,"attachments_url_max_length":29,"attachments_url_avg_length":29.0,"attachments_url_type":"string_list_consolidated"}
+# comma-stats :: fidelity/event-envelope-sentinel-metadata-keys
+{"event_id":"evt_01J8ZQ4","occurred_at":"2026-08-09T14:32:11Z","source_service":"billing-api","__meta___ingest_partition":7,"__meta___schema_version":3,"payload___type__":"invoice.paid","payload_invoice_id":"INV-9931","payload_amount_paid":249.0,"payload_paid_by":"CUST-77301"}
+# comma-stats :: fidelity/financial-transaction-high-precision
+{"transaction_id":"TXN-2026-0814","posted_at":"2026-08-09T14:32:11.482913Z","currency_code":"USD","amount_text":"1250.00","fx_rate":0.8771234567890124,"amount_value":9.007199254740994E15,"amount_scale":2,"counterparty_name":"Northwind Ltd","counterparty_account_ref":"GB29NWBK60161331926819"}
+# comma-stats :: fidelity/financial-transaction-huge-minor-units
+{"transaction_id":"TXN-2026-0815","currency_code":"JPY","amount_minor_units":-4362896299872285998,"booked_at":"2026-08-09T14:32:11Z","ledger_sequence":9007199254740993}
+# comma-stats :: fidelity/line-item-tag-arrays
+{"order_id":"ORD-2026-0006","line_items_sku":"SKU-100,SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_tags":"gift,fragile,backorder","line_items_tags_count":3,"line_items_tags_distinct_count":3,"line_items_tags_min_length":4,"line_items_tags_max_length":9,"line_items_tags_avg_length":6.666666666666667,"line_items_tags_type":"string_list_consolidated"}
+# comma-stats :: fidelity/order-line-item-nested-address
+{"order_id":"ORD-2026-0003","status":"packed","line_items_sku":"SKU-100,SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"1,3","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated","line_items_ship_from_warehouse_code":"NYC-1,LAX-2","line_items_ship_from_warehouse_code_count":2,"line_items_ship_from_warehouse_code_distinct_count":2,"line_items_ship_from_warehouse_code_min_length":5,"line_items_ship_from_warehouse_code_max_length":5,"line_items_ship_from_warehouse_code_avg_length":5.0,"line_items_ship_from_warehouse_code_type":"string_list_consolidated","line_items_ship_from_country_code":"US,US","line_items_ship_from_country_code_count":2,"line_items_ship_from_country_code_distinct_count":1,"line_items_ship_from_country_code_min_length":2,"line_items_ship_from_country_code_max_length":2,"line_items_ship_from_country_code_avg_length":2.0,"line_items_ship_from_country_code_type":"string_list_consolidated"}
+# comma-stats :: fidelity/order-line-items-comma-separated
+{"order_id":"ORD-2026-0008","currency_code":"USD","line_items_sku":"SKU-311,SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"Bolt, hex, M8,Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":6,"line_items_description_max_length":13,"line_items_description_avg_length":9.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"4,8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/order-multi-line-items
+{"order_id":"ORD-2026-0001","placed_at":"2026-08-09T14:32:11Z","status":"confirmed","currency_code":"USD","shipping_address_line_1":"500 Market St","shipping_address_city":"San Francisco","shipping_address_postal_code":"94105","shipping_address_country_code":"US","line_items_sku":"SKU-100,SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"2,1","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated","line_items_unit_price":"19.99,5.5","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":3,"line_items_unit_price_max_length":5,"line_items_unit_price_avg_length":4.0,"line_items_unit_price_type":"numeric_list_consolidated","line_items_discount_pct":"10","line_items_discount_pct_count":1,"line_items_discount_pct_distinct_count":1,"line_items_discount_pct_min_length":2,"line_items_discount_pct_max_length":2,"line_items_discount_pct_avg_length":2.0,"line_items_discount_pct_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/order-optional-discount-absent
+{"order_id":"ORD-2026-0004","currency_code":"USD","line_items_sku":"SKU-100,SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"1,2","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated","line_items_unit_price":"19.99,7.25","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":4,"line_items_unit_price_max_length":5,"line_items_unit_price_avg_length":4.5,"line_items_unit_price_type":"numeric_list_consolidated","line_items_discount_pct":15}
+# comma-stats :: fidelity/order-single-line-item
+{"order_id":"ORD-2026-0002","status":"confirmed","currency_code":"USD","line_items_sku":"SKU-100","line_items_quantity":1,"line_items_unit_price":19.99}
+# comma-stats :: fidelity/order-top-level-tags-array
+{"order_id":"ORD-2026-0007","status":"confirmed","fulfillment_tags":"priority,gift_wrap,signature_required","fulfillment_tags_count":3,"fulfillment_tags_distinct_count":3,"fulfillment_tags_min_length":8,"fulfillment_tags_max_length":18,"fulfillment_tags_avg_length":11.666666666666666,"fulfillment_tags_type":"string_list_consolidated","warehouse_codes":"NYC-1,LAX-2","warehouse_codes_count":2,"warehouse_codes_distinct_count":2,"warehouse_codes_min_length":5,"warehouse_codes_max_length":5,"warehouse_codes_avg_length":5.0,"warehouse_codes_type":"string_list_consolidated"}
+# comma-stats :: fidelity/telemetry-nested-optional-groups
+{"device_id":"sensor-4417","recorded_at":"2026-08-09T14:32:11.482Z","firmware_version":"2.14.0-rc3","uplink_rssi_dbm":-97,"labels_site":"us-east-1a","labels_rack":"R12","labels_owner_team":"iot_platform","readings_environment_temperature_c":21.5,"readings_environment_relative_humidity_pct":null,"readings_environment_pressure_hpa":1013.25,"readings_power_battery_pct":88,"readings_power_charging":false,"readings_power_solar_panel_voltage_v":17.2,"readings_power_solar_fault_code":null}
+# comma-stats :: fidelity/enriched-custom-properties-survive-the-flatten
+{"order_id":"o-1","customer_full_name":"A B"}
+# comma-stats :: fidelity/enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# comma-stats :: fidelity/enriched-entrypoints-agree-without-injection
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-escape-forged-array-boundary-is-refused
+{"axb":"2","a_b":"1","a_b_count":1,"a_b_distinct_count":1,"a_b_min_length":1,"a_b_max_length":1,"a_b_avg_length":1.0,"a_b_type":"string_single_value"}
+# comma-stats :: fidelity/enriched-escape-name-decodes-back-to-its-path
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-escape-name-does-not-decode-across-an-array-boundary
+{"items_sku":"A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":2,"items_sku_max_length":2,"items_sku_avg_length":2.0,"items_sku_type":"string_single_value"}
+# comma-stats :: fidelity/enriched-escape-policy-agrees-with-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-escape-resolves-the-collision
+{"user_name":"b"}
+# comma-stats :: fidelity/enriched-fail-policy-refuses-a-colliding-schema
+{"user_name":"b"}
+# comma-stats :: fidelity/enriched-gavro-parity-claim-fails-at-array-boundaries
+{"items_sku":"A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":2,"items_sku_max_length":2,"items_sku_avg_length":2.0,"items_sku_type":"string_single_value"}
+# comma-stats :: fidelity/enriched-gavro-parity-claim-fails-on-underscores
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-gavro-parity-diverges-on-a-multi-branch-union
+{"payload_k":"v"}
+# comma-stats :: fidelity/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records
+{"grid_v":"1","grid_v_count":1,"grid_v_distinct_count":1,"grid_v_min_length":1,"grid_v_max_length":1,"grid_v_avg_length":1.0,"grid_v_type":"string_single_value"}
+# comma-stats :: fidelity/enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary
+{"items_sku":"A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":2,"items_sku_max_length":2,"items_sku_avg_length":2.0,"items_sku_type":"string_single_value"}
+# comma-stats :: fidelity/enriched-gavro-parity-factory-matches-gavro-on-underscored-names
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-inheritdoc-false-reports-declared-only-docs
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# comma-stats :: fidelity/enriched-injected-column-colliding-with-a-source-column-is-refused
+{"order_id":"o-1","amount":"9.99"}
+# comma-stats :: fidelity/enriched-keyset-diverges-from-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-leaf-doc-is-reported-as-its-own
+{"order_id":"o-1","ship_city":"Denver"}
+# comma-stats :: fidelity/enriched-matches-legacy-avro-schema-flattener
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-nested-record-column-parity-control
+{"id":"p1","home_city":"NY","home_zip":"10001","work_city":"LA","work_zip":null}
+# comma-stats :: fidelity/enriched-record-properties-inherited-by-leaves
+{"order_id":"o-1","customer_full_name":"A B"}
+# comma-stats :: fidelity/enriched-recursive-schema-fails-typed
+{"name":"root","child_name":"leaf","child_child":null}
+# comma-stats :: fidelity/enriched-reserved-prop-name-collision-drops-a-producer-property
+{"garment":"shirt"}
+# comma-stats :: fidelity/enriched-stream-honours-injections-at-their-positions
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/enriched-stream-injection-past-the-final-column
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-stats :: fidelity/array-element-with-nested-object-duplicated
+{"people_addr_city":"NY,LA","people_addr_city_count":2,"people_addr_city_distinct_count":2,"people_addr_city_min_length":2,"people_addr_city_max_length":2,"people_addr_city_avg_length":2.0,"people_addr_city_type":"string_list_consolidated"}
+# comma-stats :: fidelity/array-of-arrays-with-empty-inner
+{"grid_rows":"1,2,3","grid_rows_count":3,"grid_rows_distinct_count":3,"grid_rows_min_length":1,"grid_rows_max_length":1,"grid_rows_avg_length":1.0,"grid_rows_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/array-of-objects-single-element
+{"users_name":"Alice","users_name_count":1,"users_name_distinct_count":1,"users_name_min_length":5,"users_name_max_length":5,"users_name_avg_length":5.0,"users_name_type":"string_single_value","users_age":30,"users_age_count":1,"users_age_distinct_count":1,"users_age_min_length":2,"users_age_max_length":2,"users_age_avg_length":2.0,"users_age_type":"numeric_single_value"}
+# comma-stats :: fidelity/array-of-objects-two-elements-top-level
+{"users_name":"Alice,Bob","users_name_count":2,"users_name_distinct_count":2,"users_name_min_length":3,"users_name_max_length":5,"users_name_avg_length":4.0,"users_name_type":"string_list_consolidated","users_age":"30,25","users_age_count":2,"users_age_distinct_count":2,"users_age_min_length":2,"users_age_max_length":2,"users_age_avg_length":2.0,"users_age_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/boundary-separator-on-double-underscore-field
+{"a__b":1,"a_b":2}
+# comma-stats :: fidelity/boundary-separator-on-round-trip
+{"metrics_0":10,"metrics_1":20,"users_name":"A,B","users_name_count":2,"users_name_distinct_count":2,"users_name_min_length":1,"users_name_max_length":1,"users_name_avg_length":1.0,"users_name_type":"string_list_consolidated"}
+# comma-stats :: fidelity/empty-containers-at-depth
+{"a_emptyObj":null,"a_emptyArr":null,"a_explicitNull":null,"a_deep_x_y":null}
+# comma-stats :: fidelity/flattener-maxdepth-truncation
+{"l1_l2_l3_l4_l5":"deep"}
+# comma-stats :: fidelity/heterogeneous-array-object-first
+{"mixed":"x,y","mixed_count":2,"mixed_distinct_count":2,"mixed_min_length":1,"mixed_max_length":1,"mixed_avg_length":1.0,"mixed_type":"string_list_consolidated","mixed_a":"1,2","mixed_a_count":2,"mixed_a_distinct_count":2,"mixed_a_min_length":1,"mixed_a_max_length":1,"mixed_a_avg_length":1.0,"mixed_a_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/heterogeneous-array-scalar-first
+{"mixed":"1,2","mixed_count":2,"mixed_distinct_count":2,"mixed_min_length":1,"mixed_max_length":1,"mixed_avg_length":1.0,"mixed_type":"numeric_list_consolidated","mixed_a":3,"mixed_a_count":1,"mixed_a_distinct_count":1,"mixed_a_min_length":1,"mixed_a_max_length":1,"mixed_a_avg_length":1.0,"mixed_a_type":"numeric_single_value"}
+# comma-stats :: fidelity/mixed-array-sentinel-vs-user-value-field
+{"mixed":"x","mixed_count":1,"mixed_distinct_count":1,"mixed_min_length":1,"mixed_max_length":1,"mixed_avg_length":1.0,"mixed_type":"string_single_value","mixed_value":1,"mixed_value_count":1,"mixed_value_distinct_count":1,"mixed_value_min_length":1,"mixed_value_max_length":1,"mixed_value_avg_length":1.0,"mixed_value_type":"numeric_single_value"}
+# comma-stats :: fidelity/mixed-nested-array-sentinel-collision
+{"data":"text","data_count":1,"data_distinct_count":1,"data_min_length":4,"data_max_length":4,"data_avg_length":4.0,"data_type":"string_single_value","data_name":"A","data_name_count":1,"data_name_distinct_count":1,"data_name_min_length":1,"data_name_max_length":1,"data_name_avg_length":1.0,"data_name_type":"string_single_value"}
+# comma-stats :: fidelity/nested-array-of-objects-default
+{"order_items_sku":"A,B","order_items_sku_count":2,"order_items_sku_distinct_count":2,"order_items_sku_min_length":1,"order_items_sku_max_length":1,"order_items_sku_avg_length":1.0,"order_items_sku_type":"string_list_consolidated","order_items_qty":"1,2","order_items_qty_count":2,"order_items_qty_distinct_count":2,"order_items_qty_min_length":1,"order_items_qty_max_length":1,"order_items_qty_avg_length":1.0,"order_items_qty_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/nested-array-of-objects-explicit-hints
+{"order_items_sku":"A,B","order_items_sku_count":2,"order_items_sku_distinct_count":2,"order_items_sku_min_length":1,"order_items_sku_max_length":1,"order_items_sku_avg_length":1.0,"order_items_sku_type":"string_list_consolidated","order_items_qty":"1,2","order_items_qty_count":2,"order_items_qty_distinct_count":2,"order_items_qty_min_length":1,"order_items_qty_max_length":1,"order_items_qty_avg_length":1.0,"order_items_qty_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/nested-array-of-scalars
+{"user_tags":"red,green","user_tags_count":2,"user_tags_distinct_count":2,"user_tags_min_length":3,"user_tags_max_length":5,"user_tags_avg_length":4.0,"user_tags_type":"string_list_consolidated"}
+# comma-stats :: fidelity/nullable-nested-record-shadowed-json-stack
+{"orders_id":"1,2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship":null,"orders_ship_count":0,"orders_ship_distinct_count":0,"orders_ship_city":"NY","orders_ship_city_count":1,"orders_ship_city_distinct_count":1,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_single_value"}
+# comma-stats :: fidelity/object-chain-depth-8
+{"l1_l2_l3_l4_l5_l6_l7_l8":"leaf"}
+# comma-stats :: fidelity/ragged-array-of-objects-absent-vs-null
+{"rows_a":"1,3","rows_a_count":2,"rows_a_distinct_count":2,"rows_a_min_length":1,"rows_a_max_length":1,"rows_a_avg_length":1.0,"rows_a_type":"numeric_list_consolidated","rows_b":2,"rows_b_count":1,"rows_b_distinct_count":1,"rows_b_min_length":1,"rows_b_max_length":1,"rows_b_avg_length":1.0,"rows_b_type":"numeric_single_value"}
+# comma-stats :: fidelity/reserved-marker-key-dropped
+{"cfg___meta__":1,"cfg____":2,"cfg_name":"x"}
+# comma-stats :: fidelity/top-level-array-of-scalars
+{"tags":"red,green,blue","tags_count":3,"tags_distinct_count":3,"tags_min_length":3,"tags_max_length":5,"tags_avg_length":4.0,"tags_type":"string_list_consolidated","scores":"1,2,3","scores_count":3,"scores_distinct_count":3,"scores_min_length":1,"scores_max_length":1,"scores_avg_length":1.0,"scores_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/vd-array-lookalike-fabricates-padding
+{"a_b":"[7]","a_c":"[1,2,3]"}
+# comma-stats :: fidelity/vd-comma-format-atomic-coercion
+{"a_b":"true,null,007,1.10,0x1F","a_b_count":5,"a_b_distinct_count":5,"a_b_min_length":3,"a_b_max_length":4,"a_b_avg_length":3.8,"a_b_type":"string_list_consolidated"}
+# comma-stats :: fidelity/vd-comma-format-empty-and-trailing-null
+{"a_b":",x","a_b_count":2,"a_b_distinct_count":2,"a_b_min_length":0,"a_b_max_length":1,"a_b_avg_length":0.5,"a_b_type":"string_list_consolidated"}
+# comma-stats :: fidelity/vd-comma-format-scalar-with-comma
+{"a_b":"Smith, John","a_c":"plain"}
+# comma-stats :: fidelity/vd-control-chars-and-long-string
+{"s_ctrl":"a\u0000b\u001Fcd","s_ws":"tab\there\nnl\rcr","s_quotes":"he said \"hi\" and \\ backslash","s_unicode":"héllo 😀 中文","s_long":"Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"}
+# comma-stats :: fidelity/vd-decimal-scale-and-precision
+{"d_trailingZero":37.774,"d_oneFive":1.5,"d_highScale":0.12345678901234568,"d_beyondDouble":1.0,"d_money":19.99}
+# comma-stats :: fidelity/vd-empty-containers-end-to-end
+{"e_emptyObj":null,"e_emptyArr":null,"e_explicitNull":null,"e_nonEmpty_x":1}
+# comma-stats :: fidelity/vd-exponent-overflow-and-underflow
+{"d_over":"Infinity","d_negOver":"-Infinity","d_under":0.0,"d_nearMax":1.0E308}
+# comma-stats :: fidelity/vd-integer-boundaries-within-long
+{"n_zero":0,"n_neg":-1,"n_i32max":2147483647,"n_i32maxPlus1":2147483648,"n_p53minus1":9007199254740991,"n_p53":9007199254740992,"n_p53plus1":9007199254740993,"n_i64max":9223372036854775807,"n_i64min":-9223372036854775808}
+# comma-stats :: fidelity/vd-integer-past-long
+{"n_i64max":9223372036854775807,"n_i64maxPlus1":-9223372036854775808,"n_huge":-4362896299872285998}
+# comma-stats :: fidelity/vd-nested-json-string-length-gate
+{"a_shortJson":"{\"x\":1}","a_longJson":"{\"x\":1,\"padpadpadpadpad\":2}"}
+# comma-stats :: fidelity/vd-number-text-normalization
+{"n_exp":100.0,"n_expPlus":100.0,"n_plain":100.0,"n_int":100}
+# comma-stats :: fidelity/vd-preserve-bigdecimal-flag-inert
+{"d_amount":37.774}
+# comma-stats :: fidelity/vd-preserve-nulls-false-erases-present-null
+{"p_present":null,"p_other":1}
+# comma-stats :: fidelity/vd-real-array-collides-with-array-text
+{"a_b":"1,2,3","a_b_count":3,"a_b_distinct_count":3,"a_b_min_length":1,"a_b_max_length":1,"a_b_avg_length":1.0,"a_b_type":"numeric_list_consolidated"}
+# comma-stats :: fidelity/vd-signed-zero
+{"z_negDouble":-0.0,"z_posDouble":0.0,"z_negInt":0,"z_posInt":0}
+# comma-stats :: fidelity/vd-string-literal-lookalikes
+{"wrap_sNull":"null","wrap_sTrue":"true","wrap_sFalse":"false","wrap_sInt":"1","wrap_sFloat":"1.0","wrap_sNaN":"NaN","wrap_sInf":"Infinity","wrap_sNegInf":"-Infinity","wrap_sEmpty":"","wrap_bTrue":true,"wrap_nInt":1,"wrap_nFloat":1.0}
+# comma-stats :: fidelity/vd-string-that-looks-like-array
+{"a_b":"[1,2,3]"}
+# comma-stats :: adv/leading-bracket-key
+{"[0]":1,"[1]":2}
+# comma-stats :: adv/user-supplied-index-key
+{"a":"1,2","a_count":2,"a_distinct_count":2,"a_min_length":1,"a_max_length":1,"a_avg_length":1.0,"a_type":"numeric_list_consolidated"}
+# comma-stats :: adv/newline-before-bracket
+{"a\n[0]":1,"a\r[0]":2,"a ":3}
+# comma-stats :: adv/unicode-digit-index
+{"a[०]":1,"a[۰]":2,"a[０]":3}
+# comma-stats :: adv/doubled-open-bracket
+{"a[":1,"a":"2,3","a_count":2,"a_distinct_count":2,"a_min_length":1,"a_max_length":1,"a_avg_length":1.0,"a_type":"numeric_list_consolidated"}
+# comma-stats :: adv/unterminated-bracket
+{"a[0":1,"a[x]":2,"a[0x]":3,"a[]":4}
+# comma-stats :: adv/huge-index-digits
+{"a":1}
+# comma-stats :: adv/dot-and-underscore-keys
+{"a_b":2}
+# comma-stats :: adv/no-underscore-array-names
+{"tags":"x,y","tags_count":2,"tags_distinct_count":2,"tags_min_length":1,"tags_max_length":1,"tags_avg_length":1.0,"tags_type":"string_list_consolidated","items_sku":"a,b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":1,"items_sku_max_length":1,"items_sku_avg_length":1.0,"items_sku_type":"string_list_consolidated"}
+# comma-stats :: adv/single-element-array-with-delimiter
+{"items":"a,b,c","items_count":3,"items_distinct_count":3,"items_min_length":1,"items_max_length":1,"items_avg_length":1.0,"items_type":"string_list_consolidated","other":"p|q","other_count":1,"other_distinct_count":1,"other_min_length":3,"other_max_length":3,"other_avg_length":3.0,"other_type":"string_single_value"}
+# comma-stats :: adv/nested-array-of-arrays
+{"m":"1,2,3,4","m_count":4,"m_distinct_count":4,"m_min_length":1,"m_max_length":1,"m_avg_length":1.0,"m_type":"numeric_list_consolidated","n_k":1,"n_k_count":1,"n_k_distinct_count":1,"n_k_min_length":1,"n_k_max_length":1,"n_k_avg_length":1.0,"n_k_type":"numeric_single_value"}
+# comma-stats :: adv/empty-array-and-object
+{"e":null,"o":null,"n":null,"z":null,"z_count":0,"z_distinct_count":0}
+# comma-stats :: adv/numeric-looking-strings
+{"v":"1,2.5,+3,-0,1e10,0x1p3,1d,NaN,Infinity","v_count":9,"v_distinct_count":9,"v_min_length":1,"v_max_length":8,"v_avg_length":3.3333333333333335,"v_type":"string_list_consolidated"}
+# comma-stats :: adv/boolean-and-mixed-arrays
+{"b":"true,FALSE","b_count":2,"b_distinct_count":2,"b_min_length":4,"b_max_length":5,"b_avg_length":4.5,"b_type":"boolean_list_consolidated","m":"true,1","m_count":2,"m_distinct_count":2,"m_min_length":1,"m_max_length":4,"m_avg_length":2.5,"m_type":"string_list_consolidated","s":",  ","s_count":2,"s_distinct_count":2,"s_min_length":0,"s_max_length":2,"s_avg_length":1.0,"s_type":"string_list_consolidated"}
+# comma-stats :: adv/duplicate-and-empty-values
+{"d":"x,x,,yy","d_count":4,"d_distinct_count":3,"d_min_length":0,"d_max_length":2,"d_avg_length":1.0,"d_type":"string_list_consolidated","c":",,,,","c_count":2,"c_distinct_count":2,"c_min_length":1,"c_max_length":2,"c_avg_length":1.5,"c_type":"string_list_consolidated"}
+# comma-stats :: shape/wideFlat40
+{"field_str_0":"um25bb0a","field_str_1":"qi10z3he","field_str_2":"hp7vr8ey","field_str_3":"5mpk0vf7","field_str_4":"a8ldf09p","field_str_5":"icvgpg7l","field_str_6":"hfmtsei5","field_str_7":"gi62p2ur","field_str_8":"g0pj7r5e","field_str_9":"d2s6za56","field_str_10":"4ldjn3ck","field_str_11":"jn7ktnl4","field_str_12":"u93e7o9o","field_str_13":"e7zi1esf","field_str_14":"fgbggm8f","field_str_15":"zcxrztad","field_str_16":"ph27yw9p","field_str_17":"5bs09b1e","field_str_18":"4uwxvsle","field_str_19":"e77aw82b","field_str_20":"anrk1zaf","field_str_21":"au4tdiil","field_str_22":"5oplb0l4","field_str_23":"a3qdwhi2","field_str_24":"wfh7scxz","field_str_25":"xsnfdi8i","field_str_26":"5nhch0qm","field_str_27":"uoh47woq","field_str_28":"bk4j6bl8","field_str_29":"693hqd7p","field_str_30":"sdg6tkag","field_str_31":"e69c0s9j","field_str_32":"rcxtw69w","field_str_33":"2hfwojjk","field_str_34":"yrb869r6","field_str_35":"qlo0byow","field_str_36":"gqnwt2xp","field_str_37":"bw4a798l","field_str_38":"nmtpdem8","field_str_39":"qtlhe53n"}
+# comma-stats :: shape/deepNarrow24
+{"level_0_level_1_level_2_level_3_level_4_level_5_level_6_level_7_level_8_level_9_level_10_level_11_level_12_level_13_level_14_level_15_level_16_level_17_level_18_level_19_level_20_level_21_level_22_leaf_value":"terminal"}
+# comma-stats :: shape/arrayHeavySmall
+{"numeric_array_0":"43377,34808,62688,80782,71093,82055,49874,17494,82585,44676,56414,73904","numeric_array_0_count":12,"numeric_array_0_distinct_count":12,"numeric_array_0_min_length":5,"numeric_array_0_max_length":5,"numeric_array_0_avg_length":5.0,"numeric_array_0_type":"numeric_list_consolidated","numeric_array_1":"52508,66680,191,62003,6158,38750,64469,32035,16699,26206,31005,1311","numeric_array_1_count":12,"numeric_array_1_distinct_count":12,"numeric_array_1_min_length":3,"numeric_array_1_max_length":5,"numeric_array_1_avg_length":4.666666666666667,"numeric_array_1_type":"numeric_list_consolidated","numeric_array_2":"43640,67892,6635,77207,81609,24176,46631,12251,57164,66198,15873,29071","numeric_array_2_count":12,"numeric_array_2_distinct_count":12,"numeric_array_2_min_length":4,"numeric_array_2_max_length":5,"numeric_array_2_avg_length":4.916666666666667,"numeric_array_2_type":"numeric_list_consolidated","string_array_0":"wjwxdzj4,in88cj44,8zezr8r2,vw11zsho,8cjj5jf1,b4fiet5n,z2f74gs0,lg5qd29k,cy78omjv,8w8akw1x,dtyk4oq1,ix3nwiud","string_array_0_count":12,"string_array_0_distinct_count":12,"string_array_0_min_length":8,"string_array_0_max_length":8,"string_array_0_avg_length":8.0,"string_array_0_type":"string_list_consolidated","string_array_1":"ccmy4wgp,iodddmsn,cqu1hpgj,iwkt84pr,k8panawg,sbrbqxnn,5ut9zn7l,c4xctg1z,bmw78qz2,4hbkprh7,37tloq67,x24own6s","string_array_1_count":12,"string_array_1_distinct_count":12,"string_array_1_min_length":8,"string_array_1_max_length":8,"string_array_1_avg_length":8.0,"string_array_1_type":"string_list_consolidated","string_array_2":"uvfvmlgq,zcnwkarq,ct0dtz6a,92u07jle,ky2ossz8,gpsa6h0h,tjcl3wup,7v39c1tq,ak1zn5hh,lnhf60g2,paeklemo,ktrb61r3","string_array_2_count":12,"string_array_2_distinct_count":12,"string_array_2_min_length":8,"string_array_2_max_length":8,"string_array_2_avg_length":8.0,"string_array_2_type":"string_list_consolidated","record_array_nested_field_0":"89v0gd,bzvgna,cn2p2z,67v859,dnu9hg","record_array_nested_field_0_count":5,"record_array_nested_field_0_distinct_count":5,"record_array_nested_field_0_min_length":6,"record_array_nested_field_0_max_length":6,"record_array_nested_field_0_avg_length":6.0,"record_array_nested_field_0_type":"string_list_consolidated","record_array_nested_field_1":"915,844,801,920,928","record_array_nested_field_1_count":5,"record_array_nested_field_1_distinct_count":5,"record_array_nested_field_1_min_length":3,"record_array_nested_field_1_max_length":3,"record_array_nested_field_1_avg_length":3.0,"record_array_nested_field_1_type":"numeric_list_consolidated"}
+# comma-stats :: shape/mixedProduction
+{"order_id":"ord-1","created_at":"2026-08-19","order_total":12.5,"attribute_0_value":null,"attribute_1_value":9,"attribute_2_value":"s","user_user_id":7,"user_user_name":"n","user_is_active":true,"line_items_sku_code":"a,b","line_items_sku_code_count":2,"line_items_sku_code_distinct_count":2,"line_items_sku_code_min_length":1,"line_items_sku_code_max_length":1,"line_items_sku_code_avg_length":1.0,"line_items_sku_code_type":"string_list_consolidated","line_items_quantity_ordered":"1,3","line_items_quantity_ordered_count":2,"line_items_quantity_ordered_distinct_count":2,"line_items_quantity_ordered_min_length":1,"line_items_quantity_ordered_max_length":1,"line_items_quantity_ordered_avg_length":1.0,"line_items_quantity_ordered_type":"numeric_list_consolidated","line_items_unit_price":"2.0,4.5","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":3,"line_items_unit_price_max_length":3,"line_items_unit_price_avg_length":3.0,"line_items_unit_price_type":"numeric_list_consolidated"}
+# comma-nostats :: fidelity/avro-array-element-multi-branch-union-dropped
+{"items_sku":"a,b","items_meta_src":"web,pos"}
+# comma-nostats :: fidelity/avro-array-element-multi-branch-union-mixed-branches
+{"items_sku":"a,b","items_meta":"plain","items_meta_src":"web"}
+# comma-nostats :: fidelity/avro-array-of-records-bracket-list-round-trip
+{"line_items_sku":"SKU-311,SKU-312","line_items_description":"Bolt, hex, M8,Washer","line_items_quantity":"4,8"}
+# comma-nostats :: fidelity/avro-array-of-records-control
+{"orders_id":"1,2","orders_ship_city":"NY,LA"}
+# comma-nostats :: fidelity/avro-array-of-records-datum-unwritable
+{"orders_id":"1,2","orders_ship_city":"NY,LA"}
+# comma-nostats :: fidelity/avro-array-of-records-nested-only-collapses-to-one
+{"order_id":"O1","line_items_meta_code":"C1,C2,C3","line_items_meta_label":"L1,L2,L3"}
+# comma-nostats :: fidelity/avro-array-of-records-null-element-annihilates-array
+{"orders":null,"orders_id":1}
+# comma-nostats :: fidelity/avro-array-of-records-nullable-nested-record-shadowed
+{"orders_id":"1,2","orders_ship":null,"orders_ship_city":"NY"}
+# comma-nostats :: fidelity/avro-array-of-records-pipe-format-comma-inside-element
+{"line_items_sku":"SKU-311,SKU-312","line_items_description":"Bolt, hex, M8,Washer","line_items_quantity":"4,8"}
+# comma-nostats :: fidelity/avro-array-statistics-suffix-silent-overwrite
+{"tags_count":2,"tags":"a,b"}
+# comma-nostats :: fidelity/avro-bare-logical-types-are-a-writable-datum
+{"d":19000,"ts":1700000000000,"s":null}
+# comma-nostats :: fidelity/avro-boundary-separator-datum-does-not-hold-under-defaults
+{"attrs_unit":"C","attrs_value":21.5}
+# comma-nostats :: fidelity/avro-bytes-b64-sentinel-and-fixed-charset
+{"payload":"B64:AAAA","sig":"ÿ\u0001\u0002\u0003"}
+# comma-nostats :: fidelity/avro-decimal-bytes-scale-mismatch
+{"amount":12.5,"fee":0.5}
+# comma-nostats :: fidelity/avro-empty-datum-cannot-build-a-record
+{}
+# comma-nostats :: fidelity/avro-enum-accepted-fixed-decimal-erased
+{"status":"SUSPENDED","price":1234.5678}
+# comma-nostats :: fidelity/avro-flat-record-is-a-valid-datum-control
+{"id":7,"name":"a","ok":true,"ratio":1.5,"note":null}
+# comma-nostats :: fidelity/avro-flattened-name-collision-guard-fires
+{"user_id":"nested"}
+# comma-nostats :: fidelity/avro-generic-record-is-not-a-valid-datum
+{"id":1,"ship_city":"NY"}
+# comma-nostats :: fidelity/avro-logical-type-datum-is-writable-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":null}
+# comma-nostats :: fidelity/avro-logical-types-erased-inside-arrays
+{"events_occurredAt":1609459200000,"events_day":18628,"events_amount":1.25}
+# comma-nostats :: fidelity/avro-map-of-records-control
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# comma-nostats :: fidelity/avro-map-of-records-datum-unwritable
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# comma-nostats :: fidelity/avro-nullable-scalars-and-logical-types-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":null}
+# comma-nostats :: fidelity/avro-nullable-string-literal-null-collapses
+{"status":"null","padded":" null ","safe":"nullable"}
+# comma-nostats :: fidelity/avro-reconstruct-original-schema-ignores-argument
+{"id":"x-1","nested_n":7}
+# comma-nostats :: fidelity/avro-record-defaults-dropped-in-reconstructed-schema
+{"id":"x-1","retries":3,"region":"us-east-1"}
+# comma-nostats :: fidelity/avro-recursive-schema-stack-overflows
+{"name":"root","child_name":"leaf","child_child":null}
+# comma-nostats :: fidelity/avro-schema-cache-hit-with-distinct-names-control
+{"id":"e1","amount":12.5}
+# comma-nostats :: fidelity/avro-schema-cache-serves-a-stale-flattened-schema
+{"id":"e1","amount":12.5}
+# comma-nostats :: fidelity/avro-underscore-field-name-column-divergence
+{"user_id":"u-1","balance":10.5}
+# comma-nostats :: fidelity/avro-union-long-before-double-truncates
+{"amount":3.7,"count":5}
+# comma-nostats :: fidelity/avro-union-of-records-overlapping-fields
+{"payment_id":"p-1","payment_routing":"021000021","payment_account":"12345678"}
+# comma-nostats :: fidelity/avro-union-string-branch-swallows-int
+{"v":42,"w":true}
+# comma-nostats :: fidelity/array-cells-below-max
+{"r_a":"1,3","r_b":"2,4"}
+# comma-nostats :: fidelity/array-cells-exactly-max
+{"r_a":"1,3","r_b":"2,4"}
+# comma-nostats :: fidelity/array-cells-one-over-max
+{"r_a":"1,3","r_b":"2,4"}
+# comma-nostats :: fidelity/array-size-below-max
+{"r_a":"1,2,3","r_b":"10,20,30"}
+# comma-nostats :: fidelity/array-size-exactly-max
+{"r_a":"1,2,3","r_b":"10,20,30"}
+# comma-nostats :: fidelity/array-size-max-one-collapses-the-type
+{"r_a":"1,2,3","r_b":"10,20,30"}
+# comma-nostats :: fidelity/array-size-one-over-max
+{"r_a":"1,2,3","r_b":"10,20,30"}
+# comma-nostats :: fidelity/depth-below-max
+{"outer_leaf":7,"outer_other":"text"}
+# comma-nostats :: fidelity/depth-bound-bypassed-by-empty-container
+{"a":null,"b_c":1}
+# comma-nostats :: fidelity/depth-bound-map-vs-list-asymmetry
+{"a_b_c":1,"a_d":"1,2"}
+# comma-nostats :: fidelity/depth-exactly-max
+{"l1_l2_leaf":7,"l1_l2_tag":"x"}
+# comma-nostats :: fidelity/depth-one-over-max
+{"l1_l2_l3_leaf":7}
+# comma-nostats :: fidelity/depth-overflow-aliases-a-real-string
+{"l1_l2_l3":"{\"leaf\":7}"}
+# comma-nostats :: fidelity/empty-chains-yield-keys-with-zero-leaves
+{"a":null,"b_c":null,"d_e_f":null}
+# comma-nostats :: fidelity/invalid-maxdepth-fails-closed
+{"a":1}
+# comma-nostats :: fidelity/map-size-limit-truncates-fields-silently
+{"f1":1,"f2":2,"f3":3,"f4":4,"f5":5,"f6":6,"f7":7,"f8":8,"f9":9,"f10":10}
+# comma-nostats :: fidelity/reconstructor-maxdepth-is-a-dead-control
+{"d1_d2_d3_d4_d5_d6_d7_leaf":1}
+# comma-nostats :: fidelity/single-element-array-at-the-arity-lower-bound
+{"r_tags":"only"}
+# comma-nostats :: fidelity/sparse-array-of-maps-padding-misaligns-elements
+{"r_k1":1,"r_z":"0,0,0","r_k2":2,"r_k3":3}
+# comma-nostats :: fidelity/wide-record-210-fields-under-one-parent
+{"rec_a1":1,"rec_a2":2,"rec_a3":3,"rec_a4":4,"rec_a5":5,"rec_a6":6,"rec_a7":7,"rec_a8":8,"rec_a9":9,"rec_a10":10,"rec_a11":11,"rec_a12":12,"rec_a13":13,"rec_a14":14,"rec_a15":15,"rec_a16":16,"rec_a17":17,"rec_a18":18,"rec_a19":19,"rec_a20":20,"rec_a21":21,"rec_a22":22,"rec_a23":23,"rec_a24":24,"rec_a25":25,"rec_a26":26,"rec_a27":27,"rec_a28":28,"rec_a29":29,"rec_a30":30,"rec_a31":31,"rec_a32":32,"rec_a33":33,"rec_a34":34,"rec_a35":35,"rec_a36":36,"rec_a37":37,"rec_a38":38,"rec_a39":39,"rec_a40":40,"rec_a41":41,"rec_a42":42,"rec_a43":43,"rec_a44":44,"rec_a45":45,"rec_a46":46,"rec_a47":47,"rec_a48":48,"rec_a49":49,"rec_a50":50,"rec_a51":51,"rec_a52":52,"rec_a53":53,"rec_a54":54,"rec_a55":55,"rec_a56":56,"rec_a57":57,"rec_a58":58,"rec_a59":59,"rec_a60":60,"rec_a61":61,"rec_a62":62,"rec_a63":63,"rec_a64":64,"rec_a65":65,"rec_a66":66,"rec_a67":67,"rec_a68":68,"rec_a69":69,"rec_a70":70,"rec_a71":71,"rec_a72":72,"rec_a73":73,"rec_a74":74,"rec_a75":75,"rec_a76":76,"rec_a77":77,"rec_a78":78,"rec_a79":79,"rec_a80":80,"rec_a81":81,"rec_a82":82,"rec_a83":83,"rec_a84":84,"rec_a85":85,"rec_a86":86,"rec_a87":87,"rec_a88":88,"rec_a89":89,"rec_a90":90,"rec_a91":91,"rec_a92":92,"rec_a93":93,"rec_a94":94,"rec_a95":95,"rec_a96":96,"rec_a97":97,"rec_a98":98,"rec_a99":99,"rec_a100":100,"rec_a101":101,"rec_a102":102,"rec_a103":103,"rec_a104":104,"rec_a105":105,"rec_a106":106,"rec_a107":107,"rec_a108":108,"rec_a109":109,"rec_a110":110,"rec_a111":111,"rec_a112":112,"rec_a113":113,"rec_a114":114,"rec_a115":115,"rec_a116":116,"rec_a117":117,"rec_a118":118,"rec_a119":119,"rec_a120":120,"rec_a121":121,"rec_a122":122,"rec_a123":123,"rec_a124":124,"rec_a125":125,"rec_a126":126,"rec_a127":127,"rec_a128":128,"rec_a129":129,"rec_a130":130,"rec_a131":131,"rec_a132":132,"rec_a133":133,"rec_a134":134,"rec_a135":135,"rec_a136":136,"rec_a137":137,"rec_a138":138,"rec_a139":139,"rec_a140":140,"rec_a141":141,"rec_a142":142,"rec_a143":143,"rec_a144":144,"rec_a145":145,"rec_a146":146,"rec_a147":147,"rec_a148":148,"rec_a149":149,"rec_a150":150,"rec_a151":151,"rec_a152":152,"rec_a153":153,"rec_a154":154,"rec_a155":155,"rec_a156":156,"rec_a157":157,"rec_a158":158,"rec_a159":159,"rec_a160":160,"rec_a161":161,"rec_a162":162,"rec_a163":163,"rec_a164":164,"rec_a165":165,"rec_a166":166,"rec_a167":167,"rec_a168":168,"rec_a169":169,"rec_a170":170,"rec_a171":171,"rec_a172":172,"rec_a173":173,"rec_a174":174,"rec_a175":175,"rec_a176":176,"rec_a177":177,"rec_a178":178,"rec_a179":179,"rec_a180":180,"rec_a181":181,"rec_a182":182,"rec_a183":183,"rec_a184":184,"rec_a185":185,"rec_a186":186,"rec_a187":187,"rec_a188":188,"rec_a189":189,"rec_a190":190,"rec_a191":191,"rec_a192":192,"rec_a193":193,"rec_a194":194,"rec_a195":195,"rec_a196":196,"rec_a197":197,"rec_a198":198,"rec_a199":199,"rec_a200":200,"rec_a201":201,"rec_a202":202,"rec_a203":203,"rec_a204":204,"rec_a205":205,"rec_a206":206,"rec_a207":207,"rec_a208":208,"rec_a209":209,"rec_a210":210}
+# comma-nostats :: fidelity/wide-separator-heavy-np021-regression
+{"root_deep_nest_field_one_x1":1,"root_deep_nest_field_one_x2":2,"root_deep_nest_field_one_x3":3,"root_deep_nest_field_one_x4":4,"root_deep_nest_field_one_x5":5,"root_deep_nest_field_one_x6":6,"root_deep_nest_field_one_x7":7,"root_deep_nest_field_one_x8":8,"root_deep_nest_field_one_x9":9,"root_deep_nest_field_one_x10":10,"root_deep_nest_field_one_x11":11,"root_deep_nest_field_one_x12":12,"root_deep_nest_field_one_x13":13,"root_deep_nest_field_one_x14":14,"root_deep_nest_field_one_x15":15,"root_deep_nest_field_one_x16":16,"root_deep_nest_field_one_x17":17,"root_deep_nest_field_one_x18":18,"root_deep_nest_field_one_x19":19,"root_deep_nest_field_one_x20":20,"root_deep_nest_field_one_x21":21,"root_deep_nest_field_one_x22":22,"root_deep_nest_field_one_x23":23,"root_deep_nest_field_one_x24":24}
+# comma-nostats :: fidelity/array-boundary-separator-manufactures-a-collision
+{"a__b":1,"a_b":2}
+# comma-nostats :: fidelity/backslash-and-preencoded-lookalike-names
+{"a\\b":1,"a\\_b":2,"a_b":4,"a\\":5}
+# comma-nostats :: fidelity/case-only-differing-names-preserved
+{"Id":1,"id":2,"ID":3}
+# comma-nostats :: fidelity/double-underscore-namespace-swallowed
+{"__":2,"_x_":3,"__meta___v":1}
+# comma-nostats :: fidelity/empty-string-key-renamed-into-collision
+{"":1,"empty_key":2}
+# comma-nostats :: fidelity/is-array-field-name-changes-json-type
+{"cfg___isArray__":true,"cfg_name":"x"}
+# comma-nostats :: fidelity/lower-case-collision-suffix-corrupts-structure
+{"Id":1,"id":2}
+# comma-nostats :: fidelity/multichar-separator-with-single-separator-char-in-name
+{"__x":1,"a_b_c":2}
+# comma-nostats :: fidelity/punctuation-and-control-chars-in-names
+{"a_b":1,"d\"e":3,"f\ng":4,"h i":5,"c":2}
+# comma-nostats :: fidelity/separator-in-name-vs-nesting
+{"user_id":2}
+# comma-nostats :: fidelity/snake-case-injects-unescaped-separators
+{"userId":1}
+# comma-nostats :: fidelity/strict-key-validation-folds-three-names-into-one
+{"a_b":1,"a-b":2,"a b":3}
+# comma-nostats :: fidelity/top-level-double-sanitization-asymmetry
+{"a___b":1,"n_a___b":2}
+# comma-nostats :: fidelity/triple-underscore-key-dropped
+{"___":1,"ok":2}
+# comma-nostats :: fidelity/underscore-boundary-around-the-np022-trap
+{"_":1,"__x":3,"x__":4,"a__":2}
+# comma-nostats :: fidelity/unicode-names-must-not-normalize
+{"café":1,"café":2,"🔑":3,"עברית":4}
+# comma-nostats :: fidelity/upper-case-strategy-renames-without-restructuring
+{"e":2,"a_b_cD":1}
+# comma-nostats :: fidelity/user-field-named-value-vs-flattener-sentinel
+{"a__value":1,"b__value__value":2}
+# comma-nostats :: fidelity/recipe-diverges-when-the-flattener-is-tuned
+{"a_b_c_d":"leaf"}
+# comma-nostats :: fidelity/recipe-holds-on-a-plain-defaults-document
+{"order_id":"A-1","order_qty":3,"order_paid":true,"order_note":null}
+# comma-nostats :: fidelity/cdc-create-before-null
+{"op":"c","ts_ms":1786321931482,"before":null,"source_connector":"postgresql","source_db":"sales","source_table":"orders","source_lsn":24576123,"after_order_id":8814,"after_customer_id":77301,"after_status":"pending","after_total_amount":148.75}
+# comma-nostats :: fidelity/cdc-update-with-array-column
+{"op":"u","ts_ms":1786321931482,"before_order_id":8814,"before_status":"pending","after_order_id":8814,"after_status":"shipped","before_tag_list":"rush,gift","after_tag_list":"rush,gift,insured"}
+# comma-nostats :: fidelity/customer-preferences-object-with-array
+{"customer_id":"CUST-88120","loyalty_tier":"gold","preferences_theme":"dark","preferences_locale":"en_GB","preferences_notification_channels":"email,sms,push"}
+# comma-nostats :: fidelity/customer-profile-addresses-and-preferences
+{"customer_id":"CUST-77301","full_name":"José Álvarez-Ng","email":"jose@example.com","loyalty_points":12500,"preferences_theme":"dark","preferences_locale":"fr_CA","preferences_email_opt_in":true,"preferences_sms_opt_in":false,"addresses_address_type":"billing,shipping","addresses_line_1":"12 Rue de l'Église,500 Market St","addresses_city":"Montréal,San Francisco","addresses_postal_code":"H2X 1Y4,94105","addresses_country_code":"CA,US"}
+# comma-nostats :: fidelity/customer-profile-legacy-key-shadow
+{"customer_id":"CUST-90210","preferences_theme":"dark","preferences_digest":"weekly","notification_settings_push":true}
+# comma-nostats :: fidelity/empty-cart
+{"cart_id":"CART-000551","customer_id":"CUST-77301","line_items":null,"applied_promo_codes":null,"totals":null,"updated_at":"2026-08-09T14:32:11Z"}
+# comma-nostats :: fidelity/event-envelope-mixed-attachments
+{"event_id":"evt_9931","event_type":"ticket.updated","actor_id":"USR-42","attachments":"legacy-inline-note","attachments_kind":"image,pdf","attachments_url":"https://cdn.example.com/a.png,https://cdn.example.com/b.pdf"}
+# comma-nostats :: fidelity/event-envelope-sentinel-metadata-keys
+{"event_id":"evt_01J8ZQ4","occurred_at":"2026-08-09T14:32:11Z","source_service":"billing-api","__meta___ingest_partition":7,"__meta___schema_version":3,"payload___type__":"invoice.paid","payload_invoice_id":"INV-9931","payload_amount_paid":249.0,"payload_paid_by":"CUST-77301"}
+# comma-nostats :: fidelity/financial-transaction-high-precision
+{"transaction_id":"TXN-2026-0814","posted_at":"2026-08-09T14:32:11.482913Z","currency_code":"USD","amount_text":"1250.00","fx_rate":0.8771234567890124,"amount_value":9.007199254740994E15,"amount_scale":2,"counterparty_name":"Northwind Ltd","counterparty_account_ref":"GB29NWBK60161331926819"}
+# comma-nostats :: fidelity/financial-transaction-huge-minor-units
+{"transaction_id":"TXN-2026-0815","currency_code":"JPY","amount_minor_units":-4362896299872285998,"booked_at":"2026-08-09T14:32:11Z","ledger_sequence":9007199254740993}
+# comma-nostats :: fidelity/line-item-tag-arrays
+{"order_id":"ORD-2026-0006","line_items_sku":"SKU-100,SKU-205","line_items_tags":"gift,fragile,backorder"}
+# comma-nostats :: fidelity/order-line-item-nested-address
+{"order_id":"ORD-2026-0003","status":"packed","line_items_sku":"SKU-100,SKU-205","line_items_quantity":"1,3","line_items_ship_from_warehouse_code":"NYC-1,LAX-2","line_items_ship_from_country_code":"US,US"}
+# comma-nostats :: fidelity/order-line-items-comma-separated
+{"order_id":"ORD-2026-0008","currency_code":"USD","line_items_sku":"SKU-311,SKU-312","line_items_description":"Bolt, hex, M8,Washer","line_items_quantity":"4,8"}
+# comma-nostats :: fidelity/order-multi-line-items
+{"order_id":"ORD-2026-0001","placed_at":"2026-08-09T14:32:11Z","status":"confirmed","currency_code":"USD","shipping_address_line_1":"500 Market St","shipping_address_city":"San Francisco","shipping_address_postal_code":"94105","shipping_address_country_code":"US","line_items_sku":"SKU-100,SKU-205","line_items_quantity":"2,1","line_items_unit_price":"19.99,5.5","line_items_discount_pct":"10"}
+# comma-nostats :: fidelity/order-optional-discount-absent
+{"order_id":"ORD-2026-0004","currency_code":"USD","line_items_sku":"SKU-100,SKU-205","line_items_quantity":"1,2","line_items_unit_price":"19.99,7.25","line_items_discount_pct":15}
+# comma-nostats :: fidelity/order-single-line-item
+{"order_id":"ORD-2026-0002","status":"confirmed","currency_code":"USD","line_items_sku":"SKU-100","line_items_quantity":1,"line_items_unit_price":19.99}
+# comma-nostats :: fidelity/order-top-level-tags-array
+{"order_id":"ORD-2026-0007","status":"confirmed","fulfillment_tags":"priority,gift_wrap,signature_required","warehouse_codes":"NYC-1,LAX-2"}
+# comma-nostats :: fidelity/telemetry-nested-optional-groups
+{"device_id":"sensor-4417","recorded_at":"2026-08-09T14:32:11.482Z","firmware_version":"2.14.0-rc3","uplink_rssi_dbm":-97,"labels_site":"us-east-1a","labels_rack":"R12","labels_owner_team":"iot_platform","readings_environment_temperature_c":21.5,"readings_environment_relative_humidity_pct":null,"readings_environment_pressure_hpa":1013.25,"readings_power_battery_pct":88,"readings_power_charging":false,"readings_power_solar_panel_voltage_v":17.2,"readings_power_solar_fault_code":null}
+# comma-nostats :: fidelity/enriched-custom-properties-survive-the-flatten
+{"order_id":"o-1","customer_full_name":"A B"}
+# comma-nostats :: fidelity/enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# comma-nostats :: fidelity/enriched-entrypoints-agree-without-injection
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-escape-forged-array-boundary-is-refused
+{"axb":"2","a_b":"1"}
+# comma-nostats :: fidelity/enriched-escape-name-decodes-back-to-its-path
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-escape-name-does-not-decode-across-an-array-boundary
+{"items_sku":"A1"}
+# comma-nostats :: fidelity/enriched-escape-policy-agrees-with-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-escape-resolves-the-collision
+{"user_name":"b"}
+# comma-nostats :: fidelity/enriched-fail-policy-refuses-a-colliding-schema
+{"user_name":"b"}
+# comma-nostats :: fidelity/enriched-gavro-parity-claim-fails-at-array-boundaries
+{"items_sku":"A1"}
+# comma-nostats :: fidelity/enriched-gavro-parity-claim-fails-on-underscores
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-gavro-parity-diverges-on-a-multi-branch-union
+{"payload_k":"v"}
+# comma-nostats :: fidelity/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records
+{"grid_v":"1"}
+# comma-nostats :: fidelity/enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary
+{"items_sku":"A1"}
+# comma-nostats :: fidelity/enriched-gavro-parity-factory-matches-gavro-on-underscored-names
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-inheritdoc-false-reports-declared-only-docs
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# comma-nostats :: fidelity/enriched-injected-column-colliding-with-a-source-column-is-refused
+{"order_id":"o-1","amount":"9.99"}
+# comma-nostats :: fidelity/enriched-keyset-diverges-from-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-leaf-doc-is-reported-as-its-own
+{"order_id":"o-1","ship_city":"Denver"}
+# comma-nostats :: fidelity/enriched-matches-legacy-avro-schema-flattener
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-nested-record-column-parity-control
+{"id":"p1","home_city":"NY","home_zip":"10001","work_city":"LA","work_zip":null}
+# comma-nostats :: fidelity/enriched-record-properties-inherited-by-leaves
+{"order_id":"o-1","customer_full_name":"A B"}
+# comma-nostats :: fidelity/enriched-recursive-schema-fails-typed
+{"name":"root","child_name":"leaf","child_child":null}
+# comma-nostats :: fidelity/enriched-reserved-prop-name-collision-drops-a-producer-property
+{"garment":"shirt"}
+# comma-nostats :: fidelity/enriched-stream-honours-injections-at-their-positions
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/enriched-stream-injection-past-the-final-column
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-nostats :: fidelity/array-element-with-nested-object-duplicated
+{"people_addr_city":"NY,LA"}
+# comma-nostats :: fidelity/array-of-arrays-with-empty-inner
+{"grid_rows":"1,2,3"}
+# comma-nostats :: fidelity/array-of-objects-single-element
+{"users_name":"Alice","users_age":30}
+# comma-nostats :: fidelity/array-of-objects-two-elements-top-level
+{"users_name":"Alice,Bob","users_age":"30,25"}
+# comma-nostats :: fidelity/boundary-separator-on-double-underscore-field
+{"a__b":1,"a_b":2}
+# comma-nostats :: fidelity/boundary-separator-on-round-trip
+{"metrics_0":10,"metrics_1":20,"users_name":"A,B"}
+# comma-nostats :: fidelity/empty-containers-at-depth
+{"a_emptyObj":null,"a_emptyArr":null,"a_explicitNull":null,"a_deep_x_y":null}
+# comma-nostats :: fidelity/flattener-maxdepth-truncation
+{"l1_l2_l3_l4_l5":"deep"}
+# comma-nostats :: fidelity/heterogeneous-array-object-first
+{"mixed":"x,y","mixed_a":"1,2"}
+# comma-nostats :: fidelity/heterogeneous-array-scalar-first
+{"mixed":"1,2","mixed_a":3}
+# comma-nostats :: fidelity/mixed-array-sentinel-vs-user-value-field
+{"mixed":"x","mixed_value":1}
+# comma-nostats :: fidelity/mixed-nested-array-sentinel-collision
+{"data":"text","data_name":"A"}
+# comma-nostats :: fidelity/nested-array-of-objects-default
+{"order_items_sku":"A,B","order_items_qty":"1,2"}
+# comma-nostats :: fidelity/nested-array-of-objects-explicit-hints
+{"order_items_sku":"A,B","order_items_qty":"1,2"}
+# comma-nostats :: fidelity/nested-array-of-scalars
+{"user_tags":"red,green"}
+# comma-nostats :: fidelity/nullable-nested-record-shadowed-json-stack
+{"orders_id":"1,2","orders_ship":null,"orders_ship_city":"NY"}
+# comma-nostats :: fidelity/object-chain-depth-8
+{"l1_l2_l3_l4_l5_l6_l7_l8":"leaf"}
+# comma-nostats :: fidelity/ragged-array-of-objects-absent-vs-null
+{"rows_a":"1,3","rows_b":2}
+# comma-nostats :: fidelity/reserved-marker-key-dropped
+{"cfg___meta__":1,"cfg____":2,"cfg_name":"x"}
+# comma-nostats :: fidelity/top-level-array-of-scalars
+{"tags":"red,green,blue","scores":"1,2,3"}
+# comma-nostats :: fidelity/vd-array-lookalike-fabricates-padding
+{"a_b":"[7]","a_c":"[1,2,3]"}
+# comma-nostats :: fidelity/vd-comma-format-atomic-coercion
+{"a_b":"true,null,007,1.10,0x1F"}
+# comma-nostats :: fidelity/vd-comma-format-empty-and-trailing-null
+{"a_b":",x"}
+# comma-nostats :: fidelity/vd-comma-format-scalar-with-comma
+{"a_b":"Smith, John","a_c":"plain"}
+# comma-nostats :: fidelity/vd-control-chars-and-long-string
+{"s_ctrl":"a\u0000b\u001Fcd","s_ws":"tab\there\nnl\rcr","s_quotes":"he said \"hi\" and \\ backslash","s_unicode":"héllo 😀 中文","s_long":"Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"}
+# comma-nostats :: fidelity/vd-decimal-scale-and-precision
+{"d_trailingZero":37.774,"d_oneFive":1.5,"d_highScale":0.12345678901234568,"d_beyondDouble":1.0,"d_money":19.99}
+# comma-nostats :: fidelity/vd-empty-containers-end-to-end
+{"e_emptyObj":null,"e_emptyArr":null,"e_explicitNull":null,"e_nonEmpty_x":1}
+# comma-nostats :: fidelity/vd-exponent-overflow-and-underflow
+{"d_over":"Infinity","d_negOver":"-Infinity","d_under":0.0,"d_nearMax":1.0E308}
+# comma-nostats :: fidelity/vd-integer-boundaries-within-long
+{"n_zero":0,"n_neg":-1,"n_i32max":2147483647,"n_i32maxPlus1":2147483648,"n_p53minus1":9007199254740991,"n_p53":9007199254740992,"n_p53plus1":9007199254740993,"n_i64max":9223372036854775807,"n_i64min":-9223372036854775808}
+# comma-nostats :: fidelity/vd-integer-past-long
+{"n_i64max":9223372036854775807,"n_i64maxPlus1":-9223372036854775808,"n_huge":-4362896299872285998}
+# comma-nostats :: fidelity/vd-nested-json-string-length-gate
+{"a_shortJson":"{\"x\":1}","a_longJson":"{\"x\":1,\"padpadpadpadpad\":2}"}
+# comma-nostats :: fidelity/vd-number-text-normalization
+{"n_exp":100.0,"n_expPlus":100.0,"n_plain":100.0,"n_int":100}
+# comma-nostats :: fidelity/vd-preserve-bigdecimal-flag-inert
+{"d_amount":37.774}
+# comma-nostats :: fidelity/vd-preserve-nulls-false-erases-present-null
+{"p_present":null,"p_other":1}
+# comma-nostats :: fidelity/vd-real-array-collides-with-array-text
+{"a_b":"1,2,3"}
+# comma-nostats :: fidelity/vd-signed-zero
+{"z_negDouble":-0.0,"z_posDouble":0.0,"z_negInt":0,"z_posInt":0}
+# comma-nostats :: fidelity/vd-string-literal-lookalikes
+{"wrap_sNull":"null","wrap_sTrue":"true","wrap_sFalse":"false","wrap_sInt":"1","wrap_sFloat":"1.0","wrap_sNaN":"NaN","wrap_sInf":"Infinity","wrap_sNegInf":"-Infinity","wrap_sEmpty":"","wrap_bTrue":true,"wrap_nInt":1,"wrap_nFloat":1.0}
+# comma-nostats :: fidelity/vd-string-that-looks-like-array
+{"a_b":"[1,2,3]"}
+# comma-nostats :: adv/leading-bracket-key
+{"[0]":1,"[1]":2}
+# comma-nostats :: adv/user-supplied-index-key
+{"a":"1,2"}
+# comma-nostats :: adv/newline-before-bracket
+{"a\n[0]":1,"a\r[0]":2,"a ":3}
+# comma-nostats :: adv/unicode-digit-index
+{"a[०]":1,"a[۰]":2,"a[０]":3}
+# comma-nostats :: adv/doubled-open-bracket
+{"a[":1,"a":"2,3"}
+# comma-nostats :: adv/unterminated-bracket
+{"a[0":1,"a[x]":2,"a[0x]":3,"a[]":4}
+# comma-nostats :: adv/huge-index-digits
+{"a":1}
+# comma-nostats :: adv/dot-and-underscore-keys
+{"a_b":2}
+# comma-nostats :: adv/no-underscore-array-names
+{"tags":"x,y","items_sku":"a,b"}
+# comma-nostats :: adv/single-element-array-with-delimiter
+{"items":"a,b,c","other":"p|q"}
+# comma-nostats :: adv/nested-array-of-arrays
+{"m":"1,2,3,4","n_k":1}
+# comma-nostats :: adv/empty-array-and-object
+{"e":null,"o":null,"n":null,"z":null}
+# comma-nostats :: adv/numeric-looking-strings
+{"v":"1,2.5,+3,-0,1e10,0x1p3,1d,NaN,Infinity"}
+# comma-nostats :: adv/boolean-and-mixed-arrays
+{"b":"true,FALSE","m":"true,1","s":",  "}
+# comma-nostats :: adv/duplicate-and-empty-values
+{"d":"x,x,,yy","c":",,,,"}
+# comma-nostats :: shape/wideFlat40
+{"field_str_0":"um25bb0a","field_str_1":"qi10z3he","field_str_2":"hp7vr8ey","field_str_3":"5mpk0vf7","field_str_4":"a8ldf09p","field_str_5":"icvgpg7l","field_str_6":"hfmtsei5","field_str_7":"gi62p2ur","field_str_8":"g0pj7r5e","field_str_9":"d2s6za56","field_str_10":"4ldjn3ck","field_str_11":"jn7ktnl4","field_str_12":"u93e7o9o","field_str_13":"e7zi1esf","field_str_14":"fgbggm8f","field_str_15":"zcxrztad","field_str_16":"ph27yw9p","field_str_17":"5bs09b1e","field_str_18":"4uwxvsle","field_str_19":"e77aw82b","field_str_20":"anrk1zaf","field_str_21":"au4tdiil","field_str_22":"5oplb0l4","field_str_23":"a3qdwhi2","field_str_24":"wfh7scxz","field_str_25":"xsnfdi8i","field_str_26":"5nhch0qm","field_str_27":"uoh47woq","field_str_28":"bk4j6bl8","field_str_29":"693hqd7p","field_str_30":"sdg6tkag","field_str_31":"e69c0s9j","field_str_32":"rcxtw69w","field_str_33":"2hfwojjk","field_str_34":"yrb869r6","field_str_35":"qlo0byow","field_str_36":"gqnwt2xp","field_str_37":"bw4a798l","field_str_38":"nmtpdem8","field_str_39":"qtlhe53n"}
+# comma-nostats :: shape/deepNarrow24
+{"level_0_level_1_level_2_level_3_level_4_level_5_level_6_level_7_level_8_level_9_level_10_level_11_level_12_level_13_level_14_level_15_level_16_level_17_level_18_level_19_level_20_level_21_level_22_leaf_value":"terminal"}
+# comma-nostats :: shape/arrayHeavySmall
+{"numeric_array_0":"43377,34808,62688,80782,71093,82055,49874,17494,82585,44676,56414,73904","numeric_array_1":"52508,66680,191,62003,6158,38750,64469,32035,16699,26206,31005,1311","numeric_array_2":"43640,67892,6635,77207,81609,24176,46631,12251,57164,66198,15873,29071","string_array_0":"wjwxdzj4,in88cj44,8zezr8r2,vw11zsho,8cjj5jf1,b4fiet5n,z2f74gs0,lg5qd29k,cy78omjv,8w8akw1x,dtyk4oq1,ix3nwiud","string_array_1":"ccmy4wgp,iodddmsn,cqu1hpgj,iwkt84pr,k8panawg,sbrbqxnn,5ut9zn7l,c4xctg1z,bmw78qz2,4hbkprh7,37tloq67,x24own6s","string_array_2":"uvfvmlgq,zcnwkarq,ct0dtz6a,92u07jle,ky2ossz8,gpsa6h0h,tjcl3wup,7v39c1tq,ak1zn5hh,lnhf60g2,paeklemo,ktrb61r3","record_array_nested_field_0":"89v0gd,bzvgna,cn2p2z,67v859,dnu9hg","record_array_nested_field_1":"915,844,801,920,928"}
+# comma-nostats :: shape/mixedProduction
+{"order_id":"ord-1","created_at":"2026-08-19","order_total":12.5,"attribute_0_value":null,"attribute_1_value":9,"attribute_2_value":"s","user_user_id":7,"user_user_name":"n","user_is_active":true,"line_items_sku_code":"a,b","line_items_quantity_ordered":"1,3","line_items_unit_price":"2.0,4.5"}
+# comma-matrix-stats :: fidelity/avro-array-element-multi-branch-union-dropped
+{"items_sku":"[0]a,[1]b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":4,"items_sku_max_length":4,"items_sku_avg_length":4.0,"items_sku_type":"string_list_consolidated","items_meta_src":"[0]web,[1]pos","items_meta_src_count":2,"items_meta_src_distinct_count":2,"items_meta_src_min_length":6,"items_meta_src_max_length":6,"items_meta_src_avg_length":6.0,"items_meta_src_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-array-element-multi-branch-union-mixed-branches
+{"items_sku":"[0]a,[1]b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":4,"items_sku_max_length":4,"items_sku_avg_length":4.0,"items_sku_type":"string_list_consolidated","items_meta":"[1]plain","items_meta_count":1,"items_meta_distinct_count":1,"items_meta_min_length":8,"items_meta_max_length":8,"items_meta_avg_length":8.0,"items_meta_type":"string_single_value","items_meta_src":"[0]web","items_meta_src_count":1,"items_meta_src_distinct_count":1,"items_meta_src_min_length":6,"items_meta_src_max_length":6,"items_meta_src_avg_length":6.0,"items_meta_src_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-bracket-list-round-trip
+{"line_items_sku":"[0]SKU-311,[1]SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"[0]Bolt, hex, M8,[1]Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":9,"line_items_description_max_length":16,"line_items_description_avg_length":12.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"[0]4,[1]8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":4,"line_items_quantity_max_length":4,"line_items_quantity_avg_length":4.0,"line_items_quantity_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-control
+{"orders_id":"[0]1,[1]2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":4,"orders_id_max_length":4,"orders_id_avg_length":4.0,"orders_id_type":"string_list_consolidated","orders_ship_city":"[0]NY,[1]LA","orders_ship_city_count":2,"orders_ship_city_distinct_count":2,"orders_ship_city_min_length":5,"orders_ship_city_max_length":5,"orders_ship_city_avg_length":5.0,"orders_ship_city_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-datum-unwritable
+{"orders_id":"[0]1,[1]2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":4,"orders_id_max_length":4,"orders_id_avg_length":4.0,"orders_id_type":"string_list_consolidated","orders_ship_city":"[0]NY,[1]LA","orders_ship_city_count":2,"orders_ship_city_distinct_count":2,"orders_ship_city_min_length":5,"orders_ship_city_max_length":5,"orders_ship_city_avg_length":5.0,"orders_ship_city_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-nested-only-collapses-to-one
+{"order_id":"O1","line_items_meta_code":"[0]C1,[1]C2,[2]C3","line_items_meta_code_count":3,"line_items_meta_code_distinct_count":3,"line_items_meta_code_min_length":5,"line_items_meta_code_max_length":5,"line_items_meta_code_avg_length":5.0,"line_items_meta_code_type":"string_list_consolidated","line_items_meta_label":"[0]L1,[1]L2,[2]L3","line_items_meta_label_count":3,"line_items_meta_label_distinct_count":3,"line_items_meta_label_min_length":5,"line_items_meta_label_max_length":5,"line_items_meta_label_avg_length":5.0,"line_items_meta_label_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-null-element-annihilates-array
+{"orders":null,"orders_count":0,"orders_distinct_count":0,"orders_id":"[0]1","orders_id_count":1,"orders_id_distinct_count":1,"orders_id_min_length":4,"orders_id_max_length":4,"orders_id_avg_length":4.0,"orders_id_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-nullable-nested-record-shadowed
+{"orders_id":"[0]1,[1]2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":4,"orders_id_max_length":4,"orders_id_avg_length":4.0,"orders_id_type":"string_list_consolidated","orders_ship":null,"orders_ship_count":0,"orders_ship_distinct_count":0,"orders_ship_city":"[0]NY","orders_ship_city_count":1,"orders_ship_city_distinct_count":1,"orders_ship_city_min_length":5,"orders_ship_city_max_length":5,"orders_ship_city_avg_length":5.0,"orders_ship_city_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/avro-array-of-records-pipe-format-comma-inside-element
+{"line_items_sku":"[0]SKU-311,[1]SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"[0]Bolt, hex, M8,[1]Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":9,"line_items_description_max_length":16,"line_items_description_avg_length":12.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"[0]4,[1]8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":4,"line_items_quantity_max_length":4,"line_items_quantity_avg_length":4.0,"line_items_quantity_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-array-statistics-suffix-silent-overwrite
+{"tags_count":2,"tags":"[0]a,[1]b","tags_distinct_count":2,"tags_min_length":4,"tags_max_length":4,"tags_avg_length":4.0,"tags_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/avro-bare-logical-types-are-a-writable-datum
+{"d":19000,"ts":1700000000000,"s":null}
+# comma-matrix-stats :: fidelity/avro-boundary-separator-datum-does-not-hold-under-defaults
+{"attrs_unit":"C","attrs_value":21.5}
+# comma-matrix-stats :: fidelity/avro-bytes-b64-sentinel-and-fixed-charset
+{"payload":"B64:AAAA","sig":"ÿ\u0001\u0002\u0003"}
+# comma-matrix-stats :: fidelity/avro-decimal-bytes-scale-mismatch
+{"amount":12.5,"fee":0.5}
+# comma-matrix-stats :: fidelity/avro-empty-datum-cannot-build-a-record
+{}
+# comma-matrix-stats :: fidelity/avro-enum-accepted-fixed-decimal-erased
+{"status":"SUSPENDED","price":1234.5678}
+# comma-matrix-stats :: fidelity/avro-flat-record-is-a-valid-datum-control
+{"id":7,"name":"a","ok":true,"ratio":1.5,"note":null}
+# comma-matrix-stats :: fidelity/avro-flattened-name-collision-guard-fires
+{"user_id":"nested"}
+# comma-matrix-stats :: fidelity/avro-generic-record-is-not-a-valid-datum
+{"id":1,"ship_city":"NY"}
+# comma-matrix-stats :: fidelity/avro-logical-type-datum-is-writable-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":null}
+# comma-matrix-stats :: fidelity/avro-logical-types-erased-inside-arrays
+{"events_occurredAt":"[0]1609459200000","events_occurredAt_count":1,"events_occurredAt_distinct_count":1,"events_occurredAt_min_length":16,"events_occurredAt_max_length":16,"events_occurredAt_avg_length":16.0,"events_occurredAt_type":"numeric_single_value","events_day":"[0]18628","events_day_count":1,"events_day_distinct_count":1,"events_day_min_length":8,"events_day_max_length":8,"events_day_avg_length":8.0,"events_day_type":"numeric_single_value","events_amount":"[0]1.25","events_amount_count":1,"events_amount_distinct_count":1,"events_amount_min_length":7,"events_amount_max_length":7,"events_amount_avg_length":7.0,"events_amount_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/avro-map-of-records-control
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# comma-matrix-stats :: fidelity/avro-map-of-records-datum-unwritable
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# comma-matrix-stats :: fidelity/avro-nullable-scalars-and-logical-types-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":null}
+# comma-matrix-stats :: fidelity/avro-nullable-string-literal-null-collapses
+{"status":"null","padded":" null ","safe":"nullable"}
+# comma-matrix-stats :: fidelity/avro-reconstruct-original-schema-ignores-argument
+{"id":"x-1","nested_n":7}
+# comma-matrix-stats :: fidelity/avro-record-defaults-dropped-in-reconstructed-schema
+{"id":"x-1","retries":3,"region":"us-east-1"}
+# comma-matrix-stats :: fidelity/avro-recursive-schema-stack-overflows
+{"name":"root","child_name":"leaf","child_child":null}
+# comma-matrix-stats :: fidelity/avro-schema-cache-hit-with-distinct-names-control
+{"id":"e1","amount":12.5}
+# comma-matrix-stats :: fidelity/avro-schema-cache-serves-a-stale-flattened-schema
+{"id":"e1","amount":12.5}
+# comma-matrix-stats :: fidelity/avro-underscore-field-name-column-divergence
+{"user_id":"u-1","balance":10.5}
+# comma-matrix-stats :: fidelity/avro-union-long-before-double-truncates
+{"amount":3.7,"count":5}
+# comma-matrix-stats :: fidelity/avro-union-of-records-overlapping-fields
+{"payment_id":"p-1","payment_routing":"021000021","payment_account":"12345678"}
+# comma-matrix-stats :: fidelity/avro-union-string-branch-swallows-int
+{"v":42,"w":true}
+# comma-matrix-stats :: fidelity/array-cells-below-max
+{"r_a":"[0]1,[1]3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]2,[1]4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":4,"r_b_max_length":4,"r_b_avg_length":4.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-cells-exactly-max
+{"r_a":"[0]1,[1]3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]2,[1]4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":4,"r_b_max_length":4,"r_b_avg_length":4.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-cells-one-over-max
+{"r_a":"[0]1,[1]3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]2,[1]4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":4,"r_b_max_length":4,"r_b_avg_length":4.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-size-below-max
+{"r_a":"[0]1,[1]2,[2]3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]10,[1]20,[2]30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":5,"r_b_max_length":5,"r_b_avg_length":5.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-size-exactly-max
+{"r_a":"[0]1,[1]2,[2]3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]10,[1]20,[2]30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":5,"r_b_max_length":5,"r_b_avg_length":5.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-size-max-one-collapses-the-type
+{"r_a":"[0]1,[1]2,[2]3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]10,[1]20,[2]30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":5,"r_b_max_length":5,"r_b_avg_length":5.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-size-one-over-max
+{"r_a":"[0]1,[1]2,[2]3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":4,"r_a_max_length":4,"r_a_avg_length":4.0,"r_a_type":"string_list_consolidated","r_b":"[0]10,[1]20,[2]30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":5,"r_b_max_length":5,"r_b_avg_length":5.0,"r_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/depth-below-max
+{"outer_leaf":7,"outer_other":"text"}
+# comma-matrix-stats :: fidelity/depth-bound-bypassed-by-empty-container
+{"a":null,"b_c":1}
+# comma-matrix-stats :: fidelity/depth-bound-map-vs-list-asymmetry
+{"a_b_c":1,"a_d":"[0]1,[1]2","a_d_count":2,"a_d_distinct_count":2,"a_d_min_length":4,"a_d_max_length":4,"a_d_avg_length":4.0,"a_d_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/depth-exactly-max
+{"l1_l2_leaf":7,"l1_l2_tag":"x"}
+# comma-matrix-stats :: fidelity/depth-one-over-max
+{"l1_l2_l3_leaf":7}
+# comma-matrix-stats :: fidelity/depth-overflow-aliases-a-real-string
+{"l1_l2_l3":"{\"leaf\":7}"}
+# comma-matrix-stats :: fidelity/empty-chains-yield-keys-with-zero-leaves
+{"a":null,"b_c":null,"d_e_f":null}
+# comma-matrix-stats :: fidelity/invalid-maxdepth-fails-closed
+{"a":1}
+# comma-matrix-stats :: fidelity/map-size-limit-truncates-fields-silently
+{"f1":1,"f2":2,"f3":3,"f4":4,"f5":5,"f6":6,"f7":7,"f8":8,"f9":9,"f10":10}
+# comma-matrix-stats :: fidelity/reconstructor-maxdepth-is-a-dead-control
+{"d1_d2_d3_d4_d5_d6_d7_leaf":1}
+# comma-matrix-stats :: fidelity/single-element-array-at-the-arity-lower-bound
+{"r_tags":"[0]only","r_tags_count":1,"r_tags_distinct_count":1,"r_tags_min_length":7,"r_tags_max_length":7,"r_tags_avg_length":7.0,"r_tags_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/sparse-array-of-maps-padding-misaligns-elements
+{"r_k1":"[0]1","r_k1_count":1,"r_k1_distinct_count":1,"r_k1_min_length":4,"r_k1_max_length":4,"r_k1_avg_length":4.0,"r_k1_type":"numeric_single_value","r_z":"[0]0,[1]0,[2]0","r_z_count":3,"r_z_distinct_count":3,"r_z_min_length":4,"r_z_max_length":4,"r_z_avg_length":4.0,"r_z_type":"string_list_consolidated","r_k2":"[1]2","r_k2_count":1,"r_k2_distinct_count":1,"r_k2_min_length":4,"r_k2_max_length":4,"r_k2_avg_length":4.0,"r_k2_type":"numeric_single_value","r_k3":"[2]3","r_k3_count":1,"r_k3_distinct_count":1,"r_k3_min_length":4,"r_k3_max_length":4,"r_k3_avg_length":4.0,"r_k3_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/wide-record-210-fields-under-one-parent
+{"rec_a1":1,"rec_a2":2,"rec_a3":3,"rec_a4":4,"rec_a5":5,"rec_a6":6,"rec_a7":7,"rec_a8":8,"rec_a9":9,"rec_a10":10,"rec_a11":11,"rec_a12":12,"rec_a13":13,"rec_a14":14,"rec_a15":15,"rec_a16":16,"rec_a17":17,"rec_a18":18,"rec_a19":19,"rec_a20":20,"rec_a21":21,"rec_a22":22,"rec_a23":23,"rec_a24":24,"rec_a25":25,"rec_a26":26,"rec_a27":27,"rec_a28":28,"rec_a29":29,"rec_a30":30,"rec_a31":31,"rec_a32":32,"rec_a33":33,"rec_a34":34,"rec_a35":35,"rec_a36":36,"rec_a37":37,"rec_a38":38,"rec_a39":39,"rec_a40":40,"rec_a41":41,"rec_a42":42,"rec_a43":43,"rec_a44":44,"rec_a45":45,"rec_a46":46,"rec_a47":47,"rec_a48":48,"rec_a49":49,"rec_a50":50,"rec_a51":51,"rec_a52":52,"rec_a53":53,"rec_a54":54,"rec_a55":55,"rec_a56":56,"rec_a57":57,"rec_a58":58,"rec_a59":59,"rec_a60":60,"rec_a61":61,"rec_a62":62,"rec_a63":63,"rec_a64":64,"rec_a65":65,"rec_a66":66,"rec_a67":67,"rec_a68":68,"rec_a69":69,"rec_a70":70,"rec_a71":71,"rec_a72":72,"rec_a73":73,"rec_a74":74,"rec_a75":75,"rec_a76":76,"rec_a77":77,"rec_a78":78,"rec_a79":79,"rec_a80":80,"rec_a81":81,"rec_a82":82,"rec_a83":83,"rec_a84":84,"rec_a85":85,"rec_a86":86,"rec_a87":87,"rec_a88":88,"rec_a89":89,"rec_a90":90,"rec_a91":91,"rec_a92":92,"rec_a93":93,"rec_a94":94,"rec_a95":95,"rec_a96":96,"rec_a97":97,"rec_a98":98,"rec_a99":99,"rec_a100":100,"rec_a101":101,"rec_a102":102,"rec_a103":103,"rec_a104":104,"rec_a105":105,"rec_a106":106,"rec_a107":107,"rec_a108":108,"rec_a109":109,"rec_a110":110,"rec_a111":111,"rec_a112":112,"rec_a113":113,"rec_a114":114,"rec_a115":115,"rec_a116":116,"rec_a117":117,"rec_a118":118,"rec_a119":119,"rec_a120":120,"rec_a121":121,"rec_a122":122,"rec_a123":123,"rec_a124":124,"rec_a125":125,"rec_a126":126,"rec_a127":127,"rec_a128":128,"rec_a129":129,"rec_a130":130,"rec_a131":131,"rec_a132":132,"rec_a133":133,"rec_a134":134,"rec_a135":135,"rec_a136":136,"rec_a137":137,"rec_a138":138,"rec_a139":139,"rec_a140":140,"rec_a141":141,"rec_a142":142,"rec_a143":143,"rec_a144":144,"rec_a145":145,"rec_a146":146,"rec_a147":147,"rec_a148":148,"rec_a149":149,"rec_a150":150,"rec_a151":151,"rec_a152":152,"rec_a153":153,"rec_a154":154,"rec_a155":155,"rec_a156":156,"rec_a157":157,"rec_a158":158,"rec_a159":159,"rec_a160":160,"rec_a161":161,"rec_a162":162,"rec_a163":163,"rec_a164":164,"rec_a165":165,"rec_a166":166,"rec_a167":167,"rec_a168":168,"rec_a169":169,"rec_a170":170,"rec_a171":171,"rec_a172":172,"rec_a173":173,"rec_a174":174,"rec_a175":175,"rec_a176":176,"rec_a177":177,"rec_a178":178,"rec_a179":179,"rec_a180":180,"rec_a181":181,"rec_a182":182,"rec_a183":183,"rec_a184":184,"rec_a185":185,"rec_a186":186,"rec_a187":187,"rec_a188":188,"rec_a189":189,"rec_a190":190,"rec_a191":191,"rec_a192":192,"rec_a193":193,"rec_a194":194,"rec_a195":195,"rec_a196":196,"rec_a197":197,"rec_a198":198,"rec_a199":199,"rec_a200":200,"rec_a201":201,"rec_a202":202,"rec_a203":203,"rec_a204":204,"rec_a205":205,"rec_a206":206,"rec_a207":207,"rec_a208":208,"rec_a209":209,"rec_a210":210}
+# comma-matrix-stats :: fidelity/wide-separator-heavy-np021-regression
+{"root_deep_nest_field_one_x1":1,"root_deep_nest_field_one_x2":2,"root_deep_nest_field_one_x3":3,"root_deep_nest_field_one_x4":4,"root_deep_nest_field_one_x5":5,"root_deep_nest_field_one_x6":6,"root_deep_nest_field_one_x7":7,"root_deep_nest_field_one_x8":8,"root_deep_nest_field_one_x9":9,"root_deep_nest_field_one_x10":10,"root_deep_nest_field_one_x11":11,"root_deep_nest_field_one_x12":12,"root_deep_nest_field_one_x13":13,"root_deep_nest_field_one_x14":14,"root_deep_nest_field_one_x15":15,"root_deep_nest_field_one_x16":16,"root_deep_nest_field_one_x17":17,"root_deep_nest_field_one_x18":18,"root_deep_nest_field_one_x19":19,"root_deep_nest_field_one_x20":20,"root_deep_nest_field_one_x21":21,"root_deep_nest_field_one_x22":22,"root_deep_nest_field_one_x23":23,"root_deep_nest_field_one_x24":24}
+# comma-matrix-stats :: fidelity/array-boundary-separator-manufactures-a-collision
+{"a__b":1,"a_b":2}
+# comma-matrix-stats :: fidelity/backslash-and-preencoded-lookalike-names
+{"a\\b":1,"a\\_b":2,"a_b":4,"a\\":5}
+# comma-matrix-stats :: fidelity/case-only-differing-names-preserved
+{"Id":1,"id":2,"ID":3}
+# comma-matrix-stats :: fidelity/double-underscore-namespace-swallowed
+{"__":2,"_x_":3,"__meta___v":1}
+# comma-matrix-stats :: fidelity/empty-string-key-renamed-into-collision
+{"":1,"empty_key":2}
+# comma-matrix-stats :: fidelity/is-array-field-name-changes-json-type
+{"cfg___isArray__":true,"cfg_name":"x"}
+# comma-matrix-stats :: fidelity/lower-case-collision-suffix-corrupts-structure
+{"Id":1,"id":2}
+# comma-matrix-stats :: fidelity/multichar-separator-with-single-separator-char-in-name
+{"__x":1,"a_b_c":2}
+# comma-matrix-stats :: fidelity/punctuation-and-control-chars-in-names
+{"a_b":1,"d\"e":3,"f\ng":4,"h i":5,"c":"[0]2"}
+# comma-matrix-stats :: fidelity/separator-in-name-vs-nesting
+{"user_id":2}
+# comma-matrix-stats :: fidelity/snake-case-injects-unescaped-separators
+{"userId":1}
+# comma-matrix-stats :: fidelity/strict-key-validation-folds-three-names-into-one
+{"a_b":1,"a-b":2,"a b":3}
+# comma-matrix-stats :: fidelity/top-level-double-sanitization-asymmetry
+{"a___b":1,"n_a___b":2}
+# comma-matrix-stats :: fidelity/triple-underscore-key-dropped
+{"___":1,"ok":2}
+# comma-matrix-stats :: fidelity/underscore-boundary-around-the-np022-trap
+{"_":1,"__x":3,"x__":4,"a__":2}
+# comma-matrix-stats :: fidelity/unicode-names-must-not-normalize
+{"café":1,"café":2,"🔑":3,"עברית":4}
+# comma-matrix-stats :: fidelity/upper-case-strategy-renames-without-restructuring
+{"e":2,"a_b_cD":1}
+# comma-matrix-stats :: fidelity/user-field-named-value-vs-flattener-sentinel
+{"a__value":1,"b__value__value":2}
+# comma-matrix-stats :: fidelity/recipe-diverges-when-the-flattener-is-tuned
+{"a_b_c_d":"leaf"}
+# comma-matrix-stats :: fidelity/recipe-holds-on-a-plain-defaults-document
+{"order_id":"A-1","order_qty":3,"order_paid":true,"order_note":null}
+# comma-matrix-stats :: fidelity/cdc-create-before-null
+{"op":"c","ts_ms":1786321931482,"before":null,"source_connector":"postgresql","source_db":"sales","source_table":"orders","source_lsn":24576123,"after_order_id":8814,"after_customer_id":77301,"after_status":"pending","after_total_amount":148.75}
+# comma-matrix-stats :: fidelity/cdc-update-with-array-column
+{"op":"u","ts_ms":1786321931482,"before_order_id":8814,"before_status":"pending","after_order_id":8814,"after_status":"shipped","before_tag_list":"[0]rush,[1]gift","before_tag_list_count":2,"before_tag_list_distinct_count":2,"before_tag_list_min_length":7,"before_tag_list_max_length":7,"before_tag_list_avg_length":7.0,"before_tag_list_type":"string_list_consolidated","after_tag_list":"[0]rush,[1]gift,[2]insured","after_tag_list_count":3,"after_tag_list_distinct_count":3,"after_tag_list_min_length":7,"after_tag_list_max_length":10,"after_tag_list_avg_length":8.0,"after_tag_list_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/customer-preferences-object-with-array
+{"customer_id":"CUST-88120","loyalty_tier":"gold","preferences_theme":"dark","preferences_locale":"en_GB","preferences_notification_channels":"[0]email,[1]sms,[2]push","preferences_notification_channels_count":3,"preferences_notification_channels_distinct_count":3,"preferences_notification_channels_min_length":6,"preferences_notification_channels_max_length":8,"preferences_notification_channels_avg_length":7.0,"preferences_notification_channels_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/customer-profile-addresses-and-preferences
+{"customer_id":"CUST-77301","full_name":"José Álvarez-Ng","email":"jose@example.com","loyalty_points":12500,"preferences_theme":"dark","preferences_locale":"fr_CA","preferences_email_opt_in":true,"preferences_sms_opt_in":false,"addresses_address_type":"[0]billing,[1]shipping","addresses_address_type_count":2,"addresses_address_type_distinct_count":2,"addresses_address_type_min_length":10,"addresses_address_type_max_length":11,"addresses_address_type_avg_length":10.5,"addresses_address_type_type":"string_list_consolidated","addresses_line_1":"[0]12 Rue de l'Église,[1]500 Market St","addresses_line_1_count":2,"addresses_line_1_distinct_count":2,"addresses_line_1_min_length":16,"addresses_line_1_max_length":21,"addresses_line_1_avg_length":18.5,"addresses_line_1_type":"string_list_consolidated","addresses_city":"[0]Montréal,[1]San Francisco","addresses_city_count":2,"addresses_city_distinct_count":2,"addresses_city_min_length":11,"addresses_city_max_length":16,"addresses_city_avg_length":13.5,"addresses_city_type":"string_list_consolidated","addresses_postal_code":"[0]H2X 1Y4,[1]94105","addresses_postal_code_count":2,"addresses_postal_code_distinct_count":2,"addresses_postal_code_min_length":8,"addresses_postal_code_max_length":10,"addresses_postal_code_avg_length":9.0,"addresses_postal_code_type":"string_list_consolidated","addresses_country_code":"[0]CA,[1]US","addresses_country_code_count":2,"addresses_country_code_distinct_count":2,"addresses_country_code_min_length":5,"addresses_country_code_max_length":5,"addresses_country_code_avg_length":5.0,"addresses_country_code_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/customer-profile-legacy-key-shadow
+{"customer_id":"CUST-90210","preferences_theme":"dark","preferences_digest":"weekly","notification_settings_push":true}
+# comma-matrix-stats :: fidelity/empty-cart
+{"cart_id":"CART-000551","customer_id":"CUST-77301","line_items":null,"applied_promo_codes":null,"totals":null,"updated_at":"2026-08-09T14:32:11Z"}
+# comma-matrix-stats :: fidelity/event-envelope-mixed-attachments
+{"event_id":"evt_9931","event_type":"ticket.updated","actor_id":"USR-42","attachments":"[2]legacy-inline-note","attachments_count":1,"attachments_distinct_count":1,"attachments_min_length":21,"attachments_max_length":21,"attachments_avg_length":21.0,"attachments_type":"string_single_value","attachments_kind":"[0]image,[1]pdf","attachments_kind_count":2,"attachments_kind_distinct_count":2,"attachments_kind_min_length":6,"attachments_kind_max_length":8,"attachments_kind_avg_length":7.0,"attachments_kind_type":"string_list_consolidated","attachments_url":"[0]https://cdn.example.com/a.png,[1]https://cdn.example.com/b.pdf","attachments_url_count":2,"attachments_url_distinct_count":2,"attachments_url_min_length":32,"attachments_url_max_length":32,"attachments_url_avg_length":32.0,"attachments_url_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/event-envelope-sentinel-metadata-keys
+{"event_id":"evt_01J8ZQ4","occurred_at":"2026-08-09T14:32:11Z","source_service":"billing-api","__meta___ingest_partition":7,"__meta___schema_version":3,"payload___type__":"invoice.paid","payload_invoice_id":"INV-9931","payload_amount_paid":249.0,"payload_paid_by":"CUST-77301"}
+# comma-matrix-stats :: fidelity/financial-transaction-high-precision
+{"transaction_id":"TXN-2026-0814","posted_at":"2026-08-09T14:32:11.482913Z","currency_code":"USD","amount_text":"1250.00","fx_rate":0.8771234567890124,"amount_value":9.007199254740994E15,"amount_scale":2,"counterparty_name":"Northwind Ltd","counterparty_account_ref":"GB29NWBK60161331926819"}
+# comma-matrix-stats :: fidelity/financial-transaction-huge-minor-units
+{"transaction_id":"TXN-2026-0815","currency_code":"JPY","amount_minor_units":-4362896299872285998,"booked_at":"2026-08-09T14:32:11Z","ledger_sequence":9007199254740993}
+# comma-matrix-stats :: fidelity/line-item-tag-arrays
+{"order_id":"ORD-2026-0006","line_items_sku":"[0]SKU-100,[1]SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_tags":"[0][0]gift,[0][1]fragile,[1][0]backorder","line_items_tags_count":3,"line_items_tags_distinct_count":3,"line_items_tags_min_length":10,"line_items_tags_max_length":15,"line_items_tags_avg_length":12.666666666666666,"line_items_tags_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/order-line-item-nested-address
+{"order_id":"ORD-2026-0003","status":"packed","line_items_sku":"[0]SKU-100,[1]SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"[0]1,[1]3","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":4,"line_items_quantity_max_length":4,"line_items_quantity_avg_length":4.0,"line_items_quantity_type":"string_list_consolidated","line_items_ship_from_warehouse_code":"[0]NYC-1,[1]LAX-2","line_items_ship_from_warehouse_code_count":2,"line_items_ship_from_warehouse_code_distinct_count":2,"line_items_ship_from_warehouse_code_min_length":8,"line_items_ship_from_warehouse_code_max_length":8,"line_items_ship_from_warehouse_code_avg_length":8.0,"line_items_ship_from_warehouse_code_type":"string_list_consolidated","line_items_ship_from_country_code":"[0]US,[1]US","line_items_ship_from_country_code_count":2,"line_items_ship_from_country_code_distinct_count":2,"line_items_ship_from_country_code_min_length":5,"line_items_ship_from_country_code_max_length":5,"line_items_ship_from_country_code_avg_length":5.0,"line_items_ship_from_country_code_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/order-line-items-comma-separated
+{"order_id":"ORD-2026-0008","currency_code":"USD","line_items_sku":"[0]SKU-311,[1]SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"[0]Bolt, hex, M8,[1]Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":9,"line_items_description_max_length":16,"line_items_description_avg_length":12.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"[0]4,[1]8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":4,"line_items_quantity_max_length":4,"line_items_quantity_avg_length":4.0,"line_items_quantity_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/order-multi-line-items
+{"order_id":"ORD-2026-0001","placed_at":"2026-08-09T14:32:11Z","status":"confirmed","currency_code":"USD","shipping_address_line_1":"500 Market St","shipping_address_city":"San Francisco","shipping_address_postal_code":"94105","shipping_address_country_code":"US","line_items_sku":"[0]SKU-100,[1]SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"[0]2,[1]1","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":4,"line_items_quantity_max_length":4,"line_items_quantity_avg_length":4.0,"line_items_quantity_type":"string_list_consolidated","line_items_unit_price":"[0]19.99,[1]5.5","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":6,"line_items_unit_price_max_length":8,"line_items_unit_price_avg_length":7.0,"line_items_unit_price_type":"string_list_consolidated","line_items_discount_pct":"[1]10","line_items_discount_pct_count":1,"line_items_discount_pct_distinct_count":1,"line_items_discount_pct_min_length":5,"line_items_discount_pct_max_length":5,"line_items_discount_pct_avg_length":5.0,"line_items_discount_pct_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/order-optional-discount-absent
+{"order_id":"ORD-2026-0004","currency_code":"USD","line_items_sku":"[0]SKU-100,[1]SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":10,"line_items_sku_max_length":10,"line_items_sku_avg_length":10.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"[0]1,[1]2","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":4,"line_items_quantity_max_length":4,"line_items_quantity_avg_length":4.0,"line_items_quantity_type":"string_list_consolidated","line_items_unit_price":"[0]19.99,[1]7.25","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":7,"line_items_unit_price_max_length":8,"line_items_unit_price_avg_length":7.5,"line_items_unit_price_type":"string_list_consolidated","line_items_discount_pct":"[1]15"}
+# comma-matrix-stats :: fidelity/order-single-line-item
+{"order_id":"ORD-2026-0002","status":"confirmed","currency_code":"USD","line_items_sku":"[0]SKU-100","line_items_quantity":"[0]1","line_items_unit_price":"[0]19.99"}
+# comma-matrix-stats :: fidelity/order-top-level-tags-array
+{"order_id":"ORD-2026-0007","status":"confirmed","fulfillment_tags":"[0]priority,[1]gift_wrap,[2]signature_required","fulfillment_tags_count":3,"fulfillment_tags_distinct_count":3,"fulfillment_tags_min_length":11,"fulfillment_tags_max_length":21,"fulfillment_tags_avg_length":14.666666666666666,"fulfillment_tags_type":"string_list_consolidated","warehouse_codes":"[0]NYC-1,[1]LAX-2","warehouse_codes_count":2,"warehouse_codes_distinct_count":2,"warehouse_codes_min_length":8,"warehouse_codes_max_length":8,"warehouse_codes_avg_length":8.0,"warehouse_codes_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/telemetry-nested-optional-groups
+{"device_id":"sensor-4417","recorded_at":"2026-08-09T14:32:11.482Z","firmware_version":"2.14.0-rc3","uplink_rssi_dbm":-97,"labels_site":"us-east-1a","labels_rack":"R12","labels_owner_team":"iot_platform","readings_environment_temperature_c":21.5,"readings_environment_relative_humidity_pct":null,"readings_environment_pressure_hpa":1013.25,"readings_power_battery_pct":88,"readings_power_charging":false,"readings_power_solar_panel_voltage_v":17.2,"readings_power_solar_fault_code":null}
+# comma-matrix-stats :: fidelity/enriched-custom-properties-survive-the-flatten
+{"order_id":"o-1","customer_full_name":"A B"}
+# comma-matrix-stats :: fidelity/enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# comma-matrix-stats :: fidelity/enriched-entrypoints-agree-without-injection
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-escape-forged-array-boundary-is-refused
+{"axb":"2","a_b":"[0]1","a_b_count":1,"a_b_distinct_count":1,"a_b_min_length":4,"a_b_max_length":4,"a_b_avg_length":4.0,"a_b_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/enriched-escape-name-decodes-back-to-its-path
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-escape-name-does-not-decode-across-an-array-boundary
+{"items_sku":"[0]A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":5,"items_sku_max_length":5,"items_sku_avg_length":5.0,"items_sku_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/enriched-escape-policy-agrees-with-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-escape-resolves-the-collision
+{"user_name":"b"}
+# comma-matrix-stats :: fidelity/enriched-fail-policy-refuses-a-colliding-schema
+{"user_name":"b"}
+# comma-matrix-stats :: fidelity/enriched-gavro-parity-claim-fails-at-array-boundaries
+{"items_sku":"[0]A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":5,"items_sku_max_length":5,"items_sku_avg_length":5.0,"items_sku_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/enriched-gavro-parity-claim-fails-on-underscores
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-gavro-parity-diverges-on-a-multi-branch-union
+{"payload_k":"v"}
+# comma-matrix-stats :: fidelity/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records
+{"grid_v":"[0][0]1","grid_v_count":1,"grid_v_distinct_count":1,"grid_v_min_length":7,"grid_v_max_length":7,"grid_v_avg_length":7.0,"grid_v_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary
+{"items_sku":"[0]A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":5,"items_sku_max_length":5,"items_sku_avg_length":5.0,"items_sku_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/enriched-gavro-parity-factory-matches-gavro-on-underscored-names
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-inheritdoc-false-reports-declared-only-docs
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# comma-matrix-stats :: fidelity/enriched-injected-column-colliding-with-a-source-column-is-refused
+{"order_id":"o-1","amount":"9.99"}
+# comma-matrix-stats :: fidelity/enriched-keyset-diverges-from-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-leaf-doc-is-reported-as-its-own
+{"order_id":"o-1","ship_city":"Denver"}
+# comma-matrix-stats :: fidelity/enriched-matches-legacy-avro-schema-flattener
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-nested-record-column-parity-control
+{"id":"p1","home_city":"NY","home_zip":"10001","work_city":"LA","work_zip":null}
+# comma-matrix-stats :: fidelity/enriched-record-properties-inherited-by-leaves
+{"order_id":"o-1","customer_full_name":"A B"}
+# comma-matrix-stats :: fidelity/enriched-recursive-schema-fails-typed
+{"name":"root","child_name":"leaf","child_child":null}
+# comma-matrix-stats :: fidelity/enriched-reserved-prop-name-collision-drops-a-producer-property
+{"garment":"shirt"}
+# comma-matrix-stats :: fidelity/enriched-stream-honours-injections-at-their-positions
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/enriched-stream-injection-past-the-final-column
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# comma-matrix-stats :: fidelity/array-element-with-nested-object-duplicated
+{"people_addr_city":"[0]NY,[1]LA","people_addr_city_count":2,"people_addr_city_distinct_count":2,"people_addr_city_min_length":5,"people_addr_city_max_length":5,"people_addr_city_avg_length":5.0,"people_addr_city_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-of-arrays-with-empty-inner
+{"grid_rows":"[0][0]1,[0][1]2,[2][0]3","grid_rows_count":3,"grid_rows_distinct_count":3,"grid_rows_min_length":7,"grid_rows_max_length":7,"grid_rows_avg_length":7.0,"grid_rows_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/array-of-objects-single-element
+{"users_name":"[0]Alice","users_name_count":1,"users_name_distinct_count":1,"users_name_min_length":8,"users_name_max_length":8,"users_name_avg_length":8.0,"users_name_type":"string_single_value","users_age":"[0]30","users_age_count":1,"users_age_distinct_count":1,"users_age_min_length":5,"users_age_max_length":5,"users_age_avg_length":5.0,"users_age_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/array-of-objects-two-elements-top-level
+{"users_name":"[0]Alice,[1]Bob","users_name_count":2,"users_name_distinct_count":2,"users_name_min_length":6,"users_name_max_length":8,"users_name_avg_length":7.0,"users_name_type":"string_list_consolidated","users_age":"[0]30,[1]25","users_age_count":2,"users_age_distinct_count":2,"users_age_min_length":5,"users_age_max_length":5,"users_age_avg_length":5.0,"users_age_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/boundary-separator-on-double-underscore-field
+{"a__b":1,"a_b":2}
+# comma-matrix-stats :: fidelity/boundary-separator-on-round-trip
+{"metrics_0":10,"metrics_1":20,"users_name":"[0]A,[1]B","users_name_count":2,"users_name_distinct_count":2,"users_name_min_length":4,"users_name_max_length":4,"users_name_avg_length":4.0,"users_name_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/empty-containers-at-depth
+{"a_emptyObj":null,"a_emptyArr":null,"a_explicitNull":null,"a_deep_x_y":null}
+# comma-matrix-stats :: fidelity/flattener-maxdepth-truncation
+{"l1_l2_l3_l4_l5":"deep"}
+# comma-matrix-stats :: fidelity/heterogeneous-array-object-first
+{"mixed":"[2]x,[3]y","mixed_count":2,"mixed_distinct_count":2,"mixed_min_length":4,"mixed_max_length":4,"mixed_avg_length":4.0,"mixed_type":"string_list_consolidated","mixed_a":"[0]1,[1]2","mixed_a_count":2,"mixed_a_distinct_count":2,"mixed_a_min_length":4,"mixed_a_max_length":4,"mixed_a_avg_length":4.0,"mixed_a_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/heterogeneous-array-scalar-first
+{"mixed":"[0]1,[1]2","mixed_count":2,"mixed_distinct_count":2,"mixed_min_length":4,"mixed_max_length":4,"mixed_avg_length":4.0,"mixed_type":"string_list_consolidated","mixed_a":"[2]3","mixed_a_count":1,"mixed_a_distinct_count":1,"mixed_a_min_length":4,"mixed_a_max_length":4,"mixed_a_avg_length":4.0,"mixed_a_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/mixed-array-sentinel-vs-user-value-field
+{"mixed":"[1]x","mixed_count":1,"mixed_distinct_count":1,"mixed_min_length":4,"mixed_max_length":4,"mixed_avg_length":4.0,"mixed_type":"string_single_value","mixed_value":"[0]1","mixed_value_count":1,"mixed_value_distinct_count":1,"mixed_value_min_length":4,"mixed_value_max_length":4,"mixed_value_avg_length":4.0,"mixed_value_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/mixed-nested-array-sentinel-collision
+{"data":"[1]text","data_count":1,"data_distinct_count":1,"data_min_length":7,"data_max_length":7,"data_avg_length":7.0,"data_type":"string_single_value","data_name":"[0][0]A","data_name_count":1,"data_name_distinct_count":1,"data_name_min_length":7,"data_name_max_length":7,"data_name_avg_length":7.0,"data_name_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/nested-array-of-objects-default
+{"order_items_sku":"[0]A,[1]B","order_items_sku_count":2,"order_items_sku_distinct_count":2,"order_items_sku_min_length":4,"order_items_sku_max_length":4,"order_items_sku_avg_length":4.0,"order_items_sku_type":"string_list_consolidated","order_items_qty":"[0]1,[1]2","order_items_qty_count":2,"order_items_qty_distinct_count":2,"order_items_qty_min_length":4,"order_items_qty_max_length":4,"order_items_qty_avg_length":4.0,"order_items_qty_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/nested-array-of-objects-explicit-hints
+{"order_items_sku":"[0]A,[1]B","order_items_sku_count":2,"order_items_sku_distinct_count":2,"order_items_sku_min_length":4,"order_items_sku_max_length":4,"order_items_sku_avg_length":4.0,"order_items_sku_type":"string_list_consolidated","order_items_qty":"[0]1,[1]2","order_items_qty_count":2,"order_items_qty_distinct_count":2,"order_items_qty_min_length":4,"order_items_qty_max_length":4,"order_items_qty_avg_length":4.0,"order_items_qty_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/nested-array-of-scalars
+{"user_tags":"[0]red,[1]green","user_tags_count":2,"user_tags_distinct_count":2,"user_tags_min_length":6,"user_tags_max_length":8,"user_tags_avg_length":7.0,"user_tags_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/nullable-nested-record-shadowed-json-stack
+{"orders_id":"[0]1,[1]2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":4,"orders_id_max_length":4,"orders_id_avg_length":4.0,"orders_id_type":"string_list_consolidated","orders_ship":null,"orders_ship_count":0,"orders_ship_distinct_count":0,"orders_ship_city":"[0]NY","orders_ship_city_count":1,"orders_ship_city_distinct_count":1,"orders_ship_city_min_length":5,"orders_ship_city_max_length":5,"orders_ship_city_avg_length":5.0,"orders_ship_city_type":"string_single_value"}
+# comma-matrix-stats :: fidelity/object-chain-depth-8
+{"l1_l2_l3_l4_l5_l6_l7_l8":"leaf"}
+# comma-matrix-stats :: fidelity/ragged-array-of-objects-absent-vs-null
+{"rows_a":"[0]1,[1]3","rows_a_count":2,"rows_a_distinct_count":2,"rows_a_min_length":4,"rows_a_max_length":4,"rows_a_avg_length":4.0,"rows_a_type":"string_list_consolidated","rows_b":"[0]2","rows_b_count":1,"rows_b_distinct_count":1,"rows_b_min_length":4,"rows_b_max_length":4,"rows_b_avg_length":4.0,"rows_b_type":"numeric_single_value"}
+# comma-matrix-stats :: fidelity/reserved-marker-key-dropped
+{"cfg___meta__":1,"cfg____":2,"cfg_name":"x"}
+# comma-matrix-stats :: fidelity/top-level-array-of-scalars
+{"tags":"[0]red,[1]green,[2]blue","tags_count":3,"tags_distinct_count":3,"tags_min_length":6,"tags_max_length":8,"tags_avg_length":7.0,"tags_type":"string_list_consolidated","scores":"[0]1,[1]2,[2]3","scores_count":3,"scores_distinct_count":3,"scores_min_length":4,"scores_max_length":4,"scores_avg_length":4.0,"scores_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/vd-array-lookalike-fabricates-padding
+{"a_b":"[7]","a_c":"[1,2,3]"}
+# comma-matrix-stats :: fidelity/vd-comma-format-atomic-coercion
+{"a_b":"[0]true,[1]null,[2]007,[3]1.10,[4]0x1F","a_b_count":5,"a_b_distinct_count":5,"a_b_min_length":6,"a_b_max_length":7,"a_b_avg_length":6.8,"a_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/vd-comma-format-empty-and-trailing-null
+{"a_b":"[0],[1]x","a_b_count":2,"a_b_distinct_count":2,"a_b_min_length":3,"a_b_max_length":4,"a_b_avg_length":3.5,"a_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/vd-comma-format-scalar-with-comma
+{"a_b":"Smith, John","a_c":"plain"}
+# comma-matrix-stats :: fidelity/vd-control-chars-and-long-string
+{"s_ctrl":"a\u0000b\u001Fcd","s_ws":"tab\there\nnl\rcr","s_quotes":"he said \"hi\" and \\ backslash","s_unicode":"héllo 😀 中文","s_long":"Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"}
+# comma-matrix-stats :: fidelity/vd-decimal-scale-and-precision
+{"d_trailingZero":37.774,"d_oneFive":1.5,"d_highScale":0.12345678901234568,"d_beyondDouble":1.0,"d_money":19.99}
+# comma-matrix-stats :: fidelity/vd-empty-containers-end-to-end
+{"e_emptyObj":null,"e_emptyArr":null,"e_explicitNull":null,"e_nonEmpty_x":1}
+# comma-matrix-stats :: fidelity/vd-exponent-overflow-and-underflow
+{"d_over":"Infinity","d_negOver":"-Infinity","d_under":0.0,"d_nearMax":1.0E308}
+# comma-matrix-stats :: fidelity/vd-integer-boundaries-within-long
+{"n_zero":0,"n_neg":-1,"n_i32max":2147483647,"n_i32maxPlus1":2147483648,"n_p53minus1":9007199254740991,"n_p53":9007199254740992,"n_p53plus1":9007199254740993,"n_i64max":9223372036854775807,"n_i64min":-9223372036854775808}
+# comma-matrix-stats :: fidelity/vd-integer-past-long
+{"n_i64max":9223372036854775807,"n_i64maxPlus1":-9223372036854775808,"n_huge":-4362896299872285998}
+# comma-matrix-stats :: fidelity/vd-nested-json-string-length-gate
+{"a_shortJson":"{\"x\":1}","a_longJson":"{\"x\":1,\"padpadpadpadpad\":2}"}
+# comma-matrix-stats :: fidelity/vd-number-text-normalization
+{"n_exp":100.0,"n_expPlus":100.0,"n_plain":100.0,"n_int":100}
+# comma-matrix-stats :: fidelity/vd-preserve-bigdecimal-flag-inert
+{"d_amount":37.774}
+# comma-matrix-stats :: fidelity/vd-preserve-nulls-false-erases-present-null
+{"p_present":null,"p_other":1}
+# comma-matrix-stats :: fidelity/vd-real-array-collides-with-array-text
+{"a_b":"[0]1,[1]2,[2]3","a_b_count":3,"a_b_distinct_count":3,"a_b_min_length":4,"a_b_max_length":4,"a_b_avg_length":4.0,"a_b_type":"string_list_consolidated"}
+# comma-matrix-stats :: fidelity/vd-signed-zero
+{"z_negDouble":-0.0,"z_posDouble":0.0,"z_negInt":0,"z_posInt":0}
+# comma-matrix-stats :: fidelity/vd-string-literal-lookalikes
+{"wrap_sNull":"null","wrap_sTrue":"true","wrap_sFalse":"false","wrap_sInt":"1","wrap_sFloat":"1.0","wrap_sNaN":"NaN","wrap_sInf":"Infinity","wrap_sNegInf":"-Infinity","wrap_sEmpty":"","wrap_bTrue":true,"wrap_nInt":1,"wrap_nFloat":1.0}
+# comma-matrix-stats :: fidelity/vd-string-that-looks-like-array
+{"a_b":"[1,2,3]"}
+# comma-matrix-stats :: adv/leading-bracket-key
+{"[0]":1,"[1]":2}
+# comma-matrix-stats :: adv/user-supplied-index-key
+{"a":"[0]1,[1]2","a_count":2,"a_distinct_count":2,"a_min_length":4,"a_max_length":4,"a_avg_length":4.0,"a_type":"string_list_consolidated"}
+# comma-matrix-stats :: adv/newline-before-bracket
+{"a\n[0]":1,"a\r[0]":2,"a ":"[0]3"}
+# comma-matrix-stats :: adv/unicode-digit-index
+{"a[०]":1,"a[۰]":2,"a[０]":3}
+# comma-matrix-stats :: adv/doubled-open-bracket
+{"a[":"[0]1","a":"[0][1]2,[00]3","a_count":2,"a_distinct_count":2,"a_min_length":5,"a_max_length":7,"a_avg_length":6.0,"a_type":"string_list_consolidated"}
+# comma-matrix-stats :: adv/unterminated-bracket
+{"a[0":1,"a[x]":2,"a[0x]":3,"a[]":4}
+# comma-matrix-stats :: adv/huge-index-digits
+{"a":"[99999999999999999999999]1"}
+# comma-matrix-stats :: adv/dot-and-underscore-keys
+{"a_b":2}
+# comma-matrix-stats :: adv/no-underscore-array-names
+{"tags":"[0]x,[1]y","tags_count":2,"tags_distinct_count":2,"tags_min_length":4,"tags_max_length":4,"tags_avg_length":4.0,"tags_type":"string_list_consolidated","items_sku":"[0]a,[1]b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":4,"items_sku_max_length":4,"items_sku_avg_length":4.0,"items_sku_type":"string_list_consolidated"}
+# comma-matrix-stats :: adv/single-element-array-with-delimiter
+{"items":"a,b,c","items_count":3,"items_distinct_count":3,"items_min_length":1,"items_max_length":1,"items_avg_length":1.0,"items_type":"string_list_consolidated","other":"[0]p|q","other_count":1,"other_distinct_count":1,"other_min_length":6,"other_max_length":6,"other_avg_length":6.0,"other_type":"string_single_value"}
+# comma-matrix-stats :: adv/nested-array-of-arrays
+{"m":"[0][0]1,[0][1]2,[1][0]3,[1][1]4","m_count":4,"m_distinct_count":4,"m_min_length":7,"m_max_length":7,"m_avg_length":7.0,"m_type":"string_list_consolidated","n_k":"[0][0]1","n_k_count":1,"n_k_distinct_count":1,"n_k_min_length":7,"n_k_max_length":7,"n_k_avg_length":7.0,"n_k_type":"numeric_single_value"}
+# comma-matrix-stats :: adv/empty-array-and-object
+{"e":null,"o":null,"n":null,"z":null,"z_count":0,"z_distinct_count":0}
+# comma-matrix-stats :: adv/numeric-looking-strings
+{"v":"[0]1,[1]2.5,[2]+3,[3]-0,[4]1e10,[5]0x1p3,[6]1d,[7]NaN,[8]Infinity","v_count":9,"v_distinct_count":9,"v_min_length":4,"v_max_length":11,"v_avg_length":6.333333333333333,"v_type":"string_list_consolidated"}
+# comma-matrix-stats :: adv/boolean-and-mixed-arrays
+{"b":"[0]true,[1]FALSE","b_count":2,"b_distinct_count":2,"b_min_length":7,"b_max_length":8,"b_avg_length":7.5,"b_type":"string_list_consolidated","m":"[0]true,[1]1","m_count":2,"m_distinct_count":2,"m_min_length":4,"m_max_length":7,"m_avg_length":5.5,"m_type":"string_list_consolidated","s":"[0],[1]  ","s_count":2,"s_distinct_count":2,"s_min_length":3,"s_max_length":5,"s_avg_length":4.0,"s_type":"string_list_consolidated"}
+# comma-matrix-stats :: adv/duplicate-and-empty-values
+{"d":"[0]x,[1]x,[2],[3]yy","d_count":4,"d_distinct_count":4,"d_min_length":3,"d_max_length":5,"d_avg_length":4.0,"d_type":"string_list_consolidated","c":"[0],,[1],,","c_count":2,"c_distinct_count":2,"c_min_length":4,"c_max_length":5,"c_avg_length":4.5,"c_type":"string_list_consolidated"}
+# comma-matrix-stats :: shape/wideFlat40
+{"field_str_0":"um25bb0a","field_str_1":"qi10z3he","field_str_2":"hp7vr8ey","field_str_3":"5mpk0vf7","field_str_4":"a8ldf09p","field_str_5":"icvgpg7l","field_str_6":"hfmtsei5","field_str_7":"gi62p2ur","field_str_8":"g0pj7r5e","field_str_9":"d2s6za56","field_str_10":"4ldjn3ck","field_str_11":"jn7ktnl4","field_str_12":"u93e7o9o","field_str_13":"e7zi1esf","field_str_14":"fgbggm8f","field_str_15":"zcxrztad","field_str_16":"ph27yw9p","field_str_17":"5bs09b1e","field_str_18":"4uwxvsle","field_str_19":"e77aw82b","field_str_20":"anrk1zaf","field_str_21":"au4tdiil","field_str_22":"5oplb0l4","field_str_23":"a3qdwhi2","field_str_24":"wfh7scxz","field_str_25":"xsnfdi8i","field_str_26":"5nhch0qm","field_str_27":"uoh47woq","field_str_28":"bk4j6bl8","field_str_29":"693hqd7p","field_str_30":"sdg6tkag","field_str_31":"e69c0s9j","field_str_32":"rcxtw69w","field_str_33":"2hfwojjk","field_str_34":"yrb869r6","field_str_35":"qlo0byow","field_str_36":"gqnwt2xp","field_str_37":"bw4a798l","field_str_38":"nmtpdem8","field_str_39":"qtlhe53n"}
+# comma-matrix-stats :: shape/deepNarrow24
+{"level_0_level_1_level_2_level_3_level_4_level_5_level_6_level_7_level_8_level_9_level_10_level_11_level_12_level_13_level_14_level_15_level_16_level_17_level_18_level_19_level_20_level_21_level_22_leaf_value":"terminal"}
+# comma-matrix-stats :: shape/arrayHeavySmall
+{"numeric_array_0":"[0]43377,[1]34808,[2]62688,[3]80782,[4]71093,[5]82055,[6]49874,[7]17494,[8]82585,[9]44676,[10]56414,[11]73904","numeric_array_0_count":12,"numeric_array_0_distinct_count":12,"numeric_array_0_min_length":8,"numeric_array_0_max_length":9,"numeric_array_0_avg_length":8.166666666666666,"numeric_array_0_type":"string_list_consolidated","numeric_array_1":"[0]52508,[1]66680,[2]191,[3]62003,[4]6158,[5]38750,[6]64469,[7]32035,[8]16699,[9]26206,[10]31005,[11]1311","numeric_array_1_count":12,"numeric_array_1_distinct_count":12,"numeric_array_1_min_length":6,"numeric_array_1_max_length":9,"numeric_array_1_avg_length":7.833333333333333,"numeric_array_1_type":"string_list_consolidated","numeric_array_2":"[0]43640,[1]67892,[2]6635,[3]77207,[4]81609,[5]24176,[6]46631,[7]12251,[8]57164,[9]66198,[10]15873,[11]29071","numeric_array_2_count":12,"numeric_array_2_distinct_count":12,"numeric_array_2_min_length":7,"numeric_array_2_max_length":9,"numeric_array_2_avg_length":8.083333333333334,"numeric_array_2_type":"string_list_consolidated","string_array_0":"[0]wjwxdzj4,[1]in88cj44,[2]8zezr8r2,[3]vw11zsho,[4]8cjj5jf1,[5]b4fiet5n,[6]z2f74gs0,[7]lg5qd29k,[8]cy78omjv,[9]8w8akw1x,[10]dtyk4oq1,[11]ix3nwiud","string_array_0_count":12,"string_array_0_distinct_count":12,"string_array_0_min_length":11,"string_array_0_max_length":12,"string_array_0_avg_length":11.166666666666666,"string_array_0_type":"string_list_consolidated","string_array_1":"[0]ccmy4wgp,[1]iodddmsn,[2]cqu1hpgj,[3]iwkt84pr,[4]k8panawg,[5]sbrbqxnn,[6]5ut9zn7l,[7]c4xctg1z,[8]bmw78qz2,[9]4hbkprh7,[10]37tloq67,[11]x24own6s","string_array_1_count":12,"string_array_1_distinct_count":12,"string_array_1_min_length":11,"string_array_1_max_length":12,"string_array_1_avg_length":11.166666666666666,"string_array_1_type":"string_list_consolidated","string_array_2":"[0]uvfvmlgq,[1]zcnwkarq,[2]ct0dtz6a,[3]92u07jle,[4]ky2ossz8,[5]gpsa6h0h,[6]tjcl3wup,[7]7v39c1tq,[8]ak1zn5hh,[9]lnhf60g2,[10]paeklemo,[11]ktrb61r3","string_array_2_count":12,"string_array_2_distinct_count":12,"string_array_2_min_length":11,"string_array_2_max_length":12,"string_array_2_avg_length":11.166666666666666,"string_array_2_type":"string_list_consolidated","record_array_nested_field_0":"[0]89v0gd,[1]bzvgna,[2]cn2p2z,[3]67v859,[4]dnu9hg","record_array_nested_field_0_count":5,"record_array_nested_field_0_distinct_count":5,"record_array_nested_field_0_min_length":9,"record_array_nested_field_0_max_length":9,"record_array_nested_field_0_avg_length":9.0,"record_array_nested_field_0_type":"string_list_consolidated","record_array_nested_field_1":"[0]915,[1]844,[2]801,[3]920,[4]928","record_array_nested_field_1_count":5,"record_array_nested_field_1_distinct_count":5,"record_array_nested_field_1_min_length":6,"record_array_nested_field_1_max_length":6,"record_array_nested_field_1_avg_length":6.0,"record_array_nested_field_1_type":"string_list_consolidated"}
+# comma-matrix-stats :: shape/mixedProduction
+{"order_id":"ord-1","created_at":"2026-08-19","order_total":12.5,"attribute_0_value":null,"attribute_1_value":9,"attribute_2_value":"s","user_user_id":7,"user_user_name":"n","user_is_active":true,"line_items_sku_code":"[0]a,[1]b","line_items_sku_code_count":2,"line_items_sku_code_distinct_count":2,"line_items_sku_code_min_length":4,"line_items_sku_code_max_length":4,"line_items_sku_code_avg_length":4.0,"line_items_sku_code_type":"string_list_consolidated","line_items_quantity_ordered":"[0]1,[1]3","line_items_quantity_ordered_count":2,"line_items_quantity_ordered_distinct_count":2,"line_items_quantity_ordered_min_length":4,"line_items_quantity_ordered_max_length":4,"line_items_quantity_ordered_avg_length":4.0,"line_items_quantity_ordered_type":"string_list_consolidated","line_items_unit_price":"[0]2.0,[1]4.5","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":6,"line_items_unit_price_max_length":6,"line_items_unit_price_avg_length":6.0,"line_items_unit_price_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-element-multi-branch-union-dropped
+{"items_sku":"a|b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":1,"items_sku_max_length":1,"items_sku_avg_length":1.0,"items_sku_type":"string_list_consolidated","items_meta_src":"web|pos","items_meta_src_count":2,"items_meta_src_distinct_count":2,"items_meta_src_min_length":3,"items_meta_src_max_length":3,"items_meta_src_avg_length":3.0,"items_meta_src_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-element-multi-branch-union-mixed-branches
+{"items_sku":"a|b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":1,"items_sku_max_length":1,"items_sku_avg_length":1.0,"items_sku_type":"string_list_consolidated","items_meta":"plain","items_meta_count":1,"items_meta_distinct_count":1,"items_meta_min_length":5,"items_meta_max_length":5,"items_meta_avg_length":5.0,"items_meta_type":"string_single_value","items_meta_src":"web","items_meta_src_count":1,"items_meta_src_distinct_count":1,"items_meta_src_min_length":3,"items_meta_src_max_length":3,"items_meta_src_avg_length":3.0,"items_meta_src_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-bracket-list-round-trip
+{"line_items_sku":"SKU-311|SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"Bolt, hex, M8|Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":6,"line_items_description_max_length":13,"line_items_description_avg_length":9.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"4|8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-control
+{"orders_id":"1|2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship_city":"NY|LA","orders_ship_city_count":2,"orders_ship_city_distinct_count":2,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-datum-unwritable
+{"orders_id":"1|2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship_city":"NY|LA","orders_ship_city_count":2,"orders_ship_city_distinct_count":2,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-nested-only-collapses-to-one
+{"order_id":"O1","line_items_meta_code":"C1|C2|C3","line_items_meta_code_count":3,"line_items_meta_code_distinct_count":3,"line_items_meta_code_min_length":2,"line_items_meta_code_max_length":2,"line_items_meta_code_avg_length":2.0,"line_items_meta_code_type":"string_list_consolidated","line_items_meta_label":"L1|L2|L3","line_items_meta_label_count":3,"line_items_meta_label_distinct_count":3,"line_items_meta_label_min_length":2,"line_items_meta_label_max_length":2,"line_items_meta_label_avg_length":2.0,"line_items_meta_label_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-null-element-annihilates-array
+{"orders":"NULL","orders_count":1,"orders_distinct_count":1,"orders_min_length":4,"orders_max_length":4,"orders_avg_length":4.0,"orders_type":"string_single_value","orders_id":1,"orders_id_count":1,"orders_id_distinct_count":1,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-nullable-nested-record-shadowed
+{"orders_id":"1|2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship":"NULL","orders_ship_count":1,"orders_ship_distinct_count":1,"orders_ship_min_length":4,"orders_ship_max_length":4,"orders_ship_avg_length":4.0,"orders_ship_type":"string_single_value","orders_ship_city":"NY","orders_ship_city_count":1,"orders_ship_city_distinct_count":1,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/avro-array-of-records-pipe-format-comma-inside-element
+{"line_items_sku":"SKU-311|SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"Bolt, hex, M8|Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":6,"line_items_description_max_length":13,"line_items_description_avg_length":9.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"4|8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-array-statistics-suffix-silent-overwrite
+{"tags_count":2,"tags":"a|b","tags_distinct_count":2,"tags_min_length":1,"tags_max_length":1,"tags_avg_length":1.0,"tags_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/avro-bare-logical-types-are-a-writable-datum
+{"d":19000,"ts":1700000000000,"s":"NULL"}
+# pipe-stats-nullph :: fidelity/avro-boundary-separator-datum-does-not-hold-under-defaults
+{"attrs_unit":"C","attrs_value":21.5}
+# pipe-stats-nullph :: fidelity/avro-bytes-b64-sentinel-and-fixed-charset
+{"payload":"B64:AAAA","sig":"ÿ\u0001\u0002\u0003"}
+# pipe-stats-nullph :: fidelity/avro-decimal-bytes-scale-mismatch
+{"amount":12.5,"fee":0.5}
+# pipe-stats-nullph :: fidelity/avro-empty-datum-cannot-build-a-record
+{}
+# pipe-stats-nullph :: fidelity/avro-enum-accepted-fixed-decimal-erased
+{"status":"SUSPENDED","price":1234.5678}
+# pipe-stats-nullph :: fidelity/avro-flat-record-is-a-valid-datum-control
+{"id":7,"name":"a","ok":true,"ratio":1.5,"note":"NULL"}
+# pipe-stats-nullph :: fidelity/avro-flattened-name-collision-guard-fires
+{"user_id":"nested"}
+# pipe-stats-nullph :: fidelity/avro-generic-record-is-not-a-valid-datum
+{"id":1,"ship_city":"NY"}
+# pipe-stats-nullph :: fidelity/avro-logical-type-datum-is-writable-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":"NULL"}
+# pipe-stats-nullph :: fidelity/avro-logical-types-erased-inside-arrays
+{"events_occurredAt":1609459200000,"events_occurredAt_count":1,"events_occurredAt_distinct_count":1,"events_occurredAt_min_length":13,"events_occurredAt_max_length":13,"events_occurredAt_avg_length":13.0,"events_occurredAt_type":"numeric_single_value","events_day":18628,"events_day_count":1,"events_day_distinct_count":1,"events_day_min_length":5,"events_day_max_length":5,"events_day_avg_length":5.0,"events_day_type":"numeric_single_value","events_amount":1.25,"events_amount_count":1,"events_amount_distinct_count":1,"events_amount_min_length":4,"events_amount_max_length":4,"events_amount_avg_length":4.0,"events_amount_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/avro-map-of-records-control
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# pipe-stats-nullph :: fidelity/avro-map-of-records-datum-unwritable
+{"attrs_temp_unit":"C","attrs_temp_value":21.5,"attrs_hum_pct_unit":"%","attrs_hum_pct_value":40.5}
+# pipe-stats-nullph :: fidelity/avro-nullable-scalars-and-logical-types-control
+{"createdAt":1609459200000,"createdAtMicros":1609459200000000,"day":18628,"timeOfDay":3600000,"timeOfDayMicros":3600000000,"traceId":"550e8400-e29b-41d4-a716-446655440000","note":"NULL"}
+# pipe-stats-nullph :: fidelity/avro-nullable-string-literal-null-collapses
+{"status":"null","padded":" null ","safe":"nullable"}
+# pipe-stats-nullph :: fidelity/avro-reconstruct-original-schema-ignores-argument
+{"id":"x-1","nested_n":7}
+# pipe-stats-nullph :: fidelity/avro-record-defaults-dropped-in-reconstructed-schema
+{"id":"x-1","retries":3,"region":"us-east-1"}
+# pipe-stats-nullph :: fidelity/avro-recursive-schema-stack-overflows
+{"name":"root","child_name":"leaf","child_child":"NULL"}
+# pipe-stats-nullph :: fidelity/avro-schema-cache-hit-with-distinct-names-control
+{"id":"e1","amount":12.5}
+# pipe-stats-nullph :: fidelity/avro-schema-cache-serves-a-stale-flattened-schema
+{"id":"e1","amount":12.5}
+# pipe-stats-nullph :: fidelity/avro-underscore-field-name-column-divergence
+{"user_id":"u-1","balance":10.5}
+# pipe-stats-nullph :: fidelity/avro-union-long-before-double-truncates
+{"amount":3.7,"count":5}
+# pipe-stats-nullph :: fidelity/avro-union-of-records-overlapping-fields
+{"payment_id":"p-1","payment_routing":"021000021","payment_account":"12345678"}
+# pipe-stats-nullph :: fidelity/avro-union-string-branch-swallows-int
+{"v":42,"w":true}
+# pipe-stats-nullph :: fidelity/array-cells-below-max
+{"r_a":"1|3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"2|4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":1,"r_b_max_length":1,"r_b_avg_length":1.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-cells-exactly-max
+{"r_a":"1|3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"2|4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":1,"r_b_max_length":1,"r_b_avg_length":1.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-cells-one-over-max
+{"r_a":"1|3","r_a_count":2,"r_a_distinct_count":2,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"2|4","r_b_count":2,"r_b_distinct_count":2,"r_b_min_length":1,"r_b_max_length":1,"r_b_avg_length":1.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-size-below-max
+{"r_a":"1|2|3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10|20|30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-size-exactly-max
+{"r_a":"1|2|3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10|20|30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-size-max-one-collapses-the-type
+{"r_a":"1|2|3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10|20|30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-size-one-over-max
+{"r_a":"1|2|3","r_a_count":3,"r_a_distinct_count":3,"r_a_min_length":1,"r_a_max_length":1,"r_a_avg_length":1.0,"r_a_type":"numeric_list_consolidated","r_b":"10|20|30","r_b_count":3,"r_b_distinct_count":3,"r_b_min_length":2,"r_b_max_length":2,"r_b_avg_length":2.0,"r_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/depth-below-max
+{"outer_leaf":7,"outer_other":"text"}
+# pipe-stats-nullph :: fidelity/depth-bound-bypassed-by-empty-container
+{"a":"NULL","b_c":1}
+# pipe-stats-nullph :: fidelity/depth-bound-map-vs-list-asymmetry
+{"a_b_c":1,"a_d":"1|2","a_d_count":2,"a_d_distinct_count":2,"a_d_min_length":1,"a_d_max_length":1,"a_d_avg_length":1.0,"a_d_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/depth-exactly-max
+{"l1_l2_leaf":7,"l1_l2_tag":"x"}
+# pipe-stats-nullph :: fidelity/depth-one-over-max
+{"l1_l2_l3_leaf":7}
+# pipe-stats-nullph :: fidelity/depth-overflow-aliases-a-real-string
+{"l1_l2_l3":"{\"leaf\":7}"}
+# pipe-stats-nullph :: fidelity/empty-chains-yield-keys-with-zero-leaves
+{"a":"NULL","b_c":"NULL","d_e_f":"NULL"}
+# pipe-stats-nullph :: fidelity/invalid-maxdepth-fails-closed
+{"a":1}
+# pipe-stats-nullph :: fidelity/map-size-limit-truncates-fields-silently
+{"f1":1,"f2":2,"f3":3,"f4":4,"f5":5,"f6":6,"f7":7,"f8":8,"f9":9,"f10":10}
+# pipe-stats-nullph :: fidelity/reconstructor-maxdepth-is-a-dead-control
+{"d1_d2_d3_d4_d5_d6_d7_leaf":1}
+# pipe-stats-nullph :: fidelity/single-element-array-at-the-arity-lower-bound
+{"r_tags":"only","r_tags_count":1,"r_tags_distinct_count":1,"r_tags_min_length":4,"r_tags_max_length":4,"r_tags_avg_length":4.0,"r_tags_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/sparse-array-of-maps-padding-misaligns-elements
+{"r_k1":1,"r_k1_count":1,"r_k1_distinct_count":1,"r_k1_min_length":1,"r_k1_max_length":1,"r_k1_avg_length":1.0,"r_k1_type":"numeric_single_value","r_z":"0|0|0","r_z_count":3,"r_z_distinct_count":1,"r_z_min_length":1,"r_z_max_length":1,"r_z_avg_length":1.0,"r_z_type":"numeric_list_consolidated","r_k2":2,"r_k2_count":1,"r_k2_distinct_count":1,"r_k2_min_length":1,"r_k2_max_length":1,"r_k2_avg_length":1.0,"r_k2_type":"numeric_single_value","r_k3":3,"r_k3_count":1,"r_k3_distinct_count":1,"r_k3_min_length":1,"r_k3_max_length":1,"r_k3_avg_length":1.0,"r_k3_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/wide-record-210-fields-under-one-parent
+{"rec_a1":1,"rec_a2":2,"rec_a3":3,"rec_a4":4,"rec_a5":5,"rec_a6":6,"rec_a7":7,"rec_a8":8,"rec_a9":9,"rec_a10":10,"rec_a11":11,"rec_a12":12,"rec_a13":13,"rec_a14":14,"rec_a15":15,"rec_a16":16,"rec_a17":17,"rec_a18":18,"rec_a19":19,"rec_a20":20,"rec_a21":21,"rec_a22":22,"rec_a23":23,"rec_a24":24,"rec_a25":25,"rec_a26":26,"rec_a27":27,"rec_a28":28,"rec_a29":29,"rec_a30":30,"rec_a31":31,"rec_a32":32,"rec_a33":33,"rec_a34":34,"rec_a35":35,"rec_a36":36,"rec_a37":37,"rec_a38":38,"rec_a39":39,"rec_a40":40,"rec_a41":41,"rec_a42":42,"rec_a43":43,"rec_a44":44,"rec_a45":45,"rec_a46":46,"rec_a47":47,"rec_a48":48,"rec_a49":49,"rec_a50":50,"rec_a51":51,"rec_a52":52,"rec_a53":53,"rec_a54":54,"rec_a55":55,"rec_a56":56,"rec_a57":57,"rec_a58":58,"rec_a59":59,"rec_a60":60,"rec_a61":61,"rec_a62":62,"rec_a63":63,"rec_a64":64,"rec_a65":65,"rec_a66":66,"rec_a67":67,"rec_a68":68,"rec_a69":69,"rec_a70":70,"rec_a71":71,"rec_a72":72,"rec_a73":73,"rec_a74":74,"rec_a75":75,"rec_a76":76,"rec_a77":77,"rec_a78":78,"rec_a79":79,"rec_a80":80,"rec_a81":81,"rec_a82":82,"rec_a83":83,"rec_a84":84,"rec_a85":85,"rec_a86":86,"rec_a87":87,"rec_a88":88,"rec_a89":89,"rec_a90":90,"rec_a91":91,"rec_a92":92,"rec_a93":93,"rec_a94":94,"rec_a95":95,"rec_a96":96,"rec_a97":97,"rec_a98":98,"rec_a99":99,"rec_a100":100,"rec_a101":101,"rec_a102":102,"rec_a103":103,"rec_a104":104,"rec_a105":105,"rec_a106":106,"rec_a107":107,"rec_a108":108,"rec_a109":109,"rec_a110":110,"rec_a111":111,"rec_a112":112,"rec_a113":113,"rec_a114":114,"rec_a115":115,"rec_a116":116,"rec_a117":117,"rec_a118":118,"rec_a119":119,"rec_a120":120,"rec_a121":121,"rec_a122":122,"rec_a123":123,"rec_a124":124,"rec_a125":125,"rec_a126":126,"rec_a127":127,"rec_a128":128,"rec_a129":129,"rec_a130":130,"rec_a131":131,"rec_a132":132,"rec_a133":133,"rec_a134":134,"rec_a135":135,"rec_a136":136,"rec_a137":137,"rec_a138":138,"rec_a139":139,"rec_a140":140,"rec_a141":141,"rec_a142":142,"rec_a143":143,"rec_a144":144,"rec_a145":145,"rec_a146":146,"rec_a147":147,"rec_a148":148,"rec_a149":149,"rec_a150":150,"rec_a151":151,"rec_a152":152,"rec_a153":153,"rec_a154":154,"rec_a155":155,"rec_a156":156,"rec_a157":157,"rec_a158":158,"rec_a159":159,"rec_a160":160,"rec_a161":161,"rec_a162":162,"rec_a163":163,"rec_a164":164,"rec_a165":165,"rec_a166":166,"rec_a167":167,"rec_a168":168,"rec_a169":169,"rec_a170":170,"rec_a171":171,"rec_a172":172,"rec_a173":173,"rec_a174":174,"rec_a175":175,"rec_a176":176,"rec_a177":177,"rec_a178":178,"rec_a179":179,"rec_a180":180,"rec_a181":181,"rec_a182":182,"rec_a183":183,"rec_a184":184,"rec_a185":185,"rec_a186":186,"rec_a187":187,"rec_a188":188,"rec_a189":189,"rec_a190":190,"rec_a191":191,"rec_a192":192,"rec_a193":193,"rec_a194":194,"rec_a195":195,"rec_a196":196,"rec_a197":197,"rec_a198":198,"rec_a199":199,"rec_a200":200,"rec_a201":201,"rec_a202":202,"rec_a203":203,"rec_a204":204,"rec_a205":205,"rec_a206":206,"rec_a207":207,"rec_a208":208,"rec_a209":209,"rec_a210":210}
+# pipe-stats-nullph :: fidelity/wide-separator-heavy-np021-regression
+{"root_deep_nest_field_one_x1":1,"root_deep_nest_field_one_x2":2,"root_deep_nest_field_one_x3":3,"root_deep_nest_field_one_x4":4,"root_deep_nest_field_one_x5":5,"root_deep_nest_field_one_x6":6,"root_deep_nest_field_one_x7":7,"root_deep_nest_field_one_x8":8,"root_deep_nest_field_one_x9":9,"root_deep_nest_field_one_x10":10,"root_deep_nest_field_one_x11":11,"root_deep_nest_field_one_x12":12,"root_deep_nest_field_one_x13":13,"root_deep_nest_field_one_x14":14,"root_deep_nest_field_one_x15":15,"root_deep_nest_field_one_x16":16,"root_deep_nest_field_one_x17":17,"root_deep_nest_field_one_x18":18,"root_deep_nest_field_one_x19":19,"root_deep_nest_field_one_x20":20,"root_deep_nest_field_one_x21":21,"root_deep_nest_field_one_x22":22,"root_deep_nest_field_one_x23":23,"root_deep_nest_field_one_x24":24}
+# pipe-stats-nullph :: fidelity/array-boundary-separator-manufactures-a-collision
+{"a__b":1,"a_b":2}
+# pipe-stats-nullph :: fidelity/backslash-and-preencoded-lookalike-names
+{"a\\b":1,"a\\_b":2,"a_b":4,"a\\":5}
+# pipe-stats-nullph :: fidelity/case-only-differing-names-preserved
+{"Id":1,"id":2,"ID":3}
+# pipe-stats-nullph :: fidelity/double-underscore-namespace-swallowed
+{"__":2,"_x_":3,"__meta___v":1}
+# pipe-stats-nullph :: fidelity/empty-string-key-renamed-into-collision
+{"":1,"empty_key":2}
+# pipe-stats-nullph :: fidelity/is-array-field-name-changes-json-type
+{"cfg___isArray__":true,"cfg_name":"x"}
+# pipe-stats-nullph :: fidelity/lower-case-collision-suffix-corrupts-structure
+{"Id":1,"id":2}
+# pipe-stats-nullph :: fidelity/multichar-separator-with-single-separator-char-in-name
+{"__x":1,"a_b_c":2}
+# pipe-stats-nullph :: fidelity/punctuation-and-control-chars-in-names
+{"a_b":1,"d\"e":3,"f\ng":4,"h i":5,"c":2}
+# pipe-stats-nullph :: fidelity/separator-in-name-vs-nesting
+{"user_id":2}
+# pipe-stats-nullph :: fidelity/snake-case-injects-unescaped-separators
+{"userId":1}
+# pipe-stats-nullph :: fidelity/strict-key-validation-folds-three-names-into-one
+{"a_b":1,"a-b":2,"a b":3}
+# pipe-stats-nullph :: fidelity/top-level-double-sanitization-asymmetry
+{"a___b":1,"n_a___b":2}
+# pipe-stats-nullph :: fidelity/triple-underscore-key-dropped
+{"___":1,"ok":2}
+# pipe-stats-nullph :: fidelity/underscore-boundary-around-the-np022-trap
+{"_":1,"__x":3,"x__":4,"a__":2}
+# pipe-stats-nullph :: fidelity/unicode-names-must-not-normalize
+{"café":1,"café":2,"🔑":3,"עברית":4}
+# pipe-stats-nullph :: fidelity/upper-case-strategy-renames-without-restructuring
+{"e":2,"a_b_cD":1}
+# pipe-stats-nullph :: fidelity/user-field-named-value-vs-flattener-sentinel
+{"a__value":1,"b__value__value":2}
+# pipe-stats-nullph :: fidelity/recipe-diverges-when-the-flattener-is-tuned
+{"a_b_c_d":"leaf"}
+# pipe-stats-nullph :: fidelity/recipe-holds-on-a-plain-defaults-document
+{"order_id":"A-1","order_qty":3,"order_paid":true,"order_note":"NULL"}
+# pipe-stats-nullph :: fidelity/cdc-create-before-null
+{"op":"c","ts_ms":1786321931482,"before":"NULL","source_connector":"postgresql","source_db":"sales","source_table":"orders","source_lsn":24576123,"after_order_id":8814,"after_customer_id":77301,"after_status":"pending","after_total_amount":148.75}
+# pipe-stats-nullph :: fidelity/cdc-update-with-array-column
+{"op":"u","ts_ms":1786321931482,"before_order_id":8814,"before_status":"pending","after_order_id":8814,"after_status":"shipped","before_tag_list":"rush|gift","before_tag_list_count":2,"before_tag_list_distinct_count":2,"before_tag_list_min_length":4,"before_tag_list_max_length":4,"before_tag_list_avg_length":4.0,"before_tag_list_type":"string_list_consolidated","after_tag_list":"rush|gift|insured","after_tag_list_count":3,"after_tag_list_distinct_count":3,"after_tag_list_min_length":4,"after_tag_list_max_length":7,"after_tag_list_avg_length":5.0,"after_tag_list_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/customer-preferences-object-with-array
+{"customer_id":"CUST-88120","loyalty_tier":"gold","preferences_theme":"dark","preferences_locale":"en_GB","preferences_notification_channels":"email|sms|push","preferences_notification_channels_count":3,"preferences_notification_channels_distinct_count":3,"preferences_notification_channels_min_length":3,"preferences_notification_channels_max_length":5,"preferences_notification_channels_avg_length":4.0,"preferences_notification_channels_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/customer-profile-addresses-and-preferences
+{"customer_id":"CUST-77301","full_name":"José Álvarez-Ng","email":"jose@example.com","loyalty_points":12500,"preferences_theme":"dark","preferences_locale":"fr_CA","preferences_email_opt_in":true,"preferences_sms_opt_in":false,"addresses_address_type":"billing|shipping","addresses_address_type_count":2,"addresses_address_type_distinct_count":2,"addresses_address_type_min_length":7,"addresses_address_type_max_length":8,"addresses_address_type_avg_length":7.5,"addresses_address_type_type":"string_list_consolidated","addresses_line_1":"12 Rue de l'Église|500 Market St","addresses_line_1_count":2,"addresses_line_1_distinct_count":2,"addresses_line_1_min_length":13,"addresses_line_1_max_length":18,"addresses_line_1_avg_length":15.5,"addresses_line_1_type":"string_list_consolidated","addresses_city":"Montréal|San Francisco","addresses_city_count":2,"addresses_city_distinct_count":2,"addresses_city_min_length":8,"addresses_city_max_length":13,"addresses_city_avg_length":10.5,"addresses_city_type":"string_list_consolidated","addresses_postal_code":"H2X 1Y4|94105","addresses_postal_code_count":2,"addresses_postal_code_distinct_count":2,"addresses_postal_code_min_length":5,"addresses_postal_code_max_length":7,"addresses_postal_code_avg_length":6.0,"addresses_postal_code_type":"string_list_consolidated","addresses_country_code":"CA|US","addresses_country_code_count":2,"addresses_country_code_distinct_count":2,"addresses_country_code_min_length":2,"addresses_country_code_max_length":2,"addresses_country_code_avg_length":2.0,"addresses_country_code_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/customer-profile-legacy-key-shadow
+{"customer_id":"CUST-90210","preferences_theme":"dark","preferences_digest":"weekly","notification_settings_push":true}
+# pipe-stats-nullph :: fidelity/empty-cart
+{"cart_id":"CART-000551","customer_id":"CUST-77301","line_items":"NULL","applied_promo_codes":"NULL","totals":"NULL","updated_at":"2026-08-09T14:32:11Z"}
+# pipe-stats-nullph :: fidelity/event-envelope-mixed-attachments
+{"event_id":"evt_9931","event_type":"ticket.updated","actor_id":"USR-42","attachments":"legacy-inline-note","attachments_count":1,"attachments_distinct_count":1,"attachments_min_length":18,"attachments_max_length":18,"attachments_avg_length":18.0,"attachments_type":"string_single_value","attachments_kind":"image|pdf","attachments_kind_count":2,"attachments_kind_distinct_count":2,"attachments_kind_min_length":3,"attachments_kind_max_length":5,"attachments_kind_avg_length":4.0,"attachments_kind_type":"string_list_consolidated","attachments_url":"https://cdn.example.com/a.png|https://cdn.example.com/b.pdf","attachments_url_count":2,"attachments_url_distinct_count":2,"attachments_url_min_length":29,"attachments_url_max_length":29,"attachments_url_avg_length":29.0,"attachments_url_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/event-envelope-sentinel-metadata-keys
+{"event_id":"evt_01J8ZQ4","occurred_at":"2026-08-09T14:32:11Z","source_service":"billing-api","__meta___ingest_partition":7,"__meta___schema_version":3,"payload___type__":"invoice.paid","payload_invoice_id":"INV-9931","payload_amount_paid":249.0,"payload_paid_by":"CUST-77301"}
+# pipe-stats-nullph :: fidelity/financial-transaction-high-precision
+{"transaction_id":"TXN-2026-0814","posted_at":"2026-08-09T14:32:11.482913Z","currency_code":"USD","amount_text":"1250.00","fx_rate":0.8771234567890124,"amount_value":9.007199254740994E15,"amount_scale":2,"counterparty_name":"Northwind Ltd","counterparty_account_ref":"GB29NWBK60161331926819"}
+# pipe-stats-nullph :: fidelity/financial-transaction-huge-minor-units
+{"transaction_id":"TXN-2026-0815","currency_code":"JPY","amount_minor_units":-4362896299872285998,"booked_at":"2026-08-09T14:32:11Z","ledger_sequence":9007199254740993}
+# pipe-stats-nullph :: fidelity/line-item-tag-arrays
+{"order_id":"ORD-2026-0006","line_items_sku":"SKU-100|SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_tags":"gift|fragile|backorder","line_items_tags_count":3,"line_items_tags_distinct_count":3,"line_items_tags_min_length":4,"line_items_tags_max_length":9,"line_items_tags_avg_length":6.666666666666667,"line_items_tags_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/order-line-item-nested-address
+{"order_id":"ORD-2026-0003","status":"packed","line_items_sku":"SKU-100|SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"1|3","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated","line_items_ship_from_warehouse_code":"NYC-1|LAX-2","line_items_ship_from_warehouse_code_count":2,"line_items_ship_from_warehouse_code_distinct_count":2,"line_items_ship_from_warehouse_code_min_length":5,"line_items_ship_from_warehouse_code_max_length":5,"line_items_ship_from_warehouse_code_avg_length":5.0,"line_items_ship_from_warehouse_code_type":"string_list_consolidated","line_items_ship_from_country_code":"US|US","line_items_ship_from_country_code_count":2,"line_items_ship_from_country_code_distinct_count":1,"line_items_ship_from_country_code_min_length":2,"line_items_ship_from_country_code_max_length":2,"line_items_ship_from_country_code_avg_length":2.0,"line_items_ship_from_country_code_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/order-line-items-comma-separated
+{"order_id":"ORD-2026-0008","currency_code":"USD","line_items_sku":"SKU-311|SKU-312","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_description":"Bolt, hex, M8|Washer","line_items_description_count":2,"line_items_description_distinct_count":2,"line_items_description_min_length":6,"line_items_description_max_length":13,"line_items_description_avg_length":9.5,"line_items_description_type":"string_list_consolidated","line_items_quantity":"4|8","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/order-multi-line-items
+{"order_id":"ORD-2026-0001","placed_at":"2026-08-09T14:32:11Z","status":"confirmed","currency_code":"USD","shipping_address_line_1":"500 Market St","shipping_address_city":"San Francisco","shipping_address_postal_code":"94105","shipping_address_country_code":"US","line_items_sku":"SKU-100|SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"2|1","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated","line_items_unit_price":"19.99|5.5","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":3,"line_items_unit_price_max_length":5,"line_items_unit_price_avg_length":4.0,"line_items_unit_price_type":"numeric_list_consolidated","line_items_discount_pct":"NULL|10","line_items_discount_pct_count":2,"line_items_discount_pct_distinct_count":2,"line_items_discount_pct_min_length":2,"line_items_discount_pct_max_length":4,"line_items_discount_pct_avg_length":3.0,"line_items_discount_pct_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/order-optional-discount-absent
+{"order_id":"ORD-2026-0004","currency_code":"USD","line_items_sku":"SKU-100|SKU-205","line_items_sku_count":2,"line_items_sku_distinct_count":2,"line_items_sku_min_length":7,"line_items_sku_max_length":7,"line_items_sku_avg_length":7.0,"line_items_sku_type":"string_list_consolidated","line_items_quantity":"1|2","line_items_quantity_count":2,"line_items_quantity_distinct_count":2,"line_items_quantity_min_length":1,"line_items_quantity_max_length":1,"line_items_quantity_avg_length":1.0,"line_items_quantity_type":"numeric_list_consolidated","line_items_unit_price":"19.99|7.25","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":4,"line_items_unit_price_max_length":5,"line_items_unit_price_avg_length":4.5,"line_items_unit_price_type":"numeric_list_consolidated","line_items_discount_pct":15}
+# pipe-stats-nullph :: fidelity/order-single-line-item
+{"order_id":"ORD-2026-0002","status":"confirmed","currency_code":"USD","line_items_sku":"SKU-100","line_items_quantity":1,"line_items_unit_price":19.99}
+# pipe-stats-nullph :: fidelity/order-top-level-tags-array
+{"order_id":"ORD-2026-0007","status":"confirmed","fulfillment_tags":"priority|gift_wrap|signature_required","fulfillment_tags_count":3,"fulfillment_tags_distinct_count":3,"fulfillment_tags_min_length":8,"fulfillment_tags_max_length":18,"fulfillment_tags_avg_length":11.666666666666666,"fulfillment_tags_type":"string_list_consolidated","warehouse_codes":"NYC-1|LAX-2","warehouse_codes_count":2,"warehouse_codes_distinct_count":2,"warehouse_codes_min_length":5,"warehouse_codes_max_length":5,"warehouse_codes_avg_length":5.0,"warehouse_codes_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/telemetry-nested-optional-groups
+{"device_id":"sensor-4417","recorded_at":"2026-08-09T14:32:11.482Z","firmware_version":"2.14.0-rc3","uplink_rssi_dbm":-97,"labels_site":"us-east-1a","labels_rack":"R12","labels_owner_team":"iot_platform","readings_environment_temperature_c":21.5,"readings_environment_relative_humidity_pct":"NULL","readings_environment_pressure_hpa":1013.25,"readings_power_battery_pct":88,"readings_power_charging":false,"readings_power_solar_panel_voltage_v":17.2,"readings_power_solar_fault_code":"NULL"}
+# pipe-stats-nullph :: fidelity/enriched-custom-properties-survive-the-flatten
+{"order_id":"o-1","customer_full_name":"A B"}
+# pipe-stats-nullph :: fidelity/enriched-doc-inheritance-attributes-ancestor-doc-to-a-leaf
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# pipe-stats-nullph :: fidelity/enriched-entrypoints-agree-without-injection
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-escape-forged-array-boundary-is-refused
+{"axb":"2","a_b":"1","a_b_count":1,"a_b_distinct_count":1,"a_b_min_length":1,"a_b_max_length":1,"a_b_avg_length":1.0,"a_b_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/enriched-escape-name-decodes-back-to-its-path
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-escape-name-does-not-decode-across-an-array-boundary
+{"items_sku":"A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":2,"items_sku_max_length":2,"items_sku_avg_length":2.0,"items_sku_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/enriched-escape-policy-agrees-with-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-escape-resolves-the-collision
+{"user_name":"b"}
+# pipe-stats-nullph :: fidelity/enriched-fail-policy-refuses-a-colliding-schema
+{"user_name":"b"}
+# pipe-stats-nullph :: fidelity/enriched-gavro-parity-claim-fails-at-array-boundaries
+{"items_sku":"A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":2,"items_sku_max_length":2,"items_sku_avg_length":2.0,"items_sku_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/enriched-gavro-parity-claim-fails-on-underscores
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-gavro-parity-diverges-on-a-multi-branch-union
+{"payload_k":"v"}
+# pipe-stats-nullph :: fidelity/enriched-gavro-parity-diverges-on-an-array-of-arrays-of-records
+{"grid_v":"1","grid_v_count":1,"grid_v_distinct_count":1,"grid_v_min_length":1,"grid_v_max_length":1,"grid_v_avg_length":1.0,"grid_v_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/enriched-gavro-parity-factory-matches-gavro-across-an-array-boundary
+{"items_sku":"A1","items_sku_count":1,"items_sku_distinct_count":1,"items_sku_min_length":2,"items_sku_max_length":2,"items_sku_avg_length":2.0,"items_sku_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/enriched-gavro-parity-factory-matches-gavro-on-underscored-names
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-inheritdoc-false-reports-declared-only-docs
+{"order_id":"o-1","customer_full_name":"A B","customer_email_address":"a@b.c"}
+# pipe-stats-nullph :: fidelity/enriched-injected-column-colliding-with-a-source-column-is-refused
+{"order_id":"o-1","amount":"9.99"}
+# pipe-stats-nullph :: fidelity/enriched-keyset-diverges-from-map-rows
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-leaf-doc-is-reported-as-its-own
+{"order_id":"o-1","ship_city":"Denver"}
+# pipe-stats-nullph :: fidelity/enriched-matches-legacy-avro-schema-flattener
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-nested-record-column-parity-control
+{"id":"p1","home_city":"NY","home_zip":"10001","work_city":"LA","work_zip":"NULL"}
+# pipe-stats-nullph :: fidelity/enriched-record-properties-inherited-by-leaves
+{"order_id":"o-1","customer_full_name":"A B"}
+# pipe-stats-nullph :: fidelity/enriched-recursive-schema-fails-typed
+{"name":"root","child_name":"leaf","child_child":"NULL"}
+# pipe-stats-nullph :: fidelity/enriched-reserved-prop-name-collision-drops-a-producer-property
+{"garment":"shirt"}
+# pipe-stats-nullph :: fidelity/enriched-stream-honours-injections-at-their-positions
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/enriched-stream-injection-past-the-final-column
+{"order_id":"o-1","ship_city":"Denver","ship_post_code":"80202"}
+# pipe-stats-nullph :: fidelity/array-element-with-nested-object-duplicated
+{"people_addr_city":"NY|LA","people_addr_city_count":2,"people_addr_city_distinct_count":2,"people_addr_city_min_length":2,"people_addr_city_max_length":2,"people_addr_city_avg_length":2.0,"people_addr_city_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-of-arrays-with-empty-inner
+{"grid_rows":"NULL|1|2|3","grid_rows_count":4,"grid_rows_distinct_count":4,"grid_rows_min_length":1,"grid_rows_max_length":4,"grid_rows_avg_length":1.75,"grid_rows_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/array-of-objects-single-element
+{"users_name":"Alice","users_name_count":1,"users_name_distinct_count":1,"users_name_min_length":5,"users_name_max_length":5,"users_name_avg_length":5.0,"users_name_type":"string_single_value","users_age":30,"users_age_count":1,"users_age_distinct_count":1,"users_age_min_length":2,"users_age_max_length":2,"users_age_avg_length":2.0,"users_age_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/array-of-objects-two-elements-top-level
+{"users_name":"Alice|Bob","users_name_count":2,"users_name_distinct_count":2,"users_name_min_length":3,"users_name_max_length":5,"users_name_avg_length":4.0,"users_name_type":"string_list_consolidated","users_age":"30|25","users_age_count":2,"users_age_distinct_count":2,"users_age_min_length":2,"users_age_max_length":2,"users_age_avg_length":2.0,"users_age_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/boundary-separator-on-double-underscore-field
+{"a__b":1,"a_b":2}
+# pipe-stats-nullph :: fidelity/boundary-separator-on-round-trip
+{"metrics_0":10,"metrics_1":20,"users_name":"A|B","users_name_count":2,"users_name_distinct_count":2,"users_name_min_length":1,"users_name_max_length":1,"users_name_avg_length":1.0,"users_name_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/empty-containers-at-depth
+{"a_emptyObj":"NULL","a_emptyArr":"NULL","a_explicitNull":"NULL","a_deep_x_y":"NULL"}
+# pipe-stats-nullph :: fidelity/flattener-maxdepth-truncation
+{"l1_l2_l3_l4_l5":"deep"}
+# pipe-stats-nullph :: fidelity/heterogeneous-array-object-first
+{"mixed":"x|y","mixed_count":2,"mixed_distinct_count":2,"mixed_min_length":1,"mixed_max_length":1,"mixed_avg_length":1.0,"mixed_type":"string_list_consolidated","mixed_a":"1|2","mixed_a_count":2,"mixed_a_distinct_count":2,"mixed_a_min_length":1,"mixed_a_max_length":1,"mixed_a_avg_length":1.0,"mixed_a_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/heterogeneous-array-scalar-first
+{"mixed":"1|2","mixed_count":2,"mixed_distinct_count":2,"mixed_min_length":1,"mixed_max_length":1,"mixed_avg_length":1.0,"mixed_type":"numeric_list_consolidated","mixed_a":3,"mixed_a_count":1,"mixed_a_distinct_count":1,"mixed_a_min_length":1,"mixed_a_max_length":1,"mixed_a_avg_length":1.0,"mixed_a_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/mixed-array-sentinel-vs-user-value-field
+{"mixed":"x","mixed_count":1,"mixed_distinct_count":1,"mixed_min_length":1,"mixed_max_length":1,"mixed_avg_length":1.0,"mixed_type":"string_single_value","mixed_value":1,"mixed_value_count":1,"mixed_value_distinct_count":1,"mixed_value_min_length":1,"mixed_value_max_length":1,"mixed_value_avg_length":1.0,"mixed_value_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/mixed-nested-array-sentinel-collision
+{"data":"text","data_count":1,"data_distinct_count":1,"data_min_length":4,"data_max_length":4,"data_avg_length":4.0,"data_type":"string_single_value","data_name":"A","data_name_count":1,"data_name_distinct_count":1,"data_name_min_length":1,"data_name_max_length":1,"data_name_avg_length":1.0,"data_name_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/nested-array-of-objects-default
+{"order_items_sku":"A|B","order_items_sku_count":2,"order_items_sku_distinct_count":2,"order_items_sku_min_length":1,"order_items_sku_max_length":1,"order_items_sku_avg_length":1.0,"order_items_sku_type":"string_list_consolidated","order_items_qty":"1|2","order_items_qty_count":2,"order_items_qty_distinct_count":2,"order_items_qty_min_length":1,"order_items_qty_max_length":1,"order_items_qty_avg_length":1.0,"order_items_qty_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/nested-array-of-objects-explicit-hints
+{"order_items_sku":"A|B","order_items_sku_count":2,"order_items_sku_distinct_count":2,"order_items_sku_min_length":1,"order_items_sku_max_length":1,"order_items_sku_avg_length":1.0,"order_items_sku_type":"string_list_consolidated","order_items_qty":"1|2","order_items_qty_count":2,"order_items_qty_distinct_count":2,"order_items_qty_min_length":1,"order_items_qty_max_length":1,"order_items_qty_avg_length":1.0,"order_items_qty_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/nested-array-of-scalars
+{"user_tags":"red|green","user_tags_count":2,"user_tags_distinct_count":2,"user_tags_min_length":3,"user_tags_max_length":5,"user_tags_avg_length":4.0,"user_tags_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/nullable-nested-record-shadowed-json-stack
+{"orders_id":"1|2","orders_id_count":2,"orders_id_distinct_count":2,"orders_id_min_length":1,"orders_id_max_length":1,"orders_id_avg_length":1.0,"orders_id_type":"numeric_list_consolidated","orders_ship":"NULL","orders_ship_count":1,"orders_ship_distinct_count":1,"orders_ship_min_length":4,"orders_ship_max_length":4,"orders_ship_avg_length":4.0,"orders_ship_type":"string_single_value","orders_ship_city":"NY","orders_ship_city_count":1,"orders_ship_city_distinct_count":1,"orders_ship_city_min_length":2,"orders_ship_city_max_length":2,"orders_ship_city_avg_length":2.0,"orders_ship_city_type":"string_single_value"}
+# pipe-stats-nullph :: fidelity/object-chain-depth-8
+{"l1_l2_l3_l4_l5_l6_l7_l8":"leaf"}
+# pipe-stats-nullph :: fidelity/ragged-array-of-objects-absent-vs-null
+{"rows_a":"1|3","rows_a_count":2,"rows_a_distinct_count":2,"rows_a_min_length":1,"rows_a_max_length":1,"rows_a_avg_length":1.0,"rows_a_type":"numeric_list_consolidated","rows_b":2,"rows_b_count":1,"rows_b_distinct_count":1,"rows_b_min_length":1,"rows_b_max_length":1,"rows_b_avg_length":1.0,"rows_b_type":"numeric_single_value"}
+# pipe-stats-nullph :: fidelity/reserved-marker-key-dropped
+{"cfg___meta__":1,"cfg____":2,"cfg_name":"x"}
+# pipe-stats-nullph :: fidelity/top-level-array-of-scalars
+{"tags":"red|green|blue","tags_count":3,"tags_distinct_count":3,"tags_min_length":3,"tags_max_length":5,"tags_avg_length":4.0,"tags_type":"string_list_consolidated","scores":"1|2|3","scores_count":3,"scores_distinct_count":3,"scores_min_length":1,"scores_max_length":1,"scores_avg_length":1.0,"scores_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/vd-array-lookalike-fabricates-padding
+{"a_b":"[7]","a_c":"[1,2,3]"}
+# pipe-stats-nullph :: fidelity/vd-comma-format-atomic-coercion
+{"a_b":"true|null|007|1.10|0x1F","a_b_count":5,"a_b_distinct_count":5,"a_b_min_length":3,"a_b_max_length":4,"a_b_avg_length":3.8,"a_b_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/vd-comma-format-empty-and-trailing-null
+{"a_b":"|x|NULL","a_b_count":3,"a_b_distinct_count":3,"a_b_min_length":0,"a_b_max_length":4,"a_b_avg_length":1.6666666666666667,"a_b_type":"string_list_consolidated"}
+# pipe-stats-nullph :: fidelity/vd-comma-format-scalar-with-comma
+{"a_b":"Smith, John","a_c":"plain"}
+# pipe-stats-nullph :: fidelity/vd-control-chars-and-long-string
+{"s_ctrl":"a\u0000b\u001Fcd","s_ws":"tab\there\nnl\rcr","s_quotes":"he said \"hi\" and \\ backslash","s_unicode":"héllo 😀 中文","s_long":"Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"}
+# pipe-stats-nullph :: fidelity/vd-decimal-scale-and-precision
+{"d_trailingZero":37.774,"d_oneFive":1.5,"d_highScale":0.12345678901234568,"d_beyondDouble":1.0,"d_money":19.99}
+# pipe-stats-nullph :: fidelity/vd-empty-containers-end-to-end
+{"e_emptyObj":"NULL","e_emptyArr":"NULL","e_explicitNull":"NULL","e_nonEmpty_x":1}
+# pipe-stats-nullph :: fidelity/vd-exponent-overflow-and-underflow
+{"d_over":"Infinity","d_negOver":"-Infinity","d_under":0.0,"d_nearMax":1.0E308}
+# pipe-stats-nullph :: fidelity/vd-integer-boundaries-within-long
+{"n_zero":0,"n_neg":-1,"n_i32max":2147483647,"n_i32maxPlus1":2147483648,"n_p53minus1":9007199254740991,"n_p53":9007199254740992,"n_p53plus1":9007199254740993,"n_i64max":9223372036854775807,"n_i64min":-9223372036854775808}
+# pipe-stats-nullph :: fidelity/vd-integer-past-long
+{"n_i64max":9223372036854775807,"n_i64maxPlus1":-9223372036854775808,"n_huge":-4362896299872285998}
+# pipe-stats-nullph :: fidelity/vd-nested-json-string-length-gate
+{"a_shortJson":"{\"x\":1}","a_longJson":"{\"x\":1,\"padpadpadpadpad\":2}"}
+# pipe-stats-nullph :: fidelity/vd-number-text-normalization
+{"n_exp":100.0,"n_expPlus":100.0,"n_plain":100.0,"n_int":100}
+# pipe-stats-nullph :: fidelity/vd-preserve-bigdecimal-flag-inert
+{"d_amount":37.774}
+# pipe-stats-nullph :: fidelity/vd-preserve-nulls-false-erases-present-null
+{"p_present":"NULL","p_other":1}
+# pipe-stats-nullph :: fidelity/vd-real-array-collides-with-array-text
+{"a_b":"1|2|3","a_b_count":3,"a_b_distinct_count":3,"a_b_min_length":1,"a_b_max_length":1,"a_b_avg_length":1.0,"a_b_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: fidelity/vd-signed-zero
+{"z_negDouble":-0.0,"z_posDouble":0.0,"z_negInt":0,"z_posInt":0}
+# pipe-stats-nullph :: fidelity/vd-string-literal-lookalikes
+{"wrap_sNull":"null","wrap_sTrue":"true","wrap_sFalse":"false","wrap_sInt":"1","wrap_sFloat":"1.0","wrap_sNaN":"NaN","wrap_sInf":"Infinity","wrap_sNegInf":"-Infinity","wrap_sEmpty":"","wrap_bTrue":true,"wrap_nInt":1,"wrap_nFloat":1.0}
+# pipe-stats-nullph :: fidelity/vd-string-that-looks-like-array
+{"a_b":"[1,2,3]"}
+# pipe-stats-nullph :: adv/leading-bracket-key
+{"[0]":1,"[1]":2}
+# pipe-stats-nullph :: adv/user-supplied-index-key
+{"a":"1|2","a_count":2,"a_distinct_count":2,"a_min_length":1,"a_max_length":1,"a_avg_length":1.0,"a_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: adv/newline-before-bracket
+{"a\n[0]":1,"a\r[0]":2,"a ":3}
+# pipe-stats-nullph :: adv/unicode-digit-index
+{"a[०]":1,"a[۰]":2,"a[０]":3}
+# pipe-stats-nullph :: adv/doubled-open-bracket
+{"a[":1,"a":"2|3","a_count":2,"a_distinct_count":2,"a_min_length":1,"a_max_length":1,"a_avg_length":1.0,"a_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: adv/unterminated-bracket
+{"a[0":1,"a[x]":2,"a[0x]":3,"a[]":4}
+# pipe-stats-nullph :: adv/huge-index-digits
+{"a":1}
+# pipe-stats-nullph :: adv/dot-and-underscore-keys
+{"a_b":2}
+# pipe-stats-nullph :: adv/no-underscore-array-names
+{"tags":"x|y","tags_count":2,"tags_distinct_count":2,"tags_min_length":1,"tags_max_length":1,"tags_avg_length":1.0,"tags_type":"string_list_consolidated","items_sku":"a|b","items_sku_count":2,"items_sku_distinct_count":2,"items_sku_min_length":1,"items_sku_max_length":1,"items_sku_avg_length":1.0,"items_sku_type":"string_list_consolidated"}
+# pipe-stats-nullph :: adv/single-element-array-with-delimiter
+{"items":"a,b,c","items_count":1,"items_distinct_count":1,"items_min_length":5,"items_max_length":5,"items_avg_length":5.0,"items_type":"string_single_value","other":"p|q","other_count":2,"other_distinct_count":2,"other_min_length":1,"other_max_length":1,"other_avg_length":1.0,"other_type":"string_list_consolidated"}
+# pipe-stats-nullph :: adv/nested-array-of-arrays
+{"m":"1|2|3|4","m_count":4,"m_distinct_count":4,"m_min_length":1,"m_max_length":1,"m_avg_length":1.0,"m_type":"numeric_list_consolidated","n_k":1,"n_k_count":1,"n_k_distinct_count":1,"n_k_min_length":1,"n_k_max_length":1,"n_k_avg_length":1.0,"n_k_type":"numeric_single_value"}
+# pipe-stats-nullph :: adv/empty-array-and-object
+{"e":"NULL","o":"NULL","n":"NULL","z":"NULL|NULL","z_count":2,"z_distinct_count":1,"z_min_length":4,"z_max_length":4,"z_avg_length":4.0,"z_type":"string_list_consolidated"}
+# pipe-stats-nullph :: adv/numeric-looking-strings
+{"v":"1|2.5|+3|-0|1e10|0x1p3|1d|NaN|Infinity","v_count":9,"v_distinct_count":9,"v_min_length":1,"v_max_length":8,"v_avg_length":3.3333333333333335,"v_type":"string_list_consolidated"}
+# pipe-stats-nullph :: adv/boolean-and-mixed-arrays
+{"b":"true|FALSE","b_count":2,"b_distinct_count":2,"b_min_length":4,"b_max_length":5,"b_avg_length":4.5,"b_type":"boolean_list_consolidated","m":"true|1","m_count":2,"m_distinct_count":2,"m_min_length":1,"m_max_length":4,"m_avg_length":2.5,"m_type":"string_list_consolidated","s":"|  ","s_count":2,"s_distinct_count":2,"s_min_length":0,"s_max_length":2,"s_avg_length":1.0,"s_type":"string_list_consolidated"}
+# pipe-stats-nullph :: adv/duplicate-and-empty-values
+{"d":"x|x||yy","d_count":4,"d_distinct_count":3,"d_min_length":0,"d_max_length":2,"d_avg_length":1.0,"d_type":"string_list_consolidated","c":",|,,","c_count":2,"c_distinct_count":2,"c_min_length":1,"c_max_length":2,"c_avg_length":1.5,"c_type":"string_list_consolidated"}
+# pipe-stats-nullph :: shape/wideFlat40
+{"field_str_0":"um25bb0a","field_str_1":"qi10z3he","field_str_2":"hp7vr8ey","field_str_3":"5mpk0vf7","field_str_4":"a8ldf09p","field_str_5":"icvgpg7l","field_str_6":"hfmtsei5","field_str_7":"gi62p2ur","field_str_8":"g0pj7r5e","field_str_9":"d2s6za56","field_str_10":"4ldjn3ck","field_str_11":"jn7ktnl4","field_str_12":"u93e7o9o","field_str_13":"e7zi1esf","field_str_14":"fgbggm8f","field_str_15":"zcxrztad","field_str_16":"ph27yw9p","field_str_17":"5bs09b1e","field_str_18":"4uwxvsle","field_str_19":"e77aw82b","field_str_20":"anrk1zaf","field_str_21":"au4tdiil","field_str_22":"5oplb0l4","field_str_23":"a3qdwhi2","field_str_24":"wfh7scxz","field_str_25":"xsnfdi8i","field_str_26":"5nhch0qm","field_str_27":"uoh47woq","field_str_28":"bk4j6bl8","field_str_29":"693hqd7p","field_str_30":"sdg6tkag","field_str_31":"e69c0s9j","field_str_32":"rcxtw69w","field_str_33":"2hfwojjk","field_str_34":"yrb869r6","field_str_35":"qlo0byow","field_str_36":"gqnwt2xp","field_str_37":"bw4a798l","field_str_38":"nmtpdem8","field_str_39":"qtlhe53n"}
+# pipe-stats-nullph :: shape/deepNarrow24
+{"level_0_level_1_level_2_level_3_level_4_level_5_level_6_level_7_level_8_level_9_level_10_level_11_level_12_level_13_level_14_level_15_level_16_level_17_level_18_level_19_level_20_level_21_level_22_leaf_value":"terminal"}
+# pipe-stats-nullph :: shape/arrayHeavySmall
+{"numeric_array_0":"43377|34808|62688|80782|71093|82055|49874|17494|82585|44676|56414|73904","numeric_array_0_count":12,"numeric_array_0_distinct_count":12,"numeric_array_0_min_length":5,"numeric_array_0_max_length":5,"numeric_array_0_avg_length":5.0,"numeric_array_0_type":"numeric_list_consolidated","numeric_array_1":"52508|66680|191|62003|6158|38750|64469|32035|16699|26206|31005|1311","numeric_array_1_count":12,"numeric_array_1_distinct_count":12,"numeric_array_1_min_length":3,"numeric_array_1_max_length":5,"numeric_array_1_avg_length":4.666666666666667,"numeric_array_1_type":"numeric_list_consolidated","numeric_array_2":"43640|67892|6635|77207|81609|24176|46631|12251|57164|66198|15873|29071","numeric_array_2_count":12,"numeric_array_2_distinct_count":12,"numeric_array_2_min_length":4,"numeric_array_2_max_length":5,"numeric_array_2_avg_length":4.916666666666667,"numeric_array_2_type":"numeric_list_consolidated","string_array_0":"wjwxdzj4|in88cj44|8zezr8r2|vw11zsho|8cjj5jf1|b4fiet5n|z2f74gs0|lg5qd29k|cy78omjv|8w8akw1x|dtyk4oq1|ix3nwiud","string_array_0_count":12,"string_array_0_distinct_count":12,"string_array_0_min_length":8,"string_array_0_max_length":8,"string_array_0_avg_length":8.0,"string_array_0_type":"string_list_consolidated","string_array_1":"ccmy4wgp|iodddmsn|cqu1hpgj|iwkt84pr|k8panawg|sbrbqxnn|5ut9zn7l|c4xctg1z|bmw78qz2|4hbkprh7|37tloq67|x24own6s","string_array_1_count":12,"string_array_1_distinct_count":12,"string_array_1_min_length":8,"string_array_1_max_length":8,"string_array_1_avg_length":8.0,"string_array_1_type":"string_list_consolidated","string_array_2":"uvfvmlgq|zcnwkarq|ct0dtz6a|92u07jle|ky2ossz8|gpsa6h0h|tjcl3wup|7v39c1tq|ak1zn5hh|lnhf60g2|paeklemo|ktrb61r3","string_array_2_count":12,"string_array_2_distinct_count":12,"string_array_2_min_length":8,"string_array_2_max_length":8,"string_array_2_avg_length":8.0,"string_array_2_type":"string_list_consolidated","record_array_nested_field_0":"89v0gd|bzvgna|cn2p2z|67v859|dnu9hg","record_array_nested_field_0_count":5,"record_array_nested_field_0_distinct_count":5,"record_array_nested_field_0_min_length":6,"record_array_nested_field_0_max_length":6,"record_array_nested_field_0_avg_length":6.0,"record_array_nested_field_0_type":"string_list_consolidated","record_array_nested_field_1":"915|844|801|920|928","record_array_nested_field_1_count":5,"record_array_nested_field_1_distinct_count":5,"record_array_nested_field_1_min_length":3,"record_array_nested_field_1_max_length":3,"record_array_nested_field_1_avg_length":3.0,"record_array_nested_field_1_type":"numeric_list_consolidated"}
+# pipe-stats-nullph :: shape/mixedProduction
+{"order_id":"ord-1","created_at":"2026-08-19","order_total":12.5,"attribute_0_value":"NULL","attribute_1_value":9,"attribute_2_value":"s","user_user_id":7,"user_user_name":"n","user_is_active":true,"line_items_sku_code":"a|b","line_items_sku_code_count":2,"line_items_sku_code_distinct_count":2,"line_items_sku_code_min_length":1,"line_items_sku_code_max_length":1,"line_items_sku_code_avg_length":1.0,"line_items_sku_code_type":"string_list_consolidated","line_items_quantity_ordered":"1|3","line_items_quantity_ordered_count":2,"line_items_quantity_ordered_distinct_count":2,"line_items_quantity_ordered_min_length":1,"line_items_quantity_ordered_max_length":1,"line_items_quantity_ordered_avg_length":1.0,"line_items_quantity_ordered_type":"numeric_list_consolidated","line_items_unit_price":"2.0|4.5","line_items_unit_price_count":2,"line_items_unit_price_distinct_count":2,"line_items_unit_price_min_length":3,"line_items_unit_price_max_length":3,"line_items_unit_price_avg_length":3.0,"line_items_unit_price_type":"numeric_list_consolidated"}
