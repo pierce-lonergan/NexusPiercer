@@ -207,8 +207,11 @@ and shipped to executors.
 ### Which flattener do I use?
 
 Six public types have "Flattener" in the name and the names do not tell you them apart. Three
-flatten DATA; three flatten a SCHEMA and never touch a record. Renaming them is a breaking change
-and is deferred to 3.0.0 ([BL-016]), so until then this table is the selection rule.
+flatten DATA; two flatten a SCHEMA only; and `GAvroSchemaFlattener` flattens a schema **and**
+carries `applyTypes`, the per-record type-casting step the Spark streaming path calls — so "the
+schema ones never touch a record" is true of two of the three, not three. Renaming them is a
+breaking change and is deferred to 3.0.0 ([BL-016]), so until then this table is the selection
+rule.
 
 | Class | Flattens | Reach for it when |
 |---|---|---|
@@ -217,7 +220,7 @@ and is deferred to 3.0.0 ([BL-016]), so until then this table is the selection r
 | `JsonFlattenerConsolidator` | data — independent Jackson implementation | Only from the Spark layer, which is what calls it. It contains **no** `MapFlattener`, so its output is not guaranteed to match, and the fidelity corpus does not cover it. |
 | `EnrichedSchemaFlattener` | schema only | **Default choice for schemas.** The current one: `final`, configured by `FlattenOptions`, and the target of the enriched pipeline API above. |
 | `AvroSchemaFlattener` | schema only | Legacy. Emits Avro `Schema.Field`s directly. |
-| `GAvroSchemaFlattener` | schema only | Legacy, and independent of `AvroSchemaFlattener` despite the name — it emits names shaped to match `MapFlattener`'s data output, plus type casts. |
+| `GAvroSchemaFlattener` | schema **+ per-record type casting** | Legacy, and independent of `AvroSchemaFlattener` despite the name. `flattenSchema(Schema)` emits names shaped to match `MapFlattener`'s data output; `applyTypes(flattenedData, flattenedSchema)` then casts a flattened RECORD against that schema, and its own javadoc calls it "the hot path method called for every record in streaming". That method is the reason to reach for this class — it is how flattened data gets typed against a GAvro-flattened schema, and neither of the other two schema flatteners has an equivalent. |
 
 For reading a schema file off disk, use **`SchemaFiles`**, not `FileFinder` — the latter is
 deprecated in 2.1.0.
@@ -284,8 +287,7 @@ deprecated in 2.1.0.
 | [Audit findings](docs/audit/FINDINGS.md) | Full engineering audit — 200 verified findings, ranked |
 | [Roadmap](docs/audit/ROADMAP.md) | Phased remediation plan and benchmark design |
 | [Backlog](docs/BACKLOG.md) | Known issues not yet scheduled |
-| [Architecture](docs/ARCHITECTURE_GRAPH.md) | Component and data-flow diagrams |
-| [API surface](docs/API_SURFACE.md) | Generated API inventory |
+| [Architecture](docs/ARCHITECTURE_GRAPH.md) | Component, dependency and data-flow diagrams — every class-to-class edge is asserted against the source by a test |
 | [Contributing](CONTRIBUTING.md) | Build, test, and PR workflow |
 | [Security](SECURITY.md) | Reporting a vulnerability |
 | [Changelog](CHANGELOG.md) | Release history |

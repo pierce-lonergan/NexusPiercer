@@ -76,8 +76,12 @@ import java.util.zip.GZIPInputStream;
  *     It is public API in the 2.0.0 baseline and cannot be removed before 3.0.0.</p>
  *
  *     <p>Removal, and the rework into an instantiable {@code AutoCloseable} component, is filed as
- *     BL-017 for 3.0.0: 34 members of this class sit in the released 2.0.0 API baseline, so none
- *     of it can go additively.</p>
+ *     BL-017 for 3.0.0: 64 entries in the released 2.0.0 API baseline name this class or one of
+ *     its seven nested types - 8 TYPE, 4 CTOR, 23 FIELD, 29 METH, of which 9 are declared
+ *     directly on {@code FileFinder} itself - so none of it can go additively. Every one of
+ *     those figures is asserted against the baseline file by
+ *     {@code FileFinderBaselineFootprintTest}; the previously published "34 members" did not
+ *     reproduce against any subsetting of it.</p>
  */
 @Deprecated
 public class FileFinder {
@@ -660,9 +664,8 @@ public class FileFinder {
     }
 
     /**
-     * Discover files with specific extension
-     */
-    /**
+     * Discover files with a specific extension.
+     *
      * @deprecated Walks every search path on every call. Use {@link SchemaFiles} with a known path.
      */
     @Deprecated
@@ -671,9 +674,8 @@ public class FileFinder {
     }
 
     /**
-     * Discover all Avro schema files
-     */
-    /**
+     * Discover all Avro schema files.
+     *
      * @deprecated Walks every search path on every call. Use {@link SchemaFiles} with a known path.
      */
     @Deprecated
@@ -699,9 +701,8 @@ public class FileFinder {
     }
 
     /**
-     * Clear all caches
-     */
-    /**
+     * Clear all caches.
+     *
      * @deprecated Clears caches that {@link SchemaFiles} does not have. Retained because the
      *     test suite needs to reset this class's global state between cases.
      */
@@ -718,9 +719,8 @@ public class FileFinder {
     }
 
     /**
-     * Get detailed statistics
-     */
-    /**
+     * Get detailed statistics.
+     *
      * @deprecated Reports on caches that {@link SchemaFiles} does not have and does not need.
      */
     @Deprecated
@@ -1007,6 +1007,21 @@ public class FileFinder {
 
     private FileHandle createClasspathHandle(URL resource, String fileName) throws IOException {
         URLConnection conn = resource.openConnection();
+        // Do not let the connection cache the jar/file it opens. getLastModified() and
+        // getContentLengthLong() both force connect(), which opens an underlying stream that
+        // nothing here ever closes - and a handle lives in the cache for 60 minutes, so on
+        // Windows the resolved file stayed undeletable for that long and under a jar the leaked
+        // connection pinned an Inflater. See the try-finally below: the metadata is read first,
+        // then the stream the connection opened is closed.
+        conn.setUseCaches(false);
+        final long lastModified;
+        final long contentLength;
+        try {
+            lastModified = conn.getLastModified();
+            contentLength = conn.getContentLengthLong();
+        } finally {
+            closeQuietly(conn);
+        }
 
         String container = null;
         FileLocation.Type type = FileLocation.Type.CLASSPATH;
@@ -1030,10 +1045,28 @@ public class FileFinder {
         return new FileHandle(
                 resource.toString(),
                 location,
-                conn.getLastModified(),
-                conn.getContentLengthLong(),
+                lastModified,
+                contentLength,
                 isCompressed(fileName)
         );
+    }
+
+    /**
+     * Releases the stream a {@link URLConnection} opened when it connected.
+     *
+     * <p>{@code URLConnection} has no {@code close()}. For {@code file:} and {@code jar:} the
+     * only way to release the descriptor is to take the input stream and close it; a failure to
+     * obtain it means there was nothing to release.</p>
+     */
+    private static void closeQuietly(URLConnection conn) {
+        try (InputStream released = conn.getInputStream()) {
+            if (released == null) {
+                LOG.trace("URLConnection returned no stream to release");
+            }
+        } catch (IOException | RuntimeException nothingToRelease) {
+            LOG.trace("No stream to release from URLConnection: {}",
+                    nothingToRelease.getMessage());
+        }
     }
 
     /**
@@ -1346,9 +1379,8 @@ public class FileFinder {
     // ===== UTILITY CLASS =====
 
     /**
-     * Utility methods for common operations
-     */
-    /**
+     * Utility methods for common operations.
+     *
      * @deprecated General file utilities on a schema resolver. Use {@link SchemaFiles} for
      *     schema reads; for HTTP or HDFS use those clients directly, where the timeouts and
      *     credentials are yours to set.

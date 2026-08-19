@@ -607,10 +607,18 @@ public class JsonReconstructor implements Serializable {
                 //
                 // Under the DEFAULT arrayFormat JSON it is not a cascade. The switch falls
                 // straight through and the value used to be returned as a one-element list
-                // holding the raw unparsed text. MapFlattener's JSON writer always emits
-                // parseable JSON - including for a single-element column - so such a value cannot
-                // have come from it, which makes this a detectable contradiction rather than a
-                // guess.
+                // holding the raw unparsed text.
+                //
+                // WHAT IS AND IS NOT TRUE ABOUT THE WRITER. MapFlattener's ARRAY writer,
+                // serializeArray, emits parseable JSON - including for a single-element column -
+                // so an array column it wrote will parse. MapFlattener as a whole does NOT only
+                // emit parseable JSON: it writes the literal marker [CIRCULAR_REFERENCE] for a
+                // cycle, and stringifyObject falls back to obj.toString() and then to
+                // [OBJECT:SimpleName], any of which can be bracketed and unparseable. An earlier
+                // draft of this message asserted the stronger claim and would have told a caller
+                // holding MapFlattener's own circular marker that the value "did not come from
+                // it" - so the message below names those three first and does not deny the
+                // value's provenance.
                 //
                 // A WARN WAS THE OLD ANSWER AND IT WAS NOT ENOUGH. AvroReconstructor already
                 // settled the same question in the mirror-image direction and wrote down why:
@@ -618,17 +626,24 @@ public class JsonReconstructor implements Serializable {
                 // - a Spark job whose logs nobody tails - and the data would still be wrong."
                 // One library must not give two different answers to the same misconfiguration.
                 //
-                // The speculative probe, tryParseArrayValue, catches this and returns null, so
+                // The speculative probe, tryParseArrayValue, catches this and returns an EMPTY
+                // list - not null; see ReconstructorNeverReturnsNullListContractTest - so
                 // structure inference is UNCHANGED and a document carrying a marker such as
-                // [CIRCULAR_REFERENCE] still reconstructs exactly as before.
+                // [CIRCULAR_REFERENCE] still reconstructs exactly as before unless the caller has
+                // named that column in arrayPaths().
                 if (arrayFormat == ArraySerializationFormat.JSON) {
                     throw new ArrayParseException(
                             "Column " + (columnPath == null ? "(inferred)" : "'" + columnPath + "'")
                                     + " is bracketed but is not parseable JSON, and arrayFormat is "
-                                    + arrayFormat + ". MapFlattener's JSON writer always emits "
-                                    + "parseable JSON, so this value did not come from it. Either "
-                                    + "the column is not an array, or the configured arrayFormat "
-                                    + "does not match the writer. Raw value: " + strValue,
+                                    + arrayFormat + ". Check first whether this is one of the "
+                                    + "bracketed non-JSON values MapFlattener itself writes: the "
+                                    + "[CIRCULAR_REFERENCE] cycle marker, an object's toString(), "
+                                    + "or [OBJECT:SimpleName] - none of those is an array, and a "
+                                    + "column holding one should not be named in arrayPaths(). "
+                                    + "Otherwise the column is not an array, or the configured "
+                                    + "arrayFormat does not match the writer - MapFlattener's "
+                                    + "array writer always emits parseable JSON. Raw value: "
+                                    + strValue,
                             notJson);
                 }
             }
@@ -1381,9 +1396,6 @@ public class JsonReconstructor implements Serializable {
     // ========================= EXCEPTION =========================
 
     /**
-     * Exception for reconstruction failures.
-     */
-    /**
      * A column that a caller or inference has already committed to being an array is bracketed
      * but is not parseable JSON, under {@code arrayFormat=JSON}.
      *
@@ -1402,6 +1414,9 @@ public class JsonReconstructor implements Serializable {
         }
     }
 
+    /**
+     * Exception for reconstruction failures.
+     */
     public static class ReconstructionException extends RuntimeException {
         public ReconstructionException(String message) {
             super(message);

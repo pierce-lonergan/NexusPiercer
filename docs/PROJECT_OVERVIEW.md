@@ -113,7 +113,7 @@ graph TB
 |-------------|---------|------|
 | NexusPiercerSparkPipeline | Main Spark pipeline API | src/main/java/.../spark/NexusPiercerSparkPipeline.java |
 | NexusPiercerFunctions | Spark SQL UDFs for JSON processing | src/main/java/.../spark/NexusPiercerFunctions.java |
-| NexusPiercerPatterns | Pre-built ETL patterns (jsonToDelta, etc.) | src/main/java/.../spark/NexusPiercerPatterns.java |
+| NexusPiercerPatterns | JSON quality report and structure profiling over a Dataset (NOT ETL recipes — `jsonToDelta` and friends do not exist; OSS-01) | src/main/java/.../spark/NexusPiercerPatterns.java |
 | JsonFlattenerConsolidator | Standalone JSON flattening | src/main/java/.../JsonFlattenerConsolidator.java |
 | MapFlattener | Standalone Map flattening | src/main/java/.../MapFlattener.java |
 | IcebergSchemaConverter | Map-to-Iceberg conversion | src/main/java/.../converter/IcebergSchemaConverter.java |

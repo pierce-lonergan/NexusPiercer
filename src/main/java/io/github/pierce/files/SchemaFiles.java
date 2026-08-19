@@ -32,6 +32,20 @@ import java.nio.file.Paths;
  * <p>The cap is applied twice deliberately. A stat-only check races the read, and a stream-only
  * check has already handed the caller some bytes by the time it fires.</p>
  *
+ * <h2>What it deliberately does NOT enforce</h2>
+ * <p><b>There is no extension allow-list.</b> {@code FileFinder} refused any name outside a
+ * 13-entry set ({@code .avsc}, {@code .json}, {@code .yaml}, {@code .gz}, and so on), so
+ * repointing {@code AvroSchemaFlattener.getFlattenedSchema(String)} and the Spark pipeline's
+ * schema read onto this class DROPPED that check at those two sites: a valid schema body in a
+ * file called {@code x.exe} or {@code x.sh} is now read where it used to be refused. Recorded in
+ * the changelog rather than reinstated, for three measured reasons. The control was already
+ * partial - an extensionless name always passed it. It guards nothing this class can be attacked
+ * through: the path comes from the caller, not from the file's content, and every byte read here
+ * still has to parse as an Avro schema before it is used. And a caller whose deployment names
+ * schemas {@code .txt.tmpl} or ships them without a suffix has a legitimate read that an
+ * allow-list turns into an outage. If you want the extension checked, check it before you call -
+ * you know your own naming convention and this class does not.</p>
+ *
  * <p>NOT A GENERAL FILE UTILITY. It is deliberately narrower than {@code FileFinder.Util}: it will
  * not fetch over HTTP, will not read from HDFS and will not transparently decompress. If you need
  * those, you want the Hadoop or HTTP client directly, where the timeouts and credentials are

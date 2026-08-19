@@ -1,5 +1,15 @@
 # NexusPiercer Spark Pipeline
 
+> **⚠️ PARTS OF THIS DOCUMENT DESCRIBE METHODS THAT DO NOT EXIST.** Every snippet below calling
+> `NexusPiercerPatterns.jsonToParquet`, `.jsonToDelta`, `.jsonToNormalizedTables` or
+> `.processIncremental` will not compile: `NexusPiercerPatterns` declares exactly two public
+> methods, `generateDataQualityReport(Dataset, String)` and `profileJsonStructure(Dataset, String)`.
+> This is finding `OSS-01` in [docs/audit/FINDINGS.md](audit/FINDINGS.md) and it is still open —
+> the sections are left in place rather than deleted because the pipeline material around them is
+> accurate and worth keeping. For reading, flattening and writing, use `NexusPiercerSparkPipeline`
+> directly; the [README](../README.md) shows the current API. The class javadoc on
+> `NexusPiercerPatterns`, which carried the same phantom example, was corrected in 2.1.0.
+
 A powerful, intuitive abstraction layer for processing nested JSON data with Avro schemas in Apache Spark. This library combines the JSON flattening capabilities of NexusPiercer with Spark's distributed processing power.
 
 ## 🚀 Key Features

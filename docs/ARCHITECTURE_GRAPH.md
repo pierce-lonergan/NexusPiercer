@@ -1,6 +1,9 @@
 # Architecture Graph — NexusPiercer
-> Auto-generated from discovery. Updates as exploration progresses.
-> Last Updated: 2025-12-08
+> Hand-maintained, NOT auto-generated. Every class-to-class edge below is asserted against the
+> source by `ArchitectureGraphEdgesAreRealTest`, so an edge that stops being true fails the build.
+> Missing edges are not gated — this is a summary, and a summary is allowed to be incomplete. It
+> is not allowed to be wrong.
+> Last verified: 2026-08-19 (2.1.0-SNAPSHOT)
 
 ## System Context (C4 Level 1)
 *External systems and actors that interact with this system*
@@ -67,6 +70,7 @@ graph LR
     end
     
     subgraph "Schema Layer"
+        ESF[EnrichedSchemaFlattener]
         ASF[AvroSchemaFlattener]
         ASL[AvroSchemaLoader]
         GASF[GAvroSchemaFlattener]
@@ -86,28 +90,36 @@ graph LR
     end
     
     subgraph "Utilities"
+        SF[SchemaFiles]
         FF[FileFinder]
     end
     
     NPSP --> JFC
     NPSP --> ASF
-    NPSP --> NPF
+    NPSP --> CSFS
+    NPSP --> SF
     NPP --> NPSP
     
     NPF --> JFC
     
     JF --> MF
+    JR[JsonReconstructor] --> MF
     
     AR --> |"uses schema"| AVRO_SCHEMA[Avro Schema]
     
-    ASF --> ASL
-    ASF --> FF
-    GASF --> ASF
-    CSFS --> ASF
+    ESF --> FO[FlattenOptions]
+    ASF --> SF
+    ASL --> SF
+    ASL --> FF
+    GASF --> MF
+    CSFS --> ASL
     
     ISC --> TCR
-    ASC --> TCR
+    ISC --> CC
+    ASC --> ATC[AbstractTypeConverter]
+    ATC --> TC[TypeConverter]
     TCR --> CC
+    TCR --> TC
     TCR --> TC_PRIM
     TCR --> TC_COMPLEX
 ```
@@ -121,37 +133,45 @@ graph LR
     NPSP[NexusPiercerSparkPipeline] --> |"uses"| JFC[JsonFlattenerConsolidator]
     NPSP --> |"uses"| ASF[AvroSchemaFlattener]
     NPSP --> |"uses"| CSFS[CreateSparkStructFromAvroSchema]
-    NPSP --> |"uses"| FF[FileFinder]
-    NPSP --> |"uses"| NPF[NexusPiercerFunctions]
+    NPSP --> |"reads the schema path through"| SF[SchemaFiles]
     
     %% Functions dependencies
-    NPF --> |"uses"| JFC
+    NPF[NexusPiercerFunctions] --> |"uses"| JFC
+    
+    %% Schema reading. FileFinder is deprecated in 2.1.0; only AvroSchemaLoader still has one,
+    %% behind SchemaFiles, for its classpath fallback.
+    ASF --> |"reads"| SF
+    ASL[AvroSchemaLoader] --> |"reads"| SF
+    ASL --> |"classpath fallback"| FF[FileFinder]
     
     %% Schema converter dependencies
     ISC[IcebergSchemaConverter] --> |"uses"| TCR[TypeConverterRegistry]
     ISC --> |"uses"| CC[ConversionConfig]
     
-    ASC[AvroSchemaConverter] --> |"uses"| TCR
+    ASC[AvroSchemaConverter] --> |"extends"| ATC[AbstractTypeConverter]
     ASC --> |"uses"| CC
     
     TCR --> |"manages"| TC[TypeConverter]
+    ATC --> |"implements"| TC
     
-    %% Type converters
-    BOOL[BooleanConverter] --> |"implements"| TC
-    STR[StringConverter] --> |"implements"| TC
-    INT[IntegerConverter] --> |"implements"| TC
-    LONG[LongConverter] --> |"implements"| TC
-    DBL[DoubleConverter] --> |"implements"| TC
-    FLT[FloatConverter] --> |"implements"| TC
-    DEC[DecimalConverter] --> |"implements"| TC
-    DATE[DateConverter] --> |"implements"| TC
-    TIME[TimeConverter] --> |"implements"| TC
-    TS[TimestampConverter] --> |"implements"| TC
-    BIN[BinaryConverter] --> |"implements"| TC
-    UUID[UUIDConverter] --> |"implements"| TC
-    LIST[ListConverter] --> |"implements"| TC
-    MAP[MapConverter] --> |"implements"| TC
-    STRUCT[StructConverter] --> |"implements"| TC
+    %% Type converters. Every one of these EXTENDS AbstractTypeConverter, which is what
+    %% implements TypeConverter; none of them names TypeConverter directly.
+    BOOL[BooleanConverter] --> |"extends"| ATC
+    STR[StringConverter] --> |"extends"| ATC
+    INT[IntegerConverter] --> |"extends"| ATC
+    LONG[LongConverter] --> |"extends"| ATC
+    DBL[DoubleConverter] --> |"extends"| ATC
+    FLT[FloatConverter] --> |"extends"| ATC
+    DEC[DecimalConverter] --> |"extends"| ATC
+    DATE[DateConverter] --> |"extends"| ATC
+    TIME[TimeConverter] --> |"extends"| ATC
+    TS[TimestampConverter] --> |"extends"| ATC
+    TSN[TimestampNanoConverter] --> |"extends"| ATC
+    BIN[BinaryConverter] --> |"extends"| ATC
+    UUID[UUIDConverter] --> |"extends"| ATC
+    LIST[ListConverter] --> |"extends"| ATC
+    MAP[MapConverter] --> |"extends"| ATC
+    STRUCT[StructConverter] --> |"extends"| ATC
 ```
 
 ## Layer Diagram
@@ -195,8 +215,9 @@ sequenceDiagram
     participant ASF as AvroSchemaFlattener
     participant Spark as SparkSession
     
-    User->>NPSP: forBatch(spark).withSchema("schema.avsc")
+    User->>NPSP: forBatch(spark).withSchema("path/to/schema.avsc")
     NPSP->>ASF: getFlattenedSchema(schemaPath)
+    Note over ASF: reads the literal path via SchemaFiles<br/>since 2.1.0 - it no longer SEARCHES
     ASF-->>NPSP: Schema (flattened)
     
     User->>NPSP: process("input/*.json")
@@ -220,35 +241,47 @@ sequenceDiagram
 | NexusPiercerSparkPipeline | DEPENDS_ON | JsonFlattenerConsolidator | import statement |
 | NexusPiercerSparkPipeline | DEPENDS_ON | AvroSchemaFlattener | import statement |
 | NexusPiercerSparkPipeline | DEPENDS_ON | CreateSparkStructFromAvroSchema | import statement |
-| NexusPiercerSparkPipeline | DEPENDS_ON | FileFinder | import statement |
+| NexusPiercerSparkPipeline | DEPENDS_ON | SchemaFiles | `SchemaFiles.readString(config.schemaPath)` |
 | NexusPiercerSparkPipeline | DEPENDS_ON | SparkSession | constructor param |
 | NexusPiercerFunctions | DEPENDS_ON | JsonFlattenerConsolidator | UDF implementation |
 | JsonFlattener | DELEGATES_TO | MapFlattener | uses MapFlattener internally |
+| JsonReconstructor | DEPENDS_ON | MapFlattener | reverses its output |
+| GAvroSchemaFlattener | DEPENDS_ON | MapFlattener | names shaped to match its data output |
+| EnrichedSchemaFlattener | DEPENDS_ON | FlattenOptions | configuration |
 | AvroReconstructor | DEPENDS_ON | Schema (Avro) | reconstruction requires schema |
 | AvroReconstructor | DEPENDS_ON | ObjectMapper | JSON serialization |
 | AvroReconstructor | DEPENDS_ON | GenericRecord | output type |
-| AvroSchemaConverter | DEPENDS_ON | TypeConverterRegistry | field |
+| AvroSchemaConverter | EXTENDS | AbstractTypeConverter | class declaration |
 | AvroSchemaConverter | DEPENDS_ON | ConversionConfig | field |
 | IcebergSchemaConverter | DEPENDS_ON | TypeConverterRegistry | field |
 | IcebergSchemaConverter | DEPENDS_ON | ConversionConfig | field |
-| AvroSchemaFlattener | DEPENDS_ON | FileFinder | getFlattenedSchema() |
+| AvroSchemaFlattener | DEPENDS_ON | SchemaFiles | `getFlattenedSchema(String)`, since 2.1.0 |
+| AvroSchemaLoader | DEPENDS_ON | SchemaFiles | primary read |
+| AvroSchemaLoader | DEPENDS_ON | FileFinder | classpath fallback only |
 | AvroSchemaFlattener | DEPENDS_ON | POI | Excel export |
 | MapFlattener | DEPENDS_ON | ObjectMapper | field |
 | JsonFlattenerConsolidator | DEPENDS_ON | ObjectMapper (Jackson) | JSON processing |
 | TypeConverterRegistry | CREATES | *Converter | factory pattern |
-| BooleanConverter | IMPLEMENTS | TypeConverter | class declaration |
-| StringConverter | IMPLEMENTS | TypeConverter | class declaration |
-| IntegerConverter | IMPLEMENTS | TypeConverter | class declaration |
-| LongConverter | IMPLEMENTS | TypeConverter | class declaration |
-| DoubleConverter | IMPLEMENTS | TypeConverter | class declaration |
-| FloatConverter | IMPLEMENTS | TypeConverter | class declaration |
-| DecimalConverter | IMPLEMENTS | TypeConverter | class declaration |
-| DateConverter | IMPLEMENTS | TypeConverter | class declaration |
-| TimeConverter | IMPLEMENTS | TypeConverter | class declaration |
-| TimestampConverter | IMPLEMENTS | TypeConverter | class declaration |
-| TimestampNanoConverter | IMPLEMENTS | TypeConverter | class declaration |
-| BinaryConverter | IMPLEMENTS | TypeConverter | class declaration |
-| UUIDConverter | IMPLEMENTS | TypeConverter | class declaration |
-| ListConverter | IMPLEMENTS | TypeConverter | class declaration |
-| MapConverter | IMPLEMENTS | TypeConverter | class declaration |
-| StructConverter | IMPLEMENTS | TypeConverter | class declaration |
+| TypeConverterRegistry | DEPENDS_ON | TypeConverter | manages instances of it |
+| AbstractTypeConverter | IMPLEMENTS | TypeConverter | class declaration |
+| BooleanConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| StringConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| IntegerConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| LongConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| DoubleConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| FloatConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| DecimalConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| DateConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| TimeConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| TimestampConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| TimestampNanoConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| BinaryConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| UUIDConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| ListConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| MapConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| StructConverter | EXTENDS | AbstractTypeConverter | class declaration |
+| SchemaBasedMapConverter | EXTENDS | AbstractTypeConverter | class declaration |
+
+> Every row above whose Source and Target both name a class under `src/main/java` is asserted by
+> `ArchitectureGraphEdgesAreRealTest`. Rows naming a third-party type (`POI`, `ObjectMapper`,
+> `SparkSession`) or a wildcard (`*Converter`) are not machine-checkable and are not checked.

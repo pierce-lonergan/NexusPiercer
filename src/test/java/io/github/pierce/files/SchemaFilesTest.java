@@ -122,4 +122,23 @@ class SchemaFilesTest {
     void maxBytesIsPublished() {
         assertThat(SchemaFiles.maxBytes()).isEqualTo(100L * 1024 * 1024);
     }
+
+    @Test
+    @DisplayName("there is deliberately NO extension allow-list, and that is a recorded decision")
+    void thereIsNoExtensionAllowList() throws IOException {
+        // FileFinder refused any name outside a 13-entry set, so repointing
+        // AvroSchemaFlattener.getFlattenedSchema(String) and the Spark pipeline's schema read
+        // onto SchemaFiles DROPPED that check at those two sites. This test exists so the drop
+        // is a decision on the record rather than an accident nobody wrote down: if someone
+        // later adds an allow-list, this fails and they must update the SchemaFiles javadoc and
+        // the changelog entry that documents the omission.
+        for (String name : new String[] {"evil.exe", "evil.sh", "key.pem", "schema"}) {
+            Path f = tempDir.resolve(name);
+            Files.writeString(f, "{\"type\":\"record\"}", StandardCharsets.UTF_8);
+
+            assertThatCode(() -> SchemaFiles.readString(f.toString()))
+                    .as("SchemaFiles has no extension allow-list; '%s' must open", name)
+                    .doesNotThrowAnyException();
+        }
+    }
 }

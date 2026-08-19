@@ -14,29 +14,20 @@ import static io.github.pierce.spark.NexusPiercerFunctions.*;
 import static org.apache.spark.sql.functions.*;
 
 /**
- * NexusPiercerPatterns - Common pipeline patterns and recipes.
+ * NexusPiercerPatterns - reporting helpers over an already-loaded {@code Dataset}.
  *
- * This class provides pre-configured pipelines for common use cases, making it
- * even easier to get started with JSON processing.
+ * <p>THE CLASS HAS TWO PUBLIC METHODS, and neither writes anything. The example that used to
+ * stand here showed {@code jsonToDelta} and {@code kafkaToParquetStream} — neither has ever
+ * existed on this class, and a reader following it got a compile error. Corrected in 2.1.0
+ * rather than implemented: what the class actually offers is profiling and quality reporting
+ * over a column of raw JSON, and it is worth having under that description.</p>
  *
- * Example usage:
  * <pre>
- *
- * NexusPiercerPatterns.jsonToDelta(spark,
- *     "product_schema.avsc",
- *     "s3://bucket/input/products/*.json",
- *     "s3://bucket/delta/products"
- * );
- *
- * // Streaming from Kafka to Parquet with checkpointing
- * StreamingQuery query = NexusPiercerPatterns.kafkaToParquetStream(spark,
- *     "events_schema.avsc",
- *     "kafka-broker:9092",
- *     "events-topic",
- *     "/output/events",
- *     "/checkpoints/events"
- * );
+ * Dataset&lt;Row&gt; quality = NexusPiercerPatterns.generateDataQualityReport(df, "raw_json");
+ * Dataset&lt;Row&gt; profile = NexusPiercerPatterns.profileJsonStructure(df, "raw_json");
  * </pre>
+ *
+ * <p>For reading, flattening and writing, use {@link NexusPiercerSparkPipeline}.</p>
  */
 public class NexusPiercerPatterns {
 

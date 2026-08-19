@@ -2367,22 +2367,19 @@ public class AvroReconstructor {
         return null;
     }
 
-/**
- * Reconstruct a nested array of records at a specific outer index.
- *
- * This handles the case where we have:
- * shipments_trackingEvents_timestamp: ["[t1,t2,t3]"]  (1 shipment with 3 events)
- *
- * And we need to extract the array for shipment at outerIndex.
- */
     /**
      * Reconstruct a nested array of records at a specific outer index.
      *
-     * For example, with:
-     *   lineItems_product_attributes_name: ["[\"RAM\",\"Storage\"]","[\"Connectivity\"]"]
+     * <p>The outer array's element i carries its own inner array, serialized into one slot of
+     * the flattened column. This pulls out the slot for {@code outerIndex} and parses it.</p>
      *
-     * When outerIndex=0 (first lineItem), we parse "[\"RAM\",\"Storage\"]"
-     * When outerIndex=1 (second lineItem), we parse "[\"Connectivity\"]"
+     * <p>For example, with:</p>
+     * <pre>
+     *   lineItems_product_attributes_name: ["[\"RAM\",\"Storage\"]","[\"Connectivity\"]"]
+     * </pre>
+     * <p>{@code outerIndex=0} parses {@code ["RAM","Storage"]} and {@code outerIndex=1} parses
+     * {@code ["Connectivity"]}. Equally, {@code shipments_trackingEvents_timestamp} holding
+     * {@code ["[t1,t2,t3]"]} is one shipment carrying three events.</p>
      */
     private List<Object> reconstructNestedArrayOfRecordsAtIndex(PathNode childNode,
                                                                 Schema recordSchema,

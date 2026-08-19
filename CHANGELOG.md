@@ -12,24 +12,35 @@ must not sit on a released coordinate.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
-BEHAVIOUR IS NOT.** The section immediately below lists twelve places where a `2.0.0` caller gets
-a different answer, several of them at the default configuration. Read it before upgrading.
+BEHAVIOUR IS NOT.** The section immediately below lists **twenty-one** places where a `2.0.0`
+caller gets a different answer, several of them at the default configuration. Read it before
+upgrading.
 
-Three of those twelve turn a previously-successful call into a throw: disagreeing column counts
-(item 4), a bracketed JSON array read under a delimited format and its newly-guarded mirror, an
-unbracketed delimited column read under the JSON default (item 3). Items 3 and 6 each carry a
-sub-entry recording a defect that the first version of this release's own repair INTRODUCED and
-that was caught in adversarial review before release — both are stated in full rather than
-quietly folded into the surrounding text, because a repair that creates the fault it removes is
-the single most useful thing this changelog can tell a reader.
+**Eight of the twenty-one turn a previously-successful call into a throw**, across seven items:
+a bracketed JSON array read under a delimited format, and its mirror, an unbracketed delimited
+column read under the JSON default (item 3, two cases); disagreeing column counts (item 4); an
+oversized read, which for a compressed file can throw MID-READ (item 14); a bare name that only
+resolved through a parent-directory search path (item 15); a `.avsc` outside the working tree
+that `AvroSchemaLoader` used to reach through an unvalidated fallback (item 17); a bracketed
+column a caller has named in `arrayPaths()` that is not parseable JSON (item 18); and a bare
+schema name passed to `AvroSchemaFlattener.getFlattenedSchema(String)` (item 19).
+
+Items 3 and 6 each carry a sub-entry recording a defect that the first version of this release's
+own repair INTRODUCED and that was caught in adversarial review before release, and item 18
+carries one recording a false claim its own error message made about `MapFlattener`. All three
+are stated in full rather than quietly folded into the surrounding text, because a repair that
+creates the fault it removes is the single most useful thing this changelog can tell a reader.
 
 ### Behaviour changes
 
-**These change what `AvroReconstructor` returns, at the SHIPPED DEFAULT configuration.** They are
-listed here rather than under *Fixed* because a caller pinning a snapshot of today's output will
-see a diff, and two previously-successful calls now throw. No public signature, return type,
-parameter list or visibility changes — the new exception types and the added
-`ReconstructionException(String)` constructor are additive and clear the 2.0.0 additive-only gate.
+**These change what the library returns at the SHIPPED DEFAULT configuration.** Items 1–12 are
+`AvroReconstructor`; items 13 and 21 are `MapFlattener` and the flattener's schema read; items
+14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; item 18 is `JsonReconstructor`;
+item 19 is `AvroSchemaFlattener`. They are listed here rather than under *Fixed* because a caller
+pinning a snapshot of today's output will see a diff, and because eight previously-successful
+calls now throw. No public signature, return type, parameter list or visibility changes — the new
+exception types and the added `ReconstructionException(String)` constructor are additive and
+clear the 2.0.0 additive-only gate.
 
 1. **A schema default absent from the input now arrives as its schema-correct Avro type.**
    ENUM: `java.lang.String` → `GenericData.EnumSymbol`. FIXED: `byte[]` → `GenericData.Fixed`.
@@ -232,6 +243,18 @@ parameter list or visibility changes — the new exception types and the added
     (b) Columns that were short now carry one slot per source element, so reconstructed arrays
     that used to collapse now report their true length. (c) An element that did not carry a column
     now leaves an explicit `null` at its own index rather than no entry at all.
+    **(d) OUTPUT SIZE. For a SPARSE array of maps, the emitted cell count is now `columns ×
+    elements`, unconditionally.** Pre-sizing is what puts a value back under its own element, and
+    it also makes the padding unconditional, where the old tail pad only fired if some other
+    column was already dense. MEASURED on an array of N maps each carrying one distinct key, at
+    the default `MapFlattener` with `maxArraySize=1000`: N=100 goes from 390 emitted value
+    characters to 49,890; N=500 from 2,390 to 1,249,890; N=1000 from 4,890 to **4,999,890 — a
+    1022× growth**, and the shape moves from `O(elements + columns)` to `O(elements × columns)`.
+    A dense array, where every element carries every column, is unaffected: it was already
+    `columns × elements`. If your documents contain wide sparse arrays of maps, size the consumer
+    accordingly before upgrading — this can turn a job that fit in memory into one that does not.
+    The figures are pinned by `SparseArrayOfMapsOutputSizeTest`. Bounding the column count of a
+    sparse array is deferred; see *Known issues*.
 
     HONEST ABOUT WHAT THIS DOES **NOT** FIX, because two published rows read better afterwards
     without losing less. `structural/heterogeneous-array-object-first` still deletes both object
@@ -323,6 +346,19 @@ parameter list or visibility changes — the new exception types and the added
     This aligns `JsonReconstructor` with the answer `AvroReconstructor` already gives to the same
     misconfiguration. One library should not answer it two different ways.
 
+    **A false claim inside this repair's own error message, corrected before release.** The first
+    version of `ArrayParseException`'s text read "MapFlattener's JSON writer always emits
+    parseable JSON, so this value did not come from it", and the surrounding comment used that as
+    the argument for throwing rather than warning — "a detectable contradiction rather than a
+    guess". It is not a contradiction. `MapFlattener` writes at least three bracketed values that
+    are not parseable JSON: the literal `[CIRCULAR_REFERENCE]` cycle marker, `stringifyObject`'s
+    `toString()` fallback, and its last-resort `[OBJECT:SimpleName]`. A caller who named a column
+    holding the cycle marker in `arrayPaths()` would have been told the value "did not come from"
+    the class that wrote it, and sent hunting for a misconfigured `arrayFormat` instead of for a
+    cycle in their input. The throw is unchanged — replicating a marker into N elements is
+    exactly the failure this guard exists to stop — but the message now names those three first
+    and makes only the claim that is true: MapFlattener's *array* writer emits parseable JSON.
+
 19. **`AvroSchemaFlattener.getFlattenedSchema(String)` no longer SEARCHES for the schema — it reads
     the path it is given.** Flagged on its own because it is the one repoint in this release with
     no fallback behind it, and because nothing in this repository exercises that overload, so no
@@ -351,6 +387,29 @@ parameter list or visibility changes — the new exception types and the added
     answer — `findFile` refuses those names, so reporting that they exist was an invitation to a
     call that cannot succeed — but it is a changed return value for an existing input.
 
+21. **`AvroSchemaFlattener.getFlattenedSchema(String)` and `NexusPiercerSparkPipeline`'s schema
+    read no longer enforce an extension allow-list.** This is the other half of the `SchemaFiles`
+    repoint, and it goes the opposite way from item 19: that item made a call FAIL that used to
+    succeed; this one makes a call SUCCEED that used to fail.
+
+    `FileFinder` refused any name whose extension fell outside a 13-entry set — `.avsc`, `.json`,
+    `.csv`, `.txt`, `.xml`, `.yaml`, `.yml`, `.conf`, `.config`, `.properties`, `.gz`, `.avro`,
+    `.parquet`. `SchemaFiles` has no such check, so a valid schema body in a file named
+    `schema.exe`, `schema.sh` or `key.pem` is now read where it was previously refused with
+    `IOException: Extension '.exe' is not in the allowed set […]`. **`AvroSchemaLoader` is
+    unaffected** — its `normalizeSchemaName` appends `.avsc`, so the allow-list was already moot
+    there.
+
+    NOT REINSTATED, and here is the reasoning on the record rather than in a commit message. The
+    control was already partial: an extensionless name always passed it, deliberately. It guards
+    nothing this path can be attacked through — the path comes from the caller, not from the
+    file's content, and every byte read still has to parse as an Avro schema before it is used.
+    And a deployment that names its schemas `.tmpl` or ships them suffixless has a legitimate
+    read that an allow-list turns into an outage. The omission is stated in `SchemaFiles`'
+    javadoc under *What it deliberately does NOT enforce* and pinned by a test, so the next
+    person to add one has to change both. What `SchemaFiles` does enforce is unchanged from
+    item 14's list: null byte, traversal, regular-file, and a 100 MB cap applied twice.
+
 ### Added
 
 - **`JsonReconstructor.ArrayParseException`**, a nested public class extending
@@ -375,8 +434,10 @@ parameter list or visibility changes — the new exception types and the added
   and then hang — both pools are daemon as of this release, but there is still no lifecycle and no
   `close()`), and `Config` configures nothing, because every field is private with no accessor and
   the only construction anywhere is inside `getInstance()`. Removal and the rework into an
-  instantiable `AutoCloseable` component are filed as [BL-017] for 3.0.0; 34 members of this class
-  sit in the released 2.0.0 baseline, so none of it can go additively.
+  instantiable `AutoCloseable` component are filed as [BL-017] for 3.0.0; 64 baseline entries name
+  this class or one of its seven nested types (8 TYPE, 4 CTOR, 23 FIELD, 29 METH; 9 declared
+  directly on `FileFinder` itself), so none of it can go additively. The figures are asserted
+  against `src/test/resources/api/public-api-2.0.0.txt` by `FileFinderBaselineFootprintTest`.
 
 - **`AvroReconstructor.ArrayCardinalityException` and `AvroReconstructor.ArrayFormatMismatchException`**,
   both nested public classes extending `ReconstructionException`, plus a
@@ -408,6 +469,20 @@ parameter list or visibility changes — the new exception types and the added
   "config" is null` at `JsonFlattener.<init>(JsonFlattener.java:224)`. This is a behaviour change
   on a released method — it starts working instead of throwing — and no reasonable caller depends
   on a constructor NPE, but it is listed rather than slipped in silently.
+
+- **`FileFinder` leaked an OS file handle on every CLASSPATH resolution.**
+  `createClasspathHandle` called `resource.openConnection()` and then read `getLastModified()`
+  and `getContentLengthLong()`, both of which force `connect()` and open an underlying stream.
+  `URLConnection` has no `close()`, so the descriptor stayed open — on the HIT path, whether or
+  not the caller ever asked for a stream, and handles are cached for 60 minutes. MEASURED on
+  Windows with a probe that calls only `getFileMetadata`: `Files.delete` on the resolved file
+  fails with "The process cannot access the file because it is being used by another process",
+  while a control copy nothing touched deletes fine. Under a jar the leaked connection pinned an
+  `Inflater` for the same hour. The 2.1.0 pass fixed the MISS-path leak in `searchClasspath` and
+  described the classpath path as handled; this one is larger and was untouched. The connection's
+  stream is now taken and closed once the two values are read, and
+  `ClasspathHandleReleasesTheFileTest` gates it two ways — the delete on Windows, the
+  `/proc/self/fd` count on POSIX — so neither platform runs a test that only ever passes.
 
 - **Ten SpotBugs findings that a blanket exclude was hiding.** `src/main/spotbugs/spotbugs-exclude.xml`
   carried a five-class × three-pattern `<Match>` with no method narrowing over `AvroReconstructor`,
@@ -464,13 +539,63 @@ parameter list or visibility changes — the new exception types and the added
   released coordinate, locally built artifact filenames use a `${nexus.version}` placeholder so a
   version bump cannot invalidate them again, and the test count is corrected from "~1,400".
 - **The round-trip fidelity corpus moved: 156 → 161 fixtures, `LOSSLESS`/`ACCEPTED_LOSS`/`DEFECT`
-  51/23/82 → 55/24/82.** Five fixtures added and three rows reclassified as the defects above were
-  repaired; `DEFECT` is unchanged at 82 because the added rows are `LOSSLESS` controls and the
-  reclassified rows moved out of `DEFECT` as new ones arrived to replace them. Every number in this
+  51/23/82 → 55/24/82, and then to 56/24/81** when the array-element alignment fix (item 13) moved
+  `avro/avro-array-element-multi-branch-union-mixed-branches` out of `DEFECT`. **56/24/81 is the
+  figure this release ships**; the 55/24/82 above is the intermediate state, kept because the two
+  steps had different causes. Five fixtures added and three rows reclassified as the defects above
+  were repaired; `DEFECT` held at 82 through that first step because the added rows are `LOSSLESS`
+  controls and the reclassified rows moved out of `DEFECT` as new ones arrived. Every number in this
   changelog, in `README.md` and in `docs/ROUND_TRIP_FIDELITY.md` is taken from
   `src/test/resources/fidelity/manifest.json`, which is the contract; the document is generated
   from it and the README is now gated against it (see below). The `156` figures elsewhere in this
   file are inside the released **2.0.0** section and are correct as history.
+
+- **`docs/API_SURFACE.md` is DELETED.** It was hand-written, generated by nothing, read by no
+  test, and last touched in December 2025. Four of its claims were already refuted in this
+  repository's own audit and were still being published: `<version>1.0.5</version>` against a
+  `2.1.0-SNAPSHOT` pom, `DataStreamWriter processStream(...)` against a method whose return type
+  is `ProcessingResult`, and three `NexusPiercerPatterns` methods that have never existed
+  (`OSS-01`, `OSS-09` and the release-tagging finding in `docs/audit/FINDINGS.md`). The generated
+  javadoc and `src/test/resources/api/public-api-2.0.0.txt` — which IS generated and IS gated —
+  replace it. Reasoning recorded under [BL-002], which a 2.1.0 review had reported as tracking
+  this file; it never did, and that mismatch is corrected in the entry itself.
+
+- **`NexusPiercerPatterns`' class javadoc showed two methods that do not exist.** The example
+  called `NexusPiercerPatterns.jsonToDelta(...)` and `NexusPiercerPatterns.kafkaToParquetStream(...)`;
+  the class declares exactly two public methods, `generateDataQualityReport` and
+  `profileJsonStructure`. A reader following the published example got a compile error. The
+  javadoc now documents what the class does. `docs/SPARK_PIPELINE.md` carries six snippets with
+  the same defect and is **not** fixed here — it now opens with a warning naming the four phantom
+  methods and pointing at `NexusPiercerSparkPipeline`, and `OSS-01` stays open.
+
+- **`docs/ARCHITECTURE_GRAPH.md` is corrected and is now GATED.** Five class-to-class edges were
+  false: `AvroSchemaFlattener --> FileFinder` (falsified by this release's own `SchemaFiles`
+  repoint and left standing), `GAvroSchemaFlattener --> AvroSchemaFlattener`,
+  `CreateSparkStructFromAvroSchema --> AvroSchemaFlattener`,
+  `NexusPiercerSparkPipeline --> NexusPiercerFunctions` and
+  `AvroSchemaConverter --> TypeConverterRegistry`; fifteen registry rows claimed the converters
+  implement `TypeConverter` directly when every one of them extends `AbstractTypeConverter`; and
+  `EnrichedSchemaFlattener` and `SchemaFiles` were absent entirely while the classes they replace
+  were drawn. `ArchitectureGraphEdgesAreRealTest` now asserts every edge whose two ends are real
+  classes, so an edge cannot rot silently again. The header no longer claims the file is
+  auto-generated, because it is not.
+
+- **README's flattener table said three of the six "never touch a record". Two do not.**
+  `GAvroSchemaFlattener.applyTypes(Map, Map)` is a public per-record data method — its own javadoc
+  calls it "the hot path method called for every record in streaming" — and it is the one thing a
+  reader choosing between the schema flatteners needs to know about that class. Corrected in
+  README and in [BL-008]'s closure note.
+
+- **Five `@deprecated` notices in `FileFinder` were added as a SECOND javadoc comment stacked on
+  the existing one, which deletes the original description from the published javadoc.** Javac
+  attaches only the last comment before a declaration. Measured against
+  `target/apidocs` after `./mvnw javadoc:javadoc`: "Discover files with specific extension",
+  "Discover all Avro schema files", "Clear all caches", "Get detailed statistics" and "Utility
+  methods for common operations" each returned **0** hits, while un-stacked neighbours returned 2.
+  Worse, inserting `ArrayParseException` above `ReconstructionException` in `JsonReconstructor`
+  stranded the latter's only sentence, so a public exception type had no documentation at all.
+  All seven pairs in `src/main/java` are merged, and `NoStackedJavadocCommentsTest` fails the
+  build on a new one.
 
 - The `unwrapUnion` dead-code verdict is corrected wherever it was recorded — see **Known issues**
   below for why the correction matters rather than being cosmetic.
@@ -587,6 +712,26 @@ old advice can find out what happened to it.
 - **`FileFinder` carried a false compensating-control claim** (`files/NP-027`). A catch block
   asserted that "size is checked on open instead" and there is no size check on open anywhere in
   the file. The comment is corrected in place; the missing check itself is not added here.
+- **A sparse array of maps now emits `columns × elements` cells, unconditionally** — the resource
+  cost of item 13's alignment fix. Nothing bounds the column count of a sparse array: N elements
+  with N distinct keys produce N columns of N slots, measured at 4,999,890 value characters for
+  N=1000 against 4,890 before, a 1022× growth. The correctness win is not in question — values
+  were landing under the wrong element — but a job sized against 2.0.0 output can run out of
+  memory on the same input. A cap on the column count, or an opt-out that trades alignment back
+  for the old shape, is deferred; the shape is pinned by `SparseArrayOfMapsOutputSizeTest` so any
+  future bound has a measured baseline to move.
+
+- **`extractFieldsPreservingStructure` still has the array-element misalignment** the other two
+  sites had ([BL-018]). Deliberately not fixed with them: it would place a bare `null` where a
+  nested `LIST` has always been, a shape no reconstructor has been exercised against, and
+  bundling it would have made the seven-row corpus diff impossible to attribute.
+
+- **`docs/SPARK_PIPELINE.md` documents four `NexusPiercerPatterns` methods that do not exist**
+  (`OSS-01`): `jsonToParquet`, `jsonToDelta`, `jsonToNormalizedTables` and `processIncremental`,
+  across six snippets. The document now opens with a warning naming them; the snippets themselves
+  are unchanged, because rewriting them needs a decision about whether to implement the recipes
+  or drop the sections.
+
 - **Two repository-owner items that cannot be fixed in code.** The GitHub **Dependency graph** is
   disabled for this repository, so the `dependency review` job has never actually run — it
   reports success without analysing anything. And no **Actions secrets** are configured, so

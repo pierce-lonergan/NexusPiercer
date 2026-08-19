@@ -47,6 +47,44 @@ class JsonReconstructorArrayParseContractTest {
     }
 
     @Test
+    @DisplayName("the refusal does not claim MapFlattener could not have written the value")
+    void theRefusalDoesNotLibelTheWriter() {
+        // MapFlattener writes this exact literal for a cycle - MapFlattener.java, the
+        // circular-reference arm - so it is bracketed, unparseable, and unambiguously from
+        // MapFlattener. The first version of this guard's message said "MapFlattener's JSON
+        // writer always emits parseable JSON, so this value did not come from it", which sent
+        // the reader hunting for a wrong arrayFormat when the real cause was a cycle in the
+        // input. The narrow claim - that the ARRAY writer emits parseable JSON - is true and is
+        // what the message now says.
+        JsonReconstructor r = JsonReconstructor.builder()
+                .arrayPaths("node_self_node")
+                .arrayFormat(JsonReconstructor.ArraySerializationFormat.JSON)
+                .build();
+
+        assertThatThrownBy(() -> r.reconstruct(Map.of("node_self_node", "[CIRCULAR_REFERENCE]")))
+                .isInstanceOf(JsonReconstructor.ArrayParseException.class)
+                .hasMessageContaining("[CIRCULAR_REFERENCE]")
+                .hasMessageContaining("MapFlattener itself writes")
+                .hasMessageNotContaining("did not come from it")
+                .hasMessageNotContaining("MapFlattener's JSON writer always emits");
+    }
+
+    @Test
+    @DisplayName("the circular marker still reconstructs untouched when no caller committed to it")
+    void theCircularMarkerIsUnaffectedAtTheDefault() {
+        // Reachability of the throw above is NARROW and stays narrow: without arrayPaths naming
+        // the column, inference treats a bracketed non-array as "not an array" and the marker
+        // round-trips exactly as it did in 2.0.0. That is the behaviour
+        // limits/circular-map-reference-is-marked-and-the-guard-is-live depends on.
+        JsonReconstructor r = JsonReconstructor.builder().build();
+        Map<String, Object> out = r.reconstruct(Map.of("node_self_node",
+                "[CIRCULAR_REFERENCE]"));
+
+        assertThat(out).isNotEmpty();
+        assertThat(out.toString()).contains("CIRCULAR_REFERENCE");
+    }
+
+    @Test
     @DisplayName("an unparseable column is not replicated across every element")
     void anUnparseableColumnIsNotReplicatedAcrossEveryElement() {
         // THE SITE THAT MATTERS. Before the split, users_note parsed to a one-element list holding

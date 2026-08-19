@@ -70,7 +70,7 @@ Each class entry follows this structure:
 - **File:** `src/main/java/io/github/pierce/spark/NexusPiercerPatterns.java`
 - **Layer:** APPLICATION
 - **Type:** Utility (Static Methods)
-- **Responsibility:** Pre-configured pipelines for common ETL patterns (jsonToParquet, jsonToDelta, etc.)
+- **Responsibility:** Reporting helpers over an already-loaded `Dataset` — `generateDataQualityReport` and `profileJsonStructure`. (The `jsonToParquet`/`jsonToDelta` ETL recipes this line used to claim have never existed on the class; see OSS-01.)
 - **Collaborators:** NexusPiercerSparkPipeline, SparkSession
 - **Used By:** Client applications
 - **State:** Stateless
