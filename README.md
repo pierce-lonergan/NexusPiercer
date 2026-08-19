@@ -80,10 +80,12 @@ source build, and a fully air-gapped install — are documented in
 
 ### Flatten a JSON document
 
+<!-- snippet: body env=core -->
 ```java
 import io.github.pierce.JsonFlattenerConsolidator;
 
-// arrayDelimiter, nullPlaceholder, maxNestingDepth, maxArraySize, preserveArrayOrder
+// arrayDelimiter, nullPlaceholder, maxNestingDepth, maxArraySize,
+// consolidateWithMatrixDenotorsInValue
 var flattener = new JsonFlattenerConsolidator(",", null, 50, 1000, false);
 
 String flat = flattener.flattenAndConsolidateJson("""
@@ -94,20 +96,27 @@ String flat = flattener.flattenAndConsolidateJson("""
 
 To emit one record per array element instead of consolidating:
 
+<!-- snippet: body env=core -->
 ```java
-List<String> exploded = flattener.flattenAndExplodeJson(json);
+List<String> exploded = new JsonFlattenerConsolidator(",", null, 50, 1000, false)
+        .flattenAndExplodeJson(json);
 ```
 
 ### Flatten an Avro schema
 
+<!-- snippet: body env=core -->
 ```java
 import io.github.pierce.AvroSchemaFlattener;
+import java.util.Set;
 
-var flattener = new AvroSchemaFlattener();
-Schema flattened = flattener.getFlattenedSchema(originalSchema);
+var schemaFlattener = new AvroSchemaFlattener();
 
-Set<String> arrayFields = flattener.getArrayFieldNames();
-Schema roundTripped   = flattener.reconstructOriginalSchema(flattened);
+// getFlattenedSchemaNoCache, not getFlattenedSchema: the cached factory keys on the schema's
+// full name and will hand back another schema's columns when the name repeats.
+Schema flattened = schemaFlattener.getFlattenedSchemaNoCache(schema);
+
+Set<String> arrayFields = schemaFlattener.getArrayFieldNames();
+Schema roundTripped     = schemaFlattener.reconstructOriginalSchema(flattened);
 ```
 
 ### Enriched flattening — the schema pipeline API
@@ -120,6 +129,7 @@ once rendered.
 
 `io.github.pierce.schema` keeps that information instead of throwing it away:
 
+<!-- snippet: body env=core -->
 ```java
 import io.github.pierce.schema.*;
 
@@ -133,7 +143,11 @@ var options = FlattenOptions.builder()
             default     -> "VARCHAR(MAX)";
         })
         .leafInterceptor(field -> field.properties().put("x-scanned", true))
-        .injectField(1, auditColumn())                 // fixed position, source order preserved
+        .injectField(1, FlattenedField.builder()       // fixed position, source order preserved
+                .name("ingested_at")
+                .avroType(Schema.Type.LONG)
+                .synthetic(true)
+                .build())
         .maxDepth(64)
         .maxFields(100_000)
         .build();
@@ -158,8 +172,10 @@ for (FlattenedField f : fields) {
 
 For schemas too wide to materialise, stream instead — injections and guards apply identically:
 
+<!-- snippet: body env=core -->
 ```java
-new EnrichedSchemaFlattener(options).stream(schema, field -> sink.accept(field));
+new EnrichedSchemaFlattener(FlattenOptions.defaults())
+        .stream(schema, field -> System.out.println(field.flattenedName()));
 ```
 
 Migrating from `GAvroSchemaFlattener`? `FlattenOptions.gAvroParity()` reproduces its naming
@@ -168,20 +184,26 @@ conventions, and its javadoc names the four structural cases where parity does n
 
 Failures are typed, not stack overflows:
 
+<!-- snippet: body env=core -->
 ```java
+import io.github.pierce.schema.RecursiveSchemaException;
+import io.github.pierce.schema.SchemaFlattenException;
+import io.github.pierce.schema.SchemaLimitExceededException;
+
 try {
     new EnrichedSchemaFlattener().flatten(schema);
 } catch (RecursiveSchemaException e) {      // a named type contains itself
-    log.error("{} at {}", e.getSchemaName(), e.getPath());
+    System.err.println(e.getSchemaName() + " at " + e.getPath());
 } catch (SchemaLimitExceededException e) {  // maxDepth or maxFields hit
-    ...
+    System.err.println(e.getMessage());
 } catch (SchemaFlattenException e) {        // not a record, or a name collision
-    ...
+    System.err.println(e.getMessage());
 }
 ```
 
 ### Use it from Spark
 
+<!-- snippet: body env=spark -->
 ```java
 import io.github.pierce.spark.NexusPiercerFunctions;
 import static org.apache.spark.sql.functions.col;
@@ -196,9 +218,14 @@ Dataset<Row> flattened = df.withColumn(
 
 `NexusPiercerPatterns` provides two higher-level reports:
 
+<!-- snippet: body env=spark -->
 ```java
-Dataset<Row> quality = NexusPiercerPatterns.generateDataQualityReport(df, "raw_json");
-Dataset<Row> profile = NexusPiercerPatterns.profileJsonStructure(df, "raw_json");
+// Both take the SparkSession and a path, not an already-loaded Dataset. Between 2.0.0 and
+// 2.1.0 this block published a two-argument (Dataset, String) form that has never existed.
+Dataset<Row> quality = NexusPiercerPatterns.generateDataQualityReport(
+        spark, "schema.avsc", "input/*.json");
+Dataset<Row> profile = NexusPiercerPatterns.profileJsonStructure(
+        spark, "input/*.json", 100);   // sample size
 ```
 
 `FlattenOptions` is `Serializable`, so a configured flattener can be captured into a Spark closure

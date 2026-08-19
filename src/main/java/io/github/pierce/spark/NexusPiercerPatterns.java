@@ -16,16 +16,25 @@ import static org.apache.spark.sql.functions.*;
 /**
  * NexusPiercerPatterns - reporting helpers over an already-loaded {@code Dataset}.
  *
- * <p>THE CLASS HAS TWO PUBLIC METHODS, and neither writes anything. The example that used to
- * stand here showed {@code jsonToDelta} and {@code kafkaToParquetStream} — neither has ever
- * existed on this class, and a reader following it got a compile error. Corrected in 2.1.0
- * rather than implemented: what the class actually offers is profiling and quality reporting
- * over a column of raw JSON, and it is worth having under that description.</p>
+ * <p>THE CLASS HAS TWO PUBLIC METHODS, and neither writes anything. Both take the
+ * {@link SparkSession} and a PATH; neither takes an already-loaded {@code Dataset}.</p>
  *
  * <pre>
- * Dataset&lt;Row&gt; quality = NexusPiercerPatterns.generateDataQualityReport(df, "raw_json");
- * Dataset&lt;Row&gt; profile = NexusPiercerPatterns.profileJsonStructure(df, "raw_json");
+ * Dataset&lt;Row&gt; quality = NexusPiercerPatterns.generateDataQualityReport(
+ *         spark, "schema.avsc", "input/*.json");
+ * Dataset&lt;Row&gt; profile = NexusPiercerPatterns.profileJsonStructure(
+ *         spark, "input/*.json", 100);
  * </pre>
+ *
+ * <p>TWO CORRECTIONS TO THIS BLOCK, both recorded rather than quietly overwritten, because the
+ * second one was introduced by the fix for the first. Through 2.0.0 the example showed
+ * {@code jsonToDelta} and {@code kafkaToParquetStream}, neither of which has ever existed on this
+ * class. The 2.1.0 "correction" replaced them with the two real names carried on a
+ * {@code (Dataset, String)} signature that does not exist either - and the changelog recorded
+ * that as a fix. Hand-correcting an unchecked example twice produced two wrong examples, which is
+ * why the example above is now scanned by
+ * {@code io.github.pierce.docs.NoPhantomPatternsMethodIsPublishedAsCallableTest} instead of
+ * merely being read carefully.</p>
  *
  * <p>For reading, flattening and writing, use {@link NexusPiercerSparkPipeline}.</p>
  */

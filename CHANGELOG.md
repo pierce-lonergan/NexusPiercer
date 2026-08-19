@@ -452,6 +452,7 @@ clear the 2.0.0 additive-only gate.
   on a shared one race on the loaded document. `buildFlattener()` yields the immutable,
   shareable engine; `newOperation()` yields a fresh per-document pipeline.
 
+<!-- snippet: body env=core -->
   ```java
   JsonFlattener engine = JsonFlattener.builder().maxDepth(64).buildFlattener(); // share freely
   Map<String, Object> a = engine.newOperation().from(docA).toMap();             // per document
@@ -523,6 +524,69 @@ clear the 2.0.0 additive-only gate.
   only object the API could hand out. The two halves are now stated separately.
 
 ### Documentation
+
+- **`OSS-01` is closed, and the fix is a compiler rather than a correction.** Every published
+  Java block in every git-tracked markdown file is now compiled on every build by
+  `DocumentedJavaSnippetsCompileTest`. Measured before the change: **83** Java blocks in **8**
+  files, of which exactly **4** — the fidelity stack recipes — were gated by anything. The other
+  79 were prose.
+
+  What the gate found immediately, beyond the six filed phantom calls:
+
+  - `docs/SPARK_PIPELINE.md` line 333 passed a `String` to `withRepartition(int)`, and used the
+    Scala property form `spark.conf.get(...)` where Java needs `spark.conf().get(...)`. An
+    eighth non-compiling site with nothing to do with the four phantom methods.
+  - `README.md` published `NexusPiercerPatterns.generateDataQualityReport(df, "raw_json")` and
+    `profileJsonStructure(df, "raw_json")`. Neither compiles: both methods take a `SparkSession`
+    and a path. The class javadoc on `NexusPiercerPatterns` published the same non-existent
+    two-argument shape. **Both were introduced by `8483b7c`, the commit that added the warning
+    banner about the four phantom methods** — and the entry below at *"The class javadoc on
+    `NexusPiercerPatterns` … was corrected in 2.1.0"* recorded it as a fix. It was not. A phantom
+    method was replaced by a phantom signature. That is the whole argument for the gate.
+  - `README.md` called `flattener.flattenAndExplodeJson(json)` on a variable declared in a
+    different code block, referenced a phantom `auditColumn()` helper, and published a `catch`
+    body written as a literal `...`.
+  - `README.md` line 86 named the fifth `JsonFlattenerConsolidator` constructor argument
+    `preserveArrayOrder`; the parameter is `consolidateWithMatrixDenotorsInValue`. **That snippet
+    compiles**, so no compile gate will ever catch it. Corrected by hand, and recorded here as
+    the limit of what the gate proves.
+  - `CHANGELOG.md` itself carries a Java block (the `buildFlattener()` example) that no scan had
+    ever counted, because its fence is INDENTED and every previous count anchored `` ```java ``
+    at column 0. It is gated now.
+  - `docs/audit/FINDINGS.md` opens several fences MID-LINE (`**Evidence.** ` followed by a fence
+    on the same line). That is malformed markdown: the opener is invisible to any line-anchored
+    scanner, so the eventual closing fence reads as an opener and every block after it shifts. A
+    structural parse of that file reports 9 java blocks where it holds 20. The file is exempt
+    from compilation, so the count is taken with a permissive scanner and the gate refuses a
+    mid-line fence in any non-exempt file.
+
+  The six phantom snippets are **rewritten against the API that exists, not implemented**. Under
+  the additive-only rule anything shipped to satisfy that document would be permanent until
+  3.0.0, and two of the four cannot be written without inventing semantics: there is no
+  parent-child key concept behind `explodeArrays`, and no event-time or state concept anywhere in
+  `NexusPiercerSparkPipeline`. Both are filed in `docs/BACKLOG.md` as feature requests so the
+  capability is retracted deliberately rather than forgotten. The two that *are* one-liners —
+  `jsonToParquet` and `jsonToDelta` — were rejected for a different reason: any signature narrow
+  enough to be a convenience must return `void` or a `Dataset`, and both discard the
+  `ProcessingResult` that carries `getErrorDataset()`. On a QUARANTINE pipeline the error dataset
+  is the product.
+
+  The warning banner is deleted in the same commit that rewrites the snippets, never before: a
+  banner is disclosure, and this one was itself wrong about the signatures of the two real
+  methods it named.
+
+  **What the gate does not prove.** Type-correctness only. The output tables in the comments, the
+  claim that a value will be 2048.5, and every other semantic assertion in these documents are
+  invisible to javac. `README.md:86` is the worked example.
+
+- **The escape hatch is counted.** A block that genuinely is not Java may be marked
+  `<!-- snippet: pseudo reason="..." -->`; the reason must be at least 30 characters and the
+  TOTAL number of pseudo blocks is asserted equal to a recorded constant, so adding one turns the
+  build red until a human raises the number in a diff. There are **3**, all in
+  `docs/JSON_FLATTENER_CONSOLIDATOR.md`, all DO/DON-T contrasts written with a literal ellipsis.
+  Two files are exempt wholesale — `docs/audit/FINDINGS.md`, which quotes code as found, and
+  `src/main/java/io/github/pierce/converter/RESEARCH_README.md`, whose thirteen blocks are
+  implementation sketches — asserted by SET EQUALITY, not containment.
 
 - `docs/BACKLOG.md` [BL-007] is closed as **refuted**: the claim that "the entire JsonReconstructor
   class (~1294 lines) is commented out" was false. The class is 1295 lines of live Java with 72
@@ -735,12 +799,6 @@ old advice can find out what happened to it.
   sites had ([BL-018]). Deliberately not fixed with them: it would place a bare `null` where a
   nested `LIST` has always been, a shape no reconstructor has been exercised against, and
   bundling it would have made the seven-row corpus diff impossible to attribute.
-
-- **`docs/SPARK_PIPELINE.md` documents four `NexusPiercerPatterns` methods that do not exist**
-  (`OSS-01`): `jsonToParquet`, `jsonToDelta`, `jsonToNormalizedTables` and `processIncremental`,
-  across six snippets. The document now opens with a warning naming them; the snippets themselves
-  are unchanged, because rewriting them needs a decision about whether to implement the recipes
-  or drop the sections.
 
 - **Two repository-owner items that cannot be fixed in code.** The GitHub **Dependency graph** is
   disabled for this repository, so the `dependency review` job has never actually run — it

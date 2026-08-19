@@ -188,6 +188,11 @@ public final class FidelityDocGenerator {
             String name = names.next();
             JsonNode s = stacks.get(name);
             h3(b, s.path("title").asText() + "  <sub>`" + name + "`</sub>");
+            // The documented-snippet gate is default-deny: every ```java fence in every tracked
+            // markdown file must carry a directive. This document is GENERATED and compared byte
+            // for byte by RoundTripFidelityDocTest, so the directive has to be emitted here -
+            // hand-adding it to the .md would turn that test red instead.
+            line(b, "<!-- snippet: body env=core -->");
             line(b, "```java");
             for (String l : s.path("code").asText().split("\n")) {
                 line(b, l);
@@ -411,6 +416,7 @@ public final class FidelityDocGenerator {
         h3(b, "Just check whether one document survives");
         line(b, "If you only want a yes/no answer for a document, you do not need a fixture:");
         blank(b);
+        line(b, "<!-- snippet: body env=core -->");
         line(b, "```java");
         line(b, "Map<String, Object> src  = new ObjectMapper().readValue(json, new TypeReference<>() { });");
         line(b, "Map<String, Object> flat = MapFlattener.builder().build().flatten(src);");

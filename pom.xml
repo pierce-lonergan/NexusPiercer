@@ -1077,6 +1077,31 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>${maven-dependency-plugin.version}</version>
                 <executions>
+                    <!--
+                      The documented-snippet gate compiles every published ```java block with an
+                      in-process javac, and javac needs a real classpath. It cannot derive one:
+                      surefire runs forkCount=1/reuseForks=false with a manifest-only booter jar,
+                      so System.getProperty("java.class.path") inside a test is a SINGLE jar. A
+                      gate compiling against a one-jar classpath either fails everything (loud)
+                      or gets "repaired" into warnings-only (silent, and then it is not a gate).
+                      This writes the real thing to target/test-cp.txt before tests run.
+
+                      The file name is not new - FidelityDocGenerator's javadoc and
+                      docs/ROUND_TRIP_FIDELITY.md already document `-Dmdep.outputFile=
+                      target/test-cp.txt` as a manual step. Binding it to the lifecycle makes the
+                      documented recipe work without a separate invocation.
+                    -->
+                    <execution>
+                        <id>build-test-classpath</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>build-classpath</goal>
+                        </goals>
+                        <configuration>
+                            <includeScope>test</includeScope>
+                            <outputFile>${project.build.directory}/test-cp.txt</outputFile>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>analyze</id>
                         <goals>

@@ -201,6 +201,7 @@ A fixture declared `BOTH` is measured on Stack A and Stack B independently and m
 
 ### Stack A - Map level  <sub>`MAP`</sub>
 
+<!-- snippet: body env=core -->
 ```java
 MapFlattener f = MapFlattener.builder().build();
 Map<String, Object> flat = f.flatten(sourceMap);
@@ -212,6 +213,7 @@ The source is an in-memory Java Map. Anything a JSON parser would have destroyed
 
 ### Stack B - JSON level  <sub>`JSON`</sub>
 
+<!-- snippet: body env=core -->
 ```java
 Map<String, Object> flat = JsonFlattener.create().from(jsonString).toMap();
 String back = JsonReconstructor.builder().build().reconstructToJson(flat);
@@ -222,6 +224,7 @@ The source is JSON text. Jackson parses it before the flattener runs, so this st
 
 ### Stack C - Avro  <sub>`AVRO`</sub>
 
+<!-- snippet: body env=core -->
 ```java
 AvroSchemaFlattener.clearCache();
 AvroSchemaFlattener sf = new AvroSchemaFlattener(false, true);
@@ -238,6 +241,7 @@ Two separate things are measured and they do not agree with each other: the DATA
 
 ### Stack C - Avro, schema inverse  <sub>`AVRO_SCHEMA`</sub>
 
+<!-- snippet: body env=core -->
 ```java
 AvroSchemaFlattener.clearCache();
 AvroSchemaFlattener sf = new AvroSchemaFlattener(false, true);
@@ -608,6 +612,7 @@ java -cp "target/classes;target/test-classes;$(cat target/test-cp.txt)" \
 
 If you only want a yes/no answer for a document, you do not need a fixture:
 
+<!-- snippet: body env=core -->
 ```java
 Map<String, Object> src  = new ObjectMapper().readValue(json, new TypeReference<>() { });
 Map<String, Object> flat = MapFlattener.builder().build().flatten(src);

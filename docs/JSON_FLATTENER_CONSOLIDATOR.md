@@ -81,6 +81,7 @@ Sometimes you need the opposite of consolidation - explosion creates separate re
 
 ### Basic Usage
 
+<!-- snippet: body env=core -->
 ```java
 // Create a flattener with default settings
 JsonFlattenerConsolidator flattener = new JsonFlattenerConsolidator(
@@ -99,6 +100,7 @@ String flattened = flattener.flattenAndConsolidateJson(jsonInput);
 
 ### Array Explosion
 
+<!-- snippet: body env=core -->
 ```java
 // Create a flattener with explosion paths
 JsonFlattenerConsolidator exploder = new JsonFlattenerConsolidator(
@@ -137,6 +139,7 @@ List<String> exploded = exploder.flattenAndExplodeJson(jsonInput);
 ### Configuration Examples
 
 #### Memory-Conscious Configuration
+<!-- snippet: body env=core -->
 ```java
 // For large datasets with deep nesting
 JsonFlattenerConsolidator memoryFriendly = new JsonFlattenerConsolidator(
@@ -150,6 +153,7 @@ JsonFlattenerConsolidator memoryFriendly = new JsonFlattenerConsolidator(
 ```
 
 #### Analytics-Focused Configuration
+<!-- snippet: body env=core -->
 ```java
 // For data analysis with full statistics
 JsonFlattenerConsolidator analytics = new JsonFlattenerConsolidator(
@@ -163,6 +167,7 @@ JsonFlattenerConsolidator analytics = new JsonFlattenerConsolidator(
 ```
 
 #### Explosion Configuration
+<!-- snippet: body env=core -->
 ```java
 // For normalizing nested e-commerce data
 JsonFlattenerConsolidator normalizer = new JsonFlattenerConsolidator(
@@ -242,14 +247,15 @@ Arrays are the trickiest guests in our JSON hotel. Here's how we handle them:
 ### 1. Data Lake Ingestion
 Transform varied JSON from APIs into consistent schemas for your data lake:
 
+<!-- snippet: body env=core -->
 ```java
 // Configure for data lake
 JsonFlattenerConsolidator lakeFriendly = new JsonFlattenerConsolidator(
     ",", "null", 30, 500, false, true
 );
 
-// Process API responses
-String apiResponse = getApiResponse();
+// Process API responses (`json` is whatever your HTTP client handed back)
+String apiResponse = json;
 String flattenedForLake = lakeFriendly.flattenAndConsolidateJson(apiResponse);
 // Now ready for Parquet/ORC storage
 ```
@@ -257,6 +263,7 @@ String flattenedForLake = lakeFriendly.flattenAndConsolidateJson(apiResponse);
 ### 2. Spark DataFrame Creation
 Prepare JSON for Spark SQL analysis:
 
+<!-- snippet: body env=core -->
 ```java
 // Explode arrays for proper DataFrame structure
 JsonFlattenerConsolidator sparkFriendly = new JsonFlattenerConsolidator(
@@ -271,13 +278,14 @@ List<String> normalizedRecords = sparkFriendly.flattenAndExplodeJson(complexJson
 ### 3. Database Migration
 Convert document-store data for relational databases:
 
+<!-- snippet: body env=core -->
 ```java
 // Configure for SQL compatibility
 JsonFlattenerConsolidator sqlFriendly = new JsonFlattenerConsolidator(
     "|", "NULL", 20, 100, false, true
 );
 
-String documentJson = getMongoDocument();
+String documentJson = json;   // one document, as retrieved
 String relationalFormat = sqlFriendly.flattenAndConsolidateJson(documentJson);
 // Field names are SQL-safe with underscores
 ```
@@ -304,6 +312,7 @@ String relationalFormat = sqlFriendly.flattenAndConsolidateJson(documentJson);
 ## 🐛 Common Pitfalls and Solutions
 
 ### Pitfall 1: Cartesian Explosion
+<!-- snippet: pseudo reason="A DO/DON-T contrast written with a literal ellipsis for the constructor arguments; the point is the explode-path combinatorics, not a callable line." -->
 ```java
 // DON'T: This creates 1000 records!
 new JsonFlattenerConsolidator(..., "users", "products", "regions");
@@ -314,6 +323,7 @@ new JsonFlattenerConsolidator(..., "orders.items");
 ```
 
 ### Pitfall 2: Deep Nesting Performance
+<!-- snippet: pseudo reason="A DO/DON-T contrast about limit values; both halves are constructor calls with no receiver, kept side by side so the numbers can be compared." -->
 ```java
 // DON'T: Process extremely deep JSON without limits
 new JsonFlattenerConsolidator(",", null, 1000, 10000, false);
@@ -323,6 +333,7 @@ new JsonFlattenerConsolidator(",", null, 30, 1000, false);
 ```
 
 ### Pitfall 3: Special Characters in Data
+<!-- snippet: pseudo reason="A DO/DON-T contrast written with a literal ellipsis for the trailing arguments; it is about delimiter choice, not a callable line." -->
 ```java
 // DON'T: Use delimiter that appears in your data
 new JsonFlattenerConsolidator(",", null, ...); // If data contains commas
@@ -355,6 +366,7 @@ Statistics help understand your data:
 ### Selective Explosion
 Choose exactly which arrays to explode:
 
+<!-- snippet: body env=core -->
 ```java
 // Only explode specific paths
 JsonFlattenerConsolidator selective = new JsonFlattenerConsolidator(
@@ -368,6 +380,7 @@ JsonFlattenerConsolidator selective = new JsonFlattenerConsolidator(
 ## 📈 Performance Tuning
 
 ### For High Volume
+<!-- snippet: body env=core -->
 ```java
 JsonFlattenerConsolidator highVolume = new JsonFlattenerConsolidator(
     ",",    // Simple delimiter
@@ -380,6 +393,7 @@ JsonFlattenerConsolidator highVolume = new JsonFlattenerConsolidator(
 ```
 
 ### For Deep Analysis
+<!-- snippet: body env=core -->
 ```java
 JsonFlattenerConsolidator deepAnalysis = new JsonFlattenerConsolidator(
     "|",    // Clear delimiter

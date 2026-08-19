@@ -1,14 +1,14 @@
 # NexusPiercer Spark Pipeline
 
-> **⚠️ PARTS OF THIS DOCUMENT DESCRIBE METHODS THAT DO NOT EXIST.** Every snippet below calling
-> `NexusPiercerPatterns.jsonToParquet`, `.jsonToDelta`, `.jsonToNormalizedTables` or
-> `.processIncremental` will not compile: `NexusPiercerPatterns` declares exactly two public
-> methods, `generateDataQualityReport(Dataset, String)` and `profileJsonStructure(Dataset, String)`.
-> This is finding `OSS-01` in [docs/audit/FINDINGS.md](audit/FINDINGS.md) and it is still open —
-> the sections are left in place rather than deleted because the pipeline material around them is
-> accurate and worth keeping. For reading, flattening and writing, use `NexusPiercerSparkPipeline`
-> directly; the [README](../README.md) shows the current API. The class javadoc on
-> `NexusPiercerPatterns`, which carried the same phantom example, was corrected in 2.1.0.
+> Every Java code block in this document is compiled on every build by
+> `DocumentedJavaSnippetsCompileTest`. That gate proves TYPE-CORRECTNESS ONLY: a snippet here
+> cannot name a method that does not exist, but the output tables in the comments are still
+> prose and are not checked by anything.
+>
+> Until 2.1.0 this page published six calls to four `NexusPiercerPatterns` methods that had
+> never existed (`jsonToParquet`, `jsonToDelta`, `jsonToNormalizedTables`, `processIncremental`)
+> — finding `OSS-01`. They are rewritten against the API that does exist, not implemented; see
+> [docs/BACKLOG.md](BACKLOG.md) for the two that were genuine feature requests.
 
 A powerful, intuitive abstraction layer for processing nested JSON data with Avro schemas in Apache Spark. This library combines the JSON flattening capabilities of NexusPiercer with Spark's distributed processing power.
 
@@ -38,6 +38,7 @@ A powerful, intuitive abstraction layer for processing nested JSON data with Avr
 
 ### Basic Batch Processing
 
+<!-- snippet: body env=spark -->
 ```java
 import io.github.pierce.spark.NexusPiercerSparkPipeline;
 import static io.github.pierce.spark.NexusPiercerSparkPipeline.*;
@@ -60,6 +61,7 @@ System.out.println(result.getMetrics());
 
 ### Streaming from Kafka
 
+<!-- snippet: body env=spark -->
 ```java
 Map<String, String> kafkaOptions = Map.of(
     "kafka.bootstrap.servers", "localhost:9092",
@@ -92,6 +94,7 @@ The main entry point for all pipeline operations. Provides a fluent API for conf
 
 Spark SQL functions for JSON processing that can be used independently.
 
+<!-- snippet: body env=spark -->
 ```java
 import static io.github.pierce.spark.NexusPiercerFunctions.*;
 
@@ -115,14 +118,21 @@ spark.sql("""
 
 Pre-configured pipelines for common use cases.
 
+<!-- snippet: body env=spark -->
 ```java
-// JSON to Delta Lake
-NexusPiercerPatterns.jsonToDelta(spark, 
-    "schema.avsc", 
-    "input/*.json", 
-    "delta/table");
+// There is no jsonToDelta convenience and there is not going to be one: any wrapper narrow
+// enough to be a one-liner has to return void or a Dataset, and both throw away the
+// ProcessingResult - which is where getErrorDataset() and getMetrics() live. On a QUARANTINE
+// pipeline the error dataset IS the product.
+ProcessingResult delta = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .withErrorHandling(ErrorHandling.QUARANTINE)
+    .process("input/*.json");
 
-// Generate data quality report
+delta.write().format("delta").mode(SaveMode.Append).save("delta/table");
+delta.getErrorDataset().write().json("delta/table_rejected");
+
+// The two reports NexusPiercerPatterns really does offer
 Dataset<Row> report = NexusPiercerPatterns.generateDataQualityReport(
     spark, "schema.avsc", "input/*.json");
 ```
@@ -131,6 +141,7 @@ Dataset<Row> report = NexusPiercerPatterns.generateDataQualityReport(
 
 ### Array Explosion for Normalization
 
+<!-- snippet: body env=spark -->
 ```java
 // Original JSON has nested arrays
 // {"orderId": "123", "items": [{"sku": "A", "qty": 1}, {"sku": "B", "qty": 2}]}
@@ -148,6 +159,7 @@ ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
 
 ### Error Handling Strategies
 
+<!-- snippet: body env=spark -->
 ```java
 // Quarantine bad records
 ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
@@ -165,6 +177,7 @@ badRecords.write().json("output/errors");
 
 ### Custom Configuration
 
+<!-- snippet: body env=spark -->
 ```java
 ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
     .withSchema("schema.avsc")
@@ -215,6 +228,7 @@ ProcessingResult result = NexusPiercerSparkPipeline.forBatch(spark)
 
 ### Registration
 
+<!-- snippet: body env=spark -->
 ```java
 // Register all functions
 NexusPiercerFunctions.registerAll(spark);
@@ -227,19 +241,27 @@ NexusPiercerFunctions.register(spark, "flatten_json", "json_array_count");
 
 ### 1. ETL Pipeline
 
+<!-- snippet: body env=spark -->
 ```java
-// JSON → Validate → Transform → Parquet
-NexusPiercerPatterns.jsonToParquet(spark,
-    "schema.avsc",
-    "s3://bucket/raw/*.json",
-    "s3://bucket/processed/",
-    SaveMode.Overwrite,
-    "date"  // Partition column
-);
+// JSON -> validate -> transform -> Parquet
+ProcessingResult etl = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .withErrorHandling(ErrorHandling.QUARANTINE)
+    .process("s3://bucket/raw/*.json");
+
+etl.write()
+    .mode(SaveMode.Overwrite)
+    .partitionBy("date")
+    .parquet("s3://bucket/processed/");
+
+// Write the quarantined rows too. Dropping this line is the commonest way to lose data with
+// this library, and it is why no jsonToParquet(...) shortcut exists.
+etl.getErrorDataset().write().json("s3://bucket/rejected/");
 ```
 
 ### 2. Data Quality Check
 
+<!-- snippet: body env=spark -->
 ```java
 Dataset<Row> qualityReport = NexusPiercerPatterns.generateDataQualityReport(
     spark, "schema.avsc", "input/*.json");
@@ -253,34 +275,22 @@ qualityReport.show();
 // +--------+--------+------------+-------------+
 ```
 
-### 3. Normalize to Multiple Tables
+### 3. Flatten One Array Into Rows
 
+`explodeArrays` produces **one** dataset with one row per element of the named array, carrying an
+`_explosion_index` column. It does **not** produce N tables keyed by array name; there is no
+surrogate-key or parent-child linkage concept in this library, so a `Map<String, Dataset<Row>>`
+of related tables is a feature request rather than a wrapper. It is filed in
+[docs/BACKLOG.md](BACKLOG.md).
+
+<!-- snippet: body env=spark -->
 ```java
-Map<String, Dataset<Row>> tables = NexusPiercerPatterns.jsonToNormalizedTables(
-    spark,
-    "order_schema.avsc",
-    "orders/*.json",
-    "items",           // Primary array to explode
-    "payments",        // Secondary arrays
-    "shipping_events"
-);
+ProcessingResult exploded = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("order_schema.avsc")
+    .explodeArrays("items")
+    .process("orders/*.json");
 
-// Write each table
-tables.get("main").write().parquet("orders");
-tables.get("items").write().parquet("order_items");
-tables.get("payments").write().parquet("order_payments");
-```
-
-### 4. Incremental Processing
-
-```java
-NexusPiercerPatterns.processIncremental(
-    spark,
-    "schema.avsc",
-    "input/daily",
-    "output/incremental",
-    "2024-01-15T00:00:00"  // Last processed timestamp
-);
+exploded.write().parquet("order_items");
 ```
 
 ## Best Practices
@@ -317,50 +327,78 @@ NexusPiercerPatterns.processIncremental(
 
 ### Schema Caching
 
+<!-- snippet: body env=spark -->
 ```java
-// Caching is enabled by default
-// Disable for one-time processing
-.disableSchemaCache()
+// Caching is enabled by default. Disable it for one-time processing.
+ProcessingResult once = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .disableSchemaCache()
+    .process("input/*.json");
 
-// Clear cache manually
+// Clear the cache manually
 NexusPiercerSparkPipeline.clearSchemaCache();
 ```
 
 ### Partitioning
 
+<!-- snippet: body env=spark -->
 ```java
-// Repartition for optimal parallelism
-.withRepartition(spark.conf.get("spark.sql.shuffle.partitions"))
+// Repartition for optimal parallelism. withRepartition takes an int and RuntimeConfig.get
+// returns a String, so parse it - this page published the unparsed form for a long time and
+// it never compiled. In Java the accessor is spark.conf(), not spark.conf.
+int shufflePartitions = Integer.parseInt(spark.conf().get("spark.sql.shuffle.partitions"));
+
+ProcessingResult repartitioned = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .withRepartition(shufflePartitions)
+    .process("input/*.json");
 
 // Partition output by high-cardinality columns
-result.write()
+repartitioned.write()
     .partitionBy("year", "month", "day")
     .parquet("output");
 ```
 
 ### Array Statistics
 
+<!-- snippet: body env=spark -->
 ```java
 // Disable statistics for better performance with large arrays
-.disableArrayStatistics()
+ProcessingResult fast = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .disableArrayStatistics()
+    .process("input/*.json");
 
-// Or selectively enable for specific processing
-.enableArrayStatistics()  // Only when needed
+// Or enable them only where the _count / _distinct_count columns are actually read
+ProcessingResult counted = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .enableArrayStatistics()
+    .process("input/*.json");
 ```
 
 ### Batch Size (Streaming)
 
+<!-- snippet: body env=spark -->
 ```java
 // Configure micro-batch size
-.writeStream()
-.trigger(Trigger.ProcessingTime("30 seconds"))
-.option("maxFilesPerTrigger", "100")
+ProcessingResult events = NexusPiercerSparkPipeline.forStreaming(spark)
+    .withSchema("event_schema.avsc")
+    .processStream("kafka", Map.of("subscribe", "events-topic"));
+
+StreamingQuery batched = events.writeStream()
+    .trigger(Trigger.ProcessingTime("30 seconds"))
+    .option("maxFilesPerTrigger", "100")
+    .format("parquet")
+    .option("path", "output/events")
+    .option("checkpointLocation", "checkpoints/events")
+    .start();
 ```
 
 ## Integration with Existing Pipelines
 
 The library is designed to integrate seamlessly with existing Spark workflows:
 
+<!-- snippet: body env=spark -->
 ```java
 // Use with existing DataFrames
 Dataset<Row> existingDf = spark.read().json("data.json");
@@ -387,22 +425,25 @@ Dataset<Row> enriched = result.getDataset()
 
 ### Debug Mode
 
+<!-- snippet: body env=spark -->
 ```java
 // Enable detailed logging
 spark.sparkContext().setLogLevel("DEBUG");
 
-// Include raw JSON for debugging
-.includeRawJson()
-.includeMetadata()
+// Keep the raw JSON and the processing metadata, then look at what came out
+ProcessingResult debug = NexusPiercerSparkPipeline.forBatch(spark)
+    .withSchema("schema.avsc")
+    .includeRawJson()
+    .includeMetadata()
+    .process("test.json");
 
-// Check intermediate results
-ProcessingResult result = pipeline.process("test.json");
-result.getDataset().printSchema();
-result.getDataset().show(false);
+debug.getDataset().printSchema();
+debug.getDataset().show(false);
 ```
 
 ## Comprehensive Examples
 
+<!-- snippet: members env=spark -->
 ```java
 public static void main(String[] args) throws Exception {
     SparkSession spark = SparkSession.builder()
@@ -648,14 +689,15 @@ public static void runPatternsExample(SparkSession spark) {
 
     // Pattern 1: Simple JSON to Parquet ETL
     System.out.println("\n1. JSON to Parquet pattern:");
-    NexusPiercerPatterns.jsonToParquet(
-            spark,
-            "schemas/product.avsc",
-            "data/input/products/*.json",
-            "data/output/products_parquet",
-            SaveMode.Overwrite,
-            "category"  // Partition by category
-    );
+    NexusPiercerSparkPipeline.ProcessingResult productEtl =
+            NexusPiercerSparkPipeline.forBatch(spark)
+                    .withSchema("schemas/product.avsc")
+                    .withErrorHandling(NexusPiercerSparkPipeline.ErrorHandling.QUARANTINE)
+                    .process("data/input/products/*.json");
+    productEtl.write()
+            .mode(SaveMode.Overwrite)
+            .partitionBy("category")
+            .parquet("data/output/products_parquet");
 
     // Pattern 2: Generate data quality report
     System.out.println("\n2. Data quality report:");
@@ -675,21 +717,17 @@ public static void runPatternsExample(SparkSession spark) {
     );
     profile.show(50, false);
 
-    // Pattern 4: Normalize to multiple tables
-    System.out.println("\n4. Normalization pattern:");
-    Map<String, Dataset<Row>> tables = NexusPiercerPatterns.jsonToNormalizedTables(
-            spark,
-            "schemas/complex_order.avsc",
-            "data/input/orders/*.json",
-            "items",           // Primary array
-            "payments",        // Secondary arrays
-            "shipping_history"
-    );
-
-    tables.forEach((tableName, dataset) -> {
-        System.out.println("\nTable: " + tableName);
-        dataset.show(5, false);
-    });
+    // Pattern 4: one row per array element, in ONE dataset carrying _explosion_index.
+    // There is no multi-table normalizer. Producing a Map<String, Dataset<Row>> of related
+    // tables needs surrogate keys and a parent-child linkage concept that exists nowhere in
+    // this library, so it is a feature request in docs/BACKLOG.md, not a wrapper.
+    System.out.println("\n4. Explosion pattern:");
+    NexusPiercerSparkPipeline.ProcessingResult normalized =
+            NexusPiercerSparkPipeline.forBatch(spark)
+                    .withSchema("schemas/complex_order.avsc")
+                    .explodeArrays("items")
+                    .process("data/input/orders/*.json");
+    normalized.getDataset().show(5, false);
 }
 
 /**

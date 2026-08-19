@@ -62,6 +62,7 @@ schema-forge-converter/
 
 ### Iceberg Schema Conversion
 
+<!-- snippet: body env=converter -->
 ```java
 Schema schema = new Schema(
     Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -82,6 +83,7 @@ GenericRecord record = converter.convert(data);
 
 ### Avro Schema Conversion
 
+<!-- snippet: body env=converter -->
 ```java
 String schemaJson = """
     {
@@ -103,6 +105,7 @@ org.apache.avro.generic.GenericRecord record = converter.convert(data);
 
 ### Configuration
 
+<!-- snippet: body env=converter -->
 ```java
 // Strict configuration - fails fast on any issues
 ConversionConfig strict = ConversionConfig.strict();

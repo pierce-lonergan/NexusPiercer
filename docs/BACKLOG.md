@@ -582,6 +582,67 @@ Not doable additively; recorded so it is not lost.
 
 ---
 
+### [BL-019] Multi-table normalization: `Map<String, Dataset<Row>>` from one document
+
+**Filed because a capability was RETRACTED from the documentation, not because it was requested.**
+`docs/SPARK_PIPELINE.md` published `NexusPiercerPatterns.jsonToNormalizedTables(spark, schema,
+input, "items", "payments", "shipping_events")` returning a map of related tables. That method has
+never existed. The section is rewritten in 2.1.0 to describe `explodeArrays(String...)`, which is
+what the library actually does - and which is a different thing: it yields **one** dataset with
+one row per element of the named array, carrying `_explosion_index`.
+
+Turning that into N related tables needs two concepts that exist nowhere in this codebase:
+
+- a **surrogate key** per parent record, stable across the child tables;
+- a **parent-child linkage** so `order_items.order_id` can point back at `orders.id`.
+
+`_explosion_index` is an ordinal within one array, not a key. Until those exist there is no
+specification for this feature except the prose that was under suspicion, which is exactly the
+circular reasoning that produced the phantom in the first place.
+
+Purely additive whenever it is designed, so it is a feature request and not a 3.0.0 item.
+Origin: `OSS-01`.
+
+---
+
+### [BL-020] Incremental processing with an event-time watermark
+
+**Same origin, same retraction.** `docs/SPARK_PIPELINE.md` published
+`NexusPiercerPatterns.processIncremental(spark, schema, input, output, "2024-01-15T00:00:00")`.
+It has never existed, and unlike [BL-019] there is not even a partial mechanism to point at:
+
+- there is no event-time concept in `NexusPiercerSparkPipeline` - nothing reads a timestamp field
+  out of the record;
+- there is no state store and no watermark;
+- `includeMetadata()` writes `_processing_time`, which is when the pipeline ran, not when the
+  event happened. Filtering on it gives you "records this job has not seen", not "records newer
+  than T", and the two differ on every late arrival.
+
+The `"2024-01-15T00:00:00"` argument in the deleted snippet had no counterpart in the code and no
+defined semantics. Purely additive whenever it is designed. Origin: `OSS-01`.
+
+---
+
+### [BL-021] Semantic accuracy of published documentation has no gate
+
+`DocumentedJavaSnippetsCompileTest` proves TYPE-CORRECTNESS and nothing else. Two measured
+examples of what it cannot see:
+
+- `README.md:86` named the fifth `JsonFlattenerConsolidator` constructor argument
+  `preserveArrayOrder` when the parameter is `consolidateWithMatrixDenotorsInValue`. It compiled
+  perfectly. Fixed by hand in 2.1.0; nothing stops it coming back.
+- `docs/SPARK_PIPELINE.md` publishes commented output tables (`orderId | items_sku | items_qty |
+  _explosion_index`, and a quality report claiming `avg_json_size 2048.5`). Nothing has ever
+  executed them.
+
+The corpus already solves this shape for the fidelity recipes - `PublishedSnippetsCompileTest`
+compiles them, asserts byte-identity against the manifest, AND runs them against recorded answers.
+Extending the third leg to the Spark examples needs a Spark session in the test tree and fixture
+data, which is a real cost. Filed rather than pretended away: the honest current answer is that
+documentation accuracy beyond types is a human read.
+
+---
+
 ### [BL-017] 3.0.0 removal or extraction of `FileFinder`
 
 Deprecated in 2.1.0; cannot be removed before 3.0.0 because **64 entries in
