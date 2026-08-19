@@ -143,6 +143,7 @@ public class JsonReconstructor implements Serializable {
     private final int maxDepth;
     private final Set<String> arrayPaths;
     private final ObjectMapper objectMapper;
+    private final CollisionPolicy collisionPolicy;
 
     // ========================= ARRAY FORMAT ENUM =========================
 
@@ -160,6 +161,53 @@ public class JsonReconstructor implements Serializable {
         BRACKET_LIST
     }
 
+    // ========================= COLLISION POLICY ENUM =========================
+
+    /**
+     * How {@link #reconstruct(Map)} resolves a leaf-versus-branch key collision.
+     *
+     * <p>A collision is a key that is ALSO an intermediate path of a longer key -
+     * {@code a} beside {@code a_b}, {@code data} beside {@code data_name},
+     * {@code orders_ship} beside {@code orders_ship_city}. The two decode to
+     * {@code ["a"]} and {@code ["a","b"]}: distinct segment lists, so the FLATTENED form is
+     * injective and loses nothing. It is the reconstructed tree that cannot hold both, because a
+     * JSON node is either a scalar or an object and never both.</p>
+     *
+     * <p>This is NOT the same thing as a field name that literally contains the separator.
+     * {@code FlattenedPath} escapes those, so {@code a\_b} is one segment and never collides;
+     * detection compares encoded keys against encoded intermediate paths precisely so the two
+     * stay apart.</p>
+     *
+     * <p>Whichever member is chosen, the answer does not depend on the iteration order of the
+     * map handed to {@code reconstruct}. Before 2.1.0 it did: the colliding writes raced, and
+     * the same two entries produced {@code {"a":"2"}} in one order and
+     * {@code {"a":{"_value":"2","b":"1"}}} in the other.</p>
+     *
+     * @since 2.1.0
+     */
+    public enum CollisionPolicy {
+        /**
+         * Refuse: throw {@link KeyCollisionException} naming the key, everything it shadows, and
+         * the escaped form that would have disambiguated. The default, and the only member that
+         * cannot lose data.
+         */
+        FAIL,
+
+        /**
+         * Keep the SHORT key's scalar and discard every longer key that shares it as a prefix.
+         * Reproduces the outcome the pre-2.1.0 code reached when the branch happened to be
+         * written first - deterministically this time, and logged at WARN.
+         */
+        PREFER_LEAF,
+
+        /**
+         * Keep the SUBTREE and discard the colliding short key. Deterministic and logged at WARN.
+         * Note this changes the outcome for the majority of colliding documents relative to
+         * pre-2.1.0 behaviour, which most often landed on the leaf.
+         */
+        PREFER_BRANCH
+    }
+
     // ========================= CONSTRUCTORS =========================
 
     private JsonReconstructor(Builder builder) {
@@ -172,6 +220,8 @@ public class JsonReconstructor implements Serializable {
                 new HashSet<>(builder.arrayPaths) : new HashSet<>();
         this.objectMapper = builder.objectMapper != null ?
                 builder.objectMapper : SHARED_MAPPER;
+        this.collisionPolicy = builder.collisionPolicy != null ?
+                builder.collisionPolicy : CollisionPolicy.FAIL;
     }
 
     // ========================= STATIC FACTORY METHODS =========================
@@ -219,6 +269,7 @@ public class JsonReconstructor implements Serializable {
         private int maxDepth = DEFAULT_MAX_DEPTH;
         private Set<String> arrayPaths = new HashSet<>();
         private ObjectMapper objectMapper = null;
+        private CollisionPolicy collisionPolicy = CollisionPolicy.FAIL;
 
         /**
          * Set the separator used in flattened keys.
@@ -269,6 +320,23 @@ public class JsonReconstructor implements Serializable {
          */
         public Builder preserveNulls(boolean preserve) {
             this.preserveNulls = preserve;
+            return this;
+        }
+
+        /**
+         * How to resolve a leaf-versus-branch key collision.
+         *
+         * <p>A flattened map can hold a key {@code a} beside a key {@code a_b}, which makes
+         * {@code a} both a leaf and an intermediate node of the same tree. JSON has no node that
+         * is simultaneously a scalar and an object, so one of the two cannot be represented. The
+         * default refuses; see {@link CollisionPolicy}.</p>
+         *
+         * @param policy What to do on a collision (default: {@link CollisionPolicy#FAIL})
+         * @return this builder
+         * @since 2.1.0
+         */
+        public Builder onKeyCollision(CollisionPolicy policy) {
+            this.collisionPolicy = policy != null ? policy : CollisionPolicy.FAIL;
             return this;
         }
 
@@ -336,8 +404,20 @@ public class JsonReconstructor implements Serializable {
     /**
      * Reconstruct a flattened Map back to hierarchical structure.
      *
+     * <h4>Leaf-versus-branch key collisions</h4>
+     *
+     * <p>A flattened map may hold a key that is also an intermediate path of a longer key -
+     * {@code a} beside {@code a_b}. The flattened form is not ambiguous ({@code ["a"]} and
+     * {@code ["a","b"]} are different segment lists) but the reconstructed tree cannot hold both,
+     * because a JSON node is either a scalar or an object. Such keys are found BEFORE any write,
+     * as a set intersection, so the outcome never depends on the iteration order of
+     * {@code flattenedMap}; {@link CollisionPolicy} then decides. The default refuses with
+     * {@link KeyCollisionException}.</p>
+     *
      * @param flattenedMap The flattened key-value map
      * @return Reconstructed hierarchical map
+     * @throws KeyCollisionException under the default {@link CollisionPolicy#FAIL}, when a key is
+     *                               also an intermediate path of a longer key
      */
     public Map<String, Object> reconstruct(Map<String, Object> flattenedMap) {
         if (flattenedMap == null || flattenedMap.isEmpty()) {
@@ -348,8 +428,14 @@ public class JsonReconstructor implements Serializable {
             // Step 1: Analyze the flattened keys to detect structure
             StructureAnalysis analysis = analyzeStructure(flattenedMap);
 
+            // Step 1b: Decide the leaf-versus-branch collisions BEFORE anything is written. This
+            // is a set intersection against paths the analysis pass already collected, so the
+            // decision cannot depend on which key the map happens to yield first - which is
+            // exactly what the previous shape got wrong.
+            Set<String> collisions = collidingLeafKeys(flattenedMap, analysis);
+
             // Step 2: Build the hierarchical structure
-            Map<String, Object> result = buildHierarchy(flattenedMap, analysis);
+            Map<String, Object> result = buildHierarchy(flattenedMap, analysis, collisions);
 
             // Step 3: Post-process arrays
             result = processArrays(result, analysis, "");
@@ -443,17 +529,14 @@ public class JsonReconstructor implements Serializable {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            String[] parts = FlattenedPath.decodeSegments(key, separator).toArray(new String[0]);
+            List<String> segments = FlattenedPath.decodeSegments(key, separator);
+            String[] parts = segments.toArray(new String[0]);
 
-            // Track all intermediate paths
-            StringBuilder pathBuilder = new StringBuilder();
-            for (int i = 0; i < parts.length - 1; i++) {
-                if (pathBuilder.length() > 0) {
-                    pathBuilder.append(separator);
-                }
-                pathBuilder.append(FlattenedPath.escapeSegment(parts[i], separator));
-                analysis.allPaths.add(pathBuilder.toString());
-            }
+            // Track all intermediate paths. This is no longer a write-only field: the collision
+            // detector reads it, so the escaping below is load-bearing for CORRECTNESS and not
+            // merely for a set nobody consulted. It is computed by one shared method so the
+            // detector can never disagree with the analysis about what an intermediate path is.
+            collectIntermediatePaths(segments, analysis.allPaths);
 
             // Group by all possible prefixes
             for (int i = 1; i < parts.length; i++) {
@@ -792,28 +875,166 @@ public class JsonReconstructor implements Serializable {
         return value;
     }
 
+    // ========================= LEAF/BRANCH COLLISION =========================
+
+    /**
+     * Every intermediate path of a decoded key, in the same escaped encoding as the keys.
+     *
+     * <p>Shared by {@link #analyzeStructure} and {@link #collidingLeafKeys} so a detector and the
+     * analysis can never disagree about what an intermediate path is. The comparison that matters
+     * is ENCODED key against ENCODED path: {@code a\_b} is a field literally named {@code a_b},
+     * one segment, and must never be read as the intermediate {@code a}.</p>
+     */
+    private void collectIntermediatePaths(List<String> segments, Collection<String> sink) {
+        StringBuilder pathBuilder = new StringBuilder();
+        for (int i = 0; i < segments.size() - 1; i++) {
+            if (pathBuilder.length() > 0) {
+                pathBuilder.append(separator);
+            }
+            pathBuilder.append(FlattenedPath.escapeSegment(segments.get(i), separator));
+            sink.add(pathBuilder.toString());
+        }
+    }
+
+    /**
+     * The list form, for the two collision paths that need to iterate them.
+     *
+     * <p>{@link #analyzeStructure} uses the sink form instead and adds straight into
+     * {@code allPaths}: it runs once per key on every reconstruct, and a per-key list that is
+     * immediately drained would be a new allocation on the hottest path in the class for no
+     * benefit. The two callers here run only after a collision has already been found.</p>
+     */
+    private List<String> intermediatePaths(List<String> segments) {
+        List<String> paths = new ArrayList<>(Math.max(1, segments.size() - 1));
+        collectIntermediatePaths(segments, paths);
+        return paths;
+    }
+
+    /**
+     * The keys that are ALSO an intermediate path of some longer key, decided before any write.
+     *
+     * <p>A set intersection has no iteration order, which is the entire point: the previous shape
+     * let whichever colliding key the map happened to yield LAST decide the outcome, so the same
+     * two entries reconstructed differently depending on how the caller built the map.</p>
+     *
+     * <p>Returned sorted, so the exception message and the WARN line are reproducible too.</p>
+     */
+    private Set<String> collidingLeafKeys(Map<String, Object> flattenedMap,
+                                          StructureAnalysis analysis) {
+        Set<String> colliding = new TreeSet<>();
+        for (String key : flattenedMap.keySet()) {
+            if (key != null && analysis.allPaths.contains(key)) {
+                colliding.add(key);
+            }
+        }
+        if (colliding.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        String first = colliding.iterator().next();
+        List<String> shadowed = shadowedKeys(flattenedMap, first);
+
+        if (collisionPolicy == CollisionPolicy.FAIL) {
+            throw new KeyCollisionException(first, shadowed, separator);
+        }
+        if (log.isWarnEnabled()) {
+            log.warn("Leaf/branch key collision resolved by policy {}: {} colliding key(s), "
+                            + "discarding the {} side. This is lossy but deterministic; "
+                            + "CollisionPolicy.FAIL refuses instead.",
+                    collisionPolicy, colliding.size(),
+                    collisionPolicy == CollisionPolicy.PREFER_LEAF ? "branch" : "leaf");
+        }
+        return colliding;
+    }
+
+    /** The longer keys that a colliding key shadows, sorted, for the diagnosis. */
+    private List<String> shadowedKeys(Map<String, Object> flattenedMap, String collidingKey) {
+        List<String> shadowed = new ArrayList<>();
+        for (String key : flattenedMap.keySet()) {
+            if (key == null || key.equals(collidingKey)) {
+                continue;
+            }
+            if (intermediatePaths(FlattenedPath.decodeSegments(key, separator))
+                    .contains(collidingKey)) {
+                shadowed.add(key);
+            }
+        }
+        Collections.sort(shadowed);
+        return shadowed;
+    }
+
+    /** Whether any strict prefix of {@code key} is one of the colliding keys. */
+    private boolean hasCollidingPrefix(List<String> segments, Set<String> collisions) {
+        for (String path : intermediatePaths(segments)) {
+            if (collisions.contains(path)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ========================= HIERARCHY BUILDING =========================
 
     /**
      * Build the hierarchical structure from flattened map.
+     *
+     * @param collisions keys that are also intermediate paths, decided by
+     *                   {@link #collidingLeafKeys} before this method runs. Empty for the
+     *                   overwhelming majority of documents, in which case nothing here changes.
      */
     private Map<String, Object> buildHierarchy(Map<String, Object> flattenedMap,
-                                               StructureAnalysis analysis) {
+                                               StructureAnalysis analysis,
+                                               Set<String> collisions) {
         Map<String, Object> root = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> entry : flattenedMap.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            String[] parts = FlattenedPath.decodeSegments(key, separator).toArray(new String[0]);
-            setNestedValue(root, parts, value, analysis);
+            List<String> segments = FlattenedPath.decodeSegments(key, separator);
+
+            if (!collisions.isEmpty() && isDiscardedByPolicy(key, segments, collisions)) {
+                continue;
+            }
+
+            setNestedValue(root, segments.toArray(new String[0]), value, analysis);
         }
 
         return root;
     }
 
     /**
+     * Whether this key is the side the configured policy drops.
+     *
+     * <p>Only reachable when {@link #collidingLeafKeys} already returned a non-empty set, which
+     * under {@link CollisionPolicy#FAIL} it never does - that member throws instead of
+     * returning.</p>
+     */
+    private boolean isDiscardedByPolicy(String key, List<String> segments, Set<String> collisions) {
+        if (collisionPolicy == CollisionPolicy.PREFER_LEAF) {
+            return hasCollidingPrefix(segments, collisions);
+        }
+        return collisionPolicy == CollisionPolicy.PREFER_BRANCH && collisions.contains(key);
+    }
+
+    /**
      * Set a value at a nested path, creating intermediate structures as needed.
+     *
+     * <p>Two guards here are BACKSTOPS, not the primary detection. A non-Map found at an
+     * intermediate segment, or a Map found where a leaf is about to be written, both mean the
+     * same thing: a shorter key and a longer key are asking for the same node. For a CANONICALLY
+     * encoded key set that is already decided by {@link #collidingLeafKeys} before this method
+     * runs, so neither guard can fire.</p>
+     *
+     * <p>They exist for the case the set intersection cannot see. {@code reconstruct(Map)} is
+     * public and takes any map, and a caller can hand it a NON-CANONICAL key - one whose own
+     * encoding is not what {@code FlattenedPath} would have produced for its segments. The key
+     * {@code a\b} decodes to the single segment {@code a\b} (a backslash escaping nothing is a
+     * literal backslash) and re-encodes to {@code a\\b}, so it is not equal to the intermediate
+     * path that {@code a\b_c} contributes and the intersection misses it. Both orders are
+     * covered: the branch-then-leaf order trips the leaf guard, the leaf-then-branch order trips
+     * the intermediate guard, and a caller gets the same exception type either way instead of
+     * one silent overwrite and one fabricated key.</p>
      */
     @SuppressWarnings("unchecked")
     private void setNestedValue(Map<String, Object> root, String[] parts, Object value,
@@ -844,16 +1065,34 @@ public class JsonReconstructor implements Serializable {
             } else if (existing instanceof Map) {
                 current = (Map<String, Object>) existing;
             } else {
-                // Value exists but is not a map - convert to map with _value sentinel
-                Map<String, Object> wrapper = new LinkedHashMap<>();
-                wrapper.put("_value", existing);
-                current.put(part, wrapper);
-                current = wrapper;
+                // A scalar is already parked at an intermediate segment. Until 2.1.0 this branch
+                // wrapped it as {"_value": existing, ...}: a key the source never carried, which
+                // does not survive a re-flatten (the node re-encodes to a_\_value, not to a) and
+                // which silently duelled with a genuine field named _value. It was reachable only
+                // from a collision, and collisions are now decided in front of this walk, so the
+                // wrapper is deleted rather than kept as a fallback - keeping it would have
+                // preserved the exact nondeterminism the detection exists to remove.
+                throw new KeyCollisionException(currentPath,
+                        Collections.singletonList(FlattenedPath.encode(Arrays.asList(parts), separator)),
+                        separator);
             }
         }
 
-        // Set the leaf value
+        // Set the leaf value. The guard is the mirror of the one in the loop above: a Map
+        // already sitting where a leaf is about to be written was put there by a LONGER key, so
+        // overwriting it is the collision seen from the other end. Without this, the two orders
+        // are not symmetric - the loop refuses one and this line silently destroyed the other.
         String leafKey = parts[parts.length - 1];
+        Object occupant = current.get(leafKey);
+        if (occupant instanceof Map && !(value instanceof Map)) {
+            String here = FlattenedPath.encode(Arrays.asList(parts), separator);
+            List<String> shadowed = new ArrayList<>();
+            for (Object child : ((Map<?, ?>) occupant).keySet()) {
+                shadowed.add(here + separator
+                        + FlattenedPath.escapeSegment(String.valueOf(child), separator));
+            }
+            throw new KeyCollisionException(here, shadowed, separator);
+        }
         current.put(leafKey, value);
     }
 
@@ -1193,9 +1432,18 @@ public class JsonReconstructor implements Serializable {
     /**
      * Full round-trip verification: flatten -> reconstruct -> compare.
      *
+     * <p>This is the other public entry point that {@link #reconstruct(Map)}'s failure contract
+     * reaches. A document whose flattened form holds a leaf/branch key collision no longer comes
+     * back with differences listed - it throws, because the reconstruction step refuses before
+     * there is anything to compare. That is the intended shape: a verification that reported
+     * "one difference" for a document with an entire subtree deleted was understating it.</p>
+     *
      * @param originalData Original hierarchical data
      * @param flattener The MapFlattener used for flattening
      * @return Verification result
+     * @throws KeyCollisionException under the default {@link CollisionPolicy#FAIL}, when the
+     *                               flattened form holds a key that is also an intermediate path
+     *                               of a longer key
      */
     public ReconstructionVerification verifyRoundTrip(Map<String, Object> originalData,
                                                       MapFlattener flattener) {
@@ -1411,6 +1659,72 @@ public class JsonReconstructor implements Serializable {
 
         public ArrayParseException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    /**
+     * A key in the flattened map is ALSO an intermediate path of a longer key, so the two cannot
+     * both be represented in the reconstructed tree.
+     *
+     * <p>{@code {"a":"2","a_b":"1"}} asks for a node at {@code a} that is simultaneously the
+     * string {@code "2"} and the object {@code {"b":"1"}}. JSON has no such node. The flattened
+     * form itself is fine - {@code ["a"]} and {@code ["a","b"]} are distinct segment lists and
+     * {@code FlattenedPath} encodes them injectively - so nothing has been lost YET at the moment
+     * this is thrown.</p>
+     *
+     * <p>Sibling of {@link ArrayParseException} and of
+     * {@code MapFlattener.FlattenLimitExceededException}, and refused for their reason: the
+     * alternatives all discard one side of the collision, and a caller who wanted that can ask
+     * for it by name with {@link Builder#onKeyCollision(CollisionPolicy)}. Until 2.1.0 the choice
+     * was made by map iteration order, with no log and no exception, and the two outcomes were
+     * structurally different documents.</p>
+     *
+     * <p>Three producers of a colliding key set are known, and only one is a flattener sentinel:
+     * {@code MapFlattener}'s base-key mapping for non-map array elements; an ordinary nullable
+     * nested record inside an array of records ({@code orders_ship} beside
+     * {@code orders_ship_city}); and the {@code LOWER_CASE} naming strategy's unescaped {@code _2}
+     * dedup suffix. A caller-built flat map is a fourth.</p>
+     *
+     * @since 2.1.0
+     */
+    public static class KeyCollisionException extends ReconstructionException {
+        private static final long serialVersionUID = 1L;
+
+        private final String collidingKey;
+        private final List<String> shadowedKeys;
+
+        public KeyCollisionException(String collidingKey, List<String> shadowedKeys, String separator) {
+            super(buildMessage(collidingKey, shadowedKeys, separator));
+            this.collidingKey = collidingKey;
+            this.shadowedKeys = Collections.unmodifiableList(new ArrayList<>(shadowedKeys));
+        }
+
+        private static String buildMessage(String collidingKey, List<String> shadowedKeys,
+                                           String separator) {
+            // The escaped form is shown for the LONGER keys, because that is where the caller's
+            // fix lives: if a_b was meant as one field literally named a_b rather than as a
+            // nesting of a under b, the encoder writes it a\_b and no collision exists.
+            List<String> escaped = new ArrayList<>(shadowedKeys.size());
+            for (String shadowed : shadowedKeys) {
+                escaped.add(FlattenedPath.escapeSegment(shadowed, separator));
+            }
+            return "leaf/branch key collision: the key '" + collidingKey + "' is also an "
+                    + "intermediate path of " + shadowedKeys + ", so the reconstructed node at '"
+                    + collidingKey + "' would have to be a scalar and an object at once. "
+                    + "If any of " + shadowedKeys + " was meant as a literal field name containing "
+                    + "the separator '" + separator + "' rather than as a nesting level, it must "
+                    + "be escaped - " + escaped + ". Otherwise choose which side to keep with "
+                    + "JsonReconstructor.builder().onKeyCollision(PREFER_LEAF | PREFER_BRANCH).";
+        }
+
+        /** The key that is also an intermediate path. */
+        public String getCollidingKey() {
+            return collidingKey;
+        }
+
+        /** The longer keys it shadows, sorted. */
+        public List<String> getShadowedKeys() {
+            return shadowedKeys;
         }
     }
 

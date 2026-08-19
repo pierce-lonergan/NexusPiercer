@@ -806,27 +806,212 @@ with an inner list of empty objects — `{"g":[[{}]]}` gains a `g` column. The b
 collapsed inner cardinality 0, 1, 2 and 3 into one output, which is CHANGELOG item 27.
 
 Filed as a follow-up rather than folded in: the `_value` sentinel maps to the BASE key rather than
-to a `_value`-suffixed column, which is what keeps
-`structural/mixed-nested-array-sentinel-collision` a DEFECT after this repair and what the class
-javadoc has always mis-documented. Changing it renames a column and is a bigger decision than
-alignment — see [BL-022].
+to a `_value`-suffixed column, which is what kept
+`structural/mixed-nested-array-sentinel-collision` a DEFECT after this repair. **RESOLVED
+2026-08-19 — see [BL-022], where the rename was REFUSED on a trace and the residual defect was
+retargeted to the reconstruct side as [BL-023].** The clause that used to sit here, "what the
+class javadoc has always mis-documented", was already false when written: commit 6bb66d1 — the
+BL-018 padding commit itself — rewrote that javadoc block to describe the measured output.
 
 ---
 
-### [BL-022] The `_value` sentinel maps to the base key, not to a `_value`-suffixed column
+### [BL-022] The `_value` sentinel maps to the base key — **DECIDED 2026-08-19: the base key is the contract, the suffix is REFUSED** ✅
 
-The `MapFlattener` class javadoc has documented `{data_name, data_value}` for
-`{data: [[{name:"A"}], "text"]}` since before 2.0.0. The code has never produced it: the sentinel
-maps to the BASE key `data`. [BL-018] closed the OTHER half of that discrepancy (the missing
-positional padding) in 2.1.0; this half is what keeps
-`structural/mixed-nested-array-sentinel-collision` classified `DEFECT`.
+**THE PREMISE THIS ENTRY CARRIED FOR SIX PASSES WAS FALSE, and it was false in this file.** The
+entry opened by asserting, in the present perfect, that the `MapFlattener` class javadoc *has
+documented* the suffixed pair since before 2.0.0. Commit 6bb66d1 rewrote that javadoc block; at HEAD the
+javadoc describes the measured output. The stale claim survived here, and in the fixture's own
+`rationale` field, and every pass since inherited it from one of those two places. Both are
+corrected, and `SentinelKeyProseMatchesTheCodeTest` now bans the two exact sentences by substring
+so the next pass cannot inherit them again. `CHANGELOG.md` is exempt by path: its tables record
+what was believed and published at the time, and rewriting them to match today would destroy the
+evidence rather than the error.
 
-It is not fixed with [BL-018] on purpose. Emitting `data_value` instead of `data` RENAMES a column
-in released output — a strictly larger behaviour change than alignment, affecting every consumer
-that reads the base key — and it interacts with the `setNestedValue` leaf-versus-branch collision
-(`data` clobbers the subtree built from `data_name`) which renaming would change rather than fix.
-Additive-only does not block it, since no public signature moves; the reason to defer is blast
-radius, and it should be decided rather than inherited.
+**What the code does, measured.** `VALUE_SENTINEL = "_value"` is an INTERNAL column name that
+never reaches output under that spelling. There are TWO emit sites, not one: `flattenList` Case 2
+(nested arrays), where the sentinel is mapped by `fieldKey = key`; and `flattenList` Case 3 (array
+of maps), where a non-map element is written under the base key by `columnFor` and the constant is
+not consulted at all. **Case 3 is a site this entry never named.** For
+`{"data":[[{"name":"A"}],"text"]}` the key set is exactly `{data, data_name}`.
+
+**Option (a), emit `data_value` — REFUSED ON A TRACE, not a preference.** `joinEncodedKey` extends
+an already-encoded path and does not re-escape it, so a user field literally named `value` produces
+the segment `value` and the key `data_value`. A suffixed sentinel produces the identical string:
+
+| document | today | under the rename |
+| --- | --- | --- |
+| `{"data":[[{"value":"A"}],"text"]}` | `data_value` and `data`, both kept | one `result.put` overwrites the other — a whole column lost at FLATTEN time |
+| `{"mixed":[{"value":1},"x"]}` | `mixed_value="[1,null]"` beside `mixed="[null,\"x\"]"` | `columnFor` returns the SAME column — `mixed_value="[1,\"x\"]"`, the distinction destroyed inside one column |
+
+The rename does not resolve the collision by construction; it MOVES it from the reconstruct side,
+where a schema-aware reader demonstrably recovers, to the flatten side, where the bytes are gone.
+No suffix escapes this: `FlattenedPath` is a bijection over user segment lists with no reserved
+namespace, `_value` escapes to `\_value` — exactly what a user field named `_value` produces — and
+the only unforgeable form `__value__` is dropped outright by `JsonReconstructor.processArrays`.
+Separately, a blanket rename touches every array-of-arrays-of-scalars: `{"grid":{"rows":[[1,2],[],[3]]}}`
+emits `grid_rows` today, a sentinel-sourced base key with **no sibling and no collision**, and
+would become `grid_rows_value` in released 2.0.0 output for a shape with no defect at all. It also
+desynchronises the data column name from the SCHEMA column name — `AvroSchemaFlattener` and
+`GAvroSchemaFlattener` both emit `basePath` for array-of-primitives and array-of-arrays — which is
+a silent Avro/Spark field-not-found rather than a loud failure. Scoping the rename to "only when a
+sibling column exists" is strictly worse: the column name would then depend on the sibling key set,
+so adding one map element to an array silently renames the scalar column and no schema generator
+could predict it.
+
+**Option (c), a configurable suffix defaulting to the base key — REFUSED.** A knob whose default is
+the bug leaves the defect shipped for everyone who does not read the release notes, and its
+non-default value emits a column name the two Avro schema flatteners do not produce — so it offers
+two defects rather than a fix and a status quo. Precedent is specific: e6451dd's headline was
+wiring four knobs that did nothing. `PublicApiIsAdditiveOnlySinceReleaseTest` would have permitted
+the builder method; the API rule was never the obstacle.
+
+**Also considered and refused:** a runtime collision-avoiding suffix (probe `_value`, then
+`_value_2`, …). Deterministic per document but not per schema, so the same logical column gets
+different names in different rows of one table. Unusable for Athena, Spark or Avro, which is the
+published use case.
+
+**Option (b), keep the base key — TAKEN.** No emitted key changes. The published contract is
+stated as *the emitted key set is `{P, P_field}`, two columns of ONE array to be read together* —
+deliberately NOT as "`P` is a leaf", because that second form goes stale the moment a
+reconstruct-side zip lands.
+
+**"The base-key choice causes the silent data loss" — OVERSTATED, and measured.** Decoding every
+flat key in all 164 fixtures into segment lists and searching for a key whose path is a strict
+prefix of another gives **8 rows, of which only 5 involve the sentinel**. Three reproduce the
+identical leaf/branch collision with no sentinel anywhere:
+
+* `avro/avro-array-of-records-nullable-nested-record-shadowed` — `orders_ship` beside
+  `orders_ship_city`, pure user data, DEFECT;
+* `avro/avro-array-element-multi-branch-union-mixed-branches` — `items_meta` beside
+  `items_meta_src`, and **LOSSLESS**, because the Avro reconstructor is schema-aware. Proof that
+  the colliding key set is recoverable and that emit is not at fault;
+* `naming/lower-case-collision-suffix-corrupts-structure` — `id` beside `id_2` from the
+  `LOWER_CASE` disambiguator.
+
+Renaming the sentinel would repair the KEY SET of 5 rows and leave 3 emitting byte-identical
+collisions. It is therefore not the repair for the loss. The loss is retargeted to [BL-023].
+
+**Undocumented shape found while tracing, now characterised.** `isNestedList` is false for a Map,
+so a MAP at an outer position beside a nested list is never field-extracted: `{"mixed":[{"a":1},[2,3]]}`
+emits ONE column `mixed` whose slot 0 is the JSON TEXT of the map, and there is no `mixed_a`. The
+base-key column is not type-homogeneous — a second, independent reason the name `_value` would
+misdescribe it. Zero fixtures reached this shape and zero tests asserted it;
+`MapFlattenerSentinelKeyContractTest` now does.
+
+**`cannotCatch` was self-contradictory and is rewritten.** The fixture instructed that "the fix
+must not be to edit the javadoc to match the code". Commit 6bb66d1 did exactly that, and did it
+well — it kept the discrepancy legible rather than erasing it. An instruction that is already
+violated by a good change needs rewriting, not obeying.
+
+**Still open, filed rather than folded in:** for 3.0.0, if the rename is ever revisited, the schema
+side must move in the same commit (`AvroSchemaFlattener` ARRAY case, `GAvroSchemaFlattener`
+array-of-primitives and array-of-arrays). Nothing in the current gate set flattens a schema and a
+document of the same shape and compares key sets. That gate is worth adding regardless of which
+option wins.
+
+---
+
+### [BL-023] `JsonReconstructor.setNestedValue` resolved a leaf/branch key collision by map iteration order — **FIXED IN 2.1.0** ✅
+
+Split out of [BL-022] because it is an independent defect with three producers, only one of which
+is the flattener sentinel — and because leaving it filed as a sub-item guaranteed it would be
+deferred whenever the rename was deferred.
+
+**The defect.** A flattened map can hold `a` beside `a_b`. The first decodes to `["a"]`, the second
+to `["a","b"]`, so `a` is both a leaf and an intermediate of the same tree. `buildHierarchy`
+iterated `flattenedMap.entrySet()` in the caller's order and let whichever key arrived LAST decide,
+with no log, no exception and no marker. **Three outcomes were reachable, all measured against
+unfixed HEAD:**
+
+| input | output before the fix |
+| --- | --- |
+| `{"a_b":"1","a":"2"}` | `{"a":"2"}` — subtree DESTROYED |
+| `{"a":"2","a_b":"1"}` | `{"a":{"_value":"2","b":"1"}}` — key FABRICATED |
+| `{"a":"scalar","a_\_value":"real"}` | `{"a":{"_value":"real"}}` — the scalar destroyed, and the survivor byte-identical to the fabrication |
+| `{"a":null,"a_b":"1"}` | `{"a":{"b":"1"}}`; reversed, `{"a":null}` — a null leaf took a third path and lost data in both directions |
+
+The corpus already proved the order-dependence without anyone running anything:
+`structural/heterogeneous-array-object-first` and `structural/heterogeneous-array-scalar-first`
+differ only in the element order of the source array and record structurally different
+reconstructions.
+
+**Three producers of an unescaped separator, only one a sentinel.** `MapFlattener`'s
+`VALUE_SENTINEL` base-key mapping; an ordinary nullable nested record inside an array of records —
+`{"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":null}]}` emits `orders_ship` beside
+`orders_ship_city` and returned `{"orders":[{"id":1,"ship":null},{"id":2,"ship":null}]}`, the
+nested record deleted from a completely ordinary document; and the `LOWER_CASE` dedup suffix. A
+caller-built flat map is a fourth, and `reconstruct(Map)` is public and accepts any map, so the
+reconstructor has to be correct on input it did not produce.
+
+**What does NOT reproduce, which bounds the claim honestly.** An ordinary field name containing the
+separator does not collide: `FlattenedPath` escapes it, `a\_b` is one segment, and
+`SeparatorInFieldNameRegressionTest` pins that. The collision needs a producer that writes an
+UNESCAPED separator into a key.
+
+**The fix.** The colliding keys are computed BEFORE any write as
+`flattenedMap.keySet() ∩ analysis.allPaths` — a set intersection, so the answer cannot depend on
+iteration order. `allPaths` was already populated at `analyzeStructure` and read nowhere: the
+detector was built and switched off. The default policy REFUSES with
+`JsonReconstructor.KeyCollisionException`, naming the key, everything it shadows, and the escaped
+form that would have disambiguated. `Builder.onKeyCollision(PREFER_LEAF | PREFER_BRANCH)` keeps
+going but drops the same side every time and says so at WARN. The `_value` wrapper is DELETED, not
+kept as a fallback — keeping it would have preserved the exact nondeterminism the detection exists
+to remove — and the branch it occupied now throws, so a future gap in detection fails loudly
+instead of fabricating a key.
+
+**Why `FAIL` is the default in a minor.** `ArrayParseException` was added in this same 2.1.0 cycle
+for the same reason on the same class, so the precedent is not merely analogous, it is the
+immediately preceding decision. The alternatives all discard one side of a collision; a caller who
+wants that can ask for it by name. Consumers upgrading who hit the throw are consumers who were
+already losing data silently.
+
+**Not the fix, and rejected explicitly so it is not re-proposed:** merging into a node that holds
+both. JSON has no node that is a scalar and an object at once, so any merge must invent a key to
+hold the scalar — which is the `_value` wrapper, which is the defect. It is not a fourth option.
+Sorting the flat map before iterating is worse than all of them: a stable wrong answer is harder to
+notice than an unstable one.
+
+**Still open.** `AvroReconstructor` is NOT in this fix's blast radius — `PathNode.addPath` sets the
+leaf value and the children side by side, so neither write can clobber the other and the tree is
+order-independent by construction. It still drops one side on a genuine collision (measured:
+`{orders=[]}` for the shape above), which is the three AVRO corpus rows, and it does so
+deterministically and without fabricating a key. `AvroReconstructorKeyCollisionParityTest` is the
+fence that catches a leak.
+
+---
+
+### [BL-024] The `LOWER_CASE` dedup suffix emits an UNESCAPED separator into an encoded namespace
+
+Found while fixing [BL-023] and filed rather than folded in, because it is a FLATTEN-side defect in
+a different class from the reconstructor's handling of collisions.
+
+`transformKeys` calls `generateUniqueKey` AFTER encoding, and `generateUniqueKey` appends a raw
+separator with no escaping. `{"Id":1,"id":2}` under `namingStrategy(LOWER_CASE)` folds to one name
+and the disambiguating suffix becomes the key `id_2`, which the decoder reads as a nesting level.
+Case folding is an ACCEPTED consequence of the requested strategy; manufacturing a key that cannot
+round-trip is not.
+
+[BL-023] makes this LOUD rather than corrupting — the reconstructor now refuses `{id, id_2}`
+instead of returning `{"id":{"2":2,"_value":1}}` — which may be enough for most callers, but the
+strategy is still emitting a key it cannot round-trip and
+`naming/lower-case-collision-suffix-corrupts-structure` will stay `DEFECT` until it stops. The fix
+is to escape the suffix (`id\_2`, one segment) or to append it before encoding. Deliberately NOT
+done in the [BL-023] commit: it is a key-set change in released output and deserves its own
+decision, and a reconstruct-side repair that papered over it would be worse than either.
+
+Its fixture exists and is already `DEFECT`, so no new fixture is owed.
+
+**ALSO FOUND WHILE FIXING [BL-023], NOT FIXED HERE.** `MapFlattener.applyNamingStrategy` used the
+DEFAULT locale for all three case conversions, so the emitted COLUMN NAME was a function of the
+JVM the job ran on — under `tr-TR`, `toLowerCase()` maps `I` to the dotless `ı`, and an `ID`
+field became the column `ıd` on a Turkish executor and `id` everywhere else. That one IS fixed,
+pinned to `Locale.ROOT`, and it is what paid for the SpotBugs cost of the [BL-023] WARN. The same
+hazard survives elsewhere and is deliberately left for its own change rather than folded in:
+`converter/SchemaBasedMapConverter` builds a case-insensitive field-name lookup with
+`fieldName.toLowerCase()` at four sites, which makes SCHEMA FIELD MATCHING locale-dependent in
+exactly the same way — a Turkish executor would fail to match a field named `ID`. It is a
+different class of consequence (a missed field rather than a renamed column) and it belongs to the
+converter package, so it is named here and filed rather than repaired in a reconstructor commit.
 ---
 
 ## Medium Priority

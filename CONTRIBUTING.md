@@ -23,7 +23,7 @@ resolving to *different* JDKs is a known source of confusing failures here.
 ./mvnw verify
 ```
 
-That runs the full suite (2,634 test invocations, roughly 4 minutes). Faster loops:
+That runs the full suite (2,684 test invocations, roughly 4 minutes). Faster loops:
 
 **Read the count from Maven's `Tests run:` summary line, not from the surefire XML.** Summing
 `target/surefire-reports/*.xml` UNDERCOUNTS here by **exactly 532** — measured 2,102 against

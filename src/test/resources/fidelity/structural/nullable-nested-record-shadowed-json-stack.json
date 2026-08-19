@@ -1,0 +1,30 @@
+{
+  "id" : "nullable-nested-record-shadowed-json-stack",
+  "family" : "structural",
+  "title" : "A nullable nested record inside an array of records - the collision with NO sentinel anywhere",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "THE ROW THAT REFUTES THE FRAMING OF [BL-022]. The sentinel-key entry was filed as though the flattener's base-key naming caused the silent loss. It does not: decoding every flat key in the corpus into segment lists finds EIGHT rows where one key is a strict prefix of another, and only FIVE involve a sentinel. This is one of the three that do not. {\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":null}]} is ordinary user data - an optional nested object that is present in one element and null in another - and it emits orders_ship, a leaf column created purely by the null, beside orders_ship_city. Renaming the sentinel cannot touch this row. Its AVRO twin already existed as avro/avro-array-of-records-nullable-nested-record-shadowed; the JSON and MAP stacks had no row for it at all, which is why the collision looked like a sentinel problem for six passes.",
+  "catchesBugClass" : "The leaf-versus-branch key collision arising from a nullable nested record rather than from any flattener-internal name. It is the standing evidence that [BL-023] is an independent defect and not a sub-item of the sentinel decision.",
+  "cannotCatch" : "It cannot catch the third non-sentinel producer, the LOWER_CASE dedup suffix - naming/lower-case-collision-suffix-corrupts-structure owns that one and [BL-024] tracks the producer. It cannot distinguish 'ship was null' from 'ship was an object whose city was null' either: both flatten to a null in the orders_ship_city column, which is a separate ambiguity that no reconstruct-side repair can resolve from the flat form alone.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "PREDICTED, to be replaced by the recorder. Flatten is expected to emit {orders_id, orders_ship_city, orders_ship}. Before 2.1.0 reconstruct returned {\"orders\":[{\"id\":1,\"ship\":null},{\"id\":2,\"ship\":null}]} - the nested record {\"city\":\"NY\"} deleted from the document with no exception and no log. Since [BL-023] the collision is refused with KeyCollisionException. That is deterministic and loud, and it still does not reproduce the source."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":null}]}",
+  "expected" : {
+    "mapBaseline" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":null}]}",
+    "flat" : "{\"orders_id\":\"S:[1,2]\",\"orders_ship\":\"S:[null,null]\",\"orders_ship_city\":\"S:[\\\"NY\\\",null]\"}",
+    "mapDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'orders_ship' is also an intermediate path of [orders_ship_city], so the reconstructed node at 'orders_ship' would have to be a scalar and an object at once. If any of [orders_ship_city] was meant as a lit",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"orders\":[{\"id\":\"I:1\",\"ship\":{\"city\":\"S:NY\"}},{\"id\":\"I:2\",\"ship\":null}]}",
+    "flatJson" : "{\"orders_id\":\"S:[1,2]\",\"orders_ship\":\"S:[null,null]\",\"orders_ship_city\":\"S:[\\\"NY\\\",null]\"}",
+    "jsonDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'orders_ship' is also an intermediate path of [orders_ship_city], so the reconstructed node at 'orders_ship' would have to be a scalar and an object at once. If any of [orders_ship_city] was meant as a lit",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

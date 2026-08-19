@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "NexusPiercer round-trip fidelity guarantee",
-  "recorded": "2026-08-11",
+  "recorded": "2026-08-19",
   "guarantee": "THIS FILE IS THE CONTRACT. For every fixture below it states what a JSON or Avro document\nloses, or does not lose, when it is flattened and reconstructed. A consumer can read a line\nhere and rely on it.\n\nThe repository cannot change any of these behaviours quietly. Each fixture file carries the\nexact recorded rendering of its flattened intermediate and its reconstructed document, and\nRoundTripFidelityCorpusTest asserts both. Changing behaviour - including FIXING a defect -\nmakes a recording stale and turns the build red until someone updates this manifest on\npurpose. That is the intended cost: the published guarantee may not drift by accident.\n\nThe oracle is strict recursive equality with runtime types attached, not JsonReconstructor\nverify(), which treats String and Number as compatible and compares doubles with a 1e-6\ntolerance and would report several of these fixtures as PERFECT.",
   "classifications": {
     "LOSSLESS": "The round trip reproduces the source exactly under the corpus oracle: identical runtime types for every scalar, identical list lengths and order, identical key sets, and absent-vs-present-null preserved. The harness asserts equality against the source AND against the recorded rendering.",
@@ -154,7 +154,7 @@
       "id": "naming-strategies",
       "kind": "LOSS",
       "headline": "The naming strategies restructure the document rather than only renaming fields.",
-      "statement": "SNAKE_CASE injects unescaped separator characters, which turns a flat scalar field into a nested object on the way back. The case-collision disambiguator emits an unescaped _2 that the decoder reads as another level of nesting. The same field name is sanitised differently at the root than deeper down, so one name yields two column names. UPPER_CASE is the one strategy that renames without damaging the encoding.",
+      "statement": "SNAKE_CASE injects unescaped separator characters, which turns a flat scalar field into a nested object on the way back. The case-collision disambiguator emits an unescaped _2 that the decoder reads as another level of nesting. The same field name is sanitised differently at the root than deeper down, so one name yields two column names. UPPER_CASE is the one strategy that renames without damaging the encoding. NARROWED IN 2.1.0 for the disambiguator only: the corrupted structure it used to produce - {\"id\":{\"2\":2,\"_value\":1}}, a numeric-string key beside a fabricated _value, from the two scalars {\"Id\":1,\"id\":2} - is no longer returned. The reconstructor now refuses the key set with KeyCollisionException ([BL-023]). The PRODUCER is unchanged and is filed as [BL-024]: generateUniqueKey runs AFTER encoding and appends a raw separator, so the strategy is still emitting a key it cannot round-trip. Loud rather than corrupting is an improvement, not a repair.",
       "fixtures": [
         "snake-case-injects-unescaped-separators",
         "lower-case-collision-suffix-corrupts-structure",
@@ -191,12 +191,14 @@
     {
       "id": "heterogeneous-arrays",
       "kind": "LOSS",
-      "headline": "A mixed-type array loses elements or leaks an internal sentinel into your data.",
-      "statement": "With objects before the scalars the object elements are silently deleted. With scalars first the flattener's internal marker appears in the reconstructed document as if it were a value. REPAIRED IN PART IN 2.1.0: the deletions above are unchanged, but they are no longer invisible. Array-element columns are now written by index rather than appended and tail-padded, so a deleted object element leaves an explicit null at the position it occupied and the array keeps its true length. Previously the survivors were packed from index 0 and the array came back short - a clean, plausible, shorter array that nothing downstream could tell from well-formed data.",
+      "headline": "A mixed-type array produces a key set the reconstructor cannot represent, and since 2.1.0 it says so instead of guessing.",
+      "statement": "A mixed-type array emits a base-key column beside the extracted field columns - mixed and mixed_a - and mixed is then both a leaf and an intermediate path of mixed_a. No JSON node is a scalar and an object at once, so one side cannot be represented. REWRITTEN IN 2.1.0, and the behaviour it describes changed with it. BEFORE: the outcome was decided by the iteration order of the flattened map, silently. Objects before the scalars and the object elements were deleted; scalars first and the flattener's internal _value marker was fabricated into the reconstructed document as if it were a value. Same two entries, two structurally different documents, no exception and no log at any level. NOW: the colliding keys are found before any write, as a set intersection that cannot depend on order, and reconstruct refuses with KeyCollisionException naming the key, every longer key it shadows, and the escaped form that would have disambiguated. The _value wrapper is deleted outright. A caller who would rather keep going can choose a side by name with JsonReconstructor.builder().onKeyCollision(PREFER_LEAF | PREFER_BRANCH); both drop the same side every time and log at WARN. WHAT IS STILL LOST: the source is still not reproduced. The correct answer exists - the base column and the field columns are two columns of ONE array and zipping them by outer index recovers the document - and it is not implemented. The FLATTEN side is not at fault and its column name was deliberately NOT renamed; see [BL-022]. Note the collision also arises with no mixed-type array anywhere: an optional nested object inside an array of records produces it from pure user data.",
       "fixtures": [
         "heterogeneous-array-object-first",
         "heterogeneous-array-scalar-first",
         "mixed-nested-array-sentinel-collision",
+        "mixed-array-sentinel-vs-user-value-field",
+        "nullable-nested-record-shadowed-json-stack",
         "event-envelope-mixed-attachments"
       ]
     },
@@ -339,10 +341,10 @@
     }
   ],
   "counts": {
-    "total": 164,
+    "total": 166,
     "lossless": 58,
     "acceptedLoss": 25,
-    "defect": 81,
+    "defect": 83,
     "nonDefaultConfig": 55,
     "losslessNotUnderDefaultReconstruction": 4,
     "losslessNotUnderPublishedRecipe": 1,
@@ -386,10 +388,10 @@
         "DEFECT": 1
       },
       "structural": {
-        "total": 18,
+        "total": 20,
         "LOSSLESS": 4,
         "ACCEPTED_LOSS": 1,
-        "DEFECT": 13
+        "DEFECT": 15
       },
       "value-domain": {
         "total": 24,
@@ -566,8 +568,8 @@
       "stack": "BOTH",
       "classification": "DEFECT",
       "referenceIssue": "",
-      "title": "Nested array mixed with a scalar - the documented output does not exist",
-      "detail": "Actual flatten output uses the base key \"data\" rather than the documented data_value. The positional half of this row was repaired in 2.1.0: the columns are now padded to the outer element count, so data_name=[[\"A\"],null] describes outer position 0 and data=[[null],\"text\"] describes outer position 1. What remains DEFECT is the sentinel key itself plus the setNestedValue leaf-versus-branch collision on reconstruct, which drops data_name entirely and returns data alone.",
+      "title": "Nested array mixed with a scalar - the base key is the contract, the collision is refused",
+      "detail": "FLATTEN IS CORRECT AND UNCHANGED. The sentinel column is emitted under the base key \"data\" at both emit sites, deliberately: [BL-022] traced that a _value suffix would produce the SAME key as a user field literally named `value` and REFUSED the rename. {data, data_name} is an injective encoding of two columns of ONE array; the positional half was repaired in 2.1.0 ([BL-018]), so data_name=[[\"A\"],null] describes outer position 0 and data=[[null],\"text\"] position 1. Since [BL-023] the reconstruct side REFUSES this document with JsonReconstructor.KeyCollisionException, naming the colliding key, the longer keys it shadows and the escaped form that would have disambiguated. Before 2.1.0 it returned {\"data\":[[null],\"text\"]} - data_name annihilated with no exception and no log, and only because the live flat map happens to yield data_name first; the reverse order produced a different document. This row stays DEFECT: a refusal is deterministic and loud, but it still does not reproduce the source. The repair that would make it LOSSLESS is zipping the base column with the field columns by outer index, which is not implemented.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -581,7 +583,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Heterogeneous array, scalars before the object - internal sentinel leaks out",
-      "detail": "Reconstruct processes the base key first as a leaf String, then the suffixed key finds a non-map value already at that node and wraps it, inserting a literal \"_value\" key into user output. Unchanged in 2.1.0 and still DEFECT. The column CONTENTS did change: mixed is now [1,2,null] and mixed_a is [null,null,3], so the object at source index 2 is recorded at index 2 rather than being relocated to index 0. That repair is upstream in the flattener and does not touch the sentinel leak, which is what this row is for.",
+      "detail": "The mirror of heterogeneous-array-object-first: identical key set, opposite insertion order. Before 2.1.0 the leaf arrived first, so setNestedValue wrapped it as {\"mixed\":{\"_value\":\"[1,2,null]\",\"a\":\"[null,null,3]\"}} - a literal _value key in user output that appears in no source document and that does not survive a re-flatten (the node re-encodes to mixed_\\_value, not to mixed). The wrapper is DELETED in 2.1.0, not kept as a fallback: it was reachable only from this collision and it silently duelled with a genuine field named _value. Since [BL-023] the reconstruct side REFUSES this document with JsonReconstructor.KeyCollisionException, naming the colliding key, the longer keys it shadows and the escaped form that would have disambiguated. Stays DEFECT.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -595,7 +597,35 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Heterogeneous array, objects before the scalars - object elements silently deleted",
-      "detail": "The one-segment key still overwrites the array holder built from the longer keys, so both object elements are still deleted and this row stays DEFECT. Since 2.1.0 the result is no longer 'syntactically perfect': the array comes back at its true length of four as [null, null, x, y], so the two deleted objects leave explicit holes at the indices they occupied instead of vanishing into a clean two-element string array that reads as valid data. The deletion is unchanged; its detectability is not.",
+      "detail": "The one-segment key `mixed` is also an intermediate path of `mixed_a`, so the two cannot both be represented. Before 2.1.0 the longer key's subtree was silently overwritten and the array came back as [null, null, x, y] with both object elements deleted - no exception, no log, and the winner decided by whichever key the map yielded last. Since [BL-023] the reconstruct side REFUSES this document with JsonReconstructor.KeyCollisionException, naming the colliding key, the longer keys it shadows and the escaped form that would have disambiguated. This row and heterogeneous-array-scalar-first are the same defect in opposite orders and used to record structurally different documents; they now record the same refusal, which is the point. Stays DEFECT: the source is still not reproduced.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "mixed-array-sentinel-vs-user-value-field",
+      "family": "structural",
+      "file": "structural/mixed-array-sentinel-vs-user-value-field.json",
+      "stack": "BOTH",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "A user field named value beside the sentinel - the two columns a _value suffix would have fused",
+      "detail": "THE MEASUREMENT THAT REFUSED THE [BL-022] RENAME. joinEncodedKey extends an already-encoded path without re-escaping it, so a user field literally named `value` produces the segment `value` and the key mixed_value. Under the proposed _value suffix columnFor would hand back the SAME column for the sentinel and for the field, fusing element 0's field value with element 1's bare scalar into one mixed_value=[1,\"x\"] with no way to tell them apart - a loss at FLATTEN time, where nothing downstream can undo it. TODAY, recorded here: mixed_value=[1,null] beside mixed=[null,\"x\"], two distinguishable columns, nothing lost. Reconstruct then hits the same [BL-023] collision as every other row in this family and refuses. DEFECT for the reconstruct half only; the flatten half is the guarantee this row exists to hold.",
+      "configDescription": "defaults",
+      "requiresNonDefaultConfig": false,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "nullable-nested-record-shadowed-json-stack",
+      "family": "structural",
+      "file": "structural/nullable-nested-record-shadowed-json-stack.json",
+      "stack": "BOTH",
+      "classification": "DEFECT",
+      "referenceIssue": "",
+      "title": "A nullable nested record inside an array of records - the collision with NO sentinel anywhere",
+      "detail": "THE ROW THAT REFUTES THE FRAMING OF [BL-022]. Decoding every flat key in the corpus into segment lists finds EIGHT rows where one key is a strict prefix of another, and only FIVE involve a flattener sentinel. This is one of the three that do not: {\"orders\":[{\"id\":1,\"ship\":{\"city\":\"NY\"}},{\"id\":2,\"ship\":null}]} is ordinary user data - an optional nested object present in one element and null in another - and it emits orders_ship, a leaf column created purely by the null, beside orders_ship_city. Before 2.1.0 reconstruct returned {\"orders\":[{\"id\":1,\"ship\":null},{\"id\":2,\"ship\":null}]}, deleting the nested record from a completely ordinary document with no exception and no log. Since [BL-023] the reconstruct side REFUSES this document with JsonReconstructor.KeyCollisionException, naming the colliding key, the longer keys it shadows and the escaped form that would have disambiguated. Its AVRO twin, avro-array-of-records-nullable-nested-record-shadowed, already existed; the JSON and MAP stacks had no row at all, which is why the collision looked like a sentinel problem for six passes. Stays DEFECT.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1141,7 +1171,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "The case-collision disambiguator emits an unescaped _2 that the decoder reads as a nesting level",
-      "detail": "Two scalars become one object with a fabricated _value key and a numeric-string key. Case folding is an ACCEPTED consequence of the requested strategy; the structural corruption and the invented _value are not.",
+      "detail": "NO SENTINEL IS INVOLVED, and that is what this row is for. transformKeys calls generateUniqueKey AFTER encoding and generateUniqueKey appends a RAW separator, so two case-variant fields fold to one name and the disambiguating suffix becomes the key `id_2`, which the decoder reads as a nesting level. Before 2.1.0 the reconstructor turned two scalars into {\"id\":{\"2\":2,\"_value\":1}} - a numeric-string key and a fabricated _value, neither in the source. Since [BL-023] the reconstruct side REFUSES this document with JsonReconstructor.KeyCollisionException, naming the colliding key, the longer keys it shadows and the escaped form that would have disambiguated. Case folding remains an ACCEPTED consequence of the requested strategy; the unescaped suffix is not, and the PRODUCER is now filed in its own right as [BL-024]. Stays DEFECT until the strategy stops emitting a key it cannot round-trip.",
       "configDescription": "MapFlattener.builder().namingStrategy(LOWER_CASE); reconstructor default",
       "requiresNonDefaultConfig": true,
       "holdsUnderDefaultReconstruction": "YES",
@@ -1925,7 +1955,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Event envelope whose attachments array mixes objects with a legacy inline string",
-      "detail": "The two object attachments are still silently deleted - they come back as nulls, with no error and no warning - so this row stays DEFECT. What changed in 2.1.0 is that the deletion is now VISIBLE and correctly positioned: the array comes back with its true length of three as [null, null, legacy-inline-note], where before it came back as a two-element array with the inline note relocated to index 0. Previously nothing downstream could detect the loss, because a clean two-element array of strings looks like well-formed data; two explicit nulls at the positions the objects occupied do not. The residual cause is the base-key/child-column collision in setNestedValue, which this repair does not touch.",
+      "detail": "A realistic event envelope whose attachments array mixes two objects with an inline string. The base key `attachments` shadows both `attachments_kind` and `attachments_url`. Before 2.1.0 both object attachments were silently deleted and the array came back as [null, null, legacy-inline-note]. Since [BL-023] the reconstruct side REFUSES this document with JsonReconstructor.KeyCollisionException, naming the colliding key, the longer keys it shadows and the escaped form that would have disambiguated. The refusal names BOTH shadowed columns, not just the first, so the diagnosis is complete on a single throw. Stays DEFECT: an envelope that used to be processed with two attachments missing is now refused, which is correct and is still not the source.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",

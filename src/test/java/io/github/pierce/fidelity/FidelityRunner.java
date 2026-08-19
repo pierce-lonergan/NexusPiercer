@@ -169,7 +169,14 @@ final class FidelityRunner {
         Map<String, Object> source = source(fx);
         m.recorded.put("mapBaseline", FidelityRender.text(FidelityRender.java(source)));
 
-        String flat;
+        // `flat` is recorded as soon as it EXISTS, and the catch below only fills it in when it
+        // is still null. A reconstruct-side throw used to overwrite it with the throw rendering,
+        // which discarded a measurement that had already succeeded and made the flattened
+        // intermediate unavailable for exactly the rows where it is most wanted - the ones whose
+        // reconstruction refuses. Recording-neutral for the three rows that record a throw today:
+        // all three throw during flatten or during flattener construction, so `flat` is still
+        // null when the catch runs.
+        String flat = null;
         String doc;
         String defaults;
         try {
@@ -185,9 +192,12 @@ final class FidelityRunner {
             // under its stated configuration, and the table has to print that.
             defaults = mapDefaultsArm(flattened);
         } catch (Throwable t) {
-            flat = FidelityRender.thrown(t);
-            doc = flat;
-            defaults = flat;
+            String rendered = FidelityRender.thrown(t);
+            if (flat == null) {
+                flat = rendered;
+            }
+            doc = rendered;
+            defaults = rendered;
         }
         m.recorded.put("flat", flat);
         m.recorded.put("mapDoc", doc);
@@ -224,7 +234,7 @@ final class FidelityRunner {
         }
         m.recorded.put("jsonBaseline", FidelityRender.text(FidelityRender.json(baseline)));
 
-        String flat;
+        String flat = null;
         String doc;
         String defaults;
         try {
@@ -235,9 +245,12 @@ final class FidelityRunner {
             doc = FidelityRender.text(FidelityRender.json(EXACT.readTree(backJson)));
             defaults = jsonDefaultsArm(flattened);
         } catch (Throwable t) {
-            flat = FidelityRender.thrown(t);
-            doc = flat;
-            defaults = flat;
+            String rendered = FidelityRender.thrown(t);
+            if (flat == null) {
+                flat = rendered;
+            }
+            doc = rendered;
+            defaults = rendered;
         }
         m.recorded.put(flatKey, flat);
         m.recorded.put("jsonDoc", doc);

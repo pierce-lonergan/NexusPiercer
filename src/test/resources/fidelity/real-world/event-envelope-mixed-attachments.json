@@ -17,12 +17,12 @@
   "expected" : {
     "mapBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
     "flat" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[null,null,\\\"legacy-inline-note\\\"]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\",null]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\",null]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
-    "mapDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[null,null,\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "mapDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'attachments' is also an intermediate path of [attachments_kind, attachments_url], so the reconstructed node at 'attachments' would have to be a scalar and an object at once. If any of [attachments_kind, a",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[{\"kind\":\"S:image\",\"url\":\"S:https://cdn.example.com/a.png\"},{\"kind\":\"S:pdf\",\"url\":\"S:https://cdn.example.com/b.pdf\"},\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
     "flatJson" : "{\"actor\\\\_id\":\"S:USR-42\",\"attachments\":\"S:[null,null,\\\"legacy-inline-note\\\"]\",\"attachments_kind\":\"S:[\\\"image\\\",\\\"pdf\\\",null]\",\"attachments_url\":\"S:[\\\"https://cdn.example.com/a.png\\\",\\\"https://cdn.example.com/b.pdf\\\",null]\",\"event\\\\_id\":\"S:evt_9931\",\"event\\\\_type\":\"S:ticket.updated\"}",
-    "jsonDoc" : "{\"actor_id\":\"S:USR-42\",\"attachments\":[null,null,\"S:legacy-inline-note\"],\"event_id\":\"S:evt_9931\",\"event_type\":\"S:ticket.updated\"}",
+    "jsonDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'attachments' is also an intermediate path of [attachments_kind, attachments_url], so the reconstructed node at 'attachments' would have to be a scalar and an object at once. If any of [attachments_kind, a",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

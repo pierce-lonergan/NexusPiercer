@@ -12,11 +12,11 @@ must not sit on a released coordinate.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
-BEHAVIOUR IS NOT.** The section immediately below lists **twenty-seven** places where a `2.0.0`
+BEHAVIOUR IS NOT.** The section immediately below lists **twenty-eight** places where a `2.0.0`
 caller gets a different answer, several of them at the default configuration. Read it before
 upgrading.
 
-**Nine of the twenty-seven turn a previously-successful call into a throw**, across seven items:
+**Ten of the twenty-eight turn a previously-successful call into a throw**, across eight items:
 a bracketed JSON array read under a delimited format, and its mirror, an unbracketed delimited
 column read under the JSON default (item 3, two cases); disagreeing column counts (item 4); an
 oversized read, which for a compressed file can throw MID-READ (item 14); a bare name that only
@@ -24,7 +24,10 @@ resolved through a parent-directory search path (item 15); a `.avsc` outside the
 that `AvroSchemaLoader` used to reach through an unvalidated fallback (item 17); a bracketed
 column a caller has named in `arrayPaths()` that is not parseable JSON (item 18); and a bare
 schema name passed to `AvroSchemaFlattener.getFlattenedSchema(String)` (item 19); and a
-document whose array-element cell count exceeds `maxArrayCells` (item 23).
+document whose array-element cell count exceeds `maxArrayCells` (item 23); and a
+flattened map holding a key that is also an intermediate path of a longer key -
+`a` beside `a_b` - which `JsonReconstructor` used to resolve by map iteration order
+(item 28).
 
 Items 3 and 6 each carry a sub-entry recording a defect that the first version of this release's
 own repair INTRODUCED and that was caught in adversarial review before release, and item 18
@@ -37,7 +40,7 @@ creates the fault it removes is the single most useful thing this changelog can 
 **These change what the library returns at the SHIPPED DEFAULT configuration.** Items 1–12 are
 `AvroReconstructor`; items 13, 21, 22, 23 and 27 are `MapFlattener` and the flattener's schema read; items 24-26 are
 `JsonFlattener`; items
-14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; item 18 is `JsonReconstructor`;
+14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; items 18 and 28 are `JsonReconstructor`;
 item 19 is `AvroSchemaFlattener`. They are listed here rather than under *Fixed* because a caller
 pinning a snapshot of today's output will see a diff, and because eight previously-successful
 calls now throw. No public signature, return type, parameter list or visibility changes — the new
@@ -707,10 +710,147 @@ clear the 2.0.0 additive-only gate.
     Corpus: no fixture reaches an empty-object nested element, so no row moved and the counts
     stay **58 / 25 / 81 over 164**.
 
+28. **A flattened map holding a key that is also an intermediate path of a longer key is now
+    REFUSED instead of being resolved by map iteration order.** `{"a":"2","a_b":"1"}` asks for a
+    node at `a` that is simultaneously the string `"2"` and the object `{"b":"1"}`. JSON has no
+    such node. `JsonReconstructor.buildHierarchy` iterated `flattenedMap.entrySet()` in the
+    caller's order and let whichever key arrived LAST decide, with no exception and no log at any
+    level. **The first two rows below are the SAME two entries and produce structurally different
+    documents**; the remaining rows are other pairs that lose a value outright in either order.
+    All measured against `24dc5a5`:
+
+    | flattened map | before | after (default) |
+    |---|---|---|
+    | `{"a_b":"1","a":"2"}` | `{"a":"2"}` — the subtree destroyed | `KeyCollisionException` |
+    | `{"a":"2","a_b":"1"}` | `{"a":{"_value":"2","b":"1"}}` — a key the source never had | `KeyCollisionException` |
+    | `{"a":"scalar","a_\_value":"real"}` | `{"a":{"_value":"real"}}` — the scalar destroyed, and the survivor byte-identical to the fabrication | `KeyCollisionException` |
+    | `{"a":null,"a_b":"1"}` | `{"a":{"b":"1"}}`; reversed, `{"a":null}` | `KeyCollisionException` |
+
+    A `HashMap` of the same pair picked an outcome by `String.hashCode`. The corpus already
+    contained the proof and nobody had connected it:
+    `structural/heterogeneous-array-object-first` and
+    `structural/heterogeneous-array-scalar-first` differ only in the element order of the source
+    array and recorded structurally different reconstructions.
+
+    **NO COLUMN WAS RENAMED, and that is a decision rather than an omission.** The obvious repair
+    — emit the flattener's non-map array element under `data_value` instead of the base key `data`
+    — was traced and REFUSED ([BL-022]). `joinEncodedKey` extends an already-encoded path without
+    re-escaping it, so a user field literally named `value` produces the segment `value` and the
+    key `data_value`; a suffixed sentinel produces the identical string, and the collision moves
+    from the reconstruct side, where it is recoverable, to the FLATTEN side, where the bytes are
+    gone:
+
+    | document | today, unchanged | under the rename |
+    |---|---|---|
+    | `{"data":[[{"value":"A"}],"text"]}` | `data_value` and `data`, both kept | one `result.put` overwrites the other; a whole column lost |
+    | `{"mixed":[{"value":1},"x"]}` | `mixed_value="[1,null]"`, `mixed="[null,\"x\"]"` | `columnFor` returns the SAME column; `mixed_value="[1,\"x\"]"` |
+
+    A blanket rename would also touch every array-of-arrays-of-scalars —
+    `{"grid":{"rows":[[1,2],[],[3]]}}` emits `grid_rows` today, a sentinel-sourced base key with
+    **no sibling and no collision** — and would desynchronise the data column name from the SCHEMA
+    column name, since `AvroSchemaFlattener` and `GAvroSchemaFlattener` both emit `basePath` for
+    array-of-primitives and array-of-arrays. **Old key names: `data`, `grid_rows`, `mixed`,
+    `attachments`. New key names: `data`, `grid_rows`, `mixed`, `attachments` — unchanged, every
+    one of them.**
+
+    **THE COLLISION IS NOT A SENTINEL PROBLEM, measured.** Decoding every flat key in all 164
+    fixtures into segment lists and searching for a key whose path is a strict prefix of another
+    finds **8 rows, of which only 5 involve the sentinel**. Three reproduce it with no sentinel
+    anywhere: a nullable nested record inside an array of records
+    (`{"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":null}]}` emitted `orders_ship`
+    beside `orders_ship_city` and returned both `ship` fields as `null`, deleting `{"city":"NY"}`
+    from an entirely ordinary document); the `LOWER_CASE` dedup suffix (`id` beside `id_2`); and
+    a caller-built flat map, since `reconstruct(Map)` is public. One of the eight is already
+    `LOSSLESS` on the Avro stack with the same colliding key set, which is what settles that emit
+    is not at fault.
+
+    **The fix.** The colliding keys are computed BEFORE any write, as
+    `flattenedMap.keySet() ∩ analysis.allPaths` — a set intersection, so the answer cannot depend
+    on iteration order. `StructureAnalysis.allPaths` was already populated and read nowhere: the
+    detector was built and switched off. Detection compares an ENCODED key against an ENCODED
+    intermediate path, so an escaped literal separator is never mistaken for a nesting level —
+    `{"a":"1","a\_b":"2"}` still reconstructs to two sibling fields and does not throw.
+
+    **The `_value` wrapper is DELETED, not kept as a fallback.** It fabricated a key the source
+    never carried, it did not survive a re-flatten (the node re-encoded to `a_\_value`, not `a`),
+    and it silently duelled with a genuine field named `_value`. Keeping it behind the detector
+    would have preserved the exact nondeterminism the detector exists to remove. The branch it
+    occupied now throws, so a future gap in detection fails loudly instead of inventing a key.
+
+    **Opt out by name, never by accident.** `JsonReconstructor.builder().onKeyCollision(...)`
+    takes `FAIL` (default), `PREFER_LEAF` or `PREFER_BRANCH`. Both non-failing members drop the
+    same side for every iteration order and log at WARN naming what was discarded, so the worst
+    available outcome is now a loud, reproducible loss. `PREFER_LEAF` reproduces the pre-2.1.0
+    result for the majority of colliding documents.
+
+    `FAIL` is the default for the reason `ArrayParseException` was added in this same release
+    (item 18): the alternatives all discard one side of a collision, a caller who wants that can
+    ask for it by name, and a consumer who hits the throw on upgrade is a consumer who was already
+    losing data silently.
+
+    **The refusal reaches four other public entry points**, all of which route through
+    `reconstruct(Map)`: `reconstructToJson`, `reconstructToPrettyJson`, both `quickReconstruct`
+    overloads, and `create().from(...).toMap()`. It also reaches **`verifyRoundTrip`**, which
+    flattens, reconstructs and compares — a colliding document now throws there instead of
+    returning a verification that lists differences. That is the intended shape: a verification
+    reporting "one difference" for a document with an entire subtree deleted was understating it.
+
+    **Not the fix, and rejected explicitly so it is not re-proposed:** merging into a node holding
+    both. Any merge must invent a key for the scalar — which IS the `_value` wrapper, which is the
+    defect. Sorting the flat map before iterating is worse than every other option: a stable wrong
+    answer is harder to notice than an unstable one.
+
+    `AvroReconstructor` is unaffected and was verified so. `PathNode.addPath` sets the leaf value
+    and the children side by side, so neither write can clobber the other and its tree is
+    order-independent by construction; it still drops one side on a genuine collision, but
+    deterministically and without fabricating a key. The three AVRO-stack colliding fixtures did
+    not move when the corpus was re-recorded, which is the check that the change did not leak.
+
+    Corpus: **164 → 166**, counts **58 / 25 / 83**. Six rows changed their recorded
+    reconstruction (`structural/mixed-nested-array-sentinel-collision`,
+    `structural/heterogeneous-array-object-first`, `structural/heterogeneous-array-scalar-first`,
+    `real-world/event-envelope-mixed-attachments`,
+    `naming/lower-case-collision-suffix-corrupts-structure`, plus the two new rows) and all stay
+    `DEFECT`: a refusal is deterministic and loud, and it still does not reproduce the source. The
+    repair that would make them `LOSSLESS` — zipping the base column with the field columns by
+    outer index — is not implemented. Two rows are new:
+    `structural/mixed-array-sentinel-vs-user-value-field`, which pins the flatten-side collisions
+    the rename would have created, and `structural/nullable-nested-record-shadowed-json-stack`,
+    which pins that the collision reproduces with no sentinel.
+
+    **FOUR PREMISES THIS ENTRY'S BACKLOG ITEM CARRIED WERE FALSE, and are corrected rather than
+    inherited.** [BL-022] asserted in the present perfect that the `MapFlattener` class javadoc
+    documents the suffixed pair; commit `6bb66d1` — the item-22 padding commit itself — had
+    already rewritten that javadoc to describe the measured output. The claim survived in the
+    backlog entry and in the fixture's own `rationale` field, and six passes inherited it from
+    one of those two places. `SentinelKeyProseMatchesTheCodeTest` now bans the exact sentences by
+    substring and measures the real key set in the same class, so prose cannot be edited to match
+    a behaviour change after the fact. **The historical tables in this file are exempt by path and
+    are NOT rewritten**: they record what was believed and published at the time, and correcting
+    them would destroy the evidence rather than the error. The fixture's `cannotCatch` also
+    instructed that "the fix must not be to edit the javadoc to match the code" — which `6bb66d1`
+    did, and did well; an instruction already violated by a good change is replaced, not obeyed.
+
+    **ONE UNDOCUMENTED SHAPE FOUND WHILE TRACING, now characterised rather than left unwritten.**
+    `isNestedList` is false for a `Map`, so a map at an outer position beside a nested list is
+    never field-extracted: `{"mixed":[{"a":1},[2,3]]}` emits ONE column `mixed` whose slot 0 is
+    the JSON TEXT of the map, and there is no `mixed_a`. No fixture reaches this shape and no test
+    asserted it; `MapFlattenerSentinelKeyContractTest` now does. It is also a second, independent
+    reason `_value` would misdescribe that column — it is not type-homogeneous.
+
 ### Added
 
 - **`JsonReconstructor.ArrayParseException`**, a nested public class extending
   `ReconstructionException`. Additive; the 2.0.0 baseline gate is unaffected.
+
+- **`JsonReconstructor.KeyCollisionException`**, a nested public class extending
+  `ReconstructionException`, with `getCollidingKey()` and `getShadowedKeys()`. Its message
+  names the key, every longer key it shadows, and the escaped form that would have
+  disambiguated. Additive; the 2.0.0 baseline gate is unaffected.
+
+- **`JsonReconstructor.CollisionPolicy`** (`FAIL`, `PREFER_LEAF`, `PREFER_BRANCH`) and
+  **`JsonReconstructor.Builder.onKeyCollision(CollisionPolicy)`**. Additive; the 2.0.0
+  baseline gate is unaffected. See behaviour change 28 for why `FAIL` is the default.
 
 - **`io.github.pierce.files.SchemaFiles`** — a static, dependency-free reader for a schema file
   whose path the caller already knows. `open(String)` and `readString(String)` reject a null byte,

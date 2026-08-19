@@ -45,13 +45,13 @@ Four things ship in the box:
 Most flatteners will tell you what they produce. This one tells you **what you lose**.
 
 Every release ships a [round-trip fidelity guarantee](docs/ROUND_TRIP_FIDELITY.md) generated from a
-corpus of **164 fixtures** that are executed on every build:
+corpus of **166 fixtures** that are executed on every build:
 
 | Classification | Count | Meaning |
 |---|---:|---|
 | `LOSSLESS` | 58 | Round-trips exactly, and that is correct |
 | `ACCEPTED_LOSS` | 25 | Does not round-trip; the reason is stated and defensible |
-| `DEFECT` | 81 | Does not round-trip, and that is a bug we have not fixed |
+| `DEFECT` | 83 | Does not round-trip, and that is a bug we have not fixed |
 
 A `DEFECT` fixture asserts the defect is **still present**, so repairing one turns the build red and
 forces a deliberate update to the published contract. The document cannot drift from the corpus —
@@ -457,6 +457,17 @@ reproducible fixtures is in [docs/ROUND_TRIP_FIDELITY.md](docs/ROUND_TRIP_FIDELI
   It used to return one record holding the concatenation of all of them, silently; it now raises
   `ArrayFormatMismatchException` naming the format that *would* read the data. Set `arrayFormat`
   to match your producer
+- **A flattened map holding a key that is also a *prefix* of a longer key no longer reconstructs
+  at all — it raises `KeyCollisionException`.** `{"a":"2","a_b":"1"}` asks for a node at `a` that
+  is a scalar and an object at once, and JSON has none. Until 2.1.0 the outcome was decided by the
+  iteration order of the map: one order deleted the subtree, the other invented a `_value` key the
+  source never had, and neither said anything. Two ordinary shapes reach it — a heterogeneous
+  array, and an **optional nested object inside an array of records**
+  (`{"orders":[{"id":1,"ship":{"city":"NY"}},{"id":2,"ship":null}]}` used to come back with
+  `{"city":"NY"}` deleted from every element). `JsonReconstructor.builder().onKeyCollision(...)`
+  takes `PREFER_LEAF` or `PREFER_BRANCH` if you would rather keep going; both drop the same side
+  every time and log what they discarded. The flattener's column names are **unchanged** — the
+  emitted key set is a faithful encoding and the repair belongs downstream of it
 
 Use the Avro path where fidelity matters. Treat the JSON round trip as lossy unless a fixture says
 otherwise for your shape.

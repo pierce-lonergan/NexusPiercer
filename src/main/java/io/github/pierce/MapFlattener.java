@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -78,10 +79,26 @@ import java.util.Set;
  * // 1 holds no nested list at all. data holds an inner list of one null at position 0 - the
  * // inner cardinality that position genuinely had - and the scalar at position 1.
  * //
- * // The sentinel still maps to the BASE key, not to a "_value" suffix. This javadoc once
- * // documented {data_name: "[["A"]]", data_value: "[[null],["text"]]"}, which the code has
- * // never produced and still does not; the fixture
- * // structural/mixed-nested-array-sentinel-collision exists because of that remaining half.
+ * // The sentinel maps to the BASE key, not to a "_value" suffix, and that is now the DECIDED
+ * // contract rather than an open gap ([BL-022], resolved 2.1.0). This javadoc once documented
+ * // {data_name: "[["A"]]", data_value: "[[null],["text"]]"}, which the code has never produced;
+ * // the suffix was REFUSED rather than implemented, because joinEncodedKey does not re-escape an
+ * // already-encoded field name, so a user field literally named "value" produces the identical
+ * // key. See VALUE_SENTINEL for both traced collisions.
+ * //
+ * // The emitted key set is {data, data_name}: two columns of ONE array, positionally aligned,
+ * // to be read together. It is deliberately NOT stated as "data is a leaf" - both columns
+ * // describe the same array and a reader that zips them by outer index recovers the source.
+ * //
+ * // A MAP at an outer position beside a nested list is NOT field-extracted: isNestedList is
+ * // false for a Map, so {mixed: [{a:1}, [2,3]]} emits one column mixed whose slot 0 is the JSON
+ * // TEXT of the map and whose slot 1 is the inner list, and there is no mixed_a. The base-key
+ * // column is therefore not type-homogeneous, which is a second reason "_value" would be a
+ * // misdescription of it.
+ * //
+ * // The remaining DEFECT for this document is on the RECONSTRUCT side, not here: until 2.1.0
+ * // JsonReconstructor.setNestedValue resolved the resulting leaf/branch key collision by map
+ * // iteration order. That is [BL-023], and it reproduces with no sentinel anywhere.
  * </pre>
  *
  * <h2>Positional contract for array-element columns</h2>
@@ -167,12 +184,40 @@ public class MapFlattener implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(MapFlattener.class);
 
     /**
-     * Column name for an array element that is not a map.
+     * Column name for an array element that is not a map. INTERNAL - it never reaches output
+     * under this spelling.
      *
-     * <p>It maps to the BASE key on the way out, not to a {@code _value}-suffixed column - see
-     * {@code flattenList} Case 2. The class javadoc documented the suffixed shape for a long time
-     * and the code has never produced it; the fixture
-     * {@code structural/mixed-nested-array-sentinel-collision} exists because of that gap.</p>
+     * <p>It maps to the BASE key on the way out at BOTH emit sites, deliberately: {@code
+     * flattenList} Case 2 (nested arrays), where the sentinel is mapped by {@code fieldKey = key}
+     * while every other name goes through {@code joinEncodedKey}; and {@code flattenList} Case 3
+     * (array of maps), where a non-map element is written by
+     * {@code columnFor(fieldValues, key, limit)} and the constant is not consulted at all. The
+     * second site is the one [BL-022] never named.</p>
+     *
+     * <h3>Why a {@code _value}-suffixed column is REFUSED, not merely absent</h3>
+     *
+     * <p>{@link #joinEncodedKey} extends an ALREADY-ENCODED path and does not re-escape it, so a
+     * user field literally named {@code value} produces the segment {@code value} and the key
+     * {@code data_value}. A suffixed sentinel produces the identical string, and the collision
+     * lands at FLATTEN time where nothing downstream can undo it. Both cases are measured and
+     * pinned by {@code MapFlattenerSentinelKeyContractTest}:</p>
+     * <ul>
+     *   <li>Case 2, {@code {"data":[[{"value":"A"}],"text"]}} - both columns would compute the key
+     *       {@code data_value} and the second {@code result.put} into the result
+     *       {@code LinkedHashMap} would silently drop the first. Today they are the two distinct
+     *       keys {@code data_value} and {@code data}, and nothing is lost.</li>
+     *   <li>Case 3, {@code {"mixed":[{"value":1},"x"]}} - {@code columnFor} would return the
+     *       EXISTING column, fusing element 0's field with element 1's bare scalar into
+     *       {@code mixed_value="[1,\"x\"]"}. Today: {@code mixed_value="[1,null]"} beside
+     *       {@code mixed="[null,\"x\"]"}, fully distinguishable.</li>
+     * </ul>
+     *
+     * <p>No suffix escapes this. {@code FlattenedPath} is a bijection over USER segment lists with
+     * no reserved namespace: {@code _value} escapes to {@code \_value}, which is exactly what a
+     * user field named {@code _value} produces. The only unforgeable form, {@code __x__}, is
+     * dropped outright by {@code JsonReconstructor.processArrays}.</p>
+     *
+     * @see #flattenList(String, List, int) both emit sites, Case 2 and Case 3
      */
     private static final String VALUE_SENTINEL = "_value";
 
@@ -674,10 +719,13 @@ public class MapFlattener implements Serializable {
             for (Map.Entry<String, List<Object>> entry : fieldStructures.entrySet()) {
                 String fieldName = entry.getKey();
 
-                // Handle sentinel key for non-map items
+                // EMIT SITE 1 of 2. Handle sentinel key for non-map items.
                 String fieldKey;
                 if (VALUE_SENTINEL.equals(fieldName)) {
-                    // No field extraction - just use the base key
+                    // No field extraction - just use the base key. NOT a `_value` suffix: a user
+                    // field named `value` encodes to the segment `value` and joinEncodedKey does
+                    // not re-escape it, so a suffixed sentinel would compute the SAME key and the
+                    // result.put below would drop one of the two columns. See VALUE_SENTINEL.
                     fieldKey = key;
                 } else {
                     fieldKey = joinEncodedKey(key, separator, fieldName);
@@ -718,7 +766,11 @@ public class MapFlattener implements Serializable {
                         columnFor(fieldValues, fieldKey, limit).set(i, entry.getValue());
                     }
                 } else {
-                    // Non-map item in the array - carried under the base key
+                    // EMIT SITE 2 of 2, and the one [BL-022] never named: the base key is
+                    // HARDCODED here and VALUE_SENTINEL is not consulted at all. Same refusal as
+                    // Site 1 and a sharper failure mode - under a `_value` suffix columnFor would
+                    // hand back the EXISTING column for `mixed_value`, fusing element 0's field
+                    // value with element 1's bare scalar inside one column. See VALUE_SENTINEL.
                     Object normalizedValue = item == null ? null :
                             (isPrimitive(item) ? normalizePrimitive(item) : stringifyObject(item));
                     columnFor(fieldValues, key, limit).set(i, normalizedValue);
@@ -1495,18 +1547,30 @@ public class MapFlattener implements Serializable {
         return transformed;
     }
 
+    /**
+     * Applies the configured naming strategy to one raw field name.
+     *
+     * <p>All three case conversions are pinned to {@link Locale#ROOT}. Without it they use the
+     * DEFAULT locale, which makes the emitted COLUMN NAME a function of the JVM the job happens
+     * to run on: under {@code tr-TR}, {@code toLowerCase()} maps {@code I} to the dotless
+     * {@code i} (U+0131), so an {@code ID} field becomes the column {@code ıd} on a Turkish
+     * executor and {@code id} everywhere else. A column-name transform is a data-format
+     * operation, not a presentation one, and it must not vary by locale. Fixed alongside
+     * [BL-023]; it is the same defect class as the entry itself - an environment-dependent
+     * key-set change that nothing downstream can detect.</p>
+     */
     private String applyNamingStrategy(String key) {
         switch (namingStrategy) {
             case SNAKE_CASE:
                 // CamelCase to snake_case
                 return key.replaceAll("([A-Z])", "_$1")
-                        .toLowerCase()
+                        .toLowerCase(Locale.ROOT)
                         .replaceAll("^_", "")
                         .replaceAll("_+", "_");
             case LOWER_CASE:
-                return key.toLowerCase();
+                return key.toLowerCase(Locale.ROOT);
             case UPPER_CASE:
-                return key.toUpperCase();
+                return key.toUpperCase(Locale.ROOT);
             default:
                 return key;
         }

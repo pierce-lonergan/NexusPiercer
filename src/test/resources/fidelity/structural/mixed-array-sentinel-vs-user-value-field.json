@@ -1,0 +1,30 @@
+{
+  "id" : "mixed-array-sentinel-vs-user-value-field",
+  "family" : "structural",
+  "title" : "A user field named value beside the sentinel - the two columns a _value suffix would have fused",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The measurement that turns the central argument of [BL-022] from a paragraph into a standing corpus fact. The entry proposed renaming the sentinel column from the base key to a _value suffix, on the grounds that it would resolve the collision by construction. It would not: joinEncodedKey extends an ALREADY-ENCODED path and does not re-escape it, so a user field literally named `value` produces the segment `value` and the key mixed_value. Under the rename both writes would compute mixed_value and columnFor would hand back the SAME column, fusing element 0's field value with element 1's bare scalar into a single mixed_value=[1,\"x\"] with no way to tell them apart. This row records that TODAY they are two distinguishable columns and nothing is lost at flatten time.",
+  "catchesBugClass" : "A rename of an encoded column into a namespace that user data already occupies. The flat key set here is the assertion: if anyone implements the _value suffix at either emit site, this row's recorded flat string goes stale and the build turns red before the rename can ship.",
+  "cannotCatch" : "It cannot catch the Case 2 form of the same collision - {\"data\":[[{\"value\":\"A\"}],\"text\"]} takes the nested-array arm, where the loss would come from result.put overwriting rather than from columnFor sharing. MapFlattenerSentinelKeyContractTest measures both arms; only the array-of-maps arm is fixtured here. It also cannot say whether the reconstruct side is right, only that the flatten side has not fused two columns into one.",
+  "predicted" : {
+    "classification" : "DEFECT",
+    "detail" : "PREDICTED, to be replaced by the recorder. Flatten is expected CORRECT: mixed_value=[1,null] beside mixed=[null,\"x\"], two columns, nothing lost. Reconstruct is expected to REFUSE with KeyCollisionException, because mixed is a leaf key that is also an intermediate path of mixed_value - the same [BL-023] collision, reached from an ordinary user field name rather than from a sentinel. Whether that refusal is DEFECT or ACCEPTED_LOSS is a human call made after the measurement, not before it."
+  },
+  "configDescription" : "defaults",
+  "config" : { },
+  "input" : "{\"mixed\":[{\"value\":1},\"x\"]}",
+  "expected" : {
+    "mapBaseline" : "{\"mixed\":[{\"value\":\"I:1\"},\"S:x\"]}",
+    "flat" : "{\"mixed\":\"S:[null,\\\"x\\\"]\",\"mixed_value\":\"S:[1,null]\"}",
+    "mapDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'mixed' is also an intermediate path of [mixed_value], so the reconstructed node at 'mixed' would have to be a scalar and an object at once. If any of [mixed_value] was meant as a literal field name contai",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"mixed\":[{\"value\":\"I:1\"},\"S:x\"]}",
+    "flatJson" : "{\"mixed\":\"S:[null,\\\"x\\\"]\",\"mixed_value\":\"S:[1,null]\"}",
+    "jsonDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'mixed' is also an intermediate path of [mixed_value], so the reconstructed node at 'mixed' would have to be a scalar and an object at once. If any of [mixed_value] was meant as a literal field name contai",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

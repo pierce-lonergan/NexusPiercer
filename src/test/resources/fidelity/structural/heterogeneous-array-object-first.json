@@ -17,12 +17,12 @@
   "expected" : {
     "mapBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
     "flat" : "{\"mixed\":\"S:[null,null,\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2,null,null]\"}",
-    "mapDoc" : "{\"mixed\":[null,null,\"S:x\",\"S:y\"]}",
+    "mapDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'mixed' is also an intermediate path of [mixed_a], so the reconstructed node at 'mixed' would have to be a scalar and an object at once. If any of [mixed_a] was meant as a literal field name containing the",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"mixed\":[{\"a\":\"I:1\"},{\"a\":\"I:2\"},\"S:x\",\"S:y\"]}",
     "flatJson" : "{\"mixed\":\"S:[null,null,\\\"x\\\",\\\"y\\\"]\",\"mixed_a\":\"S:[1,2,null,null]\"}",
-    "jsonDoc" : "{\"mixed\":[null,null,\"S:x\",\"S:y\"]}",
+    "jsonDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'mixed' is also an intermediate path of [mixed_a], so the reconstructed node at 'mixed' would have to be a scalar and an object at once. If any of [mixed_a] was meant as a literal field name containing the",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

@@ -21,12 +21,12 @@
   "expected" : {
     "mapBaseline" : "{\"Id\":\"I:1\",\"id\":\"I:2\"}",
     "flat" : "{\"id\":\"I:1\",\"id_2\":\"I:2\"}",
-    "mapDoc" : "{\"id\":{\"2\":\"I:2\",\"_value\":\"I:1\"}}",
+    "mapDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'id' is also an intermediate path of [id_2], so the reconstructed node at 'id' would have to be a scalar and an object at once. If any of [id_2] was meant as a literal field name containing the separator '",
     "losslessMap" : false,
     "mapDefaultsMatch" : true,
     "jsonBaseline" : "{\"Id\":\"I:1\",\"id\":\"I:2\"}",
     "flatJson" : "{\"id\":\"I:1\",\"id_2\":\"I:2\"}",
-    "jsonDoc" : "{\"id\":{\"2\":\"I:2\",\"_value\":\"I:1\"}}",
+    "jsonDoc" : "THROWN: KeyCollisionException: leaf/branch key collision: the key 'id' is also an intermediate path of [id_2], so the reconstructed node at 'id' would have to be a scalar and an object at once. If any of [id_2] was meant as a literal field name containing the separator '",
     "losslessJson" : false,
     "jsonDefaultsMatch" : true
   },

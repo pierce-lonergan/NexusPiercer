@@ -12,7 +12,7 @@
     "detail" : "HALF OF THIS ROW WAS REPAIRED IN 2.1.0 AND THE TITLE CHANGED WITH IT. The relocation is gone: r_k2 is now [null,2,null] and r_k3 is [null,null,3], so each sparse value sits under the element that carried it. What survives, and keeps this row DEFECT, is the other half: every element gains an explicit null for every key it never had, so element 0 comes back as {k1:1, k2:null, k3:null, z:0} where the source document had only {k1:1, z:0}. Absent and present-null are indistinguishable on the way back, and no marker exists to tell them apart. The quadratic cell growth is also unchanged and is now unconditional: one column per distinct field across all elements, each column pre-sized to the element count. What HAS changed is that the product is now bounded: maxArrayCells (default 1,048,576, per flatten() invocation) refuses a document that would exceed it, so \"nothing bounds the column count\" stopped being true in 2.1.0. This row is far below the bound and is unaffected by it; the three array-cells-* rows carry the boundary."
   },
   "configDescription" : "defaults",
-  "config" : {},
+  "config" : { },
   "input" : "{\"r\":[{\"k1\":1,\"z\":0},{\"k2\":2,\"z\":0},{\"k3\":3,\"z\":0}]}",
   "expected" : {
     "mapBaseline" : "{\"r\":[{\"k1\":\"I:1\",\"z\":\"I:0\"},{\"k2\":\"I:2\",\"z\":\"I:0\"},{\"k3\":\"I:3\",\"z\":\"I:0\"}]}",
