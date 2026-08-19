@@ -167,10 +167,54 @@ public class MapFlattener implements Serializable {
      */
     private static final String VALUE_SENTINEL = "_value";
 
+    /**
+     * Default ceiling on array-element cells emitted by one {@link #flatten(Map)} call.
+     *
+     * <p>2^20, chosen against the published figure rather than picked. At the shipped defaults
+     * the worst documented shape - 1000 sparse elements with 1000 distinct keys, the case
+     * CHANGELOG item 13 and {@code SparseArrayOfMapsOutputSizeTest} both pin - is exactly
+     * 1,000,000 cells. This sits just above it, so every document at or below the published
+     * figure keeps working with 48,576 cells of headroom and no knife edge, while the 2e7 and
+     * 1e8 shapes above it are refused.</p>
+     *
+     * <p>BE HONEST ABOUT WHAT THIS DOES NOT FIX. The default still permits roughly 391x
+     * amplification: 12,787 input characters legitimately producing 5,005,780 output characters
+     * is UNDER budget by design, because refusing it would invalidate a published release note.
+     * This bound stops heap exhaustion. It does not make the library safe on untrusted input at
+     * the default - lower {@code maxArrayCells} if you accept untrusted documents.</p>
+     */
+    public static final int DEFAULT_MAX_ARRAY_CELLS = 1_048_576;
+
+    /**
+     * One {@code flatten} call tried to emit more array-element cells than {@code maxArrayCells}.
+     *
+     * <p>Extends {@link IllegalStateException} so it stays inside the failure contract
+     * {@link #flatten(Map)} already documents for excessive depth and circular references.</p>
+     *
+     * <h2>Why this REFUSES instead of truncating</h2>
+     *
+     * <p>Truncation is the obvious alternative and it is the dangerous one. Dropping columns past
+     * the budget leaves a flat map whose surviving columns are all still exactly the right
+     * length, so nothing downstream - not {@code AvroReconstructor}'s
+     * {@code ArrayCardinalityException}, not {@code agreedElementCount}, not any length check
+     * anywhere - can tell that whole fields have vanished. That is precisely the defect class of
+     * the 2.1.0 array-element alignment repair: a length invariant satisfied while the data is
+     * wrong. A refusal is the only outcome that cannot be silent. Do not soften this into a
+     * truncation.</p>
+     */
+    public static class FlattenLimitExceededException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+
+        public FlattenLimitExceededException(String message) {
+            super(message);
+        }
+    }
+
     private final int maxDepth;
     private final int maxArraySize;
     private final int maxMapSize;
     private final int maxJsonStringLength;
+    private final int maxArrayCells;
     private final boolean useArrayBoundarySeparator;
     private final FieldNamingStrategy namingStrategy;
     private final Set<String> excludePaths;
@@ -196,9 +240,19 @@ public class MapFlattener implements Serializable {
         private final Set<Integer> visitedIds = new HashSet<>();
         private final Deque<Integer> visitStack = new ArrayDeque<>();
 
+        /**
+         * Array-element cells allocated so far by THIS invocation.
+         *
+         * <p>Per invocation, not per array. Measured: fifty sibling arrays of five hundred
+         * sparse elements are 250,000 cells each - under any sane per-array budget - and
+         * 62,778,390 output characters in total. A per-array budget lets all fifty through.</p>
+         */
+        private long arrayCells;
+
         void clear() {
             visitedIds.clear();
             visitStack.clear();
+            arrayCells = 0;
         }
 
         boolean enterObject(Object obj) {
@@ -245,6 +299,7 @@ public class MapFlattener implements Serializable {
         this.maxDepth = builder.maxDepth > 0 ? builder.maxDepth : 50;
         this.maxArraySize = builder.maxArraySize > 0 ? builder.maxArraySize : 1000;
         this.maxMapSize = builder.maxMapSize > 0 ? builder.maxMapSize : 10000;
+        this.maxArrayCells = builder.maxArrayCells > 0 ? builder.maxArrayCells : DEFAULT_MAX_ARRAY_CELLS;
         this.maxJsonStringLength = builder.maxJsonStringLength > 0 ? builder.maxJsonStringLength : 1000000;
         this.useArrayBoundarySeparator = builder.useArrayBoundarySeparator;
         this.namingStrategy = builder.namingStrategy;
@@ -303,6 +358,17 @@ public class MapFlattener implements Serializable {
 
             return result;
 
+        } catch (FlattenLimitExceededException e) {
+            // MUST BE FIRST, and the test that proves it is
+            // MapFlattenerArrayCellBudgetTest#theTypedExceptionEscapesFlattenUnwrapped. The
+            // catch(Exception) arm below would rewrap this into a bare RuntimeException, so a
+            // caller writing `catch (FlattenLimitExceededException)` - exactly what this class's
+            // javadoc tells them to write - would catch nothing. It is not silent in the log; it
+            // is silent to the type system, which is where the guarantee was supposed to live.
+            // It is also NOT logged again here: chargeCells already logged it at WARN with the
+            // message and no stack, because a full stack trace per refusal is itself an
+            // amplification vector on the exact input class an attacker controls.
+            throw e;
         } catch (StackOverflowError e) {
             log.error("Stack overflow - circular reference or excessive depth detected", e);
             throw new IllegalStateException("Circular reference detected or maximum recursion depth exceeded", e);
@@ -757,11 +823,19 @@ public class MapFlattener implements Serializable {
      * <p>Extracted from its caller so neither method carries the whole two-pass shape, which is
      * how a cyclomatic-complexity ratchet gets raised by accident. Ratchets only go down.</p>
      */
-    private static Map<String, List<Object>> materialiseNestedColumns(
+    private Map<String, List<Object>> materialiseNestedColumns(
             int limit, Set<String> names, List<NestedPosition> positions) {
 
         Map<String, List<Object>> columns = new LinkedHashMap<>();
         for (String name : names) {
+            // Charged against the same per-invocation budget as the two array-of-maps sites.
+            // Before the 2.1.0 positional repair this site APPENDED, so its cost was linear in
+            // present values and the budget's original design excluded it on those grounds. It
+            // now pre-sizes to the outer element count exactly like the others, so it is
+            // quadratic exactly like them - measured, 1000 sparse nested positions emit
+            // 6,999,890 characters against 4,999,890 for the flat equivalent. Leaving it
+            // uncharged would leave the WIDEST of the three sites unbounded.
+            chargeCells(name, columns.size() + 1, limit);
             List<Object> column = new ArrayList<>(limit);
             for (int i = 0; i < limit; i++) {
                 NestedPosition p = positions.get(i);
@@ -902,13 +976,44 @@ public class MapFlattener implements Serializable {
      * made every column the correct LENGTH while the values sat under the wrong elements. Both
      * array-of-maps sites share this helper so they cannot drift apart.</p>
      */
-    private static List<Object> columnFor(Map<String, List<Object>> columns, String key, int size) {
+    private List<Object> columnFor(Map<String, List<Object>> columns, String key, int size) {
         List<Object> column = columns.get(key);
         if (column == null) {
+            chargeCells(key, columns.size() + 1, size);
             column = new ArrayList<>(Collections.nCopies(size, null));
             columns.put(key, column);
         }
         return column;
+    }
+
+    /**
+     * Charge {@code size} cells to this invocation's budget, or refuse.
+     *
+     * <p>Called at the moment a column is CREATED, at all three array-element sites. That is the
+     * exact frame a measured OOM named: a 4,057,897-character well-formed document (1000
+     * elements, 300 distinct keys each) exhausted a 1 GB heap inside
+     * {@code new ArrayList<>(Collections.nCopies(size, null))}.</p>
+     *
+     * @throws FlattenLimitExceededException before the allocation happens, never after
+     */
+    private void chargeCells(String key, int columnsSoFar, int size) {
+        FlattenContext context = CONTEXT.get();
+        long next = context.arrayCells + size;
+        if (next > maxArrayCells) {
+            String message = "array-element cell budget exceeded while creating column '" + key
+                    + "': " + columnsSoFar + " columns so far, " + size + " slots each, "
+                    + next + " cells against maxArrayCells=" + maxArrayCells
+                    + ". A sparse array of maps emits (union of distinct keys) x (element count) "
+                    + "cells, which no other bound covers - maxArraySize caps the SLOT axis and "
+                    + "maxMapSize caps keys PER ELEMENT, not the union across them. Raise "
+                    + "maxArrayCells if this document is legitimate; lower it if you accept "
+                    + "untrusted input. This is refused rather than truncated because dropping "
+                    + "columns leaves every surviving column the correct length, so no "
+                    + "downstream check could see the loss.";
+            log.warn(message);
+            throw new FlattenLimitExceededException(message);
+        }
+        context.arrayCells = next;
     }
 
     /**
@@ -1343,6 +1448,7 @@ public class MapFlattener implements Serializable {
         private int maxDepth = 50;
         private int maxArraySize = 1000;
         private int maxMapSize = 10000;
+        private int maxArrayCells = DEFAULT_MAX_ARRAY_CELLS;
         private int maxJsonStringLength = 1000000;
         private boolean useArrayBoundarySeparator = false;
         private FieldNamingStrategy namingStrategy = FieldNamingStrategy.AS_IS;
@@ -1374,6 +1480,29 @@ public class MapFlattener implements Serializable {
                 throw new IllegalArgumentException("maxMapSize must be >= 1");
             }
             this.maxMapSize = size;
+            return this;
+        }
+
+        /**
+         * Ceiling on array-element cells emitted by one {@code flatten} call, across ALL arrays
+         * in the document. Default {@value #DEFAULT_MAX_ARRAY_CELLS}.
+         *
+         * <p>A cell is one slot of one array-element column. A sparse array of maps emits
+         * (union of distinct keys across elements) x (element count) cells, and no other bound
+         * covers that product: {@code maxArraySize} caps the SLOT axis, {@code maxMapSize} caps
+         * keys PER ELEMENT rather than their union, and {@code maxDepth} is all-or-nothing at
+         * the array boundary with no breadth effect at all.</p>
+         *
+         * <p>Exceeding it throws {@link FlattenLimitExceededException} rather than truncating.
+         * See that class for why truncation would be worse than the blow-up.</p>
+         *
+         * @param cells maximum cells per invocation, at least 1
+         */
+        public Builder maxArrayCells(int cells) {
+            if (cells < 1) {
+                throw new IllegalArgumentException("maxArrayCells must be >= 1");
+            }
+            this.maxArrayCells = cells;
             return this;
         }
 

@@ -12,18 +12,19 @@ must not sit on a released coordinate.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
-BEHAVIOUR IS NOT.** The section immediately below lists **twenty-two** places where a `2.0.0`
+BEHAVIOUR IS NOT.** The section immediately below lists **twenty-six** places where a `2.0.0`
 caller gets a different answer, several of them at the default configuration. Read it before
 upgrading.
 
-**Eight of the twenty-two turn a previously-successful call into a throw**, across seven items:
+**Nine of the twenty-six turn a previously-successful call into a throw**, across seven items:
 a bracketed JSON array read under a delimited format, and its mirror, an unbracketed delimited
 column read under the JSON default (item 3, two cases); disagreeing column counts (item 4); an
 oversized read, which for a compressed file can throw MID-READ (item 14); a bare name that only
 resolved through a parent-directory search path (item 15); a `.avsc` outside the working tree
 that `AvroSchemaLoader` used to reach through an unvalidated fallback (item 17); a bracketed
 column a caller has named in `arrayPaths()` that is not parseable JSON (item 18); and a bare
-schema name passed to `AvroSchemaFlattener.getFlattenedSchema(String)` (item 19).
+schema name passed to `AvroSchemaFlattener.getFlattenedSchema(String)` (item 19); and a
+document whose array-element cell count exceeds `maxArrayCells` (item 23).
 
 Items 3 and 6 each carry a sub-entry recording a defect that the first version of this release's
 own repair INTRODUCED and that was caught in adversarial review before release, and item 18
@@ -34,7 +35,8 @@ creates the fault it removes is the single most useful thing this changelog can 
 ### Behaviour changes
 
 **These change what the library returns at the SHIPPED DEFAULT configuration.** Items 1–12 are
-`AvroReconstructor`; items 13, 21 and 22 are `MapFlattener` and the flattener's schema read; items
+`AvroReconstructor`; items 13, 21, 22 and 23 are `MapFlattener` and the flattener's schema read; items 24-26 are
+`JsonFlattener`; items
 14–16 and 20 are `FileFinder`; item 17 is `AvroSchemaLoader`; item 18 is `JsonReconstructor`;
 item 19 is `AvroSchemaFlattener`. They are listed here rather than under *Fixed* because a caller
 pinning a snapshot of today's output will see a diff, and because eight previously-successful
@@ -490,6 +492,122 @@ clear the 2.0.0 additive-only gate.
     clamp unreachable — not the clamp's own shape. It is removed as unreachable defence so a
     future ragged producer cannot re-enter it, and nothing observable changes.
 
+23. **`MapFlattener` refuses a document that would emit more than `maxArrayCells` array-element
+    cells, instead of returning a very large map.** New knob
+    `MapFlattener.Builder.maxArrayCells(int)` (and `JsonFlattener.Builder.maxArrayCells(int)`),
+    default `1_048_576`; exceeding it throws the new
+    `MapFlattener.FlattenLimitExceededException`, an `IllegalStateException`. Both are additive.
+
+    **The measurement.** A 4,057,897-character WELL-FORMED JSON document — 1000 array elements,
+    300 distinct keys each — exhausts a 1 GB heap inside `MapFlattener.columnFor`. Not a
+    pathological document; a wide sparse one.
+
+    **THE FILING NAMED THE WRONG AXIS, and the correction is the interesting part.** It said
+    "nothing bounds the emitted column count". Quadratic is right; unbounded as stated is wrong.
+    Measured: `maxArraySize` bounds the SLOT axis absolutely, and bounds the column axis too
+    whenever each element carries exactly one distinct key — 1500, 2000 and 4000 elements all
+    plateau at exactly 1000 columns and 5,005,780 characters. The genuinely unbounded quantity is
+    the UNION OF DISTINCT KEYS across elements. The filing also said `MapFlattener` "already
+    carries `maxArraySize` and `maxDepth`"; it carries FOUR bounds, and the omitted one —
+    `maxMapSize` — is the one that actually bites on the second axis, capping keys PER ELEMENT
+    but never their union. Per-array ceiling at the shipped defaults: 1000 × 10,000,000 = 1e10
+    cells, and nothing at all across sibling arrays.
+
+    Documents that succeed today and are now refused at the default, measured:
+
+    | document | cells | 2.0.0 output | 2.1.0 |
+    |---|---:|---:|---|
+    | 1000 elements × 20 distinct keys | 20,000,000 | 100,146,690 chars | refused |
+    | 400 elements × 100 distinct keys | 16,000,000 | 79,956,000 chars | refused |
+    | 50 sibling arrays × 500 sparse elements | 12,500,000 | 62,778,390 chars | refused |
+    | 1000 elements × 1000 distinct keys | 1,000,000 | 5,005,780 chars | **unchanged** |
+
+    **The budget is PER INVOCATION, not per array**, and the third row is why: each of those fifty
+    arrays is only 250,000 cells, comfortably under any sane per-array budget, and together they
+    are 62 MB of output.
+
+    **1,048,576 is anchored, not picked.** The worst shape CHANGELOG item 13 and
+    `SparseArrayOfMapsOutputSizeTest` both publish is exactly 1,000,000 cells, so 2^20 sits just
+    above it with 48,576 cells of headroom and no knife edge. **Be honest about what this does not
+    fix:** the default still permits roughly 391× amplification — 12,787 input characters
+    legitimately producing 5,005,780 output characters is UNDER budget by design, because refusing
+    it would invalidate a published release note. This bound stops heap exhaustion. It does not
+    make the library safe on untrusted input at the default; lower `maxArrayCells` if you accept
+    untrusted documents. `SECURITY.md` says so under `perf/NP-028`.
+
+    **It REFUSES rather than truncating, and that is the load-bearing decision.** Dropping columns
+    past a budget leaves a flat map whose surviving columns are all still exactly the right
+    length, so `ArrayCardinalityException`, `agreedElementCount` and every length assertion in the
+    reconstructors stay green while whole fields have vanished. That is bit-for-bit the defect
+    class of item 13 — a length invariant satisfied while the data is wrong. The reasoning is in
+    the exception's own javadoc so a future maintainer cannot soften it without reading it.
+
+    **WHAT NEW SILENT FAILURE THIS CREATES, and what stops it.** `flatten()` ends in
+    `catch (Exception e) { throw new RuntimeException("Failed to flatten map", e); }`, which would
+    rewrap the typed exception — so a caller writing `catch (FlattenLimitExceededException)`,
+    exactly what the javadoc tells them to write, would catch nothing. Not silent in the log;
+    silent to the type system, which is where the guarantee lives. A rethrow arm is placed FIRST
+    and `MapFlattenerArrayCellBudgetTest#theTypedExceptionEscapesFlattenUnwrapped` is the only
+    thing that can see it. The refusal is logged at WARN with the message and no stack trace,
+    because one stack per hostile request is itself an amplification vector.
+
+    **AND WHAT ITEM 22 SILENTLY CREATED.** The analysis that designed this budget excluded the
+    nested-array site because it APPENDED, making its cost linear in present values. Item 22
+    changed that: it now pre-sizes to the outer element count exactly like the other two, so it is
+    quadratic exactly like them — measured, 1000 sparse nested positions emit 6,999,890 characters
+    against 4,999,890 for the flat equivalent. A budget enforced only in `columnFor` would have
+    left the WIDEST of the three sites unbounded. All three are charged.
+
+    Corpus: three new `limits/` fixtures, `array-cells-below-max` and `array-cells-exactly-max`
+    (LOSSLESS) and `array-cells-one-over-max` (ACCEPTED_LOSS, recording the refusal). Counts move
+    **56 / 24 / 81 over 161** to **58 / 25 / 81 over 164**.
+
+24. **`JsonFlattenerConfig.sortKeys` is honoured by the no-argument `toJson()`,
+    `toPrettyJson()` and `toBytes()`.** A caller who set `sortKeys(true)` previously got insertion
+    order. Measured for `{"z":1,"a":{"b":null,"c":"x"}}`: before `{"z":1,"a_b":null,"a_c":"x"}`,
+    after `{"a_b":null,"a_c":"x","z":1}`. `toJson(OutputOptions)` is unaffected — an explicitly
+    passed options object still wins.
+
+25. **`JsonFlattenerConfig.preserveNulls` is honoured by the same terminals, and
+    `preserveNulls(false)` now REMOVES null-valued keys.** Measured on the same document: before
+    `{"z":1,"a_b":null,"a_c":"x"}`, after `{"z":1,"a_c":"x"}`. **This is the highest-surprise
+    change in the release** — it is the only one of the four wired knobs that makes output smaller
+    by deleting data, and "a knob that silently did nothing now deletes fields" is a bad sentence
+    to have to write. It ships anyway because the only callers who see it are the ones who wrote
+    `preserveNulls(false)` and got nulls regardless.
+
+26. **`JsonFlattenerConfig.charset` is honoured by the input overloads that take no explicit
+    charset** — `from(InputStream)`, `from(byte[])` and `fromJsonArrayFile(Path)` — and supplies
+    the charset of the `OutputOptions` the no-argument terminals synthesise. A caller who set a
+    non-UTF-8 charset and used those overloads gets different decoded text: measured,
+    ISO-8859-1 bytes for `{"k":"é"}` read back as `é` where they previously arrived as `\uFFFD`.
+    `from(InputStream, Charset)` and `from(byte[], Charset)` are unaffected.
+
+    NOT a behaviour change, shipped alongside: `JsonFlattenerConfig.bufferSize` is now honoured on
+    `from(InputStream)`, `from(Reader)` and `toFile(..)`. Output is byte-identical either way — it
+    is an allocation, not a value — which is exactly why the existing inertness probe was blind to
+    it by construction and why it needed a test that watches the read requests instead.
+
+    **WHY WIRING FOUR KNOBS ON RELEASED API IS SAFE.** [BL-015] said "do not simply make them
+    live". The general argument is right; the specific one is narrower and survives it. Every
+    `JsonFlattenerConfig` default is byte-identical to the per-call default it now feeds — charset
+    UTF-8, bufferSize 8192, preserveNulls/includeNulls true, sortKeys false — and an explicitly
+    passed `InputOptions`/`OutputOptions` still wins. So the only caller whose behaviour moves is
+    the one who explicitly set the knob and previously got nothing.
+
+    **`failOnError` STAYS INERT, and that is a decision rather than an omission.** Its NAME gives
+    a direction; its EFFECT is defined nowhere. "Do not fail" on `flattenToMap(String)` could mean
+    return an empty map, return null, return a partial map, or log and continue, and nothing picks
+    one. A knob whose effect is undetermined cannot be honoured without inventing semantics on
+    released API. What DID change is its javadoc, which sent callers to
+    `InputOptions.lenient(boolean)` as the live alternative — **measured, that knob is inert too.**
+
+    **THE COUNT IN [BL-015] WAS WRONG: SEVEN KNOBS WERE INERT, NOT FIVE.**
+    `InputOptions.isLenient()` and `isSkipInvalid()` are read nowhere in `src/main` either — a
+    grep finds them only at their own declarations. Both are now labelled, and pinned by a test so
+    the seven is falsifiable rather than a grep result in a report. Removing them is [BL-016] /
+    3.0.0, same as `failOnError`.
+
 ### Added
 
 - **`JsonReconstructor.ArrayParseException`**, a nested public class extending
@@ -858,22 +976,25 @@ old advice can find out what happened to it.
 - **A defaulted LOGICAL-TYPE field arrives as its raw underlying type** (a `ByteBuffer` for a
   decimal) while the same field supplied in the input arrives converted. A new, smaller
   inconsistency created by the NP-023 repair and disclosed rather than left to be discovered.
-- **Five `JsonFlattenerConfig` knobs are inert** (BL-015): `charset`, `bufferSize`, `failOnError`,
-  `preserveNulls` and `sortKeys` are read nowhere in `src/main`. `failOnError(false)` in
-  particular does **not** make parsing lenient. They are documented rather than repaired because
-  making them live would silently change behaviour for released callers; they are now pinned as
-  inert by a test so that wiring one up cannot happen unnoticed.
+- **`failOnError` is inert, deliberately and permanently at 2.x** (BL-015). Four of the five
+  knobs this bullet used to name were wired up in 2.1.0 — see items 24-26. This one was not: its
+  effect is UNDEFINED rather than unimplemented, so honouring it would mean inventing semantics
+  on released API. `failOnError(false)` does **not** make parsing lenient and never will at 2.x.
+  **`InputOptions.lenient` and `InputOptions.skipInvalid` are inert too** — the count in BL-015
+  was five and is measured at seven. All three are pinned by tests and filed for 3.0.0 removal
+  under BL-016.
 - **`FileFinder` carried a false compensating-control claim** (`files/NP-027`). A catch block
   asserted that "size is checked on open instead" and there is no size check on open anywhere in
   the file. The comment is corrected in place; the missing check itself is not added here.
-- **A sparse array of maps now emits `columns × elements` cells, unconditionally** — the resource
-  cost of item 13's alignment fix. Nothing bounds the column count of a sparse array: N elements
-  with N distinct keys produce N columns of N slots, measured at 4,999,890 value characters for
-  N=1000 against 4,890 before, a 1022× growth. The correctness win is not in question — values
-  were landing under the wrong element — but a job sized against 2.0.0 output can run out of
-  memory on the same input. A cap on the column count, or an opt-out that trades alignment back
-  for the old shape, is deferred; the shape is pinned by `SparseArrayOfMapsOutputSizeTest` so any
-  future bound has a measured baseline to move.
+- **A sparse array of maps emits `columns × elements` cells, unconditionally, and the AMPLIFICATION
+  is still there even though the CEILING is not.** The resource cost of item 13's alignment fix:
+  N elements with N distinct keys produce N columns of N slots, measured at 4,999,890 value
+  characters for N=1000 against 4,890 before, a 1022× growth. Item 23 caps the total at
+  `maxArrayCells`, so heap exhaustion is closed. The 391× amplification UNDER that cap is not,
+  and it is under the cap by deliberate choice, because refusing it would invalidate item 13's
+  published figure. A job sized against 2.0.0 output can still run out of memory on the same
+  input at the shipped default. Lower `maxArrayCells` if you accept untrusted documents; the
+  shape stays pinned by `SparseArrayOfMapsOutputSizeTest`.
 
 - **Two repository-owner items that cannot be fixed in code.** The GitHub **Dependency graph** is
   disabled for this repository, so the `dependency review` job has never actually run — it

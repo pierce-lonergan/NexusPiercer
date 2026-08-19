@@ -242,12 +242,23 @@ class JsonFlattenerReusableEngineTest {
      * <b>nowhere</b> in {@code src/main}. Shipping the engine without pinning that would ratify
      * the inertness silently.
      *
-     * <p>WHY PIN INERTNESS RATHER THAN FIX IT. Making these live is a semantic change to released
-     * 2.0.0 settings — a caller who set {@code failOnError(false)} and depends on today's throwing
-     * would silently change behaviour — so honour-or-remove is a 3.0.0 decision. Until then these
-     * assertions are the alarm: <b>if one of them fails, someone has wired a knob up, and that is
-     * a behaviour change on shipped API that must be deliberate, changelogged, and checked against
-     * the fidelity corpus.</b> Do not "fix" a failure here by relaxing the assertion.
+     * <p><b>UPDATED 2026-08-19.</b> Four of the five were wired up in 2.1.0 and this class now
+     * pins each one's CONTRACT rather than its inertness. The alarm it used to be did its job:
+     * the single all-five assertion below went red the moment {@code sortKeys} and
+     * {@code preserveNulls} went live, and it was RESTATED rather than deleted, exactly as its
+     * own message demanded. The vacuity controls and the {@code failOnError} pin are unchanged.
+     *
+     * <p>WHY WIRING THEM WAS SAFE, since the reasoning above said it would not be. The general
+     * argument ("a caller who set the knob would silently change behaviour") is right, and the
+     * SPECIFIC argument is narrower and survives it: every {@code JsonFlattenerConfig} default is
+     * byte-identical to the per-call default it now feeds - charset UTF-8, bufferSize 8192,
+     * preserveNulls/includeNulls true, sortKeys false - and an explicitly passed
+     * {@code OutputOptions} still wins. So the only caller whose behaviour moved is the one who
+     * explicitly set a knob and previously got nothing: the caller who asked for it. That is a
+     * promise kept, and it is changelogged as a behaviour change anyway.
+     *
+     * <p>{@code failOnError} is STILL inert and its assertion below is unchanged. Its effect is
+     * undefined rather than unimplemented - see {@code JsonFlattener.Builder#failOnError}.
      *
      * <p>THE VACUITY CONTROL IS THE IMPORTANT TEST. An assertion that two outputs are equal is
      * exactly the shape that passes when the comparison is broken, the documents are trivial, or
@@ -276,23 +287,52 @@ class JsonFlattenerReusableEngineTest {
         // ---------------- 1. good input passes: the knobs change nothing ----------------
 
         @Test
-        @DisplayName("GOOD INPUT: every non-prettyPrint config knob is byte-identical to defaults")
-        void allFiveKnobsAreInertThroughTheConfigDoor() {
-            String loud = JsonFlattener.with(MapFlattener.builder().build(), loudConfig())
-                    .from(DOC).toJson();
+        @DisplayName("GOOD INPUT: each config knob now carries its own stated contract")
+        void eachConfigKnobCarriesItsOwnContract() {
+            // RESTATED, NOT DELETED. This used to be one assertion that all five knobs together
+            // changed nothing, and its own failure message said "do not fix a failure here by
+            // relaxing the assertion". It went red when sortKeys and preserveNulls went live in
+            // 2.1.0, which is precisely what it was for. Honouring that instruction means saying
+            // what each knob now does, one assertion at a time - a single lump assertion cannot
+            // distinguish "four knobs were wired correctly" from "one knob broke everything".
             String dflt = JsonFlattener.with(MapFlattener.builder().build(),
                             JsonFlattener.JsonFlattenerConfig.defaults())
                     .from(DOC).toJson();
+            assertEquals("{\"z\":1,\"a_b\":null,\"a_c\":\"x\"}", dflt,
+                    "the UNCONFIGURED default must not have moved; every config default is "
+                            + "byte-identical to the per-call default it feeds, and that equality "
+                            + "is the entire safety argument for wiring them");
 
-            assertEquals(dflt, loud,
-                    "BL-015 PINNED INERTNESS: charset, bufferSize, failOnError, preserveNulls and "
-                            + "sortKeys are read nowhere in src/main, so turning all five away "
-                            + "from their defaults must change nothing. If this FAILED, a knob was "
-                            + "wired up - that is a behaviour change on released 2.0.0 API. "
-                            + "Changelog it and re-run the fidelity corpus; do not delete this "
-                            + "assertion. Note sortKeys(true) leaves key order unsorted here: the "
-                            + "live sort lives on OutputOptions, a different class with an "
-                            + "identically named getter.");
+            assertEquals("{\"a_b\":null,\"a_c\":\"x\",\"z\":1}",
+                    JsonFlattener.with(MapFlattener.builder().build(),
+                            JsonFlattener.JsonFlattenerConfig.builder().sortKeys(true).build())
+                            .from(DOC).toJson(),
+                    "sortKeys is LIVE since 2.1.0 on the no-argument terminals");
+
+            assertEquals("{\"z\":1,\"a_c\":\"x\"}",
+                    JsonFlattener.with(MapFlattener.builder().build(),
+                            JsonFlattener.JsonFlattenerConfig.builder()
+                                    .preserveNulls(false).build())
+                            .from(DOC).toJson(),
+                    "preserveNulls is LIVE since 2.1.0 and REMOVES keys - the largest surprise "
+                            + "of the four");
+
+            assertEquals(dflt,
+                    JsonFlattener.with(MapFlattener.builder().build(),
+                            JsonFlattener.JsonFlattenerConfig.builder().bufferSize(1).build())
+                            .from(DOC).toJson(),
+                    "bufferSize is live but affects ALLOCATION only, so output must stay "
+                            + "byte-identical. Nothing in this class can see whether it is wired; "
+                            + "JsonFlattenerConfigKnobsTest watches the read requests instead, "
+                            + "and that is the only reason the knob is falsifiable at all.");
+
+            assertEquals(dflt,
+                    JsonFlattener.with(MapFlattener.builder().build(),
+                            JsonFlattener.JsonFlattenerConfig.builder().failOnError(false).build())
+                            .from(DOC).toJson(),
+                    "failOnError is STILL INERT by design; on good input it could not show a "
+                            + "difference either way, which is why the throwing pin below is the "
+                            + "assertion that actually holds it");
         }
 
         @Test

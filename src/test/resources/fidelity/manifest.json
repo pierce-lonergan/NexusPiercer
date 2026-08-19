@@ -339,15 +339,15 @@
     }
   ],
   "counts": {
-    "total": 161,
-    "lossless": 56,
-    "acceptedLoss": 24,
+    "total": 164,
+    "lossless": 58,
+    "acceptedLoss": 25,
     "defect": 81,
-    "nonDefaultConfig": 52,
+    "nonDefaultConfig": 55,
     "losslessNotUnderDefaultReconstruction": 4,
     "losslessNotUnderPublishedRecipe": 1,
     "publishedRecipeNotApplicable": 44,
-    "holdsUnderPublishedRecipeNo": 24,
+    "holdsUnderPublishedRecipeNo": 25,
     "families": {
       "avro": {
         "total": 34,
@@ -356,9 +356,9 @@
         "DEFECT": 19
       },
       "limits": {
-        "total": 20,
-        "LOSSLESS": 8,
-        "ACCEPTED_LOSS": 5,
+        "total": 23,
+        "LOSSLESS": 10,
+        "ACCEPTED_LOSS": 6,
         "DEFECT": 7
       },
       "naming": {
@@ -1596,6 +1596,48 @@
       "holdsUnderPublishedRecipe": "NO"
     },
     {
+      "id": "array-cells-below-max",
+      "family": "limits",
+      "file": "limits/array-cells-below-max.json",
+      "stack": "BOTH",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "A sparse array under the array-cell budget is untouched",
+      "detail": "A sparse array well under the cell budget. Four cells against a budget of eight; the bound never fires and the output is byte-identical to the default configuration.",
+      "configDescription": "MapFlattener.builder().maxArrayCells(8)",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "array-cells-exactly-max",
+      "family": "limits",
+      "file": "limits/array-cells-exactly-max.json",
+      "stack": "BOTH",
+      "classification": "LOSSLESS",
+      "referenceIssue": "",
+      "title": "A sparse array exactly at the array-cell budget is permitted",
+      "detail": "The boundary from below. Two columns of two slots is exactly four cells and exactly the budget, so the comparison must be > and not >=. An off-by-one here turns a documented ceiling into a ceiling minus one, and nothing notices until a legitimate document at the published figure starts failing.",
+      "configDescription": "MapFlattener.builder().maxArrayCells(4)",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "YES"
+    },
+    {
+      "id": "array-cells-one-over-max",
+      "family": "limits",
+      "file": "limits/array-cells-one-over-max.json",
+      "stack": "BOTH",
+      "classification": "ACCEPTED_LOSS",
+      "referenceIssue": "",
+      "title": "A sparse array one cell over the budget is refused, not truncated",
+      "detail": "The boundary from above, and the whole reason the bound exists. Four cells against a budget of three is REFUSED, not truncated, and the refusal names the column, the running total and the knob to move. Truncation was rejected deliberately: dropping columns past a budget leaves every surviving column exactly the right length, so no downstream length check - not ArrayCardinalityException, not agreedElementCount - could see that whole fields had vanished. That is the defect class of the 2.1.0 alignment repair, and a refusal is the only outcome that cannot be silent.",
+      "configDescription": "MapFlattener.builder().maxArrayCells(3)",
+      "requiresNonDefaultConfig": true,
+      "holdsUnderDefaultReconstruction": "YES",
+      "holdsUnderPublishedRecipe": "NO"
+    },
+    {
       "id": "array-size-max-one-collapses-the-type",
       "family": "limits",
       "file": "limits/array-size-max-one-collapses-the-type.json",
@@ -1631,7 +1673,7 @@
       "classification": "DEFECT",
       "referenceIssue": "",
       "title": "Sparse array of maps: cells grow quadratically, and every element gains nulls it never had",
-      "detail": "HALF OF THIS ROW WAS REPAIRED IN 2.1.0 AND THE TITLE CHANGED WITH IT. The relocation is gone: r_k2 is now [null,2,null] and r_k3 is [null,null,3], so each sparse value sits under the element that carried it. What survives, and keeps this row DEFECT, is the other half: every element gains an explicit null for every key it never had, so element 0 comes back as {k1:1, k2:null, k3:null, z:0} where the source document had only {k1:1, z:0}. Absent and present-null are indistinguishable on the way back, and no marker exists to tell them apart. The quadratic cell growth is also unchanged and is now unconditional: one column per distinct field across all elements, each column pre-sized to the element count, while maxArraySize bounds only the element count and nothing bounds the column count.",
+      "detail": "HALF OF THIS ROW WAS REPAIRED IN 2.1.0 AND THE TITLE CHANGED WITH IT. The relocation is gone: r_k2 is now [null,2,null] and r_k3 is [null,null,3], so each sparse value sits under the element that carried it. What survives, and keeps this row DEFECT, is the other half: every element gains an explicit null for every key it never had, so element 0 comes back as {k1:1, k2:null, k3:null, z:0} where the source document had only {k1:1, z:0}. Absent and present-null are indistinguishable on the way back, and no marker exists to tell them apart. The quadratic cell growth is also unchanged and is now unconditional: one column per distinct field across all elements, each column pre-sized to the element count. What HAS changed is that the product is now bounded: maxArrayCells (default 1,048,576, per flatten() invocation) refuses a document that would exceed it, so \"nothing bounds the column count\" stopped being true in 2.1.0. This row is far below the bound and is unaffected by it; the three array-cells-* rows carry the boundary.",
       "configDescription": "defaults",
       "requiresNonDefaultConfig": false,
       "holdsUnderDefaultReconstruction": "YES",

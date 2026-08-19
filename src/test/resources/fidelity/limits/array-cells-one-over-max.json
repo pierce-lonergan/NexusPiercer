@@ -1,0 +1,34 @@
+{
+  "id" : "array-cells-one-over-max",
+  "family" : "limits",
+  "title" : "A sparse array one cell over the budget is refused, not truncated",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The boundary from above, and the whole reason the bound exists. Nine cells against a budget of eight is REFUSED, not truncated. Truncation was rejected deliberately: dropping columns past a budget leaves every surviving column exactly the right length, so no downstream length check - not AvroReconstructor's ArrayCardinalityException, not agreedElementCount - could see that whole fields had vanished. That is the defect class of the 2.1.0 alignment repair reproduced on purpose, and a refusal is the only outcome that cannot be silent.",
+  "catchesBugClass" : "Any future softening of the refusal into a truncation, and any change that makes the refusal untyped - the exception must stay a FlattenLimitExceededException and must not be rewrapped by flatten()'s catch(Exception) arm.",
+  "cannotCatch" : "It cannot show the resource cost the bound exists to prevent; that is measured by MapFlattenerArrayCellBudgetTest against a 20,000,000-cell document, which is too large to be a fixture.",
+  "predicted" : {
+    "classification" : "ACCEPTED_LOSS",
+    "detail" : "REFUSED. Nine cells against a budget of eight throws MapFlattener.FlattenLimitExceededException before any column is allocated. Classified ACCEPTED_LOSS because the refusal is the designed behaviour and the caller is told exactly what happened and which knob to move - a loud, attributable failure rather than a silent one."
+  },
+  "configDescription" : "MapFlattener.builder().maxArrayCells(3)",
+  "config" : {
+    "mapFlattener" : {
+      "maxArrayCells" : 3
+    }
+  },
+  "input" : "{\"r\":[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":\"I:4\"}]}",
+    "flat" : "THROWN: FlattenLimitExceededException: array-element cell budget exceeded while creating column 'r_b': 2 columns so far, 2 slots each, 4 cells against maxArrayCells=3. A sparse array of maps emits (union of distinct keys) x (element count) cells, which no other bound covers - ma",
+    "mapDoc" : "THROWN: FlattenLimitExceededException: array-element cell budget exceeded while creating column 'r_b': 2 columns so far, 2 slots each, 4 cells against maxArrayCells=3. A sparse array of maps emits (union of distinct keys) x (element count) cells, which no other bound covers - ma",
+    "losslessMap" : false,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":\"I:4\"}]}",
+    "flatJson" : "THROWN: FlattenLimitExceededException: array-element cell budget exceeded while creating column 'r_b': 2 columns so far, 2 slots each, 4 cells against maxArrayCells=3. A sparse array of maps emits (union of distinct keys) x (element count) cells, which no other bound covers - ma",
+    "jsonDoc" : "THROWN: FlattenLimitExceededException: array-element cell budget exceeded while creating column 'r_b': 2 columns so far, 2 slots each, 4 cells against maxArrayCells=3. A sparse array of maps emits (union of distinct keys) x (element count) cells, which no other bound covers - ma",
+    "losslessJson" : false,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : false
+}

@@ -45,12 +45,12 @@ Four things ship in the box:
 Most flatteners will tell you what they produce. This one tells you **what you lose**.
 
 Every release ships a [round-trip fidelity guarantee](docs/ROUND_TRIP_FIDELITY.md) generated from a
-corpus of **161 fixtures** that are executed on every build:
+corpus of **164 fixtures** that are executed on every build:
 
 | Classification | Count | Meaning |
 |---|---:|---|
-| `LOSSLESS` | 56 | Round-trips exactly, and that is correct |
-| `ACCEPTED_LOSS` | 24 | Does not round-trip; the reason is stated and defensible |
+| `LOSSLESS` | 58 | Round-trips exactly, and that is correct |
+| `ACCEPTED_LOSS` | 25 | Does not round-trip; the reason is stated and defensible |
 | `DEFECT` | 81 | Does not round-trip, and that is a bug we have not fixed |
 
 A `DEFECT` fixture asserts the defect is **still present**, so repairing one turns the build red and

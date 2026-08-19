@@ -1,0 +1,34 @@
+{
+  "id" : "array-cells-exactly-max",
+  "family" : "limits",
+  "title" : "A sparse array exactly at the array-cell budget is permitted",
+  "stack" : "BOTH",
+  "referenceIssue" : "",
+  "rationale" : "The boundary from below. Three columns of three slots is exactly nine cells and exactly the budget, so the comparison must be > and not >=. An off-by-one here turns a documented ceiling into a ceiling minus one, and nobody would notice until a legitimate document at the published figure started failing.",
+  "catchesBugClass" : "An off-by-one at the boundary, in the direction that refuses work the configuration explicitly permits.",
+  "cannotCatch" : "It cannot catch an off-by-one in the other direction; array-cells-one-over-max is the pair.",
+  "predicted" : {
+    "classification" : "LOSSLESS",
+    "detail" : "Exactly at the budget, so it is permitted. The bound refuses only what EXCEEDS maxArrayCells."
+  },
+  "configDescription" : "MapFlattener.builder().maxArrayCells(4)",
+  "config" : {
+    "mapFlattener" : {
+      "maxArrayCells" : 4
+    }
+  },
+  "input" : "{\"r\":[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4}]}",
+  "expected" : {
+    "mapBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":\"I:4\"}]}",
+    "flat" : "{\"r_a\":\"S:[1,3]\",\"r_b\":\"S:[2,4]\"}",
+    "mapDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":\"I:4\"}]}",
+    "losslessMap" : true,
+    "mapDefaultsMatch" : true,
+    "jsonBaseline" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":\"I:4\"}]}",
+    "flatJson" : "{\"r_a\":\"S:[1,3]\",\"r_b\":\"S:[2,4]\"}",
+    "jsonDoc" : "{\"r\":[{\"a\":\"I:1\",\"b\":\"I:2\"},{\"a\":\"I:3\",\"b\":\"I:4\"}]}",
+    "losslessJson" : true,
+    "jsonDefaultsMatch" : true
+  },
+  "measuredLossless" : true
+}

@@ -984,6 +984,9 @@ final class FidelityRunner {
         if (c.has("maxArraySize")) {
             b.maxArraySize(c.get("maxArraySize").asInt());
         }
+        if (c.has("maxArrayCells")) {
+            b.maxArrayCells(c.get("maxArrayCells").asInt());
+        }
         if (c.has("maxMapSize")) {
             b.maxMapSize(c.get("maxMapSize").asInt());
         }

@@ -535,7 +535,44 @@ unconsumed warns.
 
 ---
 
-### [BL-015] Five `JsonFlattenerConfig` knobs are stored and read by nothing
+### [BL-015] Inert `JsonFlattenerConfig` knobs — **FOUR WIRED IN 2.1.0, ONE PERMANENTLY INERT, AND THE COUNT WAS WRONG**
+
+> **NARROWED 2026-08-19, not closed.** Four of the five are honoured as of 2.1.0 — see CHANGELOG
+> items 24-26. `failOnError` stays inert, deliberately. And the title below is wrong twice over:
+> **seven** knobs were inert, not five.
+>
+> **THE COUNT.** `InputOptions.isLenient()` and `InputOptions.isSkipInvalid()` are read nowhere in
+> `src/main` either; a grep finds each only at its own declaration. That matters beyond
+> bookkeeping: `failOnError`'s javadoc directed callers to
+> `InputOptions.InputOptionsBuilder#lenient(boolean)` as the live alternative, so the remediation
+> for the most misleading of the five pointed at a knob that does nothing. Both are now labelled
+> and pinned by `JsonFlattenerConfigKnobsTest`, so the seven is falsifiable rather than a grep
+> result in a report. Removal is [BL-016] / 3.0.0, same as `failOnError`.
+>
+> **WHY WIRING FOUR OF THEM WAS SAFE, against this entry's own advice.** The text below says "do
+> not simply make them live" and gives a general argument, which is right. The SPECIFIC argument is
+> narrower and survives it: every `JsonFlattenerConfig` default is byte-identical to the per-call
+> default it now feeds — charset UTF-8, bufferSize 8192, preserveNulls/includeNulls true, sortKeys
+> false — and each is wired as an ENGINE-LEVEL DEFAULT that an explicitly passed
+> `InputOptions`/`OutputOptions` still overrides. So the only caller whose behaviour moves is the
+> one who explicitly set the knob and previously got nothing: the caller who asked for it.
+>
+> **WHY `failOnError` COULD NOT BE.** Its NAME gives a direction; its EFFECT is defined nowhere.
+> "Do not fail" on `flattenToMap(String)` could mean return an empty map, return null, return a
+> partial map, or log and continue, and nothing in the name, the javadoc or any caller picks one.
+> A knob whose effect is undetermined cannot be honoured without inventing semantics on released
+> API. It is the one knob where "documented, not repaired" is the honest answer rather than the
+> convenient one.
+>
+> **THE PIN BELOW WAS RESTATED, NOT DELETED.** `InertConfigKnobsArePinned`'s all-five assertion
+> went red the moment `sortKeys` and `preserveNulls` went live — which is exactly what it existed
+> for — and its own failure message said "do not delete this assertion". It is now one assertion
+> per knob stating that knob's contract, with both vacuity controls and the `failOnError` throwing
+> pin unchanged. Note the prediction it recorded from a temporary wiring drill,
+> `expected: <{"z":1,"a_b":null,"a_c":"x"}> but was: <{"a_b":null,"a_c":"x","z":1}>`, reproduced
+> exactly when the wiring became permanent.
+
+#### Original entry (2026-08-17), retained
 
 **Filed 2026-08-17 while adding `buildFlattener()`** — because that method now hands consumers an
 engine carrying these, and shipping it without saying so would ratify them.

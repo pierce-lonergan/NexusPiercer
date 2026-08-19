@@ -12,17 +12,17 @@ recorded on 2026-08-11, and the corpus is executed on every build.
 
 | | count |
 | --- | ---: |
-| documents in the corpus | 161 |
-| reproduce the source exactly (`LOSSLESS`) | 56 |
-| lose something, by accepted design (`ACCEPTED_LOSS`) | 24 |
+| documents in the corpus | 164 |
+| reproduce the source exactly (`LOSSLESS`) | 58 |
+| lose something, by accepted design (`ACCEPTED_LOSS`) | 25 |
 | lose something, wrongly (`DEFECT`) | 81 |
-| measured under non-default configuration | 52 |
+| measured under non-default configuration | 55 |
 | `LOSSLESS` rows that do **not** hold through the default reconstruction entry point | 4 |
 | `LOSSLESS` rows the **published recipe on this page** cannot reproduce | 1 |
 | rows for which no published recipe exists (schema-only paths) | 44 |
-| rows the **published recipe** cannot reproduce at all | 24 |
+| rows the **published recipe** cannot reproduce at all | 25 |
 
-**24 + 81 = 105 of 161 documents do not survive a round trip.** That ratio is the headline fact about
+**25 + 81 = 106 of 164 documents do not survive a round trip.** That ratio is the headline fact about
 this library. It is high because the corpus was built adversarially - it hunts for the shapes that
 break rather than sampling shapes at random - but every one of those rows is a shape real data has.
 
@@ -253,13 +253,13 @@ Six Avro rows are measured on this path and until now the manifest published no 
 
 ## 4. What the three classifications mean
 
-### `LOSSLESS` - 56 documents
+### `LOSSLESS` - 58 documents
 
 The round trip reproduces the source exactly under the corpus oracle: identical runtime types for every scalar, identical list lengths and order, identical key sets, and absent-vs-present-null preserved. The harness asserts equality against the source AND against the recorded rendering.
 
 > **Repair status.** Not a repair category. These rows are the guarantee. They may not silently get worse; a change here fails the build.
 
-### `ACCEPTED_LOSS` - 24 documents
+### `ACCEPTED_LOSS` - 25 documents
 
 The round trip does NOT reproduce the source, the loss is understood, bounded, and judged the right trade. The harness asserts the loss is still present AND that its exact shape matches the recording, so the deal cannot silently get worse - or silently get better without someone updating this file.
 
@@ -273,7 +273,7 @@ The round trip does NOT reproduce the source and the loss is wrong. The harness 
 
 ## 5. Which rows are only true under a non-default configuration
 
-Every row in the table below was measured under a stated configuration. 52 of 161 rows
+Every row in the table below was measured under a stated configuration. 55 of 164 rows
 turn some knob away from its default, and the `config` column says which.
 
 The sharper question is whether a row still describes what happens through the library's *default*
@@ -289,7 +289,7 @@ divergence the FLATTENER creates. Every recipe on this page is a compiled, execu
 test asserts the text is byte-identical to source that javac accepted and that running it reproduces the
 recorded answer.
 
-**24 rows are not reproducible by the published recipe at all.**
+**25 rows are not reproducible by the published recipe at all.**
 
 **11 rows behave differently through the default entry point, 4 of them `LOSSLESS` ones.**
 If you use the defaults, these rows do not describe what you will get:
@@ -352,7 +352,7 @@ If you use the defaults, these rows do not describe what you will get:
 | `avro-array-element-multi-branch-union-dropped` | AVRO | A three-branch union inside an array element, with its data in a child column | `LOSSLESS` | reconstructArrayOfRecords had never had a UNION arm at all. Its field dispatch knew three shapes - flat column present, RECORD, ARRAY - and unwrapNullable, its only union handling, collapses only [null,T], so a union of arity three arrived still typed UNION, matched nothing and fell into handleMissingField, which saw a NULL branch and wrote a plain null. MEASURED BEFORE THE REPAIR, both as a JUnit failure and by disabling the new arm and re-recording this very fixture (pre-fix avroDoc: {"items":[{"meta":null,"sku":"S:a"},{"meta":null,"sku":"S:b"}]}): items came back as [{sku=a, meta=null}, {sku=b, meta=null}] while items_meta_src=["web","pos"] sat in the tree unread by anything. A NEVER-IMPLEMENTED GAP, NOT A REGRESSION: unwrapUnion, whose 'first non-null branch at any arity' behaviour looks like the missing piece, had four calls and zero declarations through ef625f2 and a declaration with zero callers after, so it never executed. Now LOSSLESS via a real index-aware branch selector. HONEST NARROWING of the filing, also measured: the SILENT drop needs a null branch in the union; a null-free 3+ union was already loud, because the builder threw on the unset field. | assert DATA | YES | YES | BL-014 |
 | `avro-array-element-multi-branch-union-mixed-branches` | AVRO | A three-branch union whose two array elements take DIFFERENT branches - now resolved | `LOSSLESS` | LOSSLESS since 2.1.0. The id is deliberately left defect-shaped so the history stays legible; precedent is avro-array-element-multi-branch-union-dropped. Element 0 resolves to the record branch via the index-aware nested-record helper, and element 1 falls past the failing record branch to the type-directed STRING branch, so meta comes back as the record {src: web} and as the string 'plain' respectively. What changed is UPSTREAM: MapFlattener now writes each array-element column by INDEX instead of appending and tail-padding, so items_meta is [null, plain] rather than [plain, null]. Before that, element 1's string sat at index 0 and the reconstructor threw ReconstructionException 'Could not match any union type at: items[1].meta'. | assert DATA | YES | YES | BL-014 |
 
-### `limits` - 20 documents (8 lossless, 5 accepted loss, 7 defect)
+### `limits` - 23 documents (10 lossless, 6 accepted loss, 7 defect)
 
 | id | stack | covers | class | what happens | config | defaults | recipe | issue |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -366,9 +366,12 @@ If you use the defaults, these rows do not describe what you will get:
 | `array-size-below-max` | BOTH | A three-element array of maps under maxArraySize=4 round-trips exactly | `LOSSLESS` | limit = min(3,4) = 3, no truncation, all columns the same length so no padding occurs and the zip-back is exact. | MapFlattener.builder().maxArraySize(4) | YES | YES | - |
 | `array-size-exactly-max` | BOTH | An array of exactly maxArraySize elements is not truncated | `LOSSLESS` | limit = min(3,3) = 3, all elements retained, identical behaviour to the below-max fixture. | MapFlattener.builder().maxArraySize(3) | YES | YES | - |
 | `array-size-one-over-max` | BOTH | An array one element past maxArraySize loses the extra element silently | `ACCEPTED_LOSS` | Discarding elements past a configured array bound is precisely what the bound is for, and critically the TYPE survives - the field is still a list of the right element shape. | MapFlattener.builder().maxArraySize(2) | YES | NO | - |
+| `array-cells-below-max` | BOTH | A sparse array under the array-cell budget is untouched | `LOSSLESS` | A sparse array well under the cell budget. Four cells against a budget of eight; the bound never fires and the output is byte-identical to the default configuration. | MapFlattener.builder().maxArrayCells(8) | YES | YES | - |
+| `array-cells-exactly-max` | BOTH | A sparse array exactly at the array-cell budget is permitted | `LOSSLESS` | The boundary from below. Two columns of two slots is exactly four cells and exactly the budget, so the comparison must be > and not >=. An off-by-one here turns a documented ceiling into a ceiling minus one, and nothing notices until a legitimate document at the published figure starts failing. | MapFlattener.builder().maxArrayCells(4) | YES | YES | - |
+| `array-cells-one-over-max` | BOTH | A sparse array one cell over the budget is refused, not truncated | `ACCEPTED_LOSS` | The boundary from above, and the whole reason the bound exists. Four cells against a budget of three is REFUSED, not truncated, and the refusal names the column, the running total and the knob to move. Truncation was rejected deliberately: dropping columns past a budget leaves every surviving column exactly the right length, so no downstream length check - not ArrayCardinalityException, not agreedElementCount - could see that whole fields had vanished. That is the defect class of the 2.1.0 alignment repair, and a refusal is the only outcome that cannot be silent. | MapFlattener.builder().maxArrayCells(3) | YES | NO | - |
 | `array-size-max-one-collapses-the-type` | BOTH | maxArraySize=1 does not shorten the array, it turns it into an object | `DEFECT` | An array of three objects comes back as an object with string fields: element type, container type and value type all wrong. Set maxArraySize to 2 and the same document returns a proper array - two configurations of one bound, two different reconstructed schemas. | MapFlattener.builder().maxArraySize(1) | YES | NO | - |
 | `single-element-array-at-the-arity-lower-bound` | BOTH | A one-element array round-trips to a string even with limits wide open | `DEFECT` | Flattening is exactly right; reconstruction fails on arity alone. At arity 1 the array degrades to a string while at arity 2 the PARENT is wrongly promoted, so no single-sided fix resolves both. | defaults | YES | YES | - |
-| `sparse-array-of-maps-padding-misaligns-elements` | BOTH | Sparse array of maps: cells grow quadratically, and every element gains nulls it never had | `DEFECT` | HALF OF THIS ROW WAS REPAIRED IN 2.1.0 AND THE TITLE CHANGED WITH IT. The relocation is gone: r_k2 is now [null,2,null] and r_k3 is [null,null,3], so each sparse value sits under the element that carried it. What survives, and keeps this row DEFECT, is the other half: every element gains an explicit null for every key it never had, so element 0 comes back as {k1:1, k2:null, k3:null, z:0} where the source document had only {k1:1, z:0}. Absent and present-null are indistinguishable on the way back, and no marker exists to tell them apart. The quadratic cell growth is also unchanged and is now unconditional: one column per distinct field across all elements, each column pre-sized to the element count, while maxArraySize bounds only the element count and nothing bounds the column count. | defaults | YES | YES | - |
+| `sparse-array-of-maps-padding-misaligns-elements` | BOTH | Sparse array of maps: cells grow quadratically, and every element gains nulls it never had | `DEFECT` | HALF OF THIS ROW WAS REPAIRED IN 2.1.0 AND THE TITLE CHANGED WITH IT. The relocation is gone: r_k2 is now [null,2,null] and r_k3 is [null,null,3], so each sparse value sits under the element that carried it. What survives, and keeps this row DEFECT, is the other half: every element gains an explicit null for every key it never had, so element 0 comes back as {k1:1, k2:null, k3:null, z:0} where the source document had only {k1:1, z:0}. Absent and present-null are indistinguishable on the way back, and no marker exists to tell them apart. The quadratic cell growth is also unchanged and is now unconditional: one column per distinct field across all elements, each column pre-sized to the element count. What HAS changed is that the product is now bounded: maxArrayCells (default 1,048,576, per flatten() invocation) refuses a document that would exceed it, so "nothing bounds the column count" stopped being true in 2.1.0. This row is far below the bound and is unaffected by it; the three array-cells-* rows carry the boundary. | defaults | YES | YES | - |
 | `wide-record-210-fields-under-one-parent` | BOTH | A 210-field record under a single parent round-trips exactly | `LOSSLESS` | Every value fails the String check so no array inference runs and the record rebuilds field-for-field. | defaults (210 < maxMapSize 10000) | YES | YES | - |
 | `wide-separator-heavy-np021-regression` | BOTH | Separator-laden field names at width: the NP-021 blow-up shape, now expected to be linear | `LOSSLESS` | The literal underscores inside the names are escaped and the structural ones are not; decodeSegments recovers exactly three segments per key. | defaults | YES | YES | NP-021 |
 | `map-size-limit-truncates-fields-silently` | MAP | A record wider than maxMapSize loses its trailing fields | `ACCEPTED_LOSS` | Capping record width is the stated purpose of maxMapSize, iteration order is deterministic so the truncation is reproducible, and nothing about the surviving data type or position changes. One inconsistency worth recording: this bound announces itself at WARN while the array bound announces itself only at DEBUG. | MapFlattener.builder().maxMapSize(8) | YES | NO | - |
@@ -585,7 +588,7 @@ documents, which is the only way to find out what *your* data loses.
 ./mvnw -o test -Dtest=RoundTripFidelityCorpusTest
 ```
 
-All 161 documents, on every declared stack, plus the cross-fixture invariants and the
+All 164 documents, on every declared stack, plus the cross-fixture invariants and the
 control probes. A green run means the library still behaves exactly as this page says - including still
 being broken in exactly the ways it says.
 

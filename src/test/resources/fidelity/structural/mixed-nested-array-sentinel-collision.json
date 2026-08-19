@@ -12,7 +12,7 @@
     "detail" : "Actual flatten output uses the base key \"data\" rather than the documented data_value. The positional half of this row was repaired in 2.1.0: the columns are now padded to the outer element count, so data_name=[[\"A\"],null] describes outer position 0 and data=[[null],\"text\"] describes outer position 1. What remains DEFECT is the sentinel key itself plus the setNestedValue leaf-versus-branch collision on reconstruct, which drops data_name entirely and returns data alone."
   },
   "configDescription" : "defaults",
-  "config" : {},
+  "config" : { },
   "input" : "{\"data\":[[{\"name\":\"A\"}],\"text\"]}",
   "expected" : {
     "mapBaseline" : "{\"data\":[[{\"name\":\"S:A\"}],\"S:text\"]}",

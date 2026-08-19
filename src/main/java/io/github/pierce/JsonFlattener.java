@@ -379,6 +379,16 @@ public class JsonFlattener implements Serializable {
             return this;
         }
 
+        /**
+         * Ceiling on array-element cells emitted by one flatten call.
+         *
+         * @see MapFlattener.Builder#maxArrayCells(int)
+         */
+        public Builder maxArrayCells(int cells) {
+            ensureMapFlattenerBuilder().maxArrayCells(cells);
+            return this;
+        }
+
         public Builder arrayFormat(MapFlattener.ArraySerializationFormat format) {
             ensureMapFlattenerBuilder().arrayFormat(format);
             return this;
@@ -422,14 +432,14 @@ public class JsonFlattener implements Serializable {
         /**
          * Set the charset on the {@link JsonFlattenerConfig} this builder carries.
          *
-         * <p>INERT — measured, not inferred. {@link JsonFlattenerConfig#getCharset()} is read
-         * nowhere in {@code src/main}: every charset actually consulted at runtime comes from
-         * {@link InputOptions} or {@link OutputOptions}, which are passed per call. Setting this
-         * changes no output on any path. It is retained because it is released 2.0.0 API and
-         * removing it would break compilation for existing callers; see BL-015 in
-         * {@code docs/BACKLOG.md}. Use {@code InputOptions}/{@code OutputOptions} instead.
+         * <p>HONOURED SINCE 2.1.0 as the ENGINE-LEVEL DEFAULT ([BL-015]). An explicitly passed
+         * per-call options object still wins. It is the default for the input
+         * overloads that take no explicit charset - {@code from(InputStream)},
+         * {@code from(byte[])} and {@code fromJsonArrayFile(Path)} - and the default charset of
+         * the {@code OutputOptions} the no-argument output terminals synthesise. It was inert
+         * through 2.0.0.</p>
          *
-         * @param charset stored on the config and read by nothing
+         * @param charset the engine-level default charset; UTF-8 when unset
          * @return this builder
          */
         public Builder charset(Charset charset) {
@@ -440,12 +450,14 @@ public class JsonFlattener implements Serializable {
         /**
          * Set the buffer size on the {@link JsonFlattenerConfig} this builder carries.
          *
-         * <p>INERT — measured, not inferred. {@link JsonFlattenerConfig#getBufferSize()} is read
-         * nowhere in {@code src/main}; every buffered path hardcodes its own size. Setting this
-         * changes no output and no allocation on any path. Retained as released 2.0.0 API; see
-         * BL-015 in {@code docs/BACKLOG.md}.
+         * <p>HONOURED SINCE 2.1.0 as the ENGINE-LEVEL DEFAULT ([BL-015]). An explicitly passed
+         * per-call options object still wins. It sizes the reader on
+         * {@code from(InputStream)} and {@code from(Reader)} and the writer on
+         * {@code toFile(...)}. OUTPUT IS BYTE-IDENTICAL EITHER WAY - this knob affects
+         * allocation only - which is exactly why it needs a test that watches the read
+         * requests. Nothing else in the suite can see it. It was inert through 2.0.0.</p>
          *
-         * @param size stored on the config and read by nothing
+         * @param size the engine-level default buffer size; 8192 when unset
          * @return this builder
          */
         public Builder bufferSize(int size) {
@@ -456,13 +468,23 @@ public class JsonFlattener implements Serializable {
         /**
          * Set the fail-on-error flag on the {@link JsonFlattenerConfig} this builder carries.
          *
-         * <p>INERT, AND THE MOST MISLEADING OF THE THREE — measured, not inferred.
+         * <p>STILL INERT, DELIBERATELY, AND IT IS THE ONLY ONE OF THE SIX THAT IS.
          * {@link JsonFlattenerConfig#isFailOnError()} is read nowhere in {@code src/main}, so
          * {@code failOnError(false)} does NOT make parsing lenient: malformed input still throws
-         * {@link JsonFlattenException} from {@link JsonFlattener#flattenToMap(String)}. Retained as
-         * released 2.0.0 API — making it live would silently change behaviour for any caller who
-         * set it and relies on today's throwing — see BL-015 in {@code docs/BACKLOG.md}. For
-         * lenient parsing use {@link InputOptions.InputOptionsBuilder#lenient(boolean)}.
+         * {@link JsonFlattenException} from {@link JsonFlattener#flattenToMap(String)}.</p>
+         *
+         * <p>The other four config knobs were wired up in 2.1.0. This one was not, and the reason
+         * is not effort. Its NAME gives a direction; its EFFECT is defined nowhere. "Do not fail"
+         * on a method that returns {@code Map<String, Object>} could mean return an empty map,
+         * return null, return a partial map, or log and continue, and nothing in the name, the
+         * javadoc or any caller picks one. A knob whose effect is undetermined cannot be
+         * honoured; choosing a meaning now would be inventing semantics on released API. See
+         * [BL-015] and [BL-016].</p>
+         *
+         * <p>THIS JAVADOC USED TO SEND YOU TO {@code InputOptions.lenient(boolean)} for lenient
+         * parsing. That pointer is removed because measured, {@code InputOptions.isLenient()} is
+         * read nowhere in {@code src/main} either - it is inert too. There is no lenient-parsing
+         * control on this class today.</p>
          *
          * @param fail stored on the config and read by nothing
          * @return this builder
@@ -545,7 +567,39 @@ public class JsonFlattener implements Serializable {
     // ========================= CONFIGURATION =========================
 
     /**
-     * Configuration options for JsonFlattener operations.
+     * Engine-level defaults for {@link JsonFlattener} operations - five honoured, one inert.
+     *
+     * <p>THE ONE-LINE DESCRIPTION THIS CLASS USED TO CARRY ("Configuration options for
+     * JsonFlattener operations") was false for five of its six fields, all of which were stored
+     * and read by nothing. Four were wired up in 2.1.0; the fifth cannot be. Per field:</p>
+     *
+     * <table>
+     *   <caption>What each field actually does</caption>
+     *   <tr><th>Field</th><th>Status</th><th>Where it is read</th></tr>
+     *   <tr><td>{@code usePrettyPrint}</td><td>honoured</td>
+     *       <td>{@code toJson()} and {@code toBytes()}; NOT the engine's own
+     *           {@code flattenToJson}/{@code flattenMapToJson}, which take their own explicit
+     *           pretty argument</td></tr>
+     *   <tr><td>{@code charset}</td><td>honoured since 2.1.0</td>
+     *       <td>{@code from(InputStream)}, {@code from(byte[])},
+     *           {@code fromJsonArrayFile(Path)}, and the synthesised output options</td></tr>
+     *   <tr><td>{@code bufferSize}</td><td>honoured since 2.1.0</td>
+     *       <td>{@code from(InputStream)}, {@code from(Reader)}, {@code toFile(..)}; allocation
+     *           only, output is byte-identical either way</td></tr>
+     *   <tr><td>{@code preserveNulls}</td><td>honoured since 2.1.0</td>
+     *       <td>the no-argument output terminals, as {@code OutputOptions.includeNulls}</td></tr>
+     *   <tr><td>{@code sortKeys}</td><td>honoured since 2.1.0</td>
+     *       <td>the no-argument output terminals, as {@code OutputOptions.sortKeys}</td></tr>
+     *   <tr><td>{@code failOnError}</td><td><b>INERT BY DESIGN</b></td>
+     *       <td>nowhere; its effect is undefined rather than unimplemented - see
+     *           {@link Builder#failOnError(boolean)}</td></tr>
+     * </table>
+     *
+     * <p>Every honoured field is an ENGINE-LEVEL DEFAULT. An explicitly passed
+     * {@link InputOptions} or {@link OutputOptions} always wins, which is what made wiring them
+     * safe: each config default is byte-identical to the per-call default it feeds, so the only
+     * caller whose behaviour moved in 2.1.0 is the one who explicitly set a knob and previously
+     * got nothing.</p>
      */
     public static class JsonFlattenerConfig implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -574,11 +628,33 @@ public class JsonFlattener implements Serializable {
             return new ConfigBuilder();
         }
 
+        /** @return whether the no-argument output terminals pretty-print. Honoured. */
         public boolean isUsePrettyPrint() { return usePrettyPrint; }
+
+        /** @return the engine-level default charset. Honoured since 2.1.0; UTF-8 when unset. */
         public Charset getCharset() { return charset; }
+
+        /** @return the engine-level default buffer size. Honoured since 2.1.0; 8192 when unset. */
         public int getBufferSize() { return bufferSize; }
+
+        /**
+         * @return the stored fail-on-error flag. <b>READ BY NOTHING.</b> A {@code true} here is
+         *         not a guarantee that anything fails and a {@code false} is not a guarantee that
+         *         anything does not - malformed input throws at both settings. See
+         *         {@link Builder#failOnError(boolean)}.
+         */
         public boolean isFailOnError() { return failOnError; }
+
+        /**
+         * @return the engine-level default for {@code OutputOptions.includeNulls} on the
+         *         no-argument output terminals. Honoured since 2.1.0; true when unset.
+         */
         public boolean isPreserveNulls() { return preserveNulls; }
+
+        /**
+         * @return the engine-level default for {@code OutputOptions.sortKeys} on the no-argument
+         *         output terminals. Honoured since 2.1.0; false when unset.
+         */
         public boolean isSortKeys() { return sortKeys; }
 
         public static class ConfigBuilder {
@@ -607,10 +683,11 @@ public class JsonFlattener implements Serializable {
             }
 
             /**
-             * INERT. {@link JsonFlattenerConfig#getBufferSize()} is read nowhere in
-             * {@code src/main}; buffered paths hardcode their own size. See BL-015.
+             * HONOURED SINCE 2.1.0 as the engine-level default buffer size for
+             * {@code from(InputStream)}, {@code from(Reader)} and {@code toFile(...)}. Output is
+             * byte-identical either way; this affects allocation only. See [BL-015].
              *
-             * @param size stored and read by nothing
+             * @param size the engine-level default buffer size; 8192 when unset
              * @return this builder
              */
             public ConfigBuilder bufferSize(int size) {
@@ -619,9 +696,12 @@ public class JsonFlattener implements Serializable {
             }
 
             /**
-             * INERT. {@link JsonFlattenerConfig#isFailOnError()} is read nowhere in
-             * {@code src/main}; malformed input throws at both settings. See BL-015, and use
-             * {@link InputOptions.InputOptionsBuilder#lenient(boolean)} for lenient parsing.
+             * STILL INERT, deliberately - the only one of the six that is.
+             * {@link JsonFlattenerConfig#isFailOnError()} is read nowhere in {@code src/main} and
+             * malformed input throws at both settings. Its effect is undefined rather than
+             * unimplemented; see {@link Builder#failOnError(boolean)} for the full reasoning and
+             * for why this javadoc no longer points at
+             * {@code InputOptions.InputOptionsBuilder#lenient(boolean)}, which is itself inert.
              *
              * @param fail stored and read by nothing
              * @return this builder
@@ -632,11 +712,15 @@ public class JsonFlattener implements Serializable {
             }
 
             /**
-             * INERT. {@link JsonFlattenerConfig#isPreserveNulls()} is read nowhere in
-             * {@code src/main}; present nulls survive at both settings. The live control is
-             * {@link OutputOptions#isIncludeNulls()}. See BL-015.
+             * HONOURED SINCE 2.1.0 on the no-argument output terminals ({@code toJson()},
+             * {@code toPrettyJson()}, {@code toBytes()}), where it supplies
+             * {@link OutputOptions#isIncludeNulls()}. {@code preserveNulls(false)} now REMOVES
+             * null-valued keys from JSON output where it previously kept them - the largest
+             * surprise of the four knobs wired in 2.1.0, and the only one that makes output
+             * smaller by deleting data. An explicitly passed {@code OutputOptions} still wins.
+             * See [BL-015].
              *
-             * @param preserve stored and read by nothing
+             * @param preserve the engine-level default; true when unset
              * @return this builder
              */
             public ConfigBuilder preserveNulls(boolean preserve) {
@@ -645,11 +729,12 @@ public class JsonFlattener implements Serializable {
             }
 
             /**
-             * INERT. {@link JsonFlattenerConfig#isSortKeys()} is read nowhere in {@code src/main};
-             * key order is unchanged at both settings. The identically-named live control is
-             * {@link OutputOptions#isSortKeys()}, which is a different class. See BL-015.
+             * HONOURED SINCE 2.1.0 on the no-argument output terminals, where it supplies
+             * {@link OutputOptions#isSortKeys()}. Through 2.0.0 this was inert and the
+             * identically-named control on the other class was the only live one; both now agree.
+             * An explicitly passed {@code OutputOptions} still wins. See [BL-015].
              *
-             * @param sort stored and read by nothing
+             * @param sort the engine-level default; false when unset
              * @return this builder
              */
             public ConfigBuilder sortKeys(boolean sort) {
@@ -695,7 +780,18 @@ public class JsonFlattener implements Serializable {
 
         public boolean isGzipped() { return gzipped; }
         public Charset getCharset() { return charset; }
+        /**
+         * @return the stored lenient flag. <b>READ BY NOTHING.</b> Measured 2026-08-19: a grep of
+         *         {@code src/main} finds this method only at its own declaration. Malformed input
+         *         throws at both settings. [BL-015] counted five inert knobs; with this and
+         *         {@link #isSkipInvalid()} the real figure is SEVEN.
+         */
         public boolean isLenient() { return lenient; }
+
+        /**
+         * @return the stored skip-invalid flag. <b>READ BY NOTHING.</b> Same measurement as
+         *         {@link #isLenient()}.
+         */
         public boolean isSkipInvalid() { return skipInvalid; }
 
         public static class InputOptionsBuilder {
@@ -714,11 +810,27 @@ public class JsonFlattener implements Serializable {
                 return this;
             }
 
+            /**
+             * INERT. Stored and read by nothing; parsing throws at both settings. Retained as
+             * released 2.0.0 API - removal is [BL-016] / 3.0.0. Note that
+             * {@code JsonFlattenerConfig.failOnError}'s javadoc used to name THIS method as the
+             * live alternative for lenient parsing; that pointer is removed, because there is
+             * no lenient-parsing control on this class.
+             *
+             * @param lenient stored and read by nothing
+             * @return this builder
+             */
             public InputOptionsBuilder lenient(boolean lenient) {
                 this.lenient = lenient;
                 return this;
             }
 
+            /**
+             * INERT. Stored and read by nothing. See {@link #lenient(boolean)}.
+             *
+             * @param skip stored and read by nothing
+             * @return this builder
+             */
             public InputOptionsBuilder skipInvalid(boolean skip) {
                 this.skipInvalid = skip;
                 return this;
@@ -921,7 +1033,9 @@ public class JsonFlattener implements Serializable {
          * Load from InputStream.
          */
         public FluentOperation from(InputStream inputStream) {
-            return from(inputStream, DEFAULT_CHARSET);
+            // BL-015: the engine's configured charset is the DEFAULT here, because this overload
+            // has no competing per-call value. from(InputStream, Charset) is untouched.
+            return from(inputStream, flattener.config.getCharset());
         }
 
         /**
@@ -929,7 +1043,8 @@ public class JsonFlattener implements Serializable {
          */
         public FluentOperation from(InputStream inputStream, Charset charset) {
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(inputStream, charset), DEFAULT_BUFFER_SIZE)) {
+                    new InputStreamReader(inputStream, charset),
+                    flattener.config.getBufferSize())) {
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -947,7 +1062,9 @@ public class JsonFlattener implements Serializable {
         public FluentOperation from(Reader reader) {
             try (BufferedReader buffered = reader instanceof BufferedReader
                     ? (BufferedReader) reader
-                    : new BufferedReader(reader)) {
+                    // BL-015: this was the one unsized BufferedReader on the read path, so the
+                    // configured bufferSize had nowhere to land even in principle.
+                    : new BufferedReader(reader, flattener.config.getBufferSize())) {
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = buffered.readLine()) != null) {
@@ -963,7 +1080,8 @@ public class JsonFlattener implements Serializable {
          * Load from byte array.
          */
         public FluentOperation from(byte[] bytes) {
-            return from(bytes, DEFAULT_CHARSET);
+            // BL-015: see from(InputStream). from(byte[], Charset) is untouched.
+            return from(bytes, flattener.config.getCharset());
         }
 
         /**
@@ -1107,16 +1225,33 @@ public class JsonFlattener implements Serializable {
          * Uses the prettyPrint setting from builder configuration if set.
          */
         public String toJson() {
-            return flattener.config.isUsePrettyPrint()
-                    ? toJson(OutputOptions.pretty())
-                    : toJson(OutputOptions.defaults());
+            return toJson(engineDefaults(flattener.config.isUsePrettyPrint()));
+        }
+
+        /**
+         * The engine-level {@code OutputOptions} synthesised from {@link JsonFlattenerConfig}.
+         *
+         * <p>BL-015. Only the no-argument terminals use this; {@code toJson(OutputOptions)} and
+         * {@code toBytes(OutputOptions)} keep whatever the caller passed, so an explicit options
+         * object still wins. This is safe to switch on because every config default is
+         * byte-identical to the {@code OutputOptions} default it feeds - {@code sortKeys} false,
+         * {@code preserveNulls}/{@code includeNulls} true, charset UTF-8 - so the only caller
+         * whose output moves is the one who explicitly set a knob and previously got nothing.</p>
+         */
+        private OutputOptions engineDefaults(boolean pretty) {
+            return OutputOptions.builder()
+                    .pretty(pretty)
+                    .sortKeys(flattener.config.isSortKeys())
+                    .includeNulls(flattener.config.isPreserveNulls())
+                    .charset(flattener.config.getCharset())
+                    .build();
         }
 
         /**
          * Get the flattened result as a pretty JSON string.
          */
         public String toPrettyJson() {
-            return toJson(OutputOptions.pretty());
+            return toJson(engineDefaults(true));
         }
 
         /**
@@ -1153,7 +1288,7 @@ public class JsonFlattener implements Serializable {
          * Get the flattened result as bytes.
          */
         public byte[] toBytes() {
-            return toBytes(OutputOptions.defaults());
+            return toBytes(engineDefaults(flattener.config.isUsePrettyPrint()));
         }
 
         /**
@@ -1180,7 +1315,7 @@ public class JsonFlattener implements Serializable {
                 if (options.isGzipped()) {
                     os = new GZIPOutputStream(os);
                 }
-                os = new BufferedOutputStream(os, DEFAULT_BUFFER_SIZE);
+                os = new BufferedOutputStream(os, flattener.config.getBufferSize());
 
                 try (Writer writer = new OutputStreamWriter(os, options.getCharset())) {
                     writer.write(toJson(options));
@@ -1387,7 +1522,7 @@ public class JsonFlattener implements Serializable {
          */
         public BatchResult fromJsonArrayFile(Path path) {
             try {
-                String content = Files.readString(path, DEFAULT_CHARSET);
+                String content = Files.readString(path, flattener.config.getCharset());
                 return fromJsonArray(content);
             } catch (IOException e) {
                 throw new JsonFlattenException("Failed to read file: " + path, e);
