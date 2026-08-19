@@ -738,21 +738,25 @@ public class JsonFlattenerConsolidator implements Serializable {
                 }
             }
         } else {
-            List<String> arrayValues = new ArrayList<>();
+            // Filled by index into an exactly-sized array rather than appended to a capacity-less
+            // ArrayList and then copied out with toArray(new String[0]). The size is known here -
+            // it is validKeyedValues.size() - so the doubling chain and the copy were both
+            // avoidable. Null values were already filtered into validKeyedValues above, so no
+            // slot can be left unwritten.
+            int count = validKeyedValues.size();
+            String[] arrayValues = new String[count];
 
-            for (KeyedValue kv : validKeyedValues) {
-                String stringValue;
+            for (int i = 0; i < count; i++) {
+                KeyedValue kv = validKeyedValues.get(i);
                 if (consolidateWithMatrixDenotorsInValue && kv.hasArrayIndex) {
                     String indices = extractIndicesPrefix(kv.originalFlattenedKey);
-                    stringValue = indices + kv.value.toString();
+                    arrayValues[i] = indices + kv.value.toString();
                 } else {
-                    stringValue = kv.value.toString();
+                    arrayValues[i] = kv.value.toString();
                 }
-                arrayValues.add(stringValue);
             }
 
-            processArrayValues(consolidatedKey, arrayValues.toArray(new String[0]),
-                    consolidatedOutput);
+            processArrayValues(consolidatedKey, arrayValues, consolidatedOutput);
         }
     }
 
@@ -762,7 +766,12 @@ public class JsonFlattenerConsolidator implements Serializable {
         consolidatedOutput.put(consolidatedKey, joined);
 
         if (gatherStatistics) {
-            Set<String> uniqueValues = new HashSet<>(Arrays.asList(values));
+            // Sized exactly as HashSet(Collection) would size it, so the table is identical and
+            // no rehash happens either way - the saving here is only the Arrays.asList wrapper,
+            // not a growth chain. Only size() is read, so iteration order is never observed; if
+            // that ever changes, note that capacity WOULD change the order.
+            Set<String> uniqueValues = new HashSet<>(Math.max((int) (values.length / 0.75f) + 1, 16));
+            Collections.addAll(uniqueValues, values);
 
             int minLength = Integer.MAX_VALUE;
             int maxLength = 0;
@@ -780,7 +789,7 @@ public class JsonFlattenerConsolidator implements Serializable {
             consolidatedOutput.put(consolidatedKey + "_min_length", (long) minLength);
             consolidatedOutput.put(consolidatedKey + "_max_length", (long) maxLength);
             consolidatedOutput.put(consolidatedKey + "_avg_length", totalLength / (double) values.length);
-            consolidatedOutput.put(consolidatedKey + "_type", determineArrayType(Arrays.asList(values)));
+            consolidatedOutput.put(consolidatedKey + "_type", determineArrayType(values));
         }
     }
 
@@ -822,7 +831,7 @@ public class JsonFlattenerConsolidator implements Serializable {
      *       actually parses. Anything the filter is unsure about still goes through it.</li>
      * </ol>
      */
-    private String determineArrayType(List<String> values) {
+    private String determineArrayType(String... values) {
         boolean allNumbers = true;
         boolean allBooleans = true;
 
@@ -832,13 +841,22 @@ public class JsonFlattenerConsolidator implements Serializable {
                     // Deliberately not numeric, matching the previous behaviour even though
                     // Double.parseDouble("NaN") succeeds.
                     allNumbers = false;
-                } else if (cannotBeNumeric(val)) {
-                    allNumbers = false;
-                } else {
-                    try {
-                        Double.parseDouble(val);
-                    } catch (NumberFormatException e) {
+                } else if (!isPlainDecimal(val)) {
+                    // isPlainDecimal true means parseDouble provably succeeds, so allNumbers
+                    // simply stays true and only the harder shapes reach the arbiter below.
+                    //
+                    // Written as a negated guard rather than as a `continue` on the accept
+                    // branch: continuing would skip the allBooleans update and the early-exit
+                    // check that follow this block, and ["1", "true"] would then be published
+                    // as a boolean column instead of a string one.
+                    if (cannotBeNumeric(val)) {
                         allNumbers = false;
+                    } else {
+                        try {
+                            Double.parseDouble(val);
+                        } catch (NumberFormatException e) {
+                            allNumbers = false;
+                        }
                     }
                 }
             }
@@ -856,6 +874,64 @@ public class JsonFlattenerConsolidator implements Serializable {
         if (allNumbers) return "numeric_list_consolidated";
         if (allBooleans) return "boolean_list_consolidated";
         return "string_list_consolidated";
+    }
+
+    /**
+     * Conservative ACCEPT filter for {@link #determineArrayType}: {@code true} guarantees
+     * {@link Double#parseDouble} would succeed, so the call can be skipped outright.
+     *
+     * <p>The mirror of {@link #cannotBeNumeric}, and the two together leave {@code parseDouble}
+     * as arbiter only for the residue between them. This one's failure mode is the opposite and
+     * has to be argued separately: over-ACCEPTANCE silently reclassifies a string column as
+     * {@code numeric_list_consolidated}, so the rule is kept far inside the grammar rather than
+     * close to its edge.</p>
+     *
+     * <p>Accepts exactly {@code [+-]?} followed by ASCII digits and at most one {@code '.'},
+     * with at least one digit present. Every such string parses, and the soundness obligation is
+     * one sentence: it never throws, <em>including</em> when the value overflows or underflows.
+     * {@code "1"} repeated 400 times parses to {@code Infinity}; {@code "0.000...1"} parses to
+     * {@code 0.0}. Neither is an exception, and only the boolean is consumed here, so no length
+     * bound and no magnitude reasoning is needed.</p>
+     *
+     * <p>Everything harder falls through untouched and is therefore classified exactly as
+     * before: exponent forms, hex floats, type suffixes, {@code NaN} and {@code Infinity}, a
+     * lone sign or point, and any string containing two points.</p>
+     *
+     * <p>Rejecting every character at or below {@code U+0020} is load-bearing rather than
+     * merely cautious. {@code parseDouble} trims those, but {@code cannotBeNumeric} does not
+     * recognise 23 of them as whitespace, so the existing pipeline classifies
+     * {@code "1 "} as non-numeric. Refusing them here keeps such values on the old path and
+     * preserves that behaviour byte for byte. It is a defect — pinned, and explained at length,
+     * by {@code ArrayTypeClassificationDifferentialTest.hitsTheTrimGap} — but it is not this
+     * method's to fix, because fixing it changes output.</p>
+     *
+     * <p>Uses an explicit {@code '0'..'9'} range, not {@link Character#isDigit}, which would
+     * accept Devanagari and fullwidth digits that {@code parseDouble} rejects — the
+     * over-acceptance failure this method is shaped to avoid.</p>
+     */
+    private static boolean isPlainDecimal(String s) {
+        int n = s.length();
+        if (n == 0) {
+            return false;
+        }
+        int i = 0;
+        char first = s.charAt(0);
+        if (first == '+' || first == '-') {
+            i = 1;
+        }
+        boolean sawDigit = false;
+        boolean sawPoint = false;
+        for (; i < n; i++) {
+            char c = s.charAt(i);
+            if (c >= '0' && c <= '9') {
+                sawDigit = true;
+            } else if (c == '.' && !sawPoint) {
+                sawPoint = true;
+            } else {
+                return false;
+            }
+        }
+        return sawDigit;
     }
 
     /**
