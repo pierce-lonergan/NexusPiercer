@@ -640,22 +640,53 @@ public class JsonFlattenerConsolidator implements Serializable {
             }
         }
 
-        for (Map.Entry<String, List<KeyedValue>> group : groupedByBase.entrySet()) {
-            String consolidatedKey = group.getKey();
-            List<KeyedValue> keyedValues = group.getValue();
+        // Normalize the tracked array fields ONCE per record rather than once per
+        // (group x arrayField) pair. processGroupedValues used to call String.replaceAll inside
+        // that double loop, and String.replaceAll is specified as Pattern.compile(regex)
+        // .matcher(this).replaceAll(repl) - a full compile on every iteration. The loop's early
+        // break almost never fires, so it was the whole product rather than a fraction of it:
+        // 60 groups x 25 tracked fields = 1,500 compiles per array-heavy record.
+        //
+        // Built here, after flattenJson has populated the thread-local, and deliberately NOT
+        // cached in a field: arrayFieldsThreadLocal is cleared per call to
+        // flattenAndConsolidateJson, so a cached list would leak one document's array fields
+        // into the next.
+        //
+        // Skipped entirely when nothing was grouped, so a document with no array indices -
+        // the wideFlat and deepNarrow corpora - allocates nothing new. That keeps them exact
+        // zero-change controls, which is the whole attribution argument for this change.
+        if (!groupedByBase.isEmpty()) {
+            Set<String> trackedArrayFields = arrayFieldsThreadLocal.get();
+            List<String> normalizedArrayFields = new ArrayList<>(trackedArrayFields.size());
+            for (String arrayField : trackedArrayFields) {
+                normalizedArrayFields.add(stripArrayIndices(arrayField));
+            }
 
-            processGroupedValues(consolidatedKey, keyedValues, consolidatedOutput);
+            for (Map.Entry<String, List<KeyedValue>> group : groupedByBase.entrySet()) {
+                String consolidatedKey = group.getKey();
+                List<KeyedValue> keyedValues = group.getValue();
+
+                processGroupedValues(consolidatedKey, keyedValues, normalizedArrayFields,
+                        consolidatedOutput);
+            }
         }
 
         return consolidatedOutput;
     }
 
+    /**
+     * @param normalizedArrayFields the tracked array-field prefixes with their bracket indices
+     *     already stripped, computed once per record by {@link #consolidateFlattened}. It is
+     *     iterated only to compute a boolean OR with an early break, so the answer does not
+     *     depend on the list's order, nor on whether normalization produced duplicates.
+     *     Anything added to this loop that IS order-dependent invalidates that argument.
+     */
     private void processGroupedValues(String consolidatedKey, List<KeyedValue> keyedValues,
+                                      List<String> normalizedArrayFields,
                                       Map<String, Object> consolidatedOutput) {
         String originalBaseKey = consolidatedKey.replace("_", ".");
         boolean wasTrackedAsArray = false;
-        for (String arrayField : arrayFieldsThreadLocal.get()) {
-            String normalizedArrayField = arrayField.replaceAll("\\[\\d+\\]", "");
+        for (String normalizedArrayField : normalizedArrayFields) {
             if (originalBaseKey.startsWith(normalizedArrayField)) {
                 wasTrackedAsArray = true;
                 break;
