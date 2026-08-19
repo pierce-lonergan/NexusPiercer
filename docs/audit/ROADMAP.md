@@ -229,7 +229,7 @@ Three things the JMH harness deliberately does NOT cover, each with its own mech
 
 - deep-narrow — depth 24, exactly one field per level, 1 leaf value, ~2 KB serialized. Deliberately tiny so that anything measurable is depth-driven, not size-driven. This is the discriminating corpus for the two quadratic-in-depth findings: MapFlattener's per-node throwaway LinkedHashMap that `putAll`s up the recursion so a leaf at depth d is re-inserted ~2d times (JFLAT-04 — note there are two maps per level, not one, so the leaf is copied twice per level), the `buildKey` prefix rebuild (JFLAT-10), and `isArrayFieldPattern`'s O(d²) character copying via `String.join` + `Arrays.copyOfRange` (RECON-04). Also the natural home for the depth-guard regression tests from Phase 4. Add a depth-64 variant to sit exactly at the new `maxDepth` boundary.
 
-- array-heavy — 1 record with 20 scalar array fields × 500 elements (10 numeric-typed, 10 string-typed) plus 5 arrays-of-records × 100 elements × 8 fields, ~600 KB serialized. This is the allocation-rate headline corpus. The 10,000 scalar elements in string-typed arrays drive exactly 10,000 `NumberFormatException` constructions per record through `determineArrayType`'s no-early-exit type detection (JFLAT-05, measured 418.6 ns/elem vs 1.3 ns for a char scan); the five-pass `processArrayValues` (JFLAT-15) touches every element ~5 times; `serializeArray` copies the whole list to apply a no-op transform (JFLAT-17); `GAvroSchemaFlattener` parses every serialized array and immediately re-serializes it to the same string (RECON-09); and `SerializedArrayConverter` boxes every primitive element through `java.lang.reflect.Array` (SCHEMA-24). Expect this corpus to show the largest `gc.alloc.rate.norm` reduction of the five.
+- array-heavy — 1 record with 20 scalar array fields × 500 elements (10 numeric-typed, 10 string-typed) plus 5 arrays-of-records × 100 elements × 8 fields, ~600 KB serialized. This is the allocation-rate headline corpus. The 10,000 scalar elements in string-typed arrays DROVE exactly 10,000 `NumberFormatException` constructions per record through `determineArrayType`'s no-early-exit type detection (JFLAT-05, measured 418.6 ns/elem vs 1.3 ns for a char scan) until 843a461 on 2026-08-09; the figure is now under 1 per record, and a further ACCEPT filter on 2026-08-19 removed the 5,000 SUCCESSFUL `parseDouble` calls the numeric arrays still made; the five-pass `processArrayValues` (JFLAT-15) touches every element ~5 times; `serializeArray` copies the whole list to apply a no-op transform (JFLAT-17); `GAvroSchemaFlattener` parses every serialized array and immediately re-serializes it to the same string (RECON-09); and `SerializedArrayConverter` boxes every primitive element through `java.lang.reflect.Array` (SCHEMA-24). Expect this corpus to show the largest `gc.alloc.rate.norm` reduction of the five.
 
 - union-nullable-heavy — 1 record, 200 fields, every field a 3-branch union `["null", T, U]`, with the value distribution deliberately skewed so 70% of populated fields match the LAST branch and 15% are null, ~12 KB serialized. Includes a date column in US `M/d/yyyy` form (not ISO-8601) and a `["null","long","string"]` union carrying non-numeric strings. This corpus exists to make exception-driven control flow visible: SCHEMA-09's cascade constructs up to three stack-filling exceptions per value before reaching the right branch (the long branch alone throws a NumberFormatException from `Long.parseLong`, a second from `new BigInteger`, then a TypeConversionException whose `formatMessage` calls `String.format` and `value.toString()`), and SCHEMA-07's DateConverter throws three `DateTimeParseException`s per value for non-ISO dates. Note the honest caveat: an all-ISO-8601 corpus would show near-zero cost here, which is precisely why the skew is deliberate and documented — this corpus measures the worst realistic case, not the average one, and both must be reported.
 
@@ -290,6 +290,51 @@ The gate is not considered live until it has been observed to fail: Phase 3 requ
 ---
 
 ## Iteration 1 — Regex and exception elimination on the JsonFlattenerConsolidator hot path
+
+> **STATUS 2026-08-19 — THIS ITERATION IS DONE. Do not work from the paragraphs below without
+> reading this box first; they are the pre-work plan and several of their premises are dead.**
+>
+> Delivered across four commits, in two sittings:
+>
+> * `843a461` (2026-08-09) — the early `break` in `determineArrayType` and the `cannotBeNumeric`
+>   character pre-filter. Measured 23.124 → 15.637 MB/op on `consolidate_arrayHeavy`, 10,791 →
+>   4,853 µs/op. It landed **23 minutes after** `benchmarks/results/baseline.json` was recorded
+>   at `790d216`, and the baseline was not re-recorded for another ten days, so every document
+>   quoting 23.1 MB/op after that date — including this one — was quoting pre-fix bytecode.
+> * `25556dd`, `8500c50`, `bb8e988` (2026-08-19) — the array-index scans, the per-group
+>   `Pattern.compile` hoist, exact array sizing, and a conservative ACCEPT filter for
+>   `determineArrayType`. Measured 15.637 → 7.664 MB/op.
+>
+> Net for the iteration: `consolidate_arrayHeavy` **23.124 → 7.664 MB/op (−66.8%)**,
+> `consolidate_mixedProduction` **0.860 → 0.300 MB/op**, `consolidate_batch1000` **859.9 →
+> 299.4 MB/op**. Full predicted-vs-measured record, including the one change that was measured
+> and reverted, is in [docs/PERFORMANCE.md](../PERFORMANCE.md).
+>
+> **Expected gain, scored.** This section predicted "1.6–3.0x throughput and a 40–60% reduction
+> in `gc.alloc.rate.norm`, driven almost entirely by removing ~10,000 `NumberFormatException`
+> constructions per record". The allocation figure landed in band at −66.8%, better than
+> predicted — but the stated *cause* was wrong. The exception path was worth 32%; the regex was
+> worth more, and most of the wall-clock came from something this plan never mentions:
+> quadratic backtracking in `(.+?)\[(\d+)\](.*)` against keys with no bracket. `consolidate_deepNarrow`,
+> a corpus with exactly ONE key, went 70.4 → 1.8 µs/op — 39x — on a 1.4% allocation change.
+>
+> **One instruction in the plan below is wrong and must not be followed.** Where it says "or
+> better, propagate the array flag out of `flattenJson`, which already knows it because it
+> constructed the `[i]` suffix" — it does not know it. A user key that already contains a bracket
+> index, e.g. `{"a[0]": 1}`, is flagged as array-indexed today, grouped under base key `a`, and
+> emitted as column `a`. A flattener-generated flag would emit `a[0]` instead. That is a changed
+> byte on reachable input. The index-scan half of the sentence is right; the "or better" half is
+> an output change wearing an optimization's clothes.
+>
+> **Still outstanding from the list below:** the `explodeFlattened` and `shouldKeepAsArrayElements`
+> `Pattern.compile` sites (both on the explosion path, which no benchmark exercises — measure
+> before touching), the constructor-cached `arrayDelimiterPattern`, and `flattenSingleValue` /
+> `batchSize`. `MALFORMED_JSON_PATTERN` is deleted. Sizing the output `LinkedHashMap`s from known
+> input was **tried, measured, and reverted**: seeding `consolidatedOutput` from
+> `flattened.size()` helps flat corpora by 1–2% and costs `consolidate_arrayHeavy` +1.62%,
+> because 14,000 flattened keys collapse to ~420 output entries and the seed buys a 16,384-slot
+> table for them. It is a workload trade, not a win.
+
 
 **Targets:** `perf-flatten/JFLAT-01`, `perf-flatten/JFLAT-02`, `perf-flatten/JFLAT-05`, `perf-flatten/JFLAT-07`, `perf-flatten/JFLAT-08`, `perf-flatten/JFLAT-14`, `perf-flatten/JFLAT-16`, `perf-flatten/JFLAT-20`, `perf-flatten/JFLAT-24`
 

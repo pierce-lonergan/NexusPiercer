@@ -92,9 +92,15 @@ public final class Corpus {
     /**
      * 20 scalar arrays x 500 elements, plus 5 arrays-of-records x 100 x 8 fields. ~600 KB.
      *
-     * <p>The allocation-rate headline corpus. Half the scalar arrays hold numeric-looking
-     * strings, which is what drives exception-based type detection to construct one
-     * {@code NumberFormatException} per element.</p>
+     * <p>The allocation-rate headline corpus: 14,000 leaves, which is what it is for.</p>
+     *
+     * <p>Half the scalar arrays hold all-digit strings and half hold {@code randomToken} output
+     * over {@code [a-z0-9]}. This used to be described as "numeric-looking strings, which is
+     * what drives exception-based type detection to construct one NumberFormatException per
+     * element". That was wrong twice over, and the correction matters to anyone reasoning about
+     * filter hit rates: the exception behaviour was removed in 843a461, and an 8-character token
+     * over a 36-symbol alphabet survives a double-grammar character filter only about 2% of the
+     * time, so the string arrays were always CHEAP to reject rather than expensive.</p>
      */
     public static ObjectNode arrayHeavy() {
         Random rnd = new Random(SEED);

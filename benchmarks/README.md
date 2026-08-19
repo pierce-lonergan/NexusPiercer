@@ -58,7 +58,7 @@ input moved it.
 | `wideFlat` | 1,000 scalar fields, depth 1, ~45 KB | Cost linear in key count, no structural confound |
 | `deepNarrow` | depth 24 (and 64), one field per level, ~2 KB | Depth-driven cost; quadratic-in-depth effects |
 | `arrayHeavy` | 20 arrays x 500 + 5 record-arrays x 100 x 8, ~600 KB | Per-element cost and allocation rate |
-| `unionNullable` | 200 three-branch unions, skewed to the last branch, ~12 KB | Exception-driven control flow |
+| `unionNullable` | 200 three-branch unions, skewed to the last branch, ~12 KB | **Generated but never measured** — no `@Benchmark` consumes it |
 | `mixedProduction` | 250 fields, depth 4, 12 arrays (p50 8 / p99 400), ~35 KB | Headline number; realistic shape |
 
 Two properties are non-negotiable in the generator:
@@ -89,14 +89,59 @@ runner load, which is why it can carry a 2% gate where throughput needs 10%.
 Tier 2 never fails on overlapping confidence intervals, regardless of the point estimate. That
 rule is what prevents the false failures that get performance gates disabled.
 
-Intentional trades go in [`waivers.yml`](waivers.yml) with an expiry date.
+Intentional trades go in [`waivers.yml`](waivers.yml) with an expiry date. That mechanism was
+documented from the start and **implemented on 2026-08-19** — before then `compare.py` never
+opened the file, so a waiver would have been silently ignored and its author blocked by the very
+regression they had just declared acceptable. Expired and malformed waivers now fail the build,
+as the file always claimed.
 
 ## A gate is not live until it has been seen to fail
 
-Before trusting any of this, run both drills:
+The drills are now executable. Run them:
 
-1. Reintroduce a `Pattern.compile` inside a loop → Tier 2 must block.
-2. Reintroduce a per-node map allocation → Tier 1 must block.
+```bash
+python benchmarks/test_compare.py
+```
+
+23 drills, added 2026-08-19, covering both directions. Until then **nothing exercised
+`compare.py` at all** — `docs/ANTI_REGRESSION.md` records exactly two manual drills, both of
+which injected a regression and watched it block, and one of which was itself a false pass (it
+exited 1 from a `FileNotFoundError` rather than from a gate decision). Every drill therefore
+asserts the reported REASON as well as the exit code.
+
+The drills that mattered were the ones nobody had run — the states where the gate reports success
+because it measured nothing. All four were real, and all four are fixed:
+
+1. **Empty results file** → used to exit 0 printing "No blocking regressions detected".
+2. **A baseline benchmark did not run** → used to exit 0. The loop iterated the CURRENT run only,
+   so a renamed benchmark, a broken `@Setup` or a mistyped filter silently removed that
+   benchmark's Tier-1 check.
+3. **`-prof gc` dropped** → used to exit 0. Tier 1 lived inside `if "alloc" in b and "alloc" in
+   c`, so with no allocation data the only blocking tier evaluated on zero benchmarks. CI passes
+   `--throughput advisory`, so nothing else could block either: the whole gate went decorative
+   and said so in green.
+4. **`@Param` rows collapsing** → `load()` keyed on benchmark+mode with no params, so all six
+   rows of `SchemaCacheCliffBenchmark.rotateThroughSchemas` mapped to one key and five were
+   discarded on load. The cliff row this benchmark exists to expose was among them.
+
+The two original drills below are still worth running, and both were found **in shipped code**
+rather than needing to be reintroduced:
+
+1. `Pattern.compile` inside a loop — was live at `processGroupedValues`, 432 compiles per
+   `mixedProduction` record, removed 2026-08-19.
+2. A per-node map allocation — `MapFlattener.flattenValue` allocates a throwaway `LinkedHashMap`
+   per value and is still there. Unmeasured by this pass.
+
+A stale harness is a fifth vacuous pass and has its own check, because `benchmarks/` depends on
+the library ARTIFACT rather than its sources — skip `./mvnw install -DskipTests` and you measure
+the previous build while reporting a clean 0.00%:
+
+```bash
+python benchmarks/check_harness_fresh.py
+```
+
+That one is not hypothetical either: it was hit during the 2026-08-19 pass, by the person writing
+up the hole, and caught only because the wrong number happened to be recognisable.
 
 An untested gate is indistinguishable from a disabled one. This repository already shipped a 20%
 coverage floor against 60% actual coverage and three static-analysis plugins that had never been

@@ -181,6 +181,16 @@ CODEOWNERS approval and appear in the CI summary.
 Expired waivers fail the build. That is deliberate — it forces a re-decision instead of letting a
 temporary allowance become permanent through inattention.
 
+**Implemented 2026-08-19, and until then this whole section described a mechanism that did not
+exist.** `compare.py` never opened `waivers.yml`; the only reference to the file anywhere in the
+repository was the file itself. Vacuously safe while the list was empty, and actively misleading
+the moment it was not: the first author to write a waiver would have believed the gate had been
+told about an accepted trade, and then been blocked by that trade anyway — which is exactly the
+pressure that gets gates switched off. A waiver now suppresses a failure up to its accepted
+percentage and no further, an expired waiver fails the build even when nothing regressed, and a
+waiver missing its expiry fails rather than being silently ignored. All four are drilled in
+`benchmarks/test_compare.py`.
+
 ## Validating the gates
 
 **Do not trust any of this until you have watched it fail.** Four drills:
@@ -211,7 +221,7 @@ works", not "works".
 | Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 314 / 231). Asserted equal to that file by `PublishedProjectFactsMatchTheSourceTest` — this row said `323` for a pass after the PMD ceiling was lowered in `da29c55`, which is a document explaining the ratchets while publishing a value the ratchet does not use. |
 | OWASP CVE scan | **Reporting only** — two known CVEs to clear first |
 | JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md) |
-| ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. 413 AS MEASURED ON 2026-08-11, against a `src/main` of ~19,860 lines; it is 24,432 lines now and the figure has not been re-run. Reported, not gated. `docs/PERFORMANCE.md` published 378 for the same control and called it ratcheted; both halves of that were wrong and are corrected there. |
+| ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. 413 AS MEASURED ON 2026-08-11, against a `src/main` of ~19,860 lines; it is 24,432 lines now and the figure has not been re-run. Reported, not gated. `docs/PERFORMANCE.md` published 378 for the same control and called it ratcheted; both halves of that were wrong. NOTE, 2026-08-19: this row asserted they "are corrected there" while PERFORMANCE.md still said 378 and still called it a ratchet - a document claiming a fix to another document that had never been applied. Both are corrected now, and the lesson is that a cross-document claim needs the same gate as a number: `PublishedProjectFactsMatchTheSourceTest` binds the ceiling triple, and nothing bound this. |
 | Tier 1 / Tier 2 comparison gate | Live, and **drilled in both directions** |
 | Gate-failure drills (CI-level) | **Not yet run** — the four in the table above |
 

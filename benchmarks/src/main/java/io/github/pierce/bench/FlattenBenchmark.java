@@ -92,8 +92,16 @@ public class FlattenBenchmark {
     }
 
     /**
-     * The array-heavy corpus is where exception-driven type detection dominates: numeric-looking
-     * strings drive one NumberFormatException construction per element.
+     * The largest single-document allocator in the suite, and the pass-after-pass target.
+     *
+     * <p>This javadoc used to say the corpus "is where exception-driven type detection
+     * dominates: numeric-looking strings drive one NumberFormatException construction per
+     * element". Both halves were wrong by 2026-08-19. The exception path was removed in 843a461
+     * on 2026-08-09, and the strings were never numeric-looking in the first place - the
+     * generator emits randomToken over [a-z0-9], so roughly 98% contain a letter outside the
+     * double grammar and are rejected by a character scan on their first or second character.
+     * The corpus property that actually matters is "many array elements", not "expensive to
+     * type-check".</p>
      */
     @Benchmark
     public void consolidate_arrayHeavy(Blackhole bh) {
