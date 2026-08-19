@@ -144,7 +144,7 @@
         <guava.version>33.3.1-jre</guava.version>
         <commons-io.version>2.15.0</commons-io.version>
         <commons-compress.version>1.27.1</commons-compress.version>
-        <commons-codec.version>1.17.1</commons-codec.version>
+        <commons-codec.version>1.22.1</commons-codec.version>
         <commons-lang3.version>3.16.0</commons-lang3.version>
         <snakeyaml.version>2.2</snakeyaml.version>
         <slf4j.version>2.0.16</slf4j.version>
@@ -342,7 +342,7 @@
             <dependency>
                 <groupId>commons-codec</groupId>
                 <artifactId>commons-codec</artifactId>
-                <version>1.17.1</version>
+                <version>1.22.1</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
