@@ -44,10 +44,10 @@ jobs:
     name: verify before release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: temurin
@@ -78,12 +78,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: maven-central
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: temurin
@@ -227,7 +227,7 @@ jobs:
       # A workflow_dispatch run is exactly how someone gets a build of an unreleased branch, so it
       # must yield a downloadable artifact. Tagged runs additionally create a GitHub Release.
       - name: Upload artifacts to the workflow run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nexus-piercer-artifacts
           path: |
@@ -262,7 +262,7 @@ jobs:
 
       - name: Attach artifacts to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           body_path: docs/INSTALL.md
