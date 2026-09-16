@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: NexusPiercer
 Upstream-Contact: Pierce Lonergan
-Source: https://github.com/piercelonergan/nexuspiercer
+Source: https://github.com/pierce-lonergan/NexusPiercer
 
 Files: *
 Copyright: 2025 Pierce Lonergan

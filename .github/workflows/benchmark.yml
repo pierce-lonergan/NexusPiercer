@@ -72,18 +72,25 @@ jobs:
         # for bytecode that is no longer what ships. That is precisely the promise the comment on
         # the install step makes, so it is asserted rather than assumed. This drifted once already,
         # across the 2.0.0 -> 2.1.0-SNAPSHOT bump.
-        run: |
-          ROOT=$(./mvnw -B -ntp -q help:evaluate -Dexpression=project.version -DforceStdout)
-          BENCH=$(mvn -B -ntp -q -f benchmarks/pom.xml help:evaluate \
-                    -Dexpression=nexus.piercer.version -DforceStdout 2>/dev/null \
-                  || grep -A2 '<artifactId>nexus-piercer</artifactId>' benchmarks/pom.xml \
-                     | sed -n 's|.*<version>\(.*\)</version>.*|\1|p' | head -1)
-          echo "root pom: ${ROOT}"
-          echo "benchmarks depend on: ${BENCH}"
-          if [[ "${ROOT}" != "${BENCH}" ]]; then
-            echo "::error::benchmarks/pom.xml depends on nexus-piercer:${BENCH} but the root pom is ${ROOT}. Bump benchmarks/pom.xml (both its own <version> and the nexus-piercer dependency) so the harness measures the bytecode that ships."
-            exit 1
-          fi
+        #
+        # THIS STEP WAS THREE LINES OF SHELL AND IT FAILED EVERY SCHEDULED RUN FROM THE DAY IT
+        # LANDED. It read the dependency version with `help:evaluate -Dexpression=
+        # nexus.piercer.version || grep ...`. That property does not exist in benchmarks/pom.xml
+        # and never did - but help:evaluate does NOT exit non-zero on an unresolvable expression.
+        # It prints "null object or invalid expression" on stdout and exits 0, so the `||` never
+        # fired, the comparison ran against that sentence, and CI reported a drift that did not
+        # exist. The versions were identical throughout.
+        #
+        # Moved into a drilled script for that reason: the failure was a belief about an exit
+        # code, which is the third time that has broken a gate here. check_version_alignment.py
+        # reads the files and is drilled in both directions, including the unreadable case, which
+        # now exits 2 rather than resembling agreement.
+        run: python benchmarks/check_version_alignment.py --root .
+
+      - name: Drill the version-alignment check itself
+        # A check that has only ever passed is a disabled check, and this one shipped broken
+        # precisely because nothing exercised it. Runs in CI so it cannot rot again.
+        run: python benchmarks/test_check_version_alignment.py
 
       - name: Build the benchmark jar
         run: mvn -B -ntp -f benchmarks/pom.xml clean package
