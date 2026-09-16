@@ -1278,6 +1278,15 @@
                             </rulesets>
                             <excludeRoots>
                                 <excludeRoot>target/generated-sources</excludeRoot>
+                                <!-- avro-maven-plugin's `test-schemas` execution writes here via the MAIN
+                                     <outputDirectory> parameter, so the directory lands on the project's
+                                     COMPILE source roots. maven-pmd-plugin reads the compile roots
+                                     unconditionally and the test roots only when includeTests is true, so
+                                     <includeTests>false</includeTests> does not reach it and PMD charged the
+                                     ratchet 40 violations in four generated Avro classes that no source edit
+                                     can pay down. spotbugs-exclude.xml has excluded both generated trees
+                                     since it was written; this makes PMD agree with it. -->
+                                <excludeRoot>target/generated-test-sources</excludeRoot>
                             </excludeRoots>
                         </configuration>
                         <executions>
