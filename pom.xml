@@ -177,7 +177,7 @@
           return. See SECURITY.md and BL-028.
         -->
         <jqwik.version>1.9.3</jqwik.version>
-        <iceberg.version>1.7.1</iceberg.version>
+        <iceberg.version>1.11.0</iceberg.version>
 
         <!-- Supply-chain tooling (see the `security` profile) -->
         <dependency-check.version>10.0.4</dependency-check.version>
