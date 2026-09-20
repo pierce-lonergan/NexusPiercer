@@ -236,7 +236,7 @@
         <pmd-maven-plugin.version>3.21.2</pmd-maven-plugin.version>
         <checkstyle-maven-plugin.version>3.3.1</checkstyle-maven-plugin.version>
         <checkstyle.version>10.12.5</checkstyle.version>
-        <sonar-maven-plugin.version>3.10.0.2594</sonar-maven-plugin.version>
+        <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
         <versions-maven-plugin.version>2.16.2</versions-maven-plugin.version>
         <git-commit-id-maven-plugin.version>7.0.0</git-commit-id-maven-plugin.version>
 
