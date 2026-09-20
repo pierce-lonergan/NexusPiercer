@@ -196,7 +196,7 @@
              up to error-prone 2.49.0 or later, or it will silently mask a future convergence
              signal from the artifact it was added to reconcile. -->
         <error-prone.version>2.49.0</error-prone.version>
-        <aircompressor.version>0.27</aircompressor.version>
+        <aircompressor.version>2.0.3</aircompressor.version>
         <caffeine.version>3.2.4</caffeine.version>
         <junit-platform.version>6.1.3</junit-platform.version>
 
