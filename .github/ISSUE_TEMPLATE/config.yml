@@ -3,6 +3,12 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/pierce-lonergan/NexusPiercer/security/advisories/new
     about: Report privately. Do not open a public issue.
-  - name: Question or discussion
-    url: https://github.com/pierce-lonergan/NexusPiercer/discussions
-    about: Usage questions and design discussion.
+  # Discussions are DISABLED on this repository, so the link that used to sit here 404'd for
+  # every visitor who clicked it. With blank_issues_enabled: false that was the only route a
+  # stranger with a question was offered, and it did not work.
+  - name: Question or usage help
+    url: https://github.com/pierce-lonergan/NexusPiercer/blob/main/SUPPORT.md
+    about: Usage questions, install problems, and where to ask.
+  - name: Will my data survive a round trip?
+    url: https://github.com/pierce-lonergan/NexusPiercer/blob/main/docs/ROUND_TRIP_FIDELITY.md
+    about: The published per-shape fidelity contract. Read this before reporting lossy output.

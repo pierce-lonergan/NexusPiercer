@@ -53,12 +53,17 @@ corpus of **166 fixtures** that are executed on every build:
 | `ACCEPTED_LOSS` | 25 | Does not round-trip; the reason is stated and defensible |
 | `DEFECT` | 83 | Does not round-trip, and that is a bug we have not fixed |
 
+That `DEFECT` count is high because **the corpus was built adversarially** — it hunts for the
+shapes that break rather than sampling shapes at random — and every one of those rows is a shape
+real data has. It is a map of where this library loses information, not a sample of how often it
+does. The honest summary is that structural flattening is reliable and full JSON round-tripping is
+not.
+
 A `DEFECT` fixture asserts the defect is **still present**, so repairing one turns the build red and
 forces a deliberate update to the published contract. The document cannot drift from the corpus —
 it is generated from the manifest and a test asserts the committed bytes match.
 
-If you need to know whether *your* data survives, read that document before adopting. The honest
-summary is that structural flattening is reliable and full JSON round-tripping is not.
+If you need to know whether *your* data survives, read that document before adopting.
 
 ## Install
 
@@ -71,6 +76,11 @@ summary is that structural flattening is reliable and full JSON round-tripping i
 ```
 
 Requires **Java 17+**. Spark integration is built against **Spark 3.5.x / Scala 2.12**.
+
+> **`2.0.0` is the current release.** Everything on this page marked **2.1.0** is on `main` and is
+> not published yet, so a `2.0.0` dependency does not have `SchemaFiles`, `maxArrayCells`,
+> `ArrayCardinalityException` or `KeyCollisionException`. Check your version before reaching for
+> them.
 
 No Maven Central access? Three verified routes that need no Central at all — a release jar, a
 source build, and a fully air-gapped install — are documented in
@@ -392,7 +402,7 @@ Useful variations:
 ```
 
 The build is pure Java — Java 17, single-language, no Groovy toolchain. Every PR runs the full
-suite on JDK 17 and 21 across Linux and Windows.
+suite on Linux against JDK 17 and 21, plus Windows on JDK 17.
 
 ## Project status — read this before adopting
 
@@ -475,7 +485,8 @@ otherwise for your shape.
 ## Contributing
 
 Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Every PR runs the full test
-suite on JDK 17 and 21 across Linux and Windows, plus static analysis, CVE scanning, and CodeQL.
+suite on Linux against JDK 17 and 21, plus Windows on JDK 17, plus static analysis, CVE scanning,
+and CodeQL.
 
 If you fix something the fidelity corpus classifies as a `DEFECT`, the build will go red. That is
 intended: update the manifest and regenerate the guarantee in the same change.
