@@ -58,7 +58,7 @@ input moved it.
 | `wideFlat` | 1,000 scalar fields, depth 1 | 24,665 B | Cost linear in key count, no structural confound |
 | `deepNarrow` | depth 24, one field per level (64 also built) | 314 B (834 B at 64) | Depth-driven cost; quadratic-in-depth effects |
 | `arrayHeavy` | 20 arrays x 500 + 5 record-arrays x 100 x 8 — 14,000 leaves | 189,951 B | Per-element cost and allocation rate |
-| `unionNullable` | 200 three-branch unions skewed to the last branch, plus 3 date/union extras | 5,825 B | **Generated but never measured** — no `@Benchmark` consumes it |
+| `unionNullable` | 200 three-branch unions skewed to the last branch, plus 3 date/union extras | 5,825 B | Consumed by `AvroReconstructBenchmark.reconstruct_unionNullable_{shared,reparsed}Schema` since 2026-09-20. **Not yet in `baseline.json`**, so it is measured but not gated — see BL-026. |
 | `mixedProduction` | 236 top-level fields, depth 4, 12 arrays (p50 8 / p99 400) | 11,356 B | Headline number; realistic shape |
 
 **Every size in that column was published 1.8x to 6.5x too large until 2026-08-19** — "~45 KB",

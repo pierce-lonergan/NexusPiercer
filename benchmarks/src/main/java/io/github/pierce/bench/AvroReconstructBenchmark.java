@@ -57,9 +57,26 @@ public class AvroReconstructBenchmark {
     /** Wide-ish record with nesting, deliberately using snake_case names. */
     private static final String SCHEMA_JSON = buildSchemaJson();
 
+    /**
+     * A 203-field record whose every data field is a three-branch union with the string branch
+     * LAST, paired with {@link Corpus#unionNullable()}.
+     *
+     * <p>Added 2026-09-20. Until then the union path had no benchmark on EITHER side: the only
+     * Avro-schema benchmark in the suite was {@link #SCHEMA_JSON}, which is 43 required fields
+     * with zero unions, zero nullables and zero logical types, while
+     * {@code Corpus.unionNullable()} was generated and consumed by nothing. That is the gap this
+     * closes, and it matters because the published fidelity corpus pins four DEFECT rows to
+     * top-level union branch selection and 2.1.0 added a type-directed array-element branch
+     * selector on the same reconstruct path.</p>
+     */
+    private static final String UNION_SCHEMA_JSON = buildUnionSchemaJson();
+
     private Schema sharedSchema;
     private Map<String, Object> flattened;
     private AvroReconstructor reconstructor;
+
+    private Schema sharedUnionSchema;
+    private Map<String, Object> flattenedUnion;
 
     @Setup(Level.Trial)
     public void setUp() {
@@ -82,6 +99,9 @@ public class AvroReconstructBenchmark {
         }
 
         flattened = new MapFlattener(false, 50, 1000).flatten(source);
+
+        sharedUnionSchema = new Schema.Parser().parse(UNION_SCHEMA_JSON);
+        flattenedUnion = new MapFlattener(false, 50, 1000).flatten(Corpus.toMap(Corpus.unionNullable()));
     }
 
     /**
@@ -105,6 +125,54 @@ public class AvroReconstructBenchmark {
     public void reconstruct_reparsedSchema(Blackhole bh) {
         Schema fresh = new Schema.Parser().parse(SCHEMA_JSON);
         bh.consume(reconstructor.reconstructToMap(flattened, fresh));
+    }
+
+    /**
+     * Union branch selection, shared schema. The corpus is skewed 15% null / 15% long / 70%
+     * non-numeric string against a schema that declares string LAST, so roughly seven values in
+     * ten reach the final branch only after the long branch has been tried and rejected.
+     *
+     * <p>This is deliberately the WORST realistic case, as {@code Corpus.unionNullable()}'s own
+     * javadoc says. A first-branch-dominant workload would show near-zero cost on identical
+     * code, so this number must never be quoted as "the cost of unions" on its own.</p>
+     */
+    @Benchmark
+    public void reconstruct_unionNullable_sharedSchema(Blackhole bh) {
+        bh.consume(reconstructor.reconstructToMap(flattenedUnion, sharedUnionSchema));
+    }
+
+    /**
+     * The same, with the union schema re-parsed per operation. Paired with the shared-schema
+     * form for the same reason {@link #reconstruct_reparsedSchema} is paired with
+     * {@link #reconstruct_sharedSchema}: it holds the cache-keying variable controlled, so a
+     * change to how schemas are keyed cannot be mistaken for a change in branch selection.
+     */
+    @Benchmark
+    public void reconstruct_unionNullable_reparsedSchema(Blackhole bh) {
+        Schema fresh = new Schema.Parser().parse(UNION_SCHEMA_JSON);
+        bh.consume(reconstructor.reconstructToMap(flattenedUnion, fresh));
+    }
+
+    /**
+     * 200 three-branch unions plus the three extras {@code Corpus.unionNullable()} emits, with
+     * the branch ORDER chosen to match what the corpus is built to punish: null, then long,
+     * then string.
+     */
+    private static String buildUnionSchemaJson() {
+        StringBuilder sb = new StringBuilder(8192);
+        sb.append("{\"type\":\"record\",\"name\":\"UnionRecord\",\"namespace\":\"bench\",\"fields\":[");
+        for (int i = 0; i < 200; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{\"name\":\"union_field_").append(i)
+              .append("\",\"type\":[\"null\",\"long\",\"string\"],\"default\":null}");
+        }
+        sb.append(",{\"name\":\"created_at\",\"type\":[\"null\",\"string\"],\"default\":null}");
+        sb.append(",{\"name\":\"updated_at\",\"type\":[\"null\",\"string\"],\"default\":null}");
+        sb.append(",{\"name\":\"mixed_union_value\",\"type\":[\"null\",\"long\",\"string\"],\"default\":null}");
+        sb.append("]}");
+        return sb.toString();
     }
 
     private static String buildSchemaJson() {
