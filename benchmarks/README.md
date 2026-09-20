@@ -97,6 +97,46 @@ runner load, which is why it can carry a 2% gate where throughput needs 10%.
 Tier 2 never fails on overlapping confidence intervals, regardless of the point estimate. That
 rule is what prevents the false failures that get performance gates disabled.
 
+### Allocation is only comparable within one JVM
+
+Tier 1 gates hard **against a baseline recorded on the same runner class**, and reports without
+blocking when the classes differ. `compare.py` derives a runner class of
+`jdk<major>/<os-family>/<vm-name>` from the `jdkVersion`, `jvm` and `vmName` fields JMH writes
+into every report.
+
+This is not caution for its own sake. `compare.py` asserted for its whole life that
+`gc.alloc.rate.norm` "is identical on any machine". The counter is exact for the JVM that
+produced it, but the bytes it counts are the ones that JVM's `javac` and JIT chose to allocate,
+and those differ across major releases. Measured 2026-09-20, source and dependencies held fixed
+and only the JDK changed:
+
+| JVM | One `new Schema.Parser().parse(...)` |
+|---|---:|
+| Temurin 21.0.7 | 67,244.98 B/op |
+| Temurin 17.0.15 | 67,886.65 B/op |
+| | **+641.7 B/op, +0.95%** |
+
+Against a 2% tolerance that is half the budget spent before any code change is considered. The
+committed baseline is a Windows/JDK 21 recording and CI runs Linux/JDK 17, so four consecutive
+nightlies read the runner difference as an allocation regression and attributed it to the
+dependency sweep — while the only dependency on that path, `avro` 1.12.0 → 1.12.1 with `jackson`
+2.18.0 → 2.22.2, measures 67,807.71 → 67,764.80 B/op: **43 bytes lower, not higher.**
+
+`--throughput advisory` already existed to stop exactly this failure on the other tier; the same
+knowledge simply had not been applied to Tier 1.
+
+Three rules keep the repair from becoming an excuse:
+
+* An **unreadable** runner class is a structural failure, not a free pass. Every real JMH report
+  carries the fields; one that does not is malformed, and letting it through would allow a broken
+  report to switch off the only blocking tier and still print green.
+* Cross-runner allocation deltas are **still printed**, under an ADVISORY heading, so they cannot
+  vanish.
+* Every run states which two runner classes it compared, whether or not anything moved.
+
+To restore hard allocation gating in CI, record a baseline on the CI runner class — that is
+tracked in `docs/BACKLOG.md`, not left implicit here.
+
 Intentional trades go in [`waivers.yml`](waivers.yml) with an expiry date. That mechanism was
 documented from the start and **implemented on 2026-08-19** — before then `compare.py` never
 opened the file, so a waiver would have been silently ignored and its author blocked by the very
@@ -111,13 +151,15 @@ The drills are now executable. Run them:
 python benchmarks/test_compare.py
 ```
 
-`test_compare.py` runs **25 drills**, added 2026-08-19, covering both directions. Until then
+`test_compare.py` runs **33 drills** — 25 added 2026-08-19 covering both directions, and
+8 added 2026-09-20 pinning the runner-class rule described under "Allocation is only
+comparable within one JVM" below. Until then
 **nothing exercised `compare.py` at all** — `docs/ANTI_REGRESSION.md` records exactly two manual
 drills, both of which injected a regression and watched it block, and one of which was itself a
 false pass (it exited 1 from a `FileNotFoundError` rather than from a gate decision). Every drill
 therefore asserts the reported REASON as well as the exit code.
 
-The 25th drill is this sentence. The file published "23 drills" while emitting 24, so each drill
+The 33rd drill is this sentence. The file published "23 drills" while emitting 24, so each drill
 file now reads its own count out of this README and fails if the two disagree — a published count
 that drifts is the same defect as a published suite size that drifts, and this project's doctrine
 is to verify the count rather than the exit code.

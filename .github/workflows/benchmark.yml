@@ -92,6 +92,17 @@ jobs:
         # precisely because nothing exercised it. Runs in CI so it cannot rot again.
         run: python benchmarks/test_check_version_alignment.py
 
+      - name: Drill the comparison gate and the freshness check
+        # These two suites existed since 2026-08-19 with 33 and 22 drills between them, were
+        # documented in benchmarks/README.md with instructions to run them BY HAND, and were
+        # wired into no workflow at all - so in CI terms they had never run once. A drill suite
+        # nothing executes is weaker than the check it drills: it reads as coverage while
+        # providing none, which is the exact defect class both suites were written to catch.
+        # Wired in 2026-09-20. Both passed unmodified on the first run, so this adds no debt.
+        run: |
+          python benchmarks/test_compare.py
+          python benchmarks/test_check_harness_fresh.py
+
       - name: Build the benchmark jar
         run: mvn -B -ntp -f benchmarks/pom.xml clean package
 
@@ -143,7 +154,8 @@ jobs:
           python3 benchmarks/compare.py \
             --baseline benchmarks/results/baseline.json \
             --current current.json \
-            --throughput advisory
+            --throughput advisory \
+            --allocation auto
 
       - name: Upload results
         if: always()

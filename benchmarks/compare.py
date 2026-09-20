@@ -8,8 +8,16 @@ real regressions through.
 
   TIER 1 - deterministic counters (gc.alloc.rate.norm)
       Bytes allocated per operation is derived from thread-allocation accounting, not from a
-      clock. It does not move with runner load, so a tight 2% band is real signal. Failures here
-      are never retried.
+      clock. It does not move with runner LOAD, so a tight 2% band is real signal on a fixed
+      JVM, and failures there are never retried.
+
+      It does, however, move with the JVM itself, and this file asserted the opposite until
+      2026-09-20. MEASURED, same source, same dependency set, same machine, only the JDK
+      changed: parsing one Avro schema allocates 67,244.98 B/op on Temurin 21.0.7 and
+      67,886.65 B/op on Temurin 17.0.15 - +641.7 B/op, +0.95%, against a 2% tolerance. Add a
+      different OS and the remainder of a cross-class comparison is noise wearing the costume
+      of a regression. So allocation is gated only against a baseline recorded on the SAME
+      runner class; see --allocation and runner_fingerprint below.
 
   TIER 2 - throughput / latency
       Blocked only when BOTH the 99.9% confidence intervals are disjoint AND the point estimate
@@ -41,6 +49,48 @@ GEOMEAN_TOLERANCE = 0.05     # Suite-wide drift.
 
 # Benchmarks whose mode means "bigger is better".
 HIGHER_IS_BETTER = {"thrpt"}
+
+
+def runner_fingerprint(path: str) -> str:
+    """The JVM identity a JMH report was produced under, as a comparable string.
+
+    Allocation per operation is a property of the JVM that ran the benchmark, not of the source
+    alone: javac and the JIT differ between major releases in string concatenation, lambda and
+    record desugaring and in what escape analysis can scalar-replace. Two reports from different
+    JDK majors or different operating systems are not comparable on gc.alloc.rate.norm, and
+    comparing them anyway is how this gate spent four nightlies blaming a dependency bump that
+    a direct measurement showed to be allocation-neutral to within 43 B/op.
+
+    JMH records jdkVersion, vmName and the absolute path of the launching binary in every entry.
+    The OS family is read off that path because JMH does not carry os.name: a Windows jvm path
+    starts with a drive letter, a POSIX one with a slash. That is coarse on purpose - the point
+    is to notice "these are not the same kind of machine", not to identify the distribution.
+
+    Returns "unknown" when the report carries no usable metadata, which is treated as a
+    mismatch rather than as a match: an unknown runner is exactly the case where a silent
+    comparison is least safe.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, ValueError):
+        return "unknown"
+    if not isinstance(raw, list) or not raw:
+        return "unknown"
+    first = raw[0]
+    jdk = str(first.get("jdkVersion") or "").strip()
+    vm = str(first.get("vmName") or "").strip()
+    jvm_path = str(first.get("jvm") or "")
+    if not jdk:
+        return "unknown"
+    major = jdk.split(".")[0] if jdk else "?"
+    if re.match(r"^[A-Za-z]:[\\/]", jvm_path) or "\\" in jvm_path:
+        os_family = "windows"
+    elif jvm_path.startswith("/"):
+        os_family = "unix"
+    else:
+        os_family = "unknown-os"
+    return f"jdk{major}/{os_family}/{vm or 'unknown-vm'}"
 
 
 def load(path: str) -> dict[str, dict[str, Any]]:
@@ -186,9 +236,16 @@ def main() -> int:
     ap.add_argument("--update", action="store_true",
                     help="Overwrite the baseline with the current run (merge job on main only).")
     ap.add_argument("--throughput", choices=("blocking", "advisory"), default="blocking",
-                    help="Whether Tier 2 (timing) can fail the build. Allocation is ALWAYS "
-                         "blocking. Use 'advisory' when the baseline was not recorded on the same "
-                         "machine class as the current run - see below.")
+                    help="Whether Tier 2 (timing) can fail the build. Use 'advisory' when the "
+                         "baseline was not recorded on the same machine class as the current "
+                         "run - see below.")
+    ap.add_argument("--allocation", choices=("blocking", "advisory", "auto"), default="auto",
+                    help="Whether Tier 1 (allocation) can fail the build. 'auto' - the default "
+                         "and what CI should use - blocks when the baseline and the current run "
+                         "came from the same runner class and reports without blocking when they "
+                         "did not, because gc.alloc.rate.norm is deterministic on a fixed JVM "
+                         "and not across JDK majors or operating systems. 'blocking' forces the "
+                         "comparison even across classes; 'advisory' never blocks.")
     ap.add_argument("--waivers",
                     default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                          "waivers.yml"),
@@ -205,10 +262,32 @@ def main() -> int:
     # code paths; a machine change is. The baseline had been recorded on a developer workstation
     # and compared against a GitHub shared-vCPU runner, which is roughly half the speed.
     #
-    # That is a property of the metric, not a tuning problem. gc.alloc.rate.norm is a counter
-    # derived from thread-allocation accounting and is identical on any machine; wall-clock is
-    # not. So allocation gates hard everywhere, and throughput only gates against a baseline
-    # recorded on the same runner class.
+    # That is a property of the metric, not a tuning problem. Wall-clock moves with the machine.
+    #
+    # WHAT THIS COMMENT USED TO CLAIM, AND WHY IT WAS WRONG. It said gc.alloc.rate.norm "is a
+    # counter derived from thread-allocation accounting and is identical on any machine", and
+    # concluded that allocation could gate hard everywhere. The first half is true and the
+    # second does not follow. The counter is exact for the JVM that produced it; it is not the
+    # same number on a different JVM, because the bytes being counted are the ones that JVM's
+    # javac and JIT decided to allocate.
+    #
+    # MEASURED 2026-09-20, holding source and dependencies fixed and changing only the JDK:
+    # one Avro Schema.Parser().parse() allocates 67,244.98 B/op on Temurin 21.0.7 and
+    # 67,886.65 B/op on Temurin 17.0.15. That is +0.95% against ALLOC_TOLERANCE of 2% - half
+    # the budget consumed before any code change is considered.
+    #
+    # The cost of the wrong premise was four consecutive red nightlies attributing +2.6% on
+    # AvroReconstructBenchmark.reconstruct_reparsedSchema to the dependency sweep, while a
+    # direct measurement of the only dependency on that path put avro 1.12.0 -> 1.12.1 with
+    # jackson 2.18.0 -> 2.22.2 at 67,807.71 -> 67,764.80 B/op: 43 bytes LOWER, not higher. The
+    # baseline is a Windows/JDK21 recording and CI is Linux/JDK17, so the gate was reading the
+    # runner change as a regression - the identical failure mode that --throughput advisory
+    # already existed to prevent, left in place on the other tier.
+    #
+    # So BOTH tiers are now runner-class aware. Allocation still gates hard against a baseline
+    # from the same runner class, which is the case that matters for catching a real regression;
+    # across classes it reports and does not block, and says so in the summary rather than
+    # passing quietly.
 
     if args.update:
         with open(args.current, encoding="utf-8") as src:
@@ -227,7 +306,28 @@ def main() -> int:
     curr = load(args.current)
     waivers = load_waivers(args.waivers)
 
+    base_runner = runner_fingerprint(args.baseline)
+    curr_runner = runner_fingerprint(args.current)
+    same_runner = base_runner == curr_runner and base_runner != "unknown"
+    if args.allocation == "auto":
+        alloc_blocking = same_runner
+    else:
+        alloc_blocking = args.allocation == "blocking"
+
     tier1: list[str] = []
+    tier1_advisory: list[str] = []
+    runner_structural: list[str] = []
+    # An unreadable runner class is NOT quietly treated as "different" - that would let a
+    # malformed report switch off the only blocking tier, which is the decorative-gate failure
+    # this file already documents three times. It fails closed instead, exactly like a report
+    # that is missing its gc profiler data.
+    if args.allocation == "auto" and (base_runner == "unknown" or curr_runner == "unknown"):
+        runner_structural.append(
+            f"cannot establish the runner class (baseline '{base_runner}', current "
+            f"'{curr_runner}'): every real JMH report carries jdkVersion and jvm, so a report "
+            f"without them is malformed. Allocation is only comparable within one runner class, "
+            f"and refusing to guess is the point - re-run JMH, or pass --allocation "
+            f"blocking/advisory to state the intent explicitly.")
     tier2: list[str] = []
     tier2_advisory: list[str] = []
     structural: list[str] = []
@@ -323,10 +423,16 @@ def main() -> int:
                 allowed = waiver_for(waivers, key, "alloc")
                 if allowed is not None and alloc_delta <= allowed:
                     alloc_note += " (waived)"
-                else:
+                elif alloc_blocking:
                     verdict = "ALLOC REGRESSION"
                     tier1.append(f"{key}: allocation {alloc_delta:+.1f}% "
                                  f"({b['alloc']:.0f} -> {c['alloc']:.0f} B/op)")
+                else:
+                    # Reported, never hidden - but not blocking, because the two reports came
+                    # from different JVMs and the delta is not attributable to the source.
+                    alloc_note += " (cross-runner)"
+                    tier1_advisory.append(f"{key}: allocation {alloc_delta:+.1f}% "
+                                          f"({b['alloc']:.0f} -> {c['alloc']:.0f} B/op)")
 
         rows.append((key, f"{b['score']:.3f}", f"{c['score']:.3f}",
                      f"{delta:+.1f}%", alloc_note or verdict))
@@ -352,6 +458,7 @@ def main() -> int:
     import datetime
     stale = expired_waivers(waivers, args.today or datetime.date.today().isoformat())
     structural += [f"waivers.yml: {m}" for m in stale]
+    structural += runner_structural
 
     if structural:
         lines += ["#### Structural failures (the measurement is not trustworthy)", ""]
@@ -365,8 +472,29 @@ def main() -> int:
     if tier2_advisory:
         lines += ["#### Tier 2 (throughput) — ADVISORY, not blocking", "",
                   "The baseline was not recorded on this runner class, so timing is reported "
-                  "rather than gated. Allocation remains blocking.", ""]
+                  "rather than gated.", ""]
         lines += [f"- {m}" for m in tier2_advisory] + [""]
+    if tier1_advisory:
+        lines += ["#### Tier 1 (allocation) — ADVISORY, not blocking", "",
+                  f"Baseline runner `{base_runner}` vs current runner `{curr_runner}`. "
+                  "gc.alloc.rate.norm is exact for the JVM that produced it and is NOT "
+                  "comparable across JDK majors or operating systems - measured, one Avro "
+                  "schema parse allocates +0.95% more on Temurin 17 than on Temurin 21 with "
+                  "the source and dependencies held fixed, against a 2% tolerance. These rows "
+                  "are reported so they cannot vanish, but they are not attributable to the "
+                  "source and do not block.", ""]
+        lines += [f"- {m}" for m in tier1_advisory] + [""]
+    # Say which runners were compared on EVERY run, not only when something moved. A gate that
+    # names its own comparison is one a reader can check; the four nightlies this replaces
+    # looked authoritative precisely because they never said what they were comparing.
+    # Two independent facts, reported as two facts. Folding them into one sentence produced a
+    # summary that said "same class" whenever --allocation blocking was forced across classes,
+    # which is the gate lying about its own inputs.
+    lines += [f"Runner class: baseline `{base_runner}`, current `{curr_runner}` — "
+              + ("same class" if same_runner else "DIFFERENT class")
+              + "; allocation "
+              + ("GATED" if alloc_blocking else "REPORTED ONLY")
+              + f" (--allocation {args.allocation}).", ""]
     if not tier1 and not tier2 and not structural:
         lines += [f"No blocking regressions detected across {len(rows)} benchmarks.", ""]
 

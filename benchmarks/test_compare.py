@@ -30,15 +30,30 @@ COMPARE = os.path.join(HERE, "compare.py")
 README = os.path.join(HERE, "README.md")
 
 
-def entry(name, mode="avgt", score=100.0, error=1.0, alloc=1000.0, ci=None):
+def entry(name, mode="avgt", score=100.0, error=1.0, alloc=1000.0, ci=None,
+          jdk="21.0.7", jvm=r"C:\Program Files\Eclipse Adoptium\jdk-21\bin\java.exe",
+          vm="OpenJDK 64-Bit Server VM"):
     metric = {"score": score, "scoreError": error, "scoreUnit": "us/op"}
     if ci is not None:
         metric["scoreConfidence"] = list(ci)
     e = {"benchmark": f"io.github.pierce.bench.FlattenBenchmark.{name}",
          "mode": mode, "primaryMetric": metric}
+    # Real JMH reports always carry these, and compare.py reads them to decide whether the two
+    # runs are comparable on allocation at all. The drills below carried none of it until
+    # 2026-09-20, which meant every existing drill was silently exercising the "runner class
+    # unknown" path rather than the same-runner path it believed it was testing.
+    if jdk is not None:
+        e["jdkVersion"] = jdk
+    if jvm is not None:
+        e["jvm"] = jvm
+    if vm is not None:
+        e["vmName"] = vm
     if alloc is not None:
         e["secondaryMetrics"] = {"gc.alloc.rate.norm": {"score": alloc}}
     return e
+
+
+LINUX_JVM = "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64/bin/java"
 
 
 BASE = [entry("consolidate_wideFlat"), entry("consolidate_arrayHeavy", score=200.0, alloc=5000.0)]
@@ -173,6 +188,43 @@ def main():
 
     code, out = run(pbase, [param_entry(2, 1000.0)])
     expect("a dropped @Param row is caught", code == 1, out)
+
+    # ---- RUNNER CLASS: allocation is only comparable within one JVM --------------------------
+    # Added 2026-09-20. compare.py asserted for its whole life that gc.alloc.rate.norm "is
+    # identical on any machine" and gated allocation hard on that basis. It is not: measured,
+    # one Avro schema parse allocates +0.95% more on Temurin 17 than on Temurin 21 with source
+    # and dependencies held fixed, against a 2% tolerance. Four consecutive nightlies blamed a
+    # dependency sweep for a runner change. These drills pin the repair in BOTH directions,
+    # because a fix that only ever reports and never blocks is the decorative gate this file
+    # exists to prevent.
+    same_base = [entry("consolidate_wideFlat", alloc=1000.0)]
+    same_curr = [entry("consolidate_wideFlat", alloc=1100.0)]
+    code, out = run(same_base, same_curr)
+    expect("same runner class: +10% allocation still BLOCKS", code == 1, out)
+    expect("same runner class is named in the summary",
+           "same class; allocation GATED" in out, out)
+
+    cross_curr = [entry("consolidate_wideFlat", alloc=1100.0,
+                        jdk="17.0.20", jvm=LINUX_JVM)]
+    code, out = run(same_base, cross_curr)
+    expect("cross runner class: the same +10% does NOT block", code == 0, out)
+    expect("cross-runner allocation is still REPORTED, not hidden",
+           "ADVISORY" in out and "+10.0%" in out, out)
+    expect("cross-runner summary names both runner classes",
+           "jdk21/windows" in out and "jdk17/unix" in out, out)
+
+    # Forcing the comparison must remain possible, or a genuine cross-class investigation has
+    # no way to ask for the number.
+    code, out = run(same_base, cross_curr, "--allocation", "blocking")
+    expect("--allocation blocking forces the cross-class comparison", code == 1, out)
+
+    # Fail CLOSED on unreadable metadata. Treating it as "different runner" would let a
+    # malformed report switch the only blocking tier off and still print green.
+    nometa = [entry("consolidate_wideFlat", alloc=1100.0, jdk=None, jvm=None, vm=None)]
+    code, out = run(same_base, nometa)
+    expect("unreadable runner class FAILS rather than silently disabling Tier 1", code == 1, out)
+    expect("it says the runner class could not be established",
+           "cannot establish the runner class" in out, out)
 
     # ---- VERIFY THE COUNT, NEVER THE EXIT CODE ----------------------------------------------
     # benchmarks/README.md published "23 drills" while this file emitted 24, and the commit
