@@ -24,7 +24,36 @@
     "then set the new counts here in the same commit. Raising a ceiling requires a written",
     "justification in the commit message and CODEOWNERS approval."
   ],
-  "recorded": "2026-09-15",
+  "recorded": "2026-09-20",
+  "_scope_2026_09_20_publication_and_gate_honesty": [
+    "Test count 2707 -> 2709 (Maven summary line, authoritative; the surefire-XML sum reads 2173",
+    "and undercounts by 536). BOTH OF THE +2 ARE THIS PASS'S, and both are gates that FAILED",
+    "before the change they gate and PASS after, which is the only reason they are worth having:",
+    "PublishedProjectFactsMatchTheSourceTest#publishedInstallRoutesMatchTheRecordedCentralState",
+    "and #documentedPerformanceTierMatchesTheWorkflowFlag. Measured on a clean `./mvnw -o clean",
+    "verify` at this tree: 2709 run, 0 failures, 0 errors, 15 skipped, 260 surefire XML files.",
+    "The undercount gap is unchanged at 536 because @Nested classes still emit a separate report",
+    "whose parent row reports zero.",
+    "",
+    "NO CEILING MOVED AND NONE WAS OWED. This pass changed documentation, two workflow files, a",
+    "test-scope dependency version and one test class. Checkstyle 0 / PMD 273 / SpotBugs 231 are",
+    "unmoved - src/test is outside all three gates' scope (Checkstyle sets",
+    "includeTestSourceDirectory false, PMD includeTests false, SpotBugs analyses the main jar",
+    "only), so a test-only addition cannot move them. Verified rather than assumed on the",
+    "-Pquality run recorded alongside this block.",
+    "",
+    "jqwik 1.10.1 -> 1.9.3, and the suite count did NOT move across the downgrade. That is the",
+    "check worth recording: jqwik contributes @Property methods, one invocation each regardless",
+    "of the `tries` count, so a version change that altered discovery would have shown up here.",
+    "See SECURITY.md and BL-028 for why it was pinned - briefly, 1.10.1 prints unsuppressible",
+    "vendor text to System.out on every test class and the 'opt-out' flag is an opt-IN to",
+    "concealment, which the disassembly establishes and the first write-up of it got backwards.",
+    "",
+    "STALE FIGURE CORRECTED WHILE RE-MEASURING: the orchestrator brief for this pass asserted",
+    "'Checkstyle 0/0, PMD 314/314, SpotBugs 231/231'. PMD has not been 314 since dcbd30d dropped",
+    "it to 274, and 1706d7d dropped it again to 273. The ceiling this tree enforces is 273; the",
+    "314 in the block below is the historical value at the time that block was written."
+  ],
   "_scope_2026_08_19_review_followup": [
     "NO CEILING MOVED AND NONE WAS OWED. Checkstyle 0, PMD 314, SpotBugs 231 - counted with the",
     "CI command on a clean -Pquality run, each exactly at its ceiling with zero slack in either",
@@ -337,6 +366,14 @@
     "Recorded so the next reader does not spend the same hour rediscovering that a src/test",
     "change cannot move a src/main metric."
   ],
+  "publishing": {
+    "currentRelease": "2.0.0",
+    "currentReleaseOnMavenCentral": false,
+    "latestOnMavenCentral": "1.0.8",
+    "unpublishedDisclosure": "is not on Maven Central",
+    "verifiedOn": "2026-09-20",
+    "note": "MEASURED, NOT ASSUMED, on 2026-09-20 against repo1.maven.org: the directory /io/github/pierce-lonergan/nexus-piercer/2.0.0/ returns 404, as do the .pom and .jar beneath it, while 1.0.8's jar returns 200. maven-metadata.xml carries <latest>1.0.8</latest> and <release>1.0.8</release>, which is the file the README's shields.io badge reads - so the badge renders 1.0.8 directly above an install block that said 2.0.0. MECHANISM: release.yml's 'Detect available publishing credentials' step sets mode=artifacts-only when MAVEN_CENTRAL_USERNAME / MAVEN_CENTRAL_TOKEN / MAVEN_GPG_PRIVATE_KEY are empty, emits a ::warning:: and SUCCEEDS. Run 31494042124 for tag v2.0.0 took that branch, so the GitHub Release v2.0.0 is real and complete while Central never received anything. The release half was true and the Central half was not, and five documents asserted the Central half. This block is the single recorded fact those documents are now gated against by PublishedProjectFactsMatchTheSourceTest; the gate binds in BOTH directions, so flipping currentReleaseOnMavenCentral to true without removing the disclosure sentence fails just as loudly as the drift it replaces. WHEN 2.0.0 IS ACTUALLY PUBLISHED: re-verify the three URLs return 200, set currentReleaseOnMavenCentral true, set latestOnMavenCentral to 2.0.0, and delete the disclosure sentence from README.md, docs/INSTALL.md, CHANGELOG.md and SUPPORT.md - the gate will tell you if you miss one."
+  },
   "checkstyle": {
     "ceiling": 0,
     "mode": "zero-tolerance",

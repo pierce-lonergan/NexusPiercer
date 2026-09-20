@@ -1224,6 +1224,20 @@ sides should agree, and today the JSON stack fabricates where the Avro stack thr
   1.10.1 with the behaviour documented in `SECURITY.md`, or drop jqwik. Whichever is chosen,
   record it so the next Dependabot bump does not re-litigate it silently.
 - **Discovered:** 2026-09-20
+- **RESOLVED 2026-09-20 — pinned to 1.9.3.** Two corrections to the description above, both
+  established by disassembling `JqwikExecutor` rather than by re-reading the report that raised
+  it. (1) **`hideAntiAiClause` is not an opt-out.** The bytecode prints both sentences
+  unconditionally; the flag is read *after* the two `print` calls and, when true, prints the
+  ANSI erase sequences. It is an opt-**in** to the concealment. There is no way to suppress the
+  message while staying on 1.10.1. (2) **The default is `false`**, not true — the engine reads
+  `ConfigurationParameters.getBoolean("hideAntiAiClause").orElse(false)` — so the observed
+  behaviour on this project was the message printed and left visible, 209 times per verify run.
+  The concealment is available, not active. The original framing ("conditionally conceals
+  output") described the capability as though it were the observed default; the accurate finding
+  is an unsuppressible vendor message plus a concealment mechanism nobody has switched on.
+  Pinned in `pom.xml` with the reasoning inline, ignored in `.github/dependabot.yml` so it
+  cannot return unattended, and recorded in `SECURITY.md` under "Supply-chain decisions on
+  record". Suite count unchanged by the downgrade.
 
 ---
 
@@ -1246,6 +1260,82 @@ sides should agree, and today the JSON stack fabricates where the Avro stack thr
   note that `surefire` 3.2.2 -> 3.5.6 pairs with JUnit 6, which has never run together here, so
   re-verify the test count on that commit specifically.
 - **Discovered:** 2026-09-20
+
+---
+
+### [BL-030] Publish 2.0.0 to Maven Central, or keep the documents honest until it is
+- **Type:** Chore
+- **Priority:** High
+- **Effort:** S (owner-only — it needs repository secrets)
+- **Related Concern:** Distribution
+- **Affected Files:** `.github/workflows/release.yml`, `.github/quality-baseline.json`
+  (`publishing` block), `README.md`, `docs/INSTALL.md`, `CHANGELOG.md`, `SUPPORT.md`
+- **Description:** **2.0.0 was never published to Maven Central.** Verified 2026-09-20 against
+  `repo1.maven.org`: the `2.0.0` directory, POM and JAR all return 404, while `1.0.8`'s JAR
+  returns 200. `maven-metadata.xml` carries `<latest>1.0.8</latest>` and `<release>1.0.8</release>`
+  — and that is the file the README's shields.io badge read, so the badge rendered **1.0.8
+  directly above an install block that said 2.0.0**.
+  MECHANISM: `release.yml`'s credential-detection step set `mode=artifacts-only` when the three
+  publishing secrets were absent, emitted a `::warning::`, and **succeeded**. Run 31494042124 for
+  tag `v2.0.0` took that branch. The GitHub Release is real and complete — jar, sources, javadoc,
+  uber-jar, POM, SBOM and a `.sha256` for each — so the release half was true and the Central half
+  was not. A warning is invisible under a green check, and for six weeks five documents told a
+  stranger the primary install route worked when the only resolvable version was the one
+  `docs/INSTALL.md` says not to use.
+  FIXED HERE, both halves. The documents now state it plainly and `docs/INSTALL.md` leads with
+  the GitHub-release route; `PublishedProjectFactsMatchTheSourceTest` binds all four documents to
+  the `publishing` block in `.github/quality-baseline.json`, in **both** directions, so they
+  cannot drift back and cannot stay pessimistic after a successful publish either. `release.yml`
+  now **fails** on a tag push when the credentials are absent — artifacts-only must be asked for
+  by name via `workflow_dispatch` with `artifacts_only=true`.
+  WHAT REMAINS is the publish itself, which needs secrets no agent can add.
+- **Acceptance Criteria:** `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_TOKEN`,
+  `MAVEN_GPG_PRIVATE_KEY` and `MAVEN_GPG_PASSPHRASE` are configured; `release.yml` is re-run for
+  `v2.0.0`; the three URLs above return 200; `publishing.currentReleaseOnMavenCentral` is set to
+  `true` and `latestOnMavenCentral` to `2.0.0`; the disclosure sentence is removed from all four
+  documents — the gate fails until it is, and fails again if one is missed. Then restore the
+  Maven Central badge and route 1 in `docs/INSTALL.md`.
+- **Also check when it lands:** the released `2.0.0` sources and javadoc jars are expected to
+  carry four generated classes under a package named `src.test.avro` (see the `publishing` note
+  and the PMD exclusion in `.github/quality-baseline.json`). Central artifacts are immutable, so
+  decide before publishing whether that warrants a note on the release page.
+- **Discovered:** 2026-09-20
+
+---
+
+### [BL-031] Four generated test classes ship in the published sources and javadoc jars
+- **Type:** Fix
+- **Priority:** Medium
+- **Effort:** S, but the choice is about intent, not mechanics
+- **Related Concern:** Published API surface
+- **Affected Files:** `pom.xml` (avro-maven-plugin `test-schemas` execution, ~line 982)
+- **Description:** `avro-maven-plugin`'s `test-schemas` execution runs the **main** `schema` goal
+  with the **main** `<sourceDirectory>` / `<outputDirectory>` parameters pointed at test paths.
+  The goal therefore calls `addCompileSourceRoot()` on `target/generated-test-sources/avro`, so
+  the directory lands on the project's COMPILE source roots and `maven-source-plugin` and
+  `maven-javadoc-plugin` both pick it up. Result: `-sources.jar` carries
+  `src/test/avro/{Address,ProductRecord,ProductSpecs,UserRecord}.java` and `-javadoc.jar` carries
+  the matching HTML, under a package named `src.test.avro`. The main jar is clean.
+  This is consumer-visible: the published API documentation lists four classes that are not part
+  of the library. It affects the released `2.0.0` artifacts too — and Central artifacts are
+  immutable, so that copy cannot be repaired retroactively (see BL-030).
+  The same misconfiguration is what made PMD charge the ratchet 40 violations for generated code;
+  `dcbd30d` excluded them, which was correct, but the exclusion silenced the last automated
+  signal of the underlying cause. Nothing notices it now.
+- **Three repairs, and the choice is a decision about intent:**
+  (a) switch the execution to the `test-schema` goal with `<testSourceDirectory>` /
+  `<testOutputDirectory>`, so the directory lands on the test source roots only;
+  (b) delete the redundant `test-schemas` execution and accept the regenerated classes' changed
+  shape;
+  (c) stop generating Java from `src/test/avro` entirely — nothing references the generated types,
+  and only the `.avsc` files are loaded at runtime, by `AvroSchemaLoaderSecurityBypassTest`.
+- **Acceptance Criteria:** A test asserts that neither the sources jar nor the javadoc jar contains
+  any path under `src/test/`, failing before the fix and passing after. That test also makes the
+  PMD `excludeRoot` redundant rather than load-bearing, so remove it in the same commit and
+  re-record the ceiling if it moves. Re-verify Checkstyle 0 / PMD 273 / SpotBugs 231 in the same
+  run, since the exclusion currently interacts with the cause.
+- **Discovered:** 2026-09-15 (as a note inside `.github/quality-baseline.json`); filed as its own
+  item 2026-09-20 after the adversarial review observed that the exclusion left nothing watching.
 
 ---
 

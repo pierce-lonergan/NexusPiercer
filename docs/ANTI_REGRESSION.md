@@ -33,7 +33,7 @@ lose the other two.
 |---|---|---|---|
 | **Correctness** | Does it still do the right thing? | [`ci.yml`](../.github/workflows/ci.yml) | Any test failure on JDK 17/21, Linux/Windows; coverage below the ratchet; cold-clone build failure; any `.groovy` file or Groovy/Spock coordinate returning |
 | **Quality** | Is the code still maintainable and safe? | [`quality.yml`](../.github/workflows/quality.yml) | High-severity advisories in new dependencies; CodeQL findings; Checkstyle above 0 or PMD/SpotBugs above the recorded ceilings |
-| **Performance** | Is it still fast? | [`benchmark.yml`](../.github/workflows/benchmark.yml) | Allocation +2%; throughput −10% with disjoint CIs |
+| **Performance** | Is it still fast? | [`benchmark.yml`](../.github/workflows/benchmark.yml) | Allocation +2% and throughput −10% with disjoint CIs — **but only against a baseline of the same runner class, and CI's class does not match the committed baseline, so today this axis reports and does not block.** Structural failures (no benchmarks discovered, no `-prof gc` data, an expired waiver) still block. See [BL-026](BACKLOG.md) |
 
 ## Correctness
 
@@ -82,7 +82,16 @@ intermediate strings.
 
 `gc.alloc.rate.norm` — bytes allocated per operation — is derived from thread-allocation
 accounting, not from a clock. It does not move with runner load. That is what lets it carry a 2%
-band where throughput needs 10%, and it is why a shared-vCPU GitHub runner can gate on it honestly.
+band where throughput needs 10%, and it is why a shared-vCPU GitHub runner can gate on it honestly
+**against a baseline recorded on the same runner class**.
+
+It is *machine*-independent, not *JVM*-independent, and that distinction is the whole of BL-026.
+The counter is exact for the JVM that produced it; the bytes it counts are the ones that JVM's
+`javac` and JIT chose to allocate, and those differ across major releases. Measured 2026-09-20 with
+source and dependencies held fixed: one Avro `Schema.Parser().parse(...)` allocates 67,244.98 B/op
+on Temurin 21.0.7 and 67,886.65 B/op on Temurin 17.0.15 — **+0.95% against a 2% tolerance**, half
+the budget consumed before any code change is considered. `compare.py` therefore gates allocation
+only within one runner class.
 
 ### Why throughput uses confidence intervals, not point estimates
 
@@ -199,8 +208,8 @@ waiver missing its expiry fails rather than being silently ignored. All four are
 |---|---|
 | Introduce a syntax error | `ci.yml` blocks the merge |
 | Delete a test to drop coverage 2pp | Coverage gate blocks |
-| Reintroduce a `Pattern.compile` inside a loop | Tier 2 blocks |
-| Reintroduce a per-node map allocation | Tier 1 blocks |
+| Reintroduce a `Pattern.compile` inside a loop | Tier 2 blocks — **on a same-class runner only; would NOT block in CI today** |
+| Reintroduce a per-node map allocation | Tier 1 blocks — **on a same-class runner only; would NOT block in CI today.** Drilled against CI's exact flags on 2026-09-20: +50% allocation across all 43 benchmarks exits 0. See [BL-026](BACKLOG.md) |
 
 Until all four have been run and observed, the correct description of this system is "probably
 works", not "works".
@@ -211,7 +220,7 @@ works", not "works".
 |---|---|
 | CI on every push and PR | Live |
 | JDK 17 + 21, Linux + Windows matrix | Live |
-| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,707 test invocations now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
+| Coverage ratchet at 64% | Live — raised from 58% on 2026-08-11 against a measurement of 65.46% TAKEN THAT DAY, when the suite was 2,333 invocations. It is 2,709 test invocations now; the gate value in `pom.xml` is still `0.64` and is the enforced figure. |
 | Cold-clone reproducibility check | Live |
 | No Groovy anywhere / no Groovy or Spock coordinate | Live — `ci.yml` job `no Groovy anywhere`, on every unfiltered push and PR |
 | ~~Single-Groovy-compile assertion~~ | **Removed 2026-08-11** — superseded by the row above; the plugin it guarded no longer exists, so it could only ever pass |
@@ -220,9 +229,9 @@ works", not "works".
 | SBOM generation | Live |
 | Checkstyle / PMD / SpotBugs | Live, **blocking** against the ceilings in `.github/quality-baseline.json` (0 / 273 / 231). Asserted equal to that file by `PublishedProjectFactsMatchTheSourceTest` — this row said `323` for a pass after the PMD ceiling was lowered in `da29c55`, which is a document explaining the ratchets while publishing a value the ratchet does not use. |
 | OWASP CVE scan | **Reporting only** — two known CVEs to clear first |
-| JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md) |
+| JMH harness + recorded baseline | Live — see [PERFORMANCE.md](PERFORMANCE.md). The baseline is a Windows / JDK 21 recording and `benchmark.yml` runs JDK 17 on `ubuntu-latest`, so it is **not a same-runner-class baseline for CI** |
 | ~~`invokedynamic` ratchet at 7,168~~ | **Downgraded to an observation 2026-08-11** — see below. 413 AS MEASURED ON 2026-08-11, against a `src/main` of ~19,860 lines; it is 24,432 lines now and the figure has not been re-run. Reported, not gated. `docs/PERFORMANCE.md` published 378 for the same control and called it ratcheted; both halves of that were wrong. NOTE, 2026-08-19: this row asserted they "are corrected there" while PERFORMANCE.md still said 378 and still called it a ratchet - a document claiming a fix to another document that had never been applied. Both are corrected now, and the lesson is that a cross-document claim needs the same gate as a number: `PublishedProjectFactsMatchTheSourceTest` binds the ceiling triple, and nothing bound this. |
-| Tier 1 / Tier 2 comparison gate | Live, and **drilled in both directions** |
+| Tier 1 / Tier 2 comparison gate | Implemented and **drilled in both directions**, but **REPORTING ONLY in CI** — `benchmark.yml` passes `--allocation auto`, which resolves to blocking only within one runner class, and CI's class does not match the committed baseline. Measured 2026-09-20: +50% allocation across all 43 benchmarks exits 0 under CI's exact flags. `PublishedProjectFactsMatchTheSourceTest` now binds this row to that flag, because nothing bound the cross-document claim and two documents in one tree disagreed for a pass. See [BL-026](BACKLOG.md) |
 | Gate-failure drills (CI-level) | **Not yet run** — the four in the table above |
 
 ### The gate inventory
@@ -244,7 +253,7 @@ This table named NONE of them until 2026-08-19, while README pointed here for ex
 | `DependencyMapImportTreesAreRealTest` | An `Imports:` tree in `DEPENDENCY_MAP.md` naming an `io.github` import the class no longer has — the sibling of the row above, added after a sweep corrected that file's table and prose and left its two literal import trees saying `FileFinder`. |
 | `ConfigKnobJavadocMatchesItsWiringTest` | A javadoc calling a `JsonFlattenerConfig` knob inert while its getter is read in `src/main`. Each knob is described in five places; 2.1.0 wired four up and left two of the descriptions saying the opposite. |
 | `FlattenerFamilyDiagramTest` | README's family diagram omitting a flattener, drawing a false edge, or mislabelling corpus coverage. |
-| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. Reads EVERY occurrence of `N test invocations` in the three documents, not the first — a pass corrected `CONTRIBUTING.md` line 26 and left line 30 four lines below it stale, and the gate stayed green. Also checks the surefire-XML pair and the stated gap, which moved 532 -> 536 on 2026-08-19. It compares the documents to the number recorded in the baseline, NOT to a run: when the performance pass added three test classes and left the recorded count at 2,689, all four figures were stale together and this gate stayed green. |
+| `PublishedProjectFactsMatchTheSourceTest` | Published ceilings, suite sizes or this very table drifting from the thing they restate. Reads EVERY occurrence of `N test invocations` in the three documents, not the first — a pass corrected `CONTRIBUTING.md` line 26 and left line 30 four lines below it stale, and the gate stayed green. Also checks the surefire-XML pair and the stated gap, which moved 532 -> 536 on 2026-08-19. It compares the documents to the number recorded in the baseline, NOT to a run: when the performance pass added three test classes and left the recorded count at 2,689, all four figures were stale together and this gate stayed green. **Two bindings added 2026-09-20.** (1) The four documents that route a reader to Maven Central are bound to the `publishing` block in `.github/quality-baseline.json`, in BOTH directions — `2.0.0` was documented as installable from Central for six weeks while Central had only `1.0.8`, because `release.yml` succeeded in artifacts-only mode with a `::warning::` nobody sees under a green check. (2) The performance rows in this document are bound to the `--allocation` flag `benchmark.yml` actually passes, and the README is asserted not to call the allocation counter machine-independent. Both are offline string checks over recorded facts, which is the technique's ceiling: they catch a document disagreeing with a value in the tree, never a document that is merely wrong. |
 | `ChangelogPreambleMatchesItsOwnSectionTest` | The changelog's "N places" summary disagreeing with the number of items beneath it, **and the throw sentence disagreeing with itself** — `across N items` against the count of distinct items it names, and its restatement below the section heading against its own leading count. Both had drifted while the first three checks stayed green, because none of them compared the preamble to itself. |
 | `PublishedBenchmarkNumbersMatchTheBaselineTest` | A benchmark figure in `docs/PERFORMANCE.md` disagreeing with `benchmarks/results/baseline.json`, the file `compare.py` actually reads. Checks all 24 rows of the results table on three columns, the throughput-only batch sentence, and the pass table's "after" column within a measured 0.5% reproduction band. Written because the pass published `consolidate_deepNarrow` at 13,504 - the measurement from the iteration it had just REVERTED - against a recorded 13,632, and nothing bound the two. |
 | `FileFinderBaselineFootprintTest` | The published size of `FileFinder`'s released API footprint drifting from the baseline file. |

@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/pierce-lonergan/NexusPiercer/actions/workflows/ci.yml/badge.svg)](https://github.com/pierce-lonergan/NexusPiercer/actions/workflows/ci.yml)
 [![Quality](https://github.com/pierce-lonergan/NexusPiercer/actions/workflows/quality.yml/badge.svg)](https://github.com/pierce-lonergan/NexusPiercer/actions/workflows/quality.yml)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.pierce-lonergan/nexus-piercer.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.pierce-lonergan/nexus-piercer)
+[![Latest release](https://img.shields.io/github/v/release/pierce-lonergan/NexusPiercer?label=release)](https://github.com/pierce-lonergan/NexusPiercer/releases/latest)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://adoptium.net/)
 
@@ -67,6 +67,27 @@ If you need to know whether *your* data survives, read that document before adop
 
 ## Install
 
+> **`2.0.0` is not on Maven Central.** It is released — tagged, built and attached to the
+> [GitHub Release](https://github.com/pierce-lonergan/NexusPiercer/releases/latest) with jar,
+> sources, javadoc, an uber-jar, a POM, an SBOM and a `.sha256` for each — but the publishing
+> secrets were absent when the release ran, so nothing reached Central. The only version a
+> resolver can fetch from Central is **1.0.8**, which you should not use (see below). Verified
+> 2026-09-20; tracked as [BL-030](docs/BACKLOG.md).
+
+**Install from the GitHub release JAR** — this is the route that works today:
+
+```bash
+VERSION=2.0.0
+curl -LO https://github.com/pierce-lonergan/NexusPiercer/releases/download/v${VERSION}/nexus-piercer-${VERSION}.jar
+curl -LO https://github.com/pierce-lonergan/NexusPiercer/releases/download/v${VERSION}/nexus-piercer-${VERSION}.jar.sha256
+sha256sum -c nexus-piercer-${VERSION}.jar.sha256
+mvn install:install-file -Dfile=nexus-piercer-${VERSION}.jar \
+  -DgroupId=io.github.pierce-lonergan -DartifactId=nexus-piercer \
+  -Dversion=${VERSION} -Dpackaging=jar
+```
+
+Then declare the ordinary dependency:
+
 ```xml
 <dependency>
     <groupId>io.github.pierce-lonergan</groupId>
@@ -82,8 +103,8 @@ Requires **Java 17+**. Spark integration is built against **Spark 3.5.x / Scala 
 > `ArrayCardinalityException` or `KeyCollisionException`. Check your version before reaching for
 > them.
 
-No Maven Central access? Three verified routes that need no Central at all — a release jar, a
-source build, and a fully air-gapped install — are documented in
+Four routes — the release jar above, a source build, a fully air-gapped install, and Maven Central
+once 2.0.0 is published there — are documented step by step in
 [docs/INSTALL.md](docs/INSTALL.md), including a self-contained shaded jar.
 
 ## Quick start
@@ -359,7 +380,10 @@ deprecated in 2.1.0.
 - `SchemaFiles` path-traversal, null-byte and size enforcement on every schema read
   (`FileFinder` is deprecated in 2.1.0; see the note below for what its guards did and did
   not cover in 2.0.0)
-- JMH benchmark harness with allocation-based (machine-independent) regression gates
+- JMH benchmark harness with allocation-based regression comparison, gated against a baseline
+  recorded on the same JDK and OS. CI's runner class does not match the committed baseline,
+  so the nightly currently reports rather than blocks — see
+  [docs/ANTI_REGRESSION.md](docs/ANTI_REGRESSION.md) and BL-026
 - Ratcheted Checkstyle / PMD / SpotBugs ceilings that may only decrease
 - CycloneDX SBOM, OWASP dependency-check, CodeQL, cold-clone build verification and a pinned
   `project.build.outputTimestamp` (no workflow compares two builds byte for byte, and

@@ -51,6 +51,10 @@ class PublishedProjectFactsMatchTheSourceTest {
     private static final Path ANTI_REGRESSION = Paths.get("docs/ANTI_REGRESSION.md");
     private static final Path CONTRIBUTING = Paths.get("CONTRIBUTING.md");
     private static final Path INSTALL = Paths.get("docs/INSTALL.md");
+    private static final Path README = Paths.get("README.md");
+    private static final Path CHANGELOG = Paths.get("CHANGELOG.md");
+    private static final Path SUPPORT = Paths.get("SUPPORT.md");
+    private static final Path BENCHMARK_WORKFLOW = Paths.get(".github/workflows/benchmark.yml");
 
     private static final Pattern CEILINGS = Pattern.compile("\\((\\d+)\\s*/\\s*(\\d+)\\s*/\\s*(\\d+)\\)");
 
@@ -158,7 +162,137 @@ class PublishedProjectFactsMatchTheSourceTest {
                 .isEqualTo(Integer.parseInt(gap.group(1)));
     }
 
-    // ------------------------------------------------------------------ 3. the gate inventory
+    // ------------------------------------------------------------------ 3. the install route
+
+    /**
+     * Every document that routes a reader to Maven Central agrees with what Central actually has.
+     *
+     * <p>2.0.0 was tagged, built and attached to a GitHub Release, and never reached Central:
+     * {@code release.yml} falls back to {@code mode=artifacts-only} when the three publishing
+     * secrets are absent, emits a {@code ::warning::} and still succeeds. A warning is invisible
+     * under a green check, so five documents went on telling a stranger that the primary install
+     * route worked when the only version a resolver could get was 1.0.8 - the exact version
+     * {@code docs/INSTALL.md} tells them not to use.</p>
+     *
+     * <p>The check is offline by construction. It binds the documents to a measured fact recorded
+     * in {@code .github/quality-baseline.json} rather than to the network, because a gate that
+     * needs {@code repo1.maven.org} to be reachable is a gate that goes yellow on a train.</p>
+     *
+     * <p>IT BINDS IN BOTH DIRECTIONS. When the flag is false every document must carry the
+     * disclosure; when it flips to true every document must have dropped it. A one-directional
+     * version of this check would let the documents stay permanently pessimistic after a
+     * successful publish, which is the same drift wearing the opposite sign.</p>
+     */
+    @Test
+    @DisplayName("no document offers Central as a route for a version Central does not have")
+    void publishedInstallRoutesMatchTheRecordedCentralState() throws IOException {
+        JsonNode baseline = new ObjectMapper().readTree(Files.readString(BASELINE, StandardCharsets.UTF_8));
+        JsonNode publishing = baseline.get("publishing");
+        assertThat(publishing)
+                .as(".github/quality-baseline.json no longer records a 'publishing' block. THE "
+                        + "ANCHOR MUST BIND: deleting it would make this gate stop measuring "
+                        + "whether the documented install route actually resolves.")
+                .isNotNull();
+
+        boolean onCentral = publishing.get("currentReleaseOnMavenCentral").asBoolean();
+        String disclosure = publishing.get("unpublishedDisclosure").asText();
+        assertThat(disclosure).as("the disclosure sentence must not be empty").isNotBlank();
+
+        // WHITESPACE-TOLERANT, for the reason allIntsBefore already documents below: the sentence
+        // wraps, and a line break between "not on" and "Maven Central" is a formatting choice a
+        // Markdown editor makes without thinking. The first version of this gate matched the
+        // literal and reported SUPPORT.md as non-compliant purely because the phrase spanned two
+        // lines - a gate that a reflow can switch off is the failure this class exists to prevent.
+        Pattern spaced = Pattern.compile(
+                String.join("\\s+", java.util.Arrays.stream(disclosure.trim().split("\\s+"))
+                        .map(Pattern::quote).toArray(String[]::new)));
+
+        List<String> wrong = new ArrayList<>();
+        for (Path doc : List.of(README, INSTALL, CHANGELOG, SUPPORT)) {
+            if (spaced.matcher(read(doc)).find() == onCentral) {
+                wrong.add(doc.toString());
+            }
+        }
+
+        assertThat(wrong)
+                .as(onCentral
+                        ? "quality-baseline.json records the current release AS PUBLISHED to "
+                                + "Maven Central, but these documents still carry the "
+                                + "\"%s\" disclosure. Publishing is only half the change - the "
+                                + "documents that were corrected while it was unpublished have to "
+                                + "be corrected back, or the project now understates itself."
+                        : "quality-baseline.json records that the current release is NOT on Maven "
+                                + "Central, and these documents do not say so. Each one routes a "
+                                + "stranger to a coordinate that 404s on first use. Add the "
+                                + "sentence \"%s\" where the document offers the Central route, or "
+                                + "publish the release and flip currentReleaseOnMavenCentral.",
+                        disclosure)
+                .isEmpty();
+    }
+
+    /**
+     * The documented strength of the performance gate matches the flag the workflow actually runs.
+     *
+     * <p>{@code compare.py} resolves {@code --allocation auto} to blocking only when the baseline
+     * and the current report share a runner class. The committed baseline is a Windows / JDK 21
+     * recording and {@code benchmark.yml} installs JDK 17 on {@code ubuntu-latest}, so the
+     * cross-runner branch is the only branch CI can take and neither tier blocks there today.
+     * Measured on 2026-09-20 by running {@code compare.py} with the workflow's exact flags against
+     * a report with every {@code gc.alloc.rate.norm} inflated 50%: exit 0, "No blocking
+     * regressions detected across 43 benchmarks". The same report with the baseline's own runner
+     * metadata exits 1. The gate is correctly built and correctly scoped; what had drifted was
+     * every document describing it.</p>
+     *
+     * <p>Nothing bound the cross-document claim, which is the lesson {@code ANTI_REGRESSION.md}
+     * already records against itself two rows above the one this fixes.</p>
+     */
+    @Test
+    @DisplayName("the documented performance tier matches benchmark.yml's --allocation flag")
+    void documentedPerformanceTierMatchesTheWorkflowFlag() {
+        String workflow = read(BENCHMARK_WORKFLOW);
+        Matcher mode = Pattern.compile("--allocation\\s+(auto|blocking|advisory)").matcher(workflow);
+        assertThat(mode.find())
+                .as(".github/workflows/benchmark.yml no longer passes an --allocation mode to "
+                        + "compare.py. THE ANCHOR MUST BIND: without it this gate cannot tell "
+                        + "whether the documented strength is the enforced strength.")
+                .isTrue();
+
+        String doc = read(ANTI_REGRESSION);
+        // The marker the corrected rows share. Deliberately a phrase, not a row index: rows move.
+        boolean discloses = doc.contains("runner class") && doc.contains("BL-026");
+
+        if ("auto".equals(mode.group(1))) {
+            assertThat(discloses)
+                    .as("benchmark.yml passes --allocation auto and the committed baseline was "
+                            + "recorded on a different runner class from CI's, so NEITHER tier "
+                            + "blocks a merge today. docs/ANTI_REGRESSION.md is where README sends "
+                            + "a reader for 'how the gates and ratchets work' and it must say so: "
+                            + "mention the runner-class scoping and cross-reference BL-026, so the "
+                            + "row and the backlog item cannot drift apart again.")
+                    .isTrue();
+        } else {
+            assertThat(discloses)
+                    .as("benchmark.yml now passes --allocation %s, so the runner-class caveat and "
+                            + "the BL-026 cross-reference in docs/ANTI_REGRESSION.md describe a "
+                            + "state that no longer exists. A gate documented as weaker than it is "
+                            + "is the same defect as one documented as stronger.", mode.group(1))
+                    .isFalse();
+        }
+
+        // The README's one-line capability list is the copy a stranger actually reads, and it
+        // asserted the premise the scoping exists to deny. docs/PERFORMANCE.md states it
+        // correctly ("machine-independent, NOT JVM-independent"); the README said it flatly.
+        assertThat(read(README))
+                .as("README.md still calls the allocation counter machine-independent. The counter "
+                        + "is exact for the JVM that produced it and moves across JDK majors - "
+                        + "measured at +0.95%% for one Avro Schema.Parser().parse() between "
+                        + "Temurin 21.0.7 and 17.0.15, against a 2%% tolerance. benchmarks/"
+                        + "README.md retracted this premise; the README is the copy the public "
+                        + "reads and must not still assert it.")
+                .doesNotContain("machine-independent");
+    }
+
+    // ------------------------------------------------------------------ 4. the gate inventory
 
     @Test
     @DisplayName("ANTI_REGRESSION names every gate in the gates package")

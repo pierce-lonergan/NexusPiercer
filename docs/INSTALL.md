@@ -1,42 +1,30 @@
 # Installing NexusPiercer
 
-Four routes, in order of convenience. **Route 1 is the one you want** — 2.0.0 is released on Maven
-Central. The other three exist for contributors, auditors and locked-down networks, and all three
-work without Central.
+Four routes, in order of convenience. **Route 1 is the one you want** — it needs nothing but
+`curl` and a local Maven repository, and it is the route that resolves today.
+
+> **2.0.0 is not on Maven Central.** The release is real: tag `v2.0.0`, a GitHub Release carrying
+> jar, sources, javadoc, uber-jar, POM, SBOM and a `.sha256` for each. But `release.yml` falls back
+> to an artifacts-only mode when the publishing secrets are absent, and that is the branch the
+> release run took — so Central never received it. The only version Central can serve is **1.0.8**.
+> Verified against `repo1.maven.org` on 2026-09-20: the `2.0.0` directory, POM and JAR all return
+> 404. Route 4 below is correct the moment that changes; until then it does not resolve.
 
 > **Versions.** The current release is **2.0.0**. Development on `main` is `2.1.0-SNAPSHOT`;
 > throughout this document that snapshot version is written `${nexus.version}` wherever it appears
 > in a locally built artifact's filename, so that a version bump cannot silently invalidate the
 > instructions. Substitute the value in the root `pom.xml`.
 
-| Route | Needs Central? | Needs network? | Best for |
-|---|---|---|---|
-| [1. Maven Central](#1-maven-central) | Yes | Yes | **Almost everyone** |
-| [2. GitHub release JAR](#2-github-release-jar) | No | Yes, once | No Central access |
-| [3. Build from source](#3-build-from-source) | No | Yes, for deps | Contributors, auditors |
-| [4. Fully offline / air-gapped](#4-fully-offline--air-gapped) | No | **No** | Locked-down networks |
+| Route | Needs Central? | Needs network? | Best for | Works today? |
+|---|---|---|---|---|
+| [1. GitHub release JAR](#1-github-release-jar) | No | Yes, once | **Almost everyone** | **Yes** |
+| [2. Build from source](#2-build-from-source) | No | Yes, for deps | Contributors, auditors | Yes |
+| [3. Fully offline / air-gapped](#3-fully-offline--air-gapped) | No | **No** | Locked-down networks | Yes |
+| [4. Maven Central](#4-maven-central) | Yes | Yes | Nobody yet | **No — 2.0.0 is not published** |
 
 ---
 
-## 1. Maven Central
-
-```xml
-<dependency>
-    <groupId>io.github.pierce-lonergan</groupId>
-    <artifactId>nexus-piercer</artifactId>
-    <version>2.0.0</version>
-</dependency>
-```
-
-> **Do not use 1.0.8.** It is still on Central and it carries two defects that 2.0.0 fixes.
-> Flattened keys are not injective, so a field named `user_id` collides with the nested path
-> `user` → `id` and one silently overwrites the other; and reconstruction of ordinary snake_case
-> field names can exhaust the heap. Both are **fixed and released in 2.0.0**. See
-> [SECURITY.md](../SECURITY.md), which also lists the defects that remain open in 2.0.x.
-
----
-
-## 2. GitHub release JAR
+## 1. GitHub release JAR
 
 Download from the [Releases page](https://github.com/pierce-lonergan/NexusPiercer/releases), then
 install into your local repository:
@@ -58,11 +46,11 @@ sha256sum -c nexus-piercer-2.0.0.jar.sha256
 ```
 
 Note that the plain jar does **not** carry transitive dependencies. If you are not using Maven or
-Gradle to resolve them, use the shaded jar from route 3 instead.
+Gradle to resolve them, use the shaded jar from route 2 instead.
 
 ---
 
-## 3. Build from source
+## 2. Build from source
 
 Requires **JDK 17+**. Nothing else — the Maven wrapper is committed, so no Maven installation is
 needed.
@@ -85,7 +73,7 @@ version from the root `pom.xml` — building `main` gives you the snapshot, not 
 </dependency>
 ```
 
-Run the full suite (2,707 tests, about 5 minutes — 2,707 test invocations on Maven's summary line)
+Run the full suite (2,709 tests, about 5 minutes — 2,709 test invocations on Maven's summary line)
 if you want to verify the build yourself:
 
 ```bash
@@ -113,7 +101,7 @@ java -cp nexus-piercer-${nexus.version}-uber.jar:your-app.jar com.example.Main
 
 ---
 
-## 4. Fully offline / air-gapped
+## 3. Fully offline / air-gapped
 
 No network at build or run time. Two machines: one with connectivity, one without.
 
@@ -154,6 +142,29 @@ if anything tries to resolve remotely, `-o` turns that into a hard failure rathe
 
 ---
 
+## 4. Maven Central
+
+> **THIS ROUTE DOES NOT RESOLVE TODAY.** 2.0.0 is not on Maven Central — see the note at the
+> top of this document. The snippet below is what you will use once it is published, and is
+> kept here so the coordinate is on record. Until then use route 1.
+
+```xml
+<dependency>
+    <groupId>io.github.pierce-lonergan</groupId>
+    <artifactId>nexus-piercer</artifactId>
+    <version>2.0.0</version>
+</dependency>
+```
+
+> **Do not use 1.0.8.** It is not merely still on Central — it is *all* of Central for this
+> artifact, so a resolver left to itself will pick it. It carries two defects that 2.0.0 fixes.
+> Flattened keys are not injective, so a field named `user_id` collides with the nested path
+> `user` → `id` and one silently overwrites the other; and reconstruction of ordinary snake_case
+> field names can exhaust the heap. Both are **fixed and released in 2.0.0**. See
+> [SECURITY.md](../SECURITY.md), which also lists the defects that remain open in 2.0.x.
+
+---
+
 ## Which Java version?
 
 Built and tested on **JDK 17 and 21**, Linux and Windows, on every commit. Targets Java 17
@@ -168,8 +179,9 @@ Spark integration is compiled against **Spark 3.5.x / Scala 2.12** and those dep
 
 **`Could not resolve io.github.pierce-lonergan:nexus-piercer:2.1.0-SNAPSHOT`**
 Snapshots are never published to Central — that coordinate only exists in a local `~/.m2` after you
-have run route 3's `./mvnw install`. Either run it, or depend on the released `2.0.0` from Central
-(route 1).
+have run route 2's `./mvnw install`. Either run it, or install the released `2.0.0` jar from the
+GitHub release (route 1) — `2.0.0` is not on Maven Central, so depending on it as an ordinary
+coordinate will not resolve either.
 
 **`UnsupportedClassVersionError`**
 You are on a JDK below 17. Check with `java -version`.

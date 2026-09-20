@@ -7,8 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Version on `main` is `2.1.0-SNAPSHOT`. `2.0.0` is released and staged on Maven Central and `main`
-must not sit on a released coordinate.
+Version on `main` is `2.1.0-SNAPSHOT`, and `main` must not sit on a released coordinate. `2.0.0`
+is released as a git tag and a GitHub Release, but **`2.0.0` is not on Maven Central** and nothing
+is staged there either — the release run took `release.yml`'s artifacts-only branch because the
+publishing secrets were absent, and that branch succeeds with only a warning. Install via
+[`docs/INSTALL.md`](docs/INSTALL.md) route 1. Tracked as BL-030.
 
 The public API surface is additive-only and enforced by
 `PublicApiIsAdditiveOnlySinceReleaseTest` against a baseline in `src/test/resources`. **OUTPUT
@@ -1003,6 +1006,50 @@ clear the 2.0.0 additive-only gate.
   only object the API could hand out. The two halves are now stated separately.
 
 ### Documentation
+
+- **`2.0.0` is not on Maven Central, and five documents said it was.** Verified against
+  `repo1.maven.org`: the `2.0.0` directory, POM and JAR all return 404, while `1.0.8`'s JAR
+  returns 200 and `maven-metadata.xml` reads `<latest>1.0.8</latest>`. That metadata file is what
+  the README's shields.io badge read, so the badge rendered **1.0.8 directly above an install
+  block that said 2.0.0** — and `1.0.8` is the exact version `docs/INSTALL.md` tells readers not
+  to use. Cause: `release.yml` fell back to an artifacts-only mode when the publishing secrets
+  were absent, emitted a `::warning::`, and **succeeded**; tag `v2.0.0` took that branch. The
+  GitHub Release is real and complete, so the release half was true and the Central half was not.
+  `README.md`, `docs/INSTALL.md`, `CHANGELOG.md` and `SUPPORT.md` now say so, `docs/INSTALL.md`
+  leads with the GitHub-release route and demotes Central to route 4, and the badge points at the
+  GitHub release. Tracked as BL-030.
+- **The performance tier was published as blocking when it cannot block.** `benchmark.yml` passes
+  `--allocation auto`, which `compare.py` resolves to blocking only when baseline and current
+  share a runner class; the committed baseline is a Windows / JDK 21 recording and CI is
+  Linux / JDK 17. Drilled three ways: +50% allocation across all 43 benchmarks exits **0** under
+  CI's exact flags, exits 1 with the baseline's own runner metadata, and exits 1 under
+  `--allocation blocking`. The gate is correctly built and correctly scoped — four rows of
+  `docs/ANTI_REGRESSION.md`, two comment blocks in `benchmark.yml` and one README capability line
+  described it wrongly, including a machine-independence claim the same commit series had already
+  retracted in `benchmarks/README.md`. All corrected; see BL-026.
+
+### Security
+
+- **jqwik is pinned to 1.9.3.** `jqwik-engine` 1.10.1 prints two sentences of vendor-chosen,
+  agent-directed text to `System.out` on every test class — 209 times in one `verify` run.
+  Disassembly of both jars shows the method and its string constants are absent from 1.9.3 and
+  present in 1.10.1. **The message cannot be disabled:** both sentences print unconditionally, and
+  the `hideAntiAiClause` parameter (default `false`) only controls whether ANSI erase-line
+  sequences print afterwards — an opt-**in** to concealment, not an opt-out from the message. It
+  arrived through an unattended group bump. Pinned in `pom.xml`, ignored in
+  `.github/dependabot.yml` so it cannot return quietly, and recorded in `SECURITY.md`. BL-028.
+
+### Added
+
+- **`release.yml` refuses to degrade silently.** A tag push with no Central credentials now
+  **fails** instead of succeeding with a warning. Artifacts-only must be requested by name via
+  `workflow_dispatch` with `artifacts_only=true` (or `dry_run`, which publishes nothing).
+- **Two new bindings in `PublishedProjectFactsMatchTheSourceTest`.** The four documents that route
+  a reader to Maven Central are bound to a recorded `publishing` block in
+  `.github/quality-baseline.json`, in **both** directions — so they cannot drift back, and cannot
+  stay pessimistic after a successful publish either. The performance rows in
+  `docs/ANTI_REGRESSION.md` are bound to the `--allocation` flag `benchmark.yml` actually passes.
+  Both failed before the corrections and pass after.
 
 - **[BL-009] is closed: README carries a flattener-family diagram, and it is gated.** Three lanes
   by what each class flattens — DATA, SCHEMA only, and SCHEMA plus per-record casting — with each

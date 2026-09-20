@@ -149,7 +149,34 @@
         <snakeyaml.version>2.2</snakeyaml.version>
         <slf4j.version>2.0.18</slf4j.version>
         <lombok.version>1.18.30</lombok.version>
-        <jqwik.version>1.10.1</jqwik.version>
+        <!--
+          PINNED TO 1.9.3 ON PURPOSE. DO NOT BUMP WITHOUT READING THIS.
+
+          jqwik-engine 1.10.1 added JqwikExecutor.printMessageForCodingAgents(), which prints two
+          sentences of vendor-chosen text to System.out on every test class. Verified by
+          disassembling both jars from the local repository on 2026-09-20: the method and the
+          string constants are absent from 1.9.3 and present in 1.10.1, and the text appeared 209
+          times in one `./mvnw -o clean verify` log.
+
+          THE MESSAGE CANNOT BE TURNED OFF. The bytecode prints both sentences unconditionally;
+          the `hideAntiAiClause` configuration parameter (default false) only controls whether two
+          ANSI erase-line sequences are printed AFTERWARDS. It is an opt-IN to concealment, not an
+          opt-out from the message: setting it true wipes the text from an interactive terminal
+          while leaving it in piped or captured output, which is what a CI log is. Both the
+          adversarial-review finding and the first draft of BL-028 described it as an opt-out;
+          the disassembly says otherwise, which is why this is pinned rather than configured.
+
+          The decision is about the build, not about the message's content. A test-scope
+          dependency that writes 209 lines of unsuppressible vendor text into build output
+          degrades the signal every operator reads, and a dependency that ships a mechanism for
+          hiding its own output from the operator is a supply-chain property to accept on purpose
+          rather than inherit from a Dependabot bump. This project's jqwik usage is six test files
+          on the stable net.jqwik.api surface, so the pin costs nothing.
+
+          Dependabot is told to ignore jqwik in .github/dependabot.yml so this cannot silently
+          return. See SECURITY.md and BL-028.
+        -->
+        <jqwik.version>1.9.3</jqwik.version>
         <iceberg.version>1.7.1</iceberg.version>
 
         <!-- Supply-chain tooling (see the `security` profile) -->

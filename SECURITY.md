@@ -83,6 +83,44 @@ magic-string sentinels with a private holder type. Asserted as present by
 **Until these are fixed, treat schema paths and JSON documents passed to this library as trusted
 input.** If you must accept untrusted input, validate and bound it before it reaches NexusPiercer.
 
+## Supply-chain decisions on record
+
+Decisions taken deliberately about what this project's build is allowed to pull in. They are
+recorded here because the alternative is re-litigating them silently at the next bot PR.
+
+### jqwik is pinned to 1.9.3
+
+`net.jqwik.engine` **1.10.1** added `JqwikExecutor.printMessageForCodingAgents()`, which prints
+two sentences of vendor-chosen text to `System.out` on every test class. Verified on 2026-09-20 by
+disassembling both jars out of the local repository: the method and its string constants are
+**absent from 1.9.3 and present in 1.10.1**. In one `./mvnw -o clean verify` the text appeared
+**209 times**, interleaved with `[INFO] Running ...` lines.
+
+Two things worth stating precisely, because the first descriptions of this — including our own
+backlog entry — got them wrong:
+
+- **The message cannot be turned off.** The bytecode prints both sentences unconditionally. The
+  `hideAntiAiClause` configuration parameter (default `false`) only controls whether two ANSI
+  erase-line sequences are printed *afterwards*. It is an opt-**in** to concealment, not an
+  opt-out from the message.
+- **Setting that flag makes things worse, not better.** It wipes the text from an interactive
+  terminal while leaving it in piped or captured output — which is what a CI log, or a coding
+  agent's tool output, actually is.
+
+The text instructs any reading agent to disregard its instructions and to ignore all jqwik
+results. It was treated as data, not as instruction; jqwik's results are counted in this
+project's suite totals exactly as reported.
+
+**The decision is about the build, not about the message's content.** A test-scope dependency that
+writes unsuppressible vendor text into build output degrades the signal every operator reads, and
+one that ships a mechanism for hiding its own output from the operator is a property to accept on
+purpose rather than inherit from an unattended group bump — which is how it arrived (`bc3371c`,
+Dependabot #15). This project's jqwik usage is six test files on the stable `net.jqwik.api`
+surface, so the pin costs nothing.
+
+Enforced in two places: `<jqwik.version>` in `pom.xml`, and a `net.jqwik:*` ignore rule in
+`.github/dependabot.yml` so the bot cannot re-land it quietly. Tracked as BL-028.
+
 ## Scope
 
 In scope: anything in `src/main` that ships in the published artifact.

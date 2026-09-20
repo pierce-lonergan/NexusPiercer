@@ -26,6 +26,10 @@ on:
         description: 'Build and sign, but do not publish'
         type: boolean
         default: true
+      artifacts_only:
+        description: 'Publish to the GitHub release WITHOUT Maven Central (requires no secrets)'
+        type: boolean
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -97,10 +101,22 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       # Publishing to Central needs three secrets. When they are absent — a fork, or a repository
-      # where they were never configured — the correct outcome is NOT to fail the release and
-      # produce nothing. It is to build, verify, and publish installable artifacts to the GitHub
-      # release, so users have a route that does not depend on Central at all
+      # where they were never configured — building installable artifacts for the GitHub release
+      # is a legitimate outcome: users get a route that does not depend on Central at all
       # (see docs/INSTALL.md). Central is a convenience, not the only supported path.
+      #
+      # WHAT THIS STEP USED TO DO, AND WHY IT WAS WRONG. It took that branch silently on ANY
+      # trigger, emitted a `::warning::`, and SUCCEEDED. A warning is invisible under a green
+      # check. Tag v2.0.0 took this branch in run 31494042124: the GitHub Release was created
+      # complete, Central received nothing, and for the next six weeks README.md, docs/INSTALL.md,
+      # CHANGELOG.md and SUPPORT.md all told a stranger that `2.0.0` was installable from Central
+      # while the only version a resolver could fetch was 1.0.8 — the exact version INSTALL.md
+      # tells them not to use. Nobody was notified, because nothing failed.
+      #
+      # So a TAG PUSH now refuses to degrade. Artifacts-only is still available, but it has to be
+      # asked for by name via workflow_dispatch with artifacts_only=true, which makes it a
+      # decision someone took rather than a fallback nobody saw. PublishedProjectFactsMatchThe
+      # SourceTest gates the other half: the documents must agree with the recorded Central state.
       - name: Detect available publishing credentials
         id: creds
         shell: bash
@@ -108,14 +124,20 @@ jobs:
           HAS_USER: ${{ secrets.MAVEN_CENTRAL_USERNAME != '' }}
           HAS_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN != '' }}
           HAS_GPG: ${{ secrets.MAVEN_GPG_PRIVATE_KEY != '' }}
+          # A dry run is included because it publishes nothing at all, so it cannot produce the
+          # drift this guard exists to stop - and refusing it would take away the one way to
+          # exercise this workflow on a repository that has no secrets yet.
+          ARTIFACTS_ONLY_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && (inputs.artifacts_only || inputs.dry_run) }}
         run: |
           if [[ "${HAS_USER}" == "true" && "${HAS_TOKEN}" == "true" && "${HAS_GPG}" == "true" ]]; then
             echo "mode=central" >> "$GITHUB_OUTPUT"
             echo "Central credentials present; will sign and publish."
-          else
-            echo "mode=artifacts-only" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${ARTIFACTS_ONLY_REQUESTED}" != "true" ]]; then
             {
-              echo "### Publishing to Maven Central: SKIPPED"
+              echo "### Release FAILED: Central credentials absent"
               echo
               echo "| secret | present |"
               echo "|---|---|"
@@ -123,11 +145,32 @@ jobs:
               echo "| MAVEN_CENTRAL_TOKEN | ${HAS_TOKEN} |"
               echo "| MAVEN_GPG_PRIVATE_KEY | ${HAS_GPG} |"
               echo
-              echo "Building unsigned, installable artifacts for the GitHub release instead."
-              echo "Consumers install via \`docs/INSTALL.md\` route 2, 3 or 4."
+              echo "A tag push means \"publish this release\". Producing a GitHub-release-only"
+              echo "build under that trigger is how \`2.0.0\` came to be documented as available"
+              echo "on Central while Central had never received it."
+              echo
+              echo "Either add the three secrets and re-run, or dispatch this workflow manually"
+              echo "with **artifacts_only = true** to say on purpose that this is a"
+              echo "GitHub-release-only build."
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Central credentials absent — publishing installable artifacts to the GitHub release only."
+            echo "::error::Central credentials absent on a '${GITHUB_EVENT_NAME}' trigger. Refusing to publish a release that the documentation would describe as on Maven Central. Dispatch with artifacts_only=true to build GitHub-release artifacts deliberately."
+            exit 1
           fi
+
+          echo "mode=artifacts-only" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Publishing to Maven Central: SKIPPED (requested)"
+            echo
+            echo "\`artifacts_only=true\` was passed explicitly, so this is a GitHub-release-only"
+            echo "build by choice rather than by fallback."
+            echo
+            echo "Building unsigned, installable artifacts for the GitHub release."
+            echo "Consumers install via \`docs/INSTALL.md\` route 1, 2 or 3."
+            echo
+            echo "**If this is a real release, update \`publishing\` in"
+            echo "\`.github/quality-baseline.json\`** — the documentation gate reads it."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Artifacts-only release requested; Maven Central will NOT receive this version."
 
       - name: Resolve GPG key id
         id: gpg

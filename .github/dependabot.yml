@@ -43,6 +43,15 @@ updates:
       # compatibility matrix. Deliberate, hand-planned work — not a bot PR.
       - dependency-name: 'org.apache.spark:*'
         update-types: [version-update:semver-major]
+      # jqwik is pinned to 1.9.3 by decision, not by inertia. 1.10.1 prints two sentences of
+      # unsuppressible vendor text to System.out on every test class — 209 times in one verify
+      # log — and ships a flag that hides that text from an interactive terminal while leaving it
+      # in captured output. It arrived here through an unattended group bump (bc3371c, #15) and
+      # was found by reading ordinary test output, which is exactly how it should NOT have to be
+      # found. The pin is the enforcement; this rule stops the bot re-landing it silently.
+      # Removing this entry is a decision someone must take deliberately — see the comment on
+      # jqwik.version in pom.xml, SECURITY.md, and BL-028.
+      - dependency-name: 'net.jqwik:*'
       # REMOVED 2026-08-11: the 'org.apache.groovy:*' major-update pin. It existed because "the
       # Groovy sources are slated for a port to Java. Pin until that resolves." That port has
       # resolved — the toolchain, the runtime and Spock are all gone — so the rule was pinning a

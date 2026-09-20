@@ -12,8 +12,9 @@ Three documents answer most questions faster than an issue will:
   It is generated from the corpus that runs on every build, so it cannot drift from the code.
 - **"Why doesn't it do X?"** → the **"Still true today"** list in [`README.md`](README.md). These
   are the known limitations, stated plainly rather than buried.
-- **"How do I install it without Maven Central?"** → [`docs/INSTALL.md`](docs/INSTALL.md), which
-  documents three routes that need no Central access.
+- **"How do I install it?"** → [`docs/INSTALL.md`](docs/INSTALL.md). Note that **2.0.0 is not on
+  Maven Central**; the release lives on the GitHub Releases page, and three of the four documented
+  routes need no Central access at all.
 
 Note that the README describes some behaviour marked **2.1.0**, which is on `main` and not yet
 published. If a type or option named there does not exist for you, check your version first —
